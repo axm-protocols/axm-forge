@@ -12,10 +12,10 @@ from axm_init.core.checker import (
     SKIP_FOR_MEMBER,
     SKIP_FOR_WORKSPACE,
     CheckEngine,
-    _get_check_name,
-    _stamp_canonical_name,
     format_agent,
     format_json,
+    get_check_name,
+    stamp_canonical_name,
 )
 from axm_init.models.check import CheckResult, ProjectResult
 
@@ -152,7 +152,7 @@ def _result_with_failure() -> ProjectResult:
 # --- AXM-2046: single canonical check-name convention --------------------
 #
 # SKIP / REDIRECT / exclude / display all key off the SAME string
-# (``_get_check_name``). These tests guard that unification: the displayed
+# (``get_check_name``). These tests guard that unification: the displayed
 # name agrees with the inferred name (AC1), excluding by that name actually
 # skips the check (AC2), and every SKIP/REDIRECT entry still resolves to a
 # real check after unification (AC4).
@@ -164,13 +164,13 @@ def _all_check_fns() -> list[Callable[[Path], CheckResult]]:
 
 
 def test_check_name_single_convention() -> None:
-    """AC1: stamped CheckResult.name agrees with _get_check_name (one source).
+    """AC1: stamped CheckResult.name agrees with get_check_name (one source).
 
     For every discovered check, re-stamping a result (even one carrying a
-    divergent hand-set name) yields the canonical ``_get_check_name`` value.
+    divergent hand-set name) yields the canonical ``get_check_name`` value.
     """
     for fn in _all_check_fns():
-        canonical = _get_check_name(fn)
+        canonical = get_check_name(fn)
         assert canonical is not None, f"{fn!r} has no inferable check name"
         # A result with a deliberately wrong name must be re-stamped canonical.
         divergent = CheckResult(
@@ -182,7 +182,7 @@ def test_check_name_single_convention() -> None:
             details=[],
             fix="",
         )
-        stamped = _stamp_canonical_name(fn, divergent)
+        stamped = stamp_canonical_name(fn, divergent)
         assert stamped.name == canonical
 
 
@@ -228,9 +228,9 @@ def test_skip_redirect_sets_unchanged_after_unification() -> None:
     """AC4: every SKIP/REDIRECT entry still resolves to a real check name.
 
     Guards against accidentally un-skipping / un-redirecting a check: each
-    constant entry must equal ``_get_check_name(fn)`` for some discovered fn.
+    constant entry must equal ``get_check_name(fn)`` for some discovered fn.
     """
-    canonical_names = {_get_check_name(fn) for fn in _all_check_fns()}
+    canonical_names = {get_check_name(fn) for fn in _all_check_fns()}
     for entry in SKIP_FOR_WORKSPACE | SKIP_FOR_MEMBER | REDIRECT_FOR_MEMBER:
         assert entry in canonical_names, (
             f"{entry!r} no longer resolves to a discovered check — "

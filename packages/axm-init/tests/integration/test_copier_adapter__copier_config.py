@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -133,6 +133,55 @@ class TestCopierAdapterIntegration:
         assert result.success is False
         # stdio must be fully restored after the error
         assert sys.stdout is original_stdout
+
+
+@pytest.mark.integration
+class TestFilesCreatedFiltering:
+    """files_created walk: keep dotted dirs like .github/, drop real noise."""
+
+    def _copy_with_planted_files(
+        self, tmp_path: Path, relpaths: list[str]
+    ) -> list[str]:
+        dest = tmp_path / "project"
+        for rel in relpaths:
+            target = dest / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x")
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=dest,
+            data={"package_name": "test"},
+        )
+        adapter = CopierAdapter()
+        with patch("axm_init.adapters.copier.run_copy") as mock_run:
+            mock_run.return_value = MagicMock()
+            result = adapter.copy(config)
+        assert result.success is True
+        return result.files_created
+
+    def test_files_created_lists_github_dir_files(self, tmp_path: Path) -> None:
+        """AC1: files under dotted DIRECTORIES (.github/) are listed."""
+        created = self._copy_with_planted_files(
+            tmp_path,
+            [".github/workflows/ci.yml", "pyproject.toml"],
+        )
+        assert ".github/workflows/ci.yml" in created
+        assert "pyproject.toml" in created
+
+    def test_files_created_still_excludes_noise(self, tmp_path: Path) -> None:
+        """AC1: genuine noise dirs (.git, __pycache__) stay excluded."""
+        created = self._copy_with_planted_files(
+            tmp_path,
+            [
+                ".git/config",
+                "__pycache__/mod.pyc",
+                "src/test/__pycache__/x.pyc",
+                "src/test/__init__.py",
+            ],
+        )
+        assert "src/test/__init__.py" in created
+        assert not any(".git/" in c or c.startswith(".git/") for c in created)
+        assert not any("__pycache__" in c for c in created)
 
 
 @pytest.mark.integration
