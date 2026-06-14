@@ -24,7 +24,7 @@ class TestCheckPrecommitInstalled:
         (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
         r = check_precommit_installed(tmp_path)
         assert r.passed is False
-        assert "pre-commit install" in r.fix
+        assert "prek install" in r.fix
 
     @pytest.mark.parametrize(
         "create_git_dir",

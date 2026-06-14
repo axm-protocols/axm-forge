@@ -15,12 +15,21 @@ from axm_init.models.check import CheckResult
     fix="Create pyproject.toml with [dependency-groups] dev group.",
 )
 def check_dev_deps(project: Path, data: TomlTable) -> CheckResult:
-    """Check 29: dev deps include pytest, ruff, mypy, prek."""
+    """Check 29: dev deps include pytest, ruff, mypy, and a hook runner.
+
+    Tri-state hook-runner detection: ``prek`` passes clean, the legacy
+    ``pre-commit`` passes with a soft migration warning, and neither fails.
+    The warning is soft (``passed=True``) and does not dent the score.
+    """
     raw_dev = section(data, "dependency-groups").get("dev", [])
     dev = raw_dev if isinstance(raw_dev, list) else []
     dev_str = " ".join(str(d) for d in dev).lower()
-    required = ["pytest", "ruff", "mypy", "prek"]
-    missing = [d for d in required if d not in dev_str]
+    base_required = ["pytest", "ruff", "mypy"]
+    missing = [d for d in base_required if d not in dev_str]
+    has_prek = "prek" in dev_str
+    has_precommit = "pre-commit" in dev_str
+    if not has_prek and not has_precommit:
+        missing.append("prek")
     if missing:
         return CheckResult(
             name="deps.dev_group",
@@ -31,13 +40,16 @@ def check_dev_deps(project: Path, data: TomlTable) -> CheckResult:
             details=[f"Missing: {', '.join(missing)}"],
             fix=f"Add {', '.join(missing)} to [dependency-groups] dev.",
         )
+    details: list[str] = []
+    if not has_prek and has_precommit:
+        details.append("⚠️ consider migrating to prek (uv-native, faster)")
     return CheckResult(
         name="deps.dev_group",
         category="deps",
         passed=True,
         weight=3,
         message="Dev deps complete",
-        details=[],
+        details=details,
         fix="",
     )
 

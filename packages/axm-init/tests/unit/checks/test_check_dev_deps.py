@@ -26,11 +26,27 @@ class TestCheckDevDeps:
         r = check_dev_deps(project)
         assert r.passed is expected
 
-    def test_pre_commit_alone_fails(self, tmp_path: Path) -> None:
-        """AC1: dev group with pre-commit but no prek is now flagged.
+    def test_prek_satisfies_dev_group(self, tmp_path: Path) -> None:
+        """AC1: dev group pinning prek (no pre-commit) passes clean.
 
-        The gold standard migrated to prek; a project still pinning the old
-        pre-commit package (and missing prek) must fail the dev-deps check.
+        prek is the gold-standard runner: the check passes and carries no
+        migration warning in its details.
+        """
+        toml = (
+            '[project]\nname="x"\n[dependency-groups]\n'
+            'dev = ["pytest", "ruff", "mypy", "prek>=0.4,<0.5"]\n'
+        )
+        (tmp_path / "pyproject.toml").write_text(toml)
+        r = check_dev_deps(tmp_path)
+        assert r.passed is True
+        assert not any("migrat" in d.lower() for d in r.details)
+
+    def test_pre_commit_only_passes_with_warning(self, tmp_path: Path) -> None:
+        """AC2: dev group with pre-commit (no prek) passes with soft warning.
+
+        A project still pinning the legacy pre-commit runner is tolerated:
+        the check stays green (does not dent the score) but surfaces a soft
+        deprecation note inviting migration to prek.
         """
         toml = (
             '[project]\nname="x"\n[dependency-groups]\n'
@@ -38,17 +54,23 @@ class TestCheckDevDeps:
         )
         (tmp_path / "pyproject.toml").write_text(toml)
         r = check_dev_deps(tmp_path)
-        assert r.passed is False
-        assert "prek" in r.details[0]
+        assert r.passed is True
+        assert any("migrat" in d.lower() for d in r.details)
 
-    def test_prek_satisfies_dev_group(self, tmp_path: Path) -> None:
-        """AC1: dev group pinning prek (no pre-commit) passes the check."""
+    def test_no_runner_fails(self, tmp_path: Path) -> None:
+        """AC3: dev group with neither prek nor pre-commit fails.
+
+        With no hook runner at all the check fails and the message names the
+        missing runner.
+        """
         toml = (
             '[project]\nname="x"\n[dependency-groups]\n'
-            'dev = ["pytest", "ruff", "mypy", "prek>=0.4,<0.5"]\n'
+            'dev = ["pytest", "ruff", "mypy"]\n'
         )
         (tmp_path / "pyproject.toml").write_text(toml)
-        assert check_dev_deps(tmp_path).passed is True
+        r = check_dev_deps(tmp_path)
+        assert r.passed is False
+        assert "prek" in r.details[0]
 
 
 @pytest.fixture

@@ -184,7 +184,7 @@ def check_precommit_installed(project: Path) -> CheckResult:
         weight=2,
         message="Pre-commit hooks not installed",
         details=[".pre-commit-config.yaml exists but hooks are not activated"],
-        fix="Run 'pre-commit install' to activate hooks.",
+        fix="Run 'prek install' to activate hooks.",
     )
 
 
