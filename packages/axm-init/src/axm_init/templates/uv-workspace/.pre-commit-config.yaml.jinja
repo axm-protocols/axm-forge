@@ -14,12 +14,15 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # MyPy — local per-package hooks (run inside each member's uv venv so the
-  # member's own dependencies resolve). A single global mypy mirror hook at the
-  # workspace root with only `additional_dependencies` cannot see member deps
-  # and emits false positives. With zero members at scaffold time this list
-  # holds only a commented PLACEHOLDER; add one hook per member as they are
-  # scaffolded (model: axm-travel/.pre-commit-config.yaml).
+  # MyPy — per-package hooks SCOPED to the touched package (Stage 3 architecture).
+  # Each hook runs inside its member's uv venv (so member deps resolve) and fires
+  # only when that package changes (files: ^packages/<pkg>/ + stages: [pre-commit]),
+  # so committing in one package never triggers another's mypy (decoupling). The
+  # global `mypy-all` hook below runs the full sweep on PUSH, catching cross-package
+  # type breakage the scoped hooks can't see.
+  # With zero members at scaffold time this list holds only a commented PLACEHOLDER;
+  # add one scoped hook per member as they are scaffolded (model: any migrated
+  # workspace, e.g. axm-forge/.pre-commit-config.yaml).
   - repo: local
     hooks:
       # PLACEHOLDER: replace `placeholder` with a real packages/* member name,
@@ -29,15 +32,29 @@ repos:
       #     entry: uv run --package my-core mypy --config-file packages/my-core/pyproject.toml
       #     language: system
       #     types: [python]
+      #     files: ^packages/my-core/
       #     pass_filenames: false
+      #     stages: [pre-commit]
       #     args: [packages/my-core/src/, packages/my-core/tests/]
       - id: mypy-placeholder
         name: mypy (placeholder)
         entry: uv run --package placeholder mypy --config-file packages/placeholder/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/placeholder/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/placeholder/src/, packages/placeholder/tests/]
+
+      # Global cross-package type check on PUSH only. Runs the full per-package
+      # mypy sweep (single source of truth: the Makefile `type-check` target).
+      - id: mypy-all
+        name: mypy (ALL packages — pre-push)
+        entry: make type-check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
