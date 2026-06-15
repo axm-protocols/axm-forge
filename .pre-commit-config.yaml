@@ -7,7 +7,10 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # MyPy - type checking (local hook uses project venv via uv)
+  # MyPy - per-package type checking, SCOPED to the touched package.
+  # Each hook fires only when files under its package change (files: ^packages/<pkg>/),
+  # so committing in one package never triggers another package's mypy (decoupling).
+  # Cross-package type breakage is caught by the global pre-push hook below.
   - repo: local
     hooks:
       - id: mypy-axm
@@ -15,64 +18,94 @@ repos:
         entry: uv run --package axm mypy --config-file packages/axm/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm/src/, packages/axm/tests/]
       - id: mypy-mcp
         name: mypy (axm-mcp)
         entry: uv run --package axm-mcp mypy --config-file packages/axm-mcp/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-mcp/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-mcp/src/, packages/axm-mcp/tests/]
       - id: mypy-anvil
         name: mypy (axm-anvil)
         entry: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-anvil/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-anvil/src/, packages/axm-anvil/tests/]
       - id: mypy-ast
         name: mypy (axm-ast)
         entry: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-ast/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-ast/src/, packages/axm-ast/tests/]
       - id: mypy-audit
         name: mypy (axm-audit)
         entry: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-audit/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-audit/src/, packages/axm-audit/tests/]
       - id: mypy-edit
         name: mypy (axm-edit)
         entry: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-edit/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-edit/src/, packages/axm-edit/tests/]
       - id: mypy-init
         name: mypy (axm-init)
         entry: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-init/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-init/src/, packages/axm-init/tests/]
       - id: mypy-git
         name: mypy (axm-git)
         entry: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-git/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-git/src/, packages/axm-git/tests/]
       - id: mypy-smelt
         name: mypy (axm-smelt)
         entry: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml
         language: system
         types: [python]
+        files: ^packages/axm-smelt/
         pass_filenames: false
+        stages: [pre-commit]
         args: [packages/axm-smelt/src/, packages/axm-smelt/tests/]
+
+      # Global cross-package type check — fires on PUSH only. Catches inter-package
+      # type breakage that the per-package scoped hooks above cannot see (e.g. a
+      # change in axm-ast that breaks axm-anvil which imports it). Reuses `make lint`
+      # (the single source of truth for the per-package mypy sweep).
+      - id: mypy-all
+        name: mypy (ALL packages — pre-push)
+        entry: make lint
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
   # Conventional commits
   - repo: https://github.com/compilerla/conventional-pre-commit

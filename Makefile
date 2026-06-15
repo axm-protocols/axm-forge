@@ -48,6 +48,8 @@ lint:  ## Linter + type checker
 	uv run ruff check .
 	uv run ruff format --check .
 	@echo "🔍 Running mypy per package..."
+	uv run --package axm mypy --config-file packages/axm/pyproject.toml packages/axm/src packages/axm/tests
+	uv run --package axm-mcp mypy --config-file packages/axm-mcp/pyproject.toml packages/axm-mcp/src packages/axm-mcp/tests
 	uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src packages/axm-anvil/tests
 	uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src packages/axm-ast/tests
 	uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src packages/axm-audit/tests
