@@ -17,7 +17,7 @@ dependencies = [
     "axm",
     "axm-anvil",
     "axm-ast",
-    "complexipy>=5.4.0",
+    "complexipy>=5.4.0,<5.6.0",  # 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186)
     "cyclopts>=3.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
