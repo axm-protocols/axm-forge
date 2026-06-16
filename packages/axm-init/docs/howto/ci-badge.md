@@ -111,9 +111,8 @@ jobs:
 
 !!! note "uvx vs uv run"
     Use `uvx axm-init` for external projects (installs from PyPI).
-    Within the axm-init repo itself, we use `uv run axm-init` (local lib).
 
-### Why the logo handling looks fiddly
+### Logo handling
 
 shields.io renders the AXM logo from an inlined SVG in the `logoSvg` JSON field.
 The SVG is fetched from the canonical forge URL:
@@ -122,13 +121,9 @@ The SVG is fetched from the canonical forge URL:
 https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg
 ```
 
-If the `curl` 404s or fails, it writes an **empty** file, and an empty
-`logoSvg: ""` makes shields.io reject the **whole** badge with "invalid
-properties" — it silently fails to render. Hence the two guards above: fetch with
-`|| true` so a transient network failure doesn't fail the job, and only inline the
-logo when the file is **non-empty** (`[ -s ]`, *not* `[ -f ]` — the latter passes
-for an empty file). When empty, the badge JSON is emitted without the `logoSvg`
-key (graceful degradation to a logo-less badge).
+The logo is inlined only when it is fetched successfully and non-empty — an empty
+`logoSvg` makes shields.io reject the badge. When the fetch fails, the badge JSON
+is emitted without the `logoSvg` key (graceful degradation to a logo-less badge).
 
 ### 2. Add the badge to your README
 
@@ -149,10 +144,10 @@ In a uv-workspace **monorepo**, per-member badges live under
 The badge will appear after the first workflow run pushes to `gh-pages`.
 
 !!! note "Stale badge?"
-    After the first publish (or a fix), the badge can keep showing "package not
-    found" or a stale score because shields.io caches the JSON and GitHub's camo
-    image proxy re-caches on top. This is **not** a bug — it self-heals within
-    ~1h. To check the real current state, hit the raw JSON or the shields
+    After the first publish (or a fix), the badge may keep showing "package not
+    found" or a stale score: shields.io caches the JSON and GitHub's camo image
+    proxy re-caches on top. The badge refreshes on its own within ~1h. To force a
+    refresh or check the real current state, hit the raw JSON or the shields
     endpoint with a cache-buster query param (e.g. append `?v=2`) rather than
     trusting the rendered image.
 
