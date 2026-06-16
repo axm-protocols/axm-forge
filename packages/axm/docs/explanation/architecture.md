@@ -59,5 +59,5 @@ This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group
 | `{domain}_{action}` naming | One name for CLI and MCP — no mental translation |
 | `AXMTool`/`ToolResult` in `axm` | Shared interface, no private dependency needed; `text` field carries pre-rendered output |
 | `HookAction`/`HookResult` in `axm` | Hooks contract without pulling `axm-engine` deps |
-| Core contracts re-exported from the `axm` root | The seven contracts (`AXMTool`, `ToolResult`, `HookAction`, `HookResult`, `WitnessResult`, `ValidationFeedback`, `WitnessRule`) are re-exported from `axm/__init__.py` as a pure façade — types stay defined in their submodules. Root re-export is the stable import boundary for a Core SDK; future renames are deliberately breaking |
+| Core contracts re-exported from the `axm` root | The seven contracts (`AXMTool`, `ToolResult`, `HookAction`, `HookResult`, `WitnessResult`, `ValidationFeedback`, `WitnessRule`) are re-exported from `axm/__init__.py` as a pure façade — types stay defined in their submodules. These root re-exports are the package's stable import surface; treat any change to them as breaking |
 | `agent_hint` on `AXMTool` | LLM-optimized one-liner propagates to MCP tool descriptions — richer than docstrings, cheaper than system prompts |

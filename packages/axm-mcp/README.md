@@ -71,7 +71,7 @@ For the HTTP setup, see [Migrate to HTTP Transport](https://forge.axm-protocols.
 
 | Command | Description |
 |---|---|
-| `axm-mcp` | Start in **stdio** mode (backward-compatible default) |
+| `axm-mcp` | Start in **stdio** mode (default) |
 | `axm-mcp serve [--host HOST] [--port PORT]` | Start Streamable HTTP server (default port `9427`) |
 | `axm-mcp status [--host HOST] [--port PORT]` | Check whether the HTTP server is running |
 | `axm-mcp stop` | Send SIGTERM to the running HTTP server. Verifies the PID file's process is really `axm-mcp` (via `ps` cmdline) before signalling; if the PID was reused by another process, it refuses to kill it and cleans up the stale PID file |
