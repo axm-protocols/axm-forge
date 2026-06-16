@@ -40,7 +40,7 @@ axm-audit fix . --apply --rules=TEST_QUALITY_FILE_NAMING
 ```
 
 Only the `TEST_QUALITY_PYRAMID_LEVEL` and `TEST_QUALITY_FILE_NAMING`
-findings are deterministically fixable today; other rules are reported
+findings are deterministically fixable; other rules are reported
 as `unfixable` in the pipeline report. Parity of the test suite after
 `--apply` is the caller's responsibility — the command warns when the
 baseline is red but does not refuse to run.

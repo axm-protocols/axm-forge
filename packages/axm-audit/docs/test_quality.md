@@ -297,9 +297,7 @@ markers = [
 The step order is load-bearing: strengthen-side rescues (`step_2`–`step_4e`)
 fire before the delete-side constructor checks (`step_0b` / `step_0b2`) so
 that a weak constructor test carrying real edge-case signal is kept
-rather than deleted. Note: the triage code itself uses the names without
-the second underscore (e.g. `step0b_n_copies_constructor`); the `step_`
-forms above are the documentation convention for this page.
+rather than deleted.
 
 ### Finding shape
 

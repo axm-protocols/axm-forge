@@ -35,6 +35,14 @@ context-dependent (legitimate formal check vs. candidate for deletion)
 and surfaced in a separate report section pointing the user to
 `/scenario-rename` or manual inspection.
 
+Stage 0.5 RELOCATE moves files under any non-canonical tier
+(`tests/functional/`, `tests/hooks/`, ...) into `tests/integration/` so
+that subsequent stages only ever see canonical paths; `CANONICAL_TIERS`
+in `models.py` is the allow-list (`unit`, `integration`, `e2e`).
+`tests/fixtures/` is excluded (the `_NON_TEST_DIR_NAMES` set in
+`layout_and_move.py`) — by AXM convention it holds static test data
+(corpora, snapshots, baselines), not test files.
+
 ## Module layout (hexagonal split)
 
 The applicator lives at `src/axm_audit/core/fix/`, 13 modules organised by
@@ -91,7 +99,7 @@ One lazy cycle: `findings.collect_unfixable → stages_plan.plan_flatten`
 (needed to surface pathological FILE_NAMING cases the pipeline can't
 auto-fix).
 
-## Real-world surprises (documented in the code)
+## Behavioral notes
 
 1. **Anvil's `rename=` param doesn't help cross-file collisions** — it
    validates target absence under the *original* name before applying
@@ -110,102 +118,7 @@ auto-fix).
    moved. `_backfill_missing_imports()` in `cst_rewrite.py` walks
    `if TYPE_CHECKING:` blocks and reproduces the wrapper at the target.
 
-## Bug-class history
-
-The pipeline went through 14 iteration passes during productisation.
-The four resolved bug classes worth remembering:
-
-### B1 — pathological-AND-heterogeneous Test* classes
-
-A class with divergent canonicals AND a feature blocking flatten
-(`self.<attr>`, custom base, `__init__`) survives Stage 0 silently and
-breaks Stage 2 SPLIT (which can only route 4 of 5 canonical targets).
-`_file_has_pathological_class()` (`tests_ast.py`) is a cheap pre-check
-used by `plan_naming` (`stages_plan.py`) to skip SPLIT planning for
-affected files. Pathological cases now surface as `collect_unfixable`
-entries pointing to `/scenario-rename`.
-
-### B2 — SPLIT/MERGE/RENAME planned for non-canonical tier paths
-
-Planner emitted ops for `tests/functional/test_X.py` but executor
-skipped them silently. `plan_naming` (`stages_plan.py`) now filters
-so SPLIT/COLLIDE/RENAME only land on canonical paths; non-canonical
-files are routed through Stage 0.5 RELOCATE first.
-
-### B3 — convergence (unanimity rule)
-
-The fixed-point loop oscillated on files containing tests with mixed
-tier verdicts (one `integration` + one `unit`). `plan_relocate` used
-to skip `cur == lvl` findings and only count mismatches, so when the
-file lived in `integration/` it saw "1 finding → unit", relocated,
-then on the next pass saw "1 finding → integration", and oscillated
-forever.
-
-Resolution: `plan_relocate` (`stages_plan.py`) now counts every test's
-target level (including `cur == lvl` ones). A file is relocated only
-when *all* tests agree on a single target distinct from the current
-tier. Mixed files are left for manual `/scenario-rename` or hand-splitting.
-Conservative on purpose: sacrifices some auto-resolution for guaranteed
-convergence.
-
-### B4 — non-canonical tier directories ignored
-
-Files under `tests/functional/` (or any non-canonical tier) were tier-less,
-so SPLIT/MERGE/RENAME silently refused them. `relocate_non_canonical_tiers()`
-in `layout_and_move.py` now runs as Stage 0.5 (before Stage 1 RELOCATE)
-and moves every non-canonical tier file into `tests/integration/`.
-Subsequent stages then see only canonical paths. `CANONICAL_TIERS` in
-`models.py` documents the allow-list (`unit`, `integration`, `e2e`).
-
-`tests/fixtures/` is surgically excluded via the private
-`_NON_TEST_DIR_NAMES` set in `layout_and_move.py` — by AXM convention
-that directory holds static test data (corpora, snapshots, baselines)
-consumed by real tests, not test files. Other non-canonical tiers
-(`tests/functional/`, `tests/hooks/`, ...) are still relocated.
-
-### B5 — non-atomic apply could corrupt a real suite
-
-`run(apply=True)` mutated `tests/` in place with no transaction: any
-exception mid-cascade (e.g. an unguarded `KeyError` on a runtime
-suite-derived key in the import backfill, surfacing as an opaque
-`"test_basic"`) left the tree half-written, and a botched move/split
-could emit a module that no longer parses. The skill's parity/idempotence
-invariants were only checked on the corpus, never enforced on the live
-tree.
-
-`run(apply=True)` is now wrapped by `_run_apply_atomic()`:
-
-1. **snapshot** — `_snapshot_tests()` copies the whole `tests/` tree into
-   a temp dir outside the project (so a botched in-place mutation can
-   never touch the backup);
-2. **mutate** — the fixed-point loop + post-polish run as before;
-3. **collect gate** — `_collect_only_gate()` does an in-process
-   `compile()` sweep of every `test_*.py` (the cheap, deterministic
-   equivalent of `pytest --collect-only` for the dominant failure class:
-   a file that no longer parses — a real subprocess per apply made the
-   suite time out);
-4. **promote / rollback** — on success the snapshot is discarded; on
-   **any** exception or a failed gate, `_restore_tests()` restores the
-   tree byte-identical and a `FixApplyError` with an actionable message
-   is raised (never the bare `"test_basic"` token; the original cause is
-   chained via `__cause__`).
-
-Import-backfill hardening (`cst_rewrite.py`): `_extend_recoverable()`
-guards both donor lookups against `KeyError` (a miss degrades to
-"unresolved", never crashes), and a name that genuinely resolves to no
-donor is reported as a structured `unresolved import for <name>` warning
-(stashed under the `_UNRESOLVED_KEY` sentinel by
-`_resolve_recoverable_imports` and re-emitted by
-`_backfill_missing_imports`) instead of being dropped silently.
-`TYPE_CHECKING`-only donor imports (e.g. `MockerFixture` used solely in a
-method-parameter annotation under `if TYPE_CHECKING:`) are carried into
-every split/relocate target that references them, so collection no longer
-fails with a post-fix `NameError`.
-
-## Hardened edge cases (collateral fixes)
-
-Bug classes uncovered during cross-corpus validation. Each entry
-explains a non-obvious code path you'd otherwise wonder about:
+## Edge cases
 
 - **`_make_pkg` signature drift across files** — `_resolve_helper_conflicts()`
   (`layout_and_move.py`) renames the source-side helper to
@@ -332,15 +245,6 @@ explains a non-obvious code path you'd otherwise wonder about:
   body element to count as one) and unconditionally promotes it to
   position 0 in the rewritten body.
 
-## Forward-looking — possible migration to `axm-ast`
-
-The higher-level helpers in `tests_ast.py` (`_top_level_test_classes`,
-`_top_level_helpers`, `_collect_imported_names`) could move to `axm-ast`
-if/when that package exposes raw `ast.Module` access (it currently wraps
-everything in Pydantic models). The fine-grained walkers
-(`_class_is_pathological`, `_marker_fixtures_in_unit`, `_func_body_hash`)
-are too pytest-specific to belong in a general library — keep them here.
-
 ## Convergence + parity invariants
 
 A correct pipeline run must satisfy:
@@ -353,6 +257,18 @@ A correct pipeline run must satisfy:
 
 These invariants are enforced by source-level tests under `tests/`. They
 are not a runtime burden — the pipeline runs the same regardless.
+
+To guarantee convergence, RELOCATE applies a **unanimity rule**: a file
+is relocated only when *all* its tests agree on a single target tier
+distinct from the current one (`plan_relocate` counts every test's
+target level, including `cur == lvl` ones). Mixed-verdict files (one
+`integration` + one `unit`) are left for manual `/scenario-rename` or
+hand-splitting rather than oscillating across tiers.
+
+`run(apply=True)` is atomic: it snapshots `tests/` to a temp dir outside
+the project, runs the fixed-point loop, then runs a `compile()` collect
+gate over every `test_*.py`. On any exception or a failed gate the tree
+is restored byte-identical and a `FixApplyError` is raised.
 
 ## Out of pipeline (agent-driven follow-ups)
 

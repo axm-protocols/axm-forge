@@ -107,8 +107,8 @@ borderline judgment for posterity — append it directly to `cases.json`.
 ```json
 {
   "verdict": "false_positive",
-  "source": "manual:gabriel-2026-05-10",
-  "rationale": "Different rule classes; assertions on disjoint fields. Looked twice, kept separate.",
+  "source": "manual:<who>-<date>",
+  "rationale": "Different rule classes; assertions on disjoint fields — kept separate.",
   "repo": "axm-forge",
   "commit": "main",
   "file": "packages/axm-audit/tests/integration/test_pipeline.py",
@@ -124,8 +124,7 @@ Required fields: `verdict`, `source`, `rationale`, `repo`, `commit`,
 
 - Set `source` to `manual:<who>-<date>` so it's clear they're not from
   the extractor.
-- Write a sharp `rationale` — future-you will read it when the case
-  flips verdict and you need to remember why.
+- Write a clear `rationale`; it is shown when the case is re-reviewed.
 - Pin `commit` to a stable ref (a SHA or tag), not `HEAD`/`main`, if
   the test code might change. The case is anchored to a specific
   version of the file.
@@ -157,8 +156,7 @@ To capture them, after the batch finishes:
    `verdict: "false_positive"`, `source: "dedup_batch:<batch-id>"`,
    and the rationale from the agent's report.
 
-This is currently manual — automating it would require parsing
-sub-agent reports, which is doable but not yet wired up.
+This step is manual.
 
 ## Workflow recap
 
