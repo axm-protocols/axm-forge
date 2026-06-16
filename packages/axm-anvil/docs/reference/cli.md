@@ -18,13 +18,13 @@ axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--strict] 
 | `symbols` | Comma-separated symbol names to move |
 | `--dry-run` | Preview the move without writing files |
 | `--check` | Simulate the move, including import-cycle detection, without writing. Fails with `ImportCycleError` if the move would introduce a new cycle |
-| `--strict` | Fail (non-zero exit) on a requested symbol that is absent from the source module instead of skipping it with a warning. Default (`--no-strict`) preserves the skip-and-warn behaviour |
+| `--strict` | Fail (non-zero exit) on a requested symbol that is absent from the source module instead of skipping it with a warning. Default (`--no-strict`) skips an absent symbol and records a warning |
 | `--path` | Workspace root (default: `.`) |
 | `--shared-helpers` | Strategy when a helper is used by both moved and remaining symbols: `duplicate` (default, copies the helper and emits a warning) or `error` (abort with `SharedHelpersError`) |
 | `--reexport` | Leave callers untouched; inject `from new_module import <Symbol>  # re-export for backwards compat` into the source module for gradual migration |
 | `--rename` | JSON object string mapping old symbol names to new ones (e.g. `'{"OldName": "NewName"}'`). Renames moved definitions and rewrites all caller references to the new name. Incompatible with `--reexport` |
-| `--insert-after` | Name of an existing top-level symbol in the target module; moved blocks are spliced immediately after it. Omitted (default) appends the blocks at the end of the target; naming an absent symbol appends at the end and records a warning on `MovePlan.warnings`. Imports and constants keep their historical placement regardless |
-| `--include-helpers` / `--no-include-helpers` | Whether to copy transitively-referenced local helpers and constants into the target. `--include-helpers` (default) preserves the historical copy behaviour. `--no-include-helpers` leaves the moved code referencing those helpers without copying them, short-circuits the `--shared-helpers` classification, and records a `include_helpers=False: not copied into target: <names>` warning on `MovePlan.warnings`. Imports required by the moved code are always copied regardless |
+| `--insert-after` | Name of an existing top-level symbol in the target module; moved blocks are spliced immediately after it. Omitted (default) appends the blocks at the end of the target; naming an absent symbol appends at the end and records a warning on `MovePlan.warnings`. Imports and constants keep their usual end-of-file placement regardless |
+| `--include-helpers` / `--no-include-helpers` | Whether to copy transitively-referenced local helpers and constants into the target. `--include-helpers` (default) copies private helper symbols alongside the moved symbol. `--no-include-helpers` leaves the moved code referencing those helpers without copying them, short-circuits the `--shared-helpers` classification, and records a `include_helpers=False: not copied into target: <names>` warning on `MovePlan.warnings`. Imports required by the moved code are always copied regardless |
 | `--side-effect-decorators` | Comma-separated extra side-effect decorator dotted-names (e.g. `'mylib.register'`) that **extend** the built-in [`SIDE_EFFECT_DECORATORS`](#side_effect_decorators) whitelist. When a moved symbol carries a matching decorator, a non-blocking warning is recorded on `MovePlan.warnings`; the move always proceeds |
 
 ## MCP Tools
@@ -104,8 +104,8 @@ class, or a name that simply does not exist) is **skipped** by default:
 `MovePlan.warnings`. The CLI and the `ast_move` MCP tool surface that
 warning and still exit successfully. Pass `strict=True`
 ([`move_symbols`](#move_symbols) / `MoveTool.execute`) or `--strict` on the
-CLI to restore the legacy behaviour of raising `SymbolNotFoundError` on the
-first absent name (surfaced as a `ToolResult` error / non-zero CLI exit).
-Names that *are* present continue to move exactly as before.
+CLI to raise `SymbolNotFoundError` on the first absent name (surfaced as a
+`ToolResult` error / non-zero CLI exit). Names that *are* present move as
+usual.
 
 Auto-generated API reference is available under [Python API](api/).

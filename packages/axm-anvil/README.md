@@ -38,11 +38,16 @@ it exposes a set of MCP tools for agent-driven refactoring.
 - 🚫 **`--no-include-helpers`** — Skip auto-copying local helpers/constants into the target (imports are still copied); emits a warning listing the un-copied names
 - 🧭 **Edge-case awareness** — Syncs `__all__` (never created spontaneously), preserves `try/except` conditional imports verbatim, converts relative imports to absolute on cross-package moves, and warns on side-effect decorators (`@app.route`, `@pytest.fixture`…), string forward-references, and pytest fixture-scope breaks
 
-### Planned tools (see `spec.md`)
+## Roadmap
+
+### Planned tools
+
+The tools below are **not yet implemented** — `ast_move` is the only one
+currently shipped. They are listed here to convey the intended direction.
 
 | Tool | Description |
 |---|---|
-| `ast_move` | Move symbols between files (Phase 1-3) |
+| `ast_move` | Move symbols between files |
 | `ast_rename` | Rename a symbol everywhere (def + callers + imports + `__all__`) |
 | `ast_split` | Split a module into N sub-modules |
 | `ast_merge` | Merge N modules into one |

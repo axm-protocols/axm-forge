@@ -47,7 +47,7 @@ The result is a `ToolResult` carrying the move plan (moved symbols, copied impor
 
 `axm-anvil` also performs rename, split, and merge refactorings. These are
 available through the [`axm-anvil` CLI](../reference/cli.md); `ast_move` is the
-operation currently surfaced as an MCP tool.
+operation surfaced as an MCP tool.
 
 ## Entry Points
 

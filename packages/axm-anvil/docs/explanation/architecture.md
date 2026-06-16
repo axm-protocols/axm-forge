@@ -213,7 +213,7 @@ modules share the same package root.
 
 Absolute imports are untouched. When either endpoint is not inside a
 package (no `__init__.py` ancestor), the resolution context is `None` and
-relative imports fall back to the historical drop behaviour.
+relative imports are dropped.
 
 ## String forward-reference warnings in `core.move`
 
