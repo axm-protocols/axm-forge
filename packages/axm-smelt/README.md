@@ -136,10 +136,6 @@ uv sync --all-groups
 uv run --package axm-smelt --directory packages/axm-smelt pytest -x -q
 ```
 
-## Migration notes
-
-- **0.1.0.dev0 → next**: the `dedup_values` strategy was renamed to `dedup_values_with_refs` to signal that its output is wrapped in a `{_refs, _data}` envelope and is not format-preserving. The old name is removed from the registry (no alias) — pipelines referencing `"dedup_values"` will raise `KeyError`. Update CLI invocations (`--strategies dedup_values_with_refs`) and library calls (`Pipeline(strategies=["dedup_values_with_refs"])`) accordingly.
-
 ## License
 
 Apache-2.0 — © 2026 axm-protocols
