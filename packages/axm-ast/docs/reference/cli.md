@@ -446,7 +446,7 @@ axm-ast docs [OPTIONS] [PATH]
 **Examples:**
 
 ```bash
-# Full content (default, same as before)
+# Full content (default)
 axm-ast docs .
 
 # Heading scan only

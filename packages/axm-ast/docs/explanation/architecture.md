@@ -144,7 +144,7 @@ Protocol hooks registered via `axm.hooks` entry points. These are called by `axm
 
 | Hook | Entry Point | Purpose |
 |---|---|---|
-| `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context. Unpacks `(steps, truncated)` tuple but currently discards the truncation flag |
+| `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject the trace into session context. Consumes the `(steps, truncated)` tuple; only the steps are injected — the truncation flag is not surfaced through this path |
 | `SourceBodyHook` | `ast:source-body` | Extract symbol source bodies and return as a grouped markdown string (`symbols=<str>`) with a `files` list of relative paths. Supports dotted names via three resolution strategies: `_resolve_as_class_method` (`Class.method`, delegates to `_build_method_body`), `_resolve_as_nested_class` (`Outer.Inner.method`), and `_resolve_as_module_symbol` (`module.func`). Extraction logic lives in `_run_extraction` (with `_dedup_symbols` to remove methods already covered by their parent class); formatting in `_format_as_markdown`. |
 | `FileHeaderHook` | `ast:file-header` | Extract file-level header (module docstring, `__all__`, top-level imports) and inject into session context |
 

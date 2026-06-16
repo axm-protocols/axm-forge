@@ -75,7 +75,7 @@ The `docs` command also supports progressive disclosure via `--detail`:
 
 ### Full (default)
 
-Returns complete content for README, mkdocs.yml, and all doc pages. Same as the original behavior.
+Returns complete content for README, mkdocs.yml, and all doc pages.
 
 ```bash
 axm-ast docs .
