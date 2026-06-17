@@ -22,6 +22,7 @@ dependencies = [
     "axm",
     "axm-ast",
     "axm-edit",
+    "axm-ingot",
     "cyclopts>=4.5",
     "libcst>=1.5.0",
     "pydantic>=2.0.0",

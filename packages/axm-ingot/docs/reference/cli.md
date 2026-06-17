@@ -27,6 +27,20 @@ Walk parents from `path` (inclusive) to the first ancestor whose
 directory, else `None`. This targets a **workspace** root specifically — not
 merely the first enclosing project `pyproject.toml`.
 
+## `find_project_root`
+
+```python
+find_project_root(start: Path) -> Path
+```
+
+Walk parents from `start` (inclusive) to the first ancestor containing **any**
+`pyproject.toml` — a project root, not necessarily a uv workspace. `start` is
+resolved first; a file `start` is anchored on its parent directory. Unlike
+[`find_workspace_root`](#find_workspace_root), this **never returns `None`**:
+with no `pyproject.toml` in any ancestor it falls back to the (resolved)
+starting directory. Use it to anchor relative-import resolution on the nearest
+enclosing project rather than on a uv-workspace boundary.
+
 ## `ResolvedWorkspace`
 
 ```python

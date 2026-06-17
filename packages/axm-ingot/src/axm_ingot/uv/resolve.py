@@ -15,7 +15,7 @@ from pathlib import Path
 
 from axm_ingot.uv.models import Member, ResolvedWorkspace
 
-__all__ = ["find_workspace_root", "resolve_workspace"]
+__all__ = ["find_project_root", "find_workspace_root", "resolve_workspace"]
 
 _PYPROJECT = "pyproject.toml"
 
@@ -88,6 +88,25 @@ def resolve_workspace(pyproject_dir: Path) -> ResolvedWorkspace | None:
         )
     )
     return ResolvedWorkspace(root=root, members=members)
+
+
+def find_project_root(start: Path) -> Path:
+    """Walk parents from ``start`` to the first directory holding any pyproject.
+
+    Returns the directory of the first ancestor (``start`` included) that
+    contains a ``pyproject.toml`` -- any project, not necessarily a uv
+    workspace. ``start`` is resolved first; a file ``start`` is anchored on its
+    parent directory. Unlike :func:`find_workspace_root`, this never returns
+    ``None``: with no ``pyproject.toml`` in any ancestor it falls back to the
+    (resolved) starting directory.
+    """
+    current = start.resolve()
+    if current.is_file():
+        current = current.parent
+    for candidate in (current, *current.parents):
+        if (candidate / _PYPROJECT).is_file():
+            return candidate
+    return current
 
 
 def find_workspace_root(path: Path) -> Path | None:

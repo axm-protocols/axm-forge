@@ -58,6 +58,9 @@ root = find_workspace_root(Path.cwd())
   enforces `require_pyproject`, returning members sorted by name
 - ✅ **Workspace-root discovery** — `find_workspace_root` walks parents to the
   first `pyproject.toml` carrying a `[tool.uv.workspace]` section
+- ✅ **Project-root discovery** — `find_project_root` walks parents to the first
+  `pyproject.toml` of any kind, always returning a `Path` (start-dir fallback,
+  never `None`); the counterpart used to anchor relative imports
 - ✅ **Frozen value types** — `ResolvedWorkspace` and `Member` are stdlib
   `@dataclass(frozen=True)` records
 - ✅ **Zero dependencies** — stdlib only (`tomllib`, `pathlib`, `dataclasses`);

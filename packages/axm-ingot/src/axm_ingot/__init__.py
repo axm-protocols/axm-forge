@@ -8,6 +8,7 @@ from __future__ import annotations
 from axm_ingot.uv import (
     Member,
     ResolvedWorkspace,
+    find_project_root,
     find_workspace_root,
     resolve_workspace,
 )
@@ -15,6 +16,7 @@ from axm_ingot.uv import (
 __all__ = [
     "Member",
     "ResolvedWorkspace",
+    "find_project_root",
     "find_workspace_root",
     "resolve_workspace",
 ]

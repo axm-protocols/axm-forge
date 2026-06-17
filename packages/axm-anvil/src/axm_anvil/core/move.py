@@ -10,6 +10,7 @@ from typing import Any, cast
 
 import libcst as cst
 from axm_ast import analyze_workspace, build_workspace_module_graph
+from axm_ingot.uv import find_project_root
 from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor
 
@@ -220,16 +221,6 @@ def batch_edit(  # type: ignore[explicit-any]  # JSON-shape payload at axm-edit 
     result = batch_apply(Path(path), ops)
     if not result.success:
         raise RuntimeError(f"batch_edit failed: {result.error}")
-
-
-def _find_workspace_root(start: Path) -> Path:
-    current = start.resolve()
-    if current.is_file():
-        current = current.parent
-    for candidate in (current, *current.parents):
-        if (candidate / "pyproject.toml").is_file():
-            return candidate
-    return current
 
 
 def _parse_symbol_spec(spec: str) -> tuple[str, int | None]:
@@ -1316,7 +1307,7 @@ def _apply_write(  # noqa: PLR0913
     root = (
         Path(workspace_root)
         if workspace_root is not None
-        else _find_workspace_root(source_path)
+        else find_project_root(source_path)
     )
     try:
         source_rel = source_path.resolve().relative_to(root.resolve())
@@ -2186,7 +2177,7 @@ def move_symbols(  # noqa: PLR0913
     root = (
         Path(workspace_root)
         if workspace_root is not None
-        else _find_workspace_root(source_path)
+        else find_project_root(source_path)
     )
     import_resolution = _build_import_resolution(source_path, target_path, root)
 

@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from axm_anvil.core.move import move_symbols
+
+pytestmark = pytest.mark.integration
+
+_SOURCE = "def kept():\n    return 1\n\n\ndef moved():\n    return 2\n"
+_TARGET = ""
+
+
+def _seed(directory: Path, *, with_pyproject: bool) -> tuple[Path, Path]:
+    """Lay out a movable source/target pair, optionally rooted by a pyproject."""
+    directory.mkdir(parents=True, exist_ok=True)
+    source = directory / "source.py"
+    target = directory / "target.py"
+    source.write_text(_SOURCE)
+    target.write_text(_TARGET)
+    if with_pyproject:
+        (directory / "pyproject.toml").write_text(
+            "[project]\nname = 'tmp_pkg'\nversion = '0.1.0'\n"
+        )
+    return source, target
+
+
+def test_move_resolves_project_root(tmp_path: Path) -> None:
+    """AC1, AC2: with ``workspace_root=None`` the move falls back to the project
+    root resolution that ``_find_workspace_root`` provided — the first ancestor
+    carrying any ``pyproject.toml`` (here ``tmp_path``).
+
+    Exercised through the public ``move_symbols`` pipeline: the package code
+    sits under ``pkg/`` while ``tmp_path`` holds the only ``pyproject.toml``, so
+    a correct project-root resolution anchors relative paths on ``tmp_path``
+    and the move succeeds (a None/wrong root would raise or misplace).
+    """
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname = 'tmp_pkg'\nversion = '0.1.0'\n"
+    )
+    source, target = _seed(tmp_path / "pkg", with_pyproject=False)
+
+    plan = move_symbols(source, target, ["moved"], dry_run=False)
+
+    assert "moved" in plan.moved_names
+    assert "moved" in target.read_text()
+    assert "moved" not in source.read_text()
+
+
+def test_fallback_when_no_pyproject(tmp_path: Path) -> None:
+    """AC2: with no ``pyproject.toml`` anywhere and ``workspace_root=None`` the
+    root resolution falls back to the starting directory instead of raising or
+    propagating ``None``.
+
+    Exercised through the public ``move_symbols`` pipeline: the legacy
+    ``_find_workspace_root`` always returned a ``Path`` (start dir fallback), so
+    the move must complete without an exception even outside any project.
+    """
+    source, target = _seed(tmp_path / "loose", with_pyproject=False)
+
+    plan = move_symbols(source, target, ["moved"], dry_run=False)
+
+    assert "moved" in plan.moved_names
+    assert "moved" in target.read_text()
+    assert "moved" not in source.read_text()
