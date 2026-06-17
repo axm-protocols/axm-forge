@@ -17,6 +17,7 @@ members = [
     "axm-edit",
     "axm-forge-workspace",
     "axm-git",
+    "axm-ingot",
     "axm-init",
     "axm-mcp",
     "axm-smelt",
@@ -300,6 +301,7 @@ dependencies = [
     { name = "axm" },
     { name = "axm-anvil" },
     { name = "axm-ast" },
+    { name = "axm-ingot" },
     { name = "complexipy" },
     { name = "cyclopts" },
     { name = "libcst" },
@@ -332,6 +334,7 @@ requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "axm-anvil", editable = "packages/axm-anvil" },
     { name = "axm-ast", editable = "packages/axm-ast" },
+    { name = "axm-ingot", editable = "packages/axm-ingot" },
     { name = "complexipy", specifier = "==5.5.0" },
     { name = "cyclopts", specifier = ">=3.0" },
     { name = "libcst", specifier = ">=1.5.0" },
@@ -512,6 +515,44 @@ dev = [
 ]
 docs = [
     { name = "mkdocs-gen-files", specifier = ">=0.5" },
+    { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
+    { name = "mkdocs-material", specifier = ">=9.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+]
+
+[[package]]
+name = "axm-ingot"
+source = { editable = "packages/axm-ingot" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "prek" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+]
+docs = [
+    { name = "mkdocs-gen-files" },
+    { name = "mkdocs-literate-nav" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "prek", specifier = ">=0.4.4" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
+    { name = "ruff", specifier = "==0.15.17" },
+]
+docs = [
+    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
     { name = "mkdocs-material", specifier = ">=9.0" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },

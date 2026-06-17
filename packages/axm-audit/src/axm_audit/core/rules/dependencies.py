@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
 
+from axm_ingot import resolve_workspace
+
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
@@ -463,31 +465,16 @@ def _format_issue(issue: dict[str, object], member: str = "") -> dict[str, str]:
 
 
 def resolve_workspace_members(project_path: Path) -> list[Path] | None:
-    """Resolve workspace member paths from ``[tool.uv.workspace].members``.
+    """Resolve workspace member paths from ``[tool.uv.workspace]``.
 
-    Returns ``None`` when the project is not a uv workspace.
-    Directories without a ``pyproject.toml`` are silently skipped.
+    Thin projection over :func:`axm_ingot.resolve_workspace`: returns the
+    member directory paths, or ``None`` when ``project_path`` is not a uv
+    workspace. ``exclude`` globs are honoured by ingot.
     """
-    pyproject = project_path / "pyproject.toml"
-    if not pyproject.exists():
-        return None
-    try:
-        import tomllib
-
-        data = tomllib.loads(pyproject.read_text())
-    except Exception:  # noqa: BLE001
-        return None
-
-    workspace = data.get("tool", {}).get("uv", {}).get("workspace")
+    workspace = resolve_workspace(project_path)
     if workspace is None:
         return None
-
-    members: list[Path] = []
-    for pattern in workspace.get("members", []):
-        for match in sorted(project_path.glob(pattern)):
-            if match.is_dir() and (match / "pyproject.toml").exists():
-                members.append(match)
-    return members
+    return [member.path for member in workspace.members]
 
 
 @dataclass

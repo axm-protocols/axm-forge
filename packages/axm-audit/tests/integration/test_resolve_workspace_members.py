@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path
 
 import pytest
 
-from axm_audit.core.rules.dependencies import (
-    resolve_workspace_members,
-)
+from axm_audit.core.rules.dependencies import resolve_workspace_members
+
+pytestmark = pytest.mark.integration
 
 
 def _write_pyproject(path: Path, content: str = "") -> None:
@@ -14,76 +15,56 @@ def _write_pyproject(path: Path, content: str = "") -> None:
     (path / "pyproject.toml").write_text(content)
 
 
-def _workspace_toml(*member_patterns: str) -> str:
-    members = ", ".join(f'"{p}"' for p in member_patterns)
-    return f"[tool.uv.workspace]\nmembers = [{members}]\n"
+def _package() -> str:
+    return '[project]\nname = "pkg"\nversion = "0.1.0"\n'
 
 
-# ---------------------------------------------------------------------------
-# _resolve_workspace_members — unit tests
-# ---------------------------------------------------------------------------
-
-
-class TestResolveWorkspaceMembers:
-    @pytest.mark.parametrize(
-        ("member_patterns", "package_paths", "expected_names"),
-        [
-            pytest.param(
-                ("packages/*",),
-                ("packages/pkg-a", "packages/pkg-b"),
-                ["pkg-a", "pkg-b"],
-                id="single_pattern",
-            ),
-            pytest.param(
-                ("packages/*", "libs/*"),
-                ("packages/pkg-a", "libs/lib-x"),
-                ["lib-x", "pkg-a"],
-                id="multiple_patterns",
-            ),
-        ],
+def test_returns_member_paths(tmp_path: Path) -> None:
+    """AC1, AC2: a real uv workspace resolves to the list of member paths."""
+    _write_pyproject(
+        tmp_path,
+        textwrap.dedent(
+            """\
+            [tool.uv.workspace]
+            members = ["packages/*"]
+            """
+        ),
     )
-    def test_resolve_returns_member_names(
-        self,
-        tmp_path: Path,
-        member_patterns: tuple[str, ...],
-        package_paths: tuple[str, ...],
-        expected_names: list[str],
-    ) -> None:
-        """Workspace globs resolve to sub-dirs with pyproject.toml."""
-        _write_pyproject(tmp_path, _workspace_toml(*member_patterns))
-        for pkg in package_paths:
-            _write_pyproject(tmp_path / pkg)
+    _write_pyproject(tmp_path / "packages" / "pkg-a", _package())
+    _write_pyproject(tmp_path / "packages" / "pkg-b", _package())
 
-        result = resolve_workspace_members(tmp_path)
+    members = resolve_workspace_members(tmp_path)
 
-        assert result is not None
-        assert sorted(p.name for p in result) == expected_names
+    assert members is not None
+    assert sorted(p.name for p in members) == ["pkg-a", "pkg-b"]
+    assert all(isinstance(p, Path) for p in members)
 
-    def test_resolve_workspace_members_no_workspace(self, tmp_path: Path) -> None:
-        """Non-workspace pyproject returns None."""
-        _write_pyproject(tmp_path, '[project]\nname = "solo"\n')
 
-        result = resolve_workspace_members(tmp_path)
+def test_excluded_member_absent(tmp_path: Path) -> None:
+    """AC3: a member listed in ``exclude`` does not appear in the result."""
+    _write_pyproject(
+        tmp_path,
+        textwrap.dedent(
+            """\
+            [tool.uv.workspace]
+            members = ["packages/*"]
+            exclude = ["packages/pkg-excluded"]
+            """
+        ),
+    )
+    _write_pyproject(tmp_path / "packages" / "pkg-a", _package())
+    _write_pyproject(tmp_path / "packages" / "pkg-excluded", _package())
 
-        assert result is None
+    members = resolve_workspace_members(tmp_path)
 
-    def test_resolve_workspace_members_empty_glob(self, tmp_path: Path) -> None:
-        """Workspace glob matching no directories returns empty list."""
-        _write_pyproject(tmp_path, _workspace_toml("packages/*"))
-        (tmp_path / "packages").mkdir()
+    assert members is not None
+    names = {p.name for p in members}
+    assert "pkg-a" in names
+    assert "pkg-excluded" not in names
 
-        result = resolve_workspace_members(tmp_path)
 
-        assert result == []
+def test_none_when_not_workspace(tmp_path: Path) -> None:
+    """AC1: a pyproject without a uv workspace table returns None."""
+    _write_pyproject(tmp_path, '[project]\nname = "solo"\n')
 
-    def test_resolve_workspace_members_skips_no_pyproject(self, tmp_path: Path) -> None:
-        """Dirs without pyproject.toml are silently skipped."""
-        _write_pyproject(tmp_path, _workspace_toml("packages/*"))
-        _write_pyproject(tmp_path / "packages" / "has-pyproject")
-        (tmp_path / "packages" / "no-pyproject").mkdir(parents=True)
-
-        result = resolve_workspace_members(tmp_path)
-
-        assert result is not None
-        assert len(result) == 1
-        assert result[0].name == "has-pyproject"
+    assert resolve_workspace_members(tmp_path) is None
