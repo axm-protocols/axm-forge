@@ -99,7 +99,7 @@ Business logic independent of I/O:
 | `deps.py` | deps | 2 |
 | `changelog.py` | changelog | 2 |
 | `workspace.py` | workspace | 9 |
-| `_workspace.py` | *(internal)* | Context detection: `detect_context()`, `find_workspace_root()`, `get_workspace_members()` |
+| `_workspace.py` | *(internal)* | Context detection: `detect_context()`, plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result |
 
 ### 4. Adapters (`adapters/`)
 

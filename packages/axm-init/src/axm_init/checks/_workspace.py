@@ -11,6 +11,9 @@ import logging
 from enum import StrEnum
 from pathlib import Path
 
+from axm_ingot.uv import find_workspace_root as _ingot_find_workspace_root
+from axm_ingot.uv import resolve_workspace
+
 from axm_init.checks._utils import TomlTable, section
 
 logger = logging.getLogger(__name__)
@@ -54,16 +57,13 @@ def _has_workspace_section(data: TomlTable) -> bool:
     return bool(section(section(data, "tool"), "uv").get("workspace"))
 
 
-def _get_workspace_config(data: TomlTable) -> TomlTable:
-    """Extract the ``[tool.uv.workspace]`` section."""
-    return section(section(section(data, "tool"), "uv"), "workspace")
-
-
 def find_workspace_root(path: Path) -> Path | None:
     """Walk parent directories looking for a UV workspace root.
 
     A workspace root is a directory whose ``pyproject.toml`` contains a
-    ``[tool.uv.workspace]`` section.
+    ``[tool.uv.workspace]`` section. Delegates to
+    :func:`axm_ingot.uv.find_workspace_root` (identical walk-up semantics:
+    first ancestor carrying ``[tool.uv.workspace]``).
 
     Args:
         path: Starting directory (typically a member package).
@@ -71,11 +71,7 @@ def find_workspace_root(path: Path) -> Path | None:
     Returns:
         The workspace root ``Path``, or ``None`` if not found.
     """
-    for parent in path.resolve().parents:
-        data = _load_pyproject(parent)
-        if data is not None and _has_workspace_section(data):
-            return parent
-    return None
+    return _ingot_find_workspace_root(path)
 
 
 def detect_context(path: Path) -> ProjectContext:
@@ -110,42 +106,16 @@ def detect_context(path: Path) -> ProjectContext:
     return ProjectContext.STANDALONE
 
 
-def _resolve_glob_dirs(
-    root: Path,
-    globs: list[str],
-    *,
-    require_pyproject: bool = False,
-) -> set[Path]:
-    """Resolve glob patterns to directories under *root*.
-
-    Args:
-        root: Base directory for glob resolution.
-        globs: List of glob patterns.
-        require_pyproject: If ``True``, only include dirs with pyproject.toml.
-
-    Returns:
-        Set of matching directory paths.
-    """
-    dirs: set[Path] = set()
-    for pattern in globs:
-        for match in root.glob(pattern):
-            if not match.is_dir():
-                continue
-            if require_pyproject and not (match / "pyproject.toml").exists():
-                continue
-            dirs.add(match)
-    return dirs
-
-
 def get_workspace_members(path: Path) -> list[str]:
     """Resolve workspace member package names from *path*.
 
     Reads the ``members`` globs from ``[tool.uv.workspace]`` in the
-    pyproject.toml at *path*, resolves them via ``Path.glob()``, and
-    filters out directories matching ``exclude`` globs.
+    pyproject.toml at *path*, resolves them, and filters out directories
+    matching ``exclude`` globs. Each resolved directory must contain a
+    ``pyproject.toml`` to be considered a valid member.
 
-    Each resolved directory must contain a ``pyproject.toml`` to be
-    considered a valid member.
+    Delegates resolution to :func:`axm_ingot.uv.resolve_workspace` and
+    projects the member names.
 
     Args:
         path: Workspace root directory.
@@ -153,35 +123,5 @@ def get_workspace_members(path: Path) -> list[str]:
     Returns:
         Sorted list of member directory names (relative to *path*).
     """
-    data = _load_pyproject(path)
-    if data is None:
-        return []
-
-    ws_config = _get_workspace_config(data)
-    if not ws_config:
-        return []
-
-    resolved = path.resolve()
-    members_raw = ws_config.get("members", [])
-    exclude_raw = ws_config.get("exclude", [])
-    members = (
-        [m for m in members_raw if isinstance(m, str)]
-        if isinstance(members_raw, list)
-        else []
-    )
-    excludes = (
-        [e for e in exclude_raw if isinstance(e, str)]
-        if isinstance(exclude_raw, list)
-        else []
-    )
-    member_dirs = _resolve_glob_dirs(
-        resolved,
-        members,
-        require_pyproject=True,
-    )
-    exclude_dirs = _resolve_glob_dirs(
-        resolved,
-        excludes,
-    )
-
-    return sorted(m.name for m in member_dirs - exclude_dirs)
+    workspace = resolve_workspace(path)
+    return [member.name for member in workspace.members] if workspace else []

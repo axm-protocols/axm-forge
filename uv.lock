@@ -563,6 +563,7 @@ name = "axm-init"
 source = { editable = "packages/axm-init" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-ingot" },
     { name = "copier" },
     { name = "cyclopts" },
     { name = "httpx" },
@@ -580,6 +581,7 @@ dev = [
     { name = "pytest-mock" },
     { name = "radon" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
 ]
 docs = [
     { name = "mkdocs-gen-files" },
@@ -591,6 +593,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
+    { name = "axm-ingot", editable = "packages/axm-ingot" },
     { name = "copier", specifier = ">=9.14.1" },
     { name = "cyclopts", specifier = ">=4.5.1" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -608,6 +611,7 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "radon", specifier = ">=6.0.1" },
     { name = "ruff", specifier = "==0.15.17" },
+    { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 docs = [
     { name = "mkdocs-gen-files", specifier = ">=0.5" },
