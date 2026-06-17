@@ -13,6 +13,7 @@
 |---|---|
 | `ast_move` | Deterministic CST-based refactor: move top-level symbols (classes, functions, constants) between Python modules, repairing every import and caller reference atomically |
 | `ast_rename` | Deterministic CST-based refactor: rename top-level symbols in place (definition + internal usages) and rewrite every cross-file caller (`from mod import Old` imports and usages) atomically |
+| `ast_extract` | Deterministic CST-based refactor: extract top-level symbols into a **new** module (created on disk) with their transitive dependencies, rewriting every cross-file caller, a specialisation of `ast_move` where the target module does not yet exist |
 
 ## Usage
 
@@ -75,15 +76,48 @@ The result is a `ToolResult` carrying the rename plan (`renamed`,
 pattern-based on imports; shadowing, alias chains, and re-exports/star
 imports are out of scope (deferred to a later tier).
 
+### `ast_extract`
+
+`ast_extract` extracts the named `symbols` from `from_file` into a **new**
+`to_file` that it creates on disk (parent directories included), copying the
+same transitively-referenced imports, constants, and local helpers as
+`ast_move`, then rewriting every `from old_module import` caller line to
+point at the new module. It is the specialisation of `ast_move` for moving
+code into a fresh module.
+
+```
+ast_extract(
+    from_file="src/mylib/models.py",
+    to_file="src/mylib/value_objects.py",
+    symbols="Money,Currency",
+    path="/project",
+    dry_run=True,
+)
+```
+
+Useful options:
+
+- `dry_run=True` - preview the plan without writing (and without leaving a scaffolded target on disk)
+- `strict=True` - fail on an absent symbol instead of skipping it with a warning
+- `rename='{"OldName": "NewName"}'` - rename extracted definitions and rewrite all references
+- `insert_after="<symbol>"` - splice extracted blocks after a named target symbol
+
+Extracting into a *pre-existing* module that already defines one of the
+requested symbols fails with `success=False` (no silent overwrite);
+`reexport` and `check` are intentionally not exposed. The result is a
+`ToolResult` with the same shape as `ast_move` (extracted symbols, copied
+imports/constants, updated callers, warnings, the created file).
+
 ## Other Refactorings
 
 `axm-anvil` also performs split and merge refactorings. These are available
-through the [`axm-anvil` CLI](../reference/cli.md); `ast_move` and
-`ast_rename` are the operations surfaced as MCP tools.
+through the [`axm-anvil` CLI](../reference/cli.md); `ast_move`,
+`ast_rename`, and `ast_extract` are the operations surfaced as MCP tools.
 
 ## Entry Points
 
-`ast_move` and `ast_rename` are auto-discovered via the `axm.tools`
-entry-point group (`ast_move = "axm_anvil.tools.move:MoveTool"`,
-`ast_rename = "axm_anvil.tools.rename:RenameTool"`). `axm-mcp` picks them up
-automatically at startup.
+`ast_move`, `ast_rename`, and `ast_extract` are auto-discovered via the
+`axm.tools` entry-point group (`ast_move = "axm_anvil.tools.move:MoveTool"`,
+`ast_rename = "axm_anvil.tools.rename:RenameTool"`,
+`ast_extract = "axm_anvil.tools.extract:ExtractTool"`). `axm-mcp` picks them
+up automatically at startup.

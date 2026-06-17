@@ -37,6 +37,25 @@ same fields as the CLI and returns a `ToolResult` with the move plan
 
 ::: axm_anvil.tools.move.MoveTool
 
+### `ExtractTool`
+
+Registered as `ast_extract` via the `axm.tools` entry point (reachable as
+`axm ast_extract` on the CLI and via MCP). Extracts top-level symbols from
+`from_file` into a **new** `to_file` (created on disk, parent directories
+included), copying the same transitive dependencies (imports, local
+helpers, constants) as `ast_move` and rewriting every cross-file caller
+(`from old import X` to `from new import X`). It is a thin specialisation of
+[`MoveTool`](#movetool) where the target module does not yet exist:
+extracting into a *pre-existing* module that already defines one of the
+requested symbols fails with `success=False` (no silent overwrite). With
+`dry_run=True` the plan is computed without leaving any file on disk.
+`reexport` and `check` are intentionally not exposed (meaningless against a
+freshly created module). The returned `ToolResult` carries the same shape
+as `ast_move` (`moved`, `dependencies_copied`, `callers_updated`,
+`warnings`, `shared_helpers_detected`, `files_modified`).
+
+::: axm_anvil.tools.extract.ExtractTool
+
 ### `RenameTool`
 
 Registered as `ast_rename` via the `axm.tools` entry point (so it is
@@ -57,6 +76,20 @@ exposed (incompatible with rename). The returned `ToolResult` carries
 ### `move_symbols`
 
 ::: axm_anvil.core.move.move_symbols
+
+### `extract_symbols`
+
+::: axm_anvil.core.extract.extract_symbols
+
+Thin adapter over [`move_symbols`](#move_symbols) for the *extract* case:
+the target module is **created** rather than amended. When `target_path`
+does not exist it is scaffolded as an empty module so the move pipeline can
+fill it; a pre-existing target already defining a requested symbol raises
+[`SymbolAlreadyExistsError`](#symbolnotfounderror) (no silent overwrite). A
+`dry_run=True` call removes any scaffolded target before returning, leaving
+disk state byte-identical. All other parameters mirror `move_symbols` and
+are forwarded verbatim; `reexport` and `check` are not exposed. Returns a
+[`MovePlan`](#moveplan).
 
 ### `MovePlan`
 

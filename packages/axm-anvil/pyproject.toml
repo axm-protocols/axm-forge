@@ -31,6 +31,7 @@ dependencies = [
 axm-anvil = "axm_anvil.cli:app"
 
 [project.entry-points."axm.tools"]
+ast_extract = "axm_anvil.tools.extract:ExtractTool"
 ast_move = "axm_anvil.tools.move:MoveTool"
 ast_rename = "axm_anvil.tools.rename:RenameTool"
 
