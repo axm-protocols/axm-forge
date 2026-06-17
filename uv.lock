@@ -241,6 +241,7 @@ name = "axm-ast"
 source = { editable = "packages/axm-ast" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-ingot" },
     { name = "cyclopts" },
     { name = "pydantic" },
     { name = "tree-sitter" },
@@ -269,6 +270,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
+    { name = "axm-ingot", editable = "packages/axm-ingot" },
     { name = "cyclopts", specifier = ">=3.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "tree-sitter", specifier = ">=0.24" },

@@ -12,6 +12,8 @@ import tomllib
 from pathlib import Path
 from typing import TypedDict
 
+from axm_ingot.uv import resolve_workspace
+
 from axm_ast.core.analyzer import build_import_graph, module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.models.nodes import PackageInfo, WorkspaceInfo
@@ -52,9 +54,13 @@ class WorkspaceContext(TypedDict, total=False):
 def detect_workspace(path: Path) -> WorkspaceInfo | None:
     """Detect a uv workspace at the given path.
 
-    Reads ``pyproject.toml`` looking for ``[tool.uv.workspace]`` members.
-    If found, resolves each member's source package directory and returns
-    a populated ``WorkspaceInfo``. Returns ``None`` if not a workspace.
+    Delegates uv-workspace resolution to :func:`axm_ingot.uv.resolve_workspace`
+    (the canonical, stdlib-only resolver) and then *projects* the resulting
+    ``ResolvedWorkspace`` onto a :class:`WorkspaceInfo` (name + root). The
+    Pydantic ``WorkspaceInfo`` model stays defined in axm-ast; ingot remains
+    leaf and never sees a Pydantic type. Returns ``None`` if not a workspace
+    (no ``[tool.uv.workspace]`` table, missing/malformed pyproject, or no
+    resolvable members).
 
     Args:
         path: Path to potential workspace root.
@@ -68,20 +74,25 @@ def detect_workspace(path: Path) -> WorkspaceInfo | None:
         True
     """
     path = Path(path).resolve()
-    pyproject = path / "pyproject.toml"
-    if not pyproject.exists():
+    resolved = resolve_workspace(path)
+    if resolved is None:
         return None
 
-    text = pyproject.read_text()
-    members = parse_workspace_members(text)
-    if not members:
+    pyproject_text = (path / "pyproject.toml").read_text()
+    # A workspace must DECLARE members; an empty ``members = []`` is not a
+    # workspace. ingot's ``ResolvedWorkspace`` collapses declared-but-yet-
+    # unresolvable members (e.g. a glob matching nothing) to an empty tuple,
+    # so the declared-members check stays on the raw text to preserve the
+    # historical contract: a glob workspace with no current matches is still
+    # a workspace (analyze_workspace then reports zero packages + a warning).
+    if not parse_workspace_members(pyproject_text):
         return None
 
-    ws_name = _parse_project_name(text) or path.name
+    ws_name = _parse_project_name(pyproject_text) or path.name
 
     return WorkspaceInfo(
         name=ws_name,
-        root=path,
+        root=resolved.root,
         packages=[],
         package_edges=[],
     )
