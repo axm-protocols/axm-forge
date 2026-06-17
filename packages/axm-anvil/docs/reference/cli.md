@@ -37,6 +37,21 @@ same fields as the CLI and returns a `ToolResult` with the move plan
 
 ::: axm_anvil.tools.move.MoveTool
 
+### `RenameTool`
+
+Registered as `ast_rename` via the `axm.tools` entry point (so it is
+reachable as `axm ast_rename` on the CLI and via MCP). Renames top-level
+symbols **in place** — definition and internal usages — and rewrites every
+cross-file caller (`from mod import Old` import alias and usages). Pass a
+mono-symbol `old`/`new` pair, or a `mapping` JSON object (e.g.
+`'{"OldName": "NewName"}'`) for batch renames. `dry_run` previews the plan
+without writing; `strict` turns an absent symbol into a `success=False`
+result instead of a skipped-with-warning. `reexport` is intentionally not
+exposed (incompatible with rename). The returned `ToolResult` carries
+`renamed`, `callers_updated`, `warnings`, and `files_modified`.
+
+::: axm_anvil.tools.rename.RenameTool
+
 ## Python API
 
 ### `move_symbols`
@@ -46,6 +61,20 @@ same fields as the CLI and returns a `ToolResult` with the move plan
 ### `MovePlan`
 
 ::: axm_anvil.core.plan.MovePlan
+
+### `rename_symbols`
+
+::: axm_anvil.core.rename.rename_symbols
+
+Renames the top-level symbols in `mapping` in place in `file` and rewrites
+every cross-file caller discovered under the workspace root. Caller
+rewriting is pattern-based on the import statement; shadowing, alias chains,
+and re-exports/star imports are deferred to a later tier (see the function
+and module docstrings). Returns a `RenamePlan`.
+
+### `RenamePlan`
+
+::: axm_anvil.core.rename.RenamePlan
 
 ### `SIDE_EFFECT_DECORATORS`
 

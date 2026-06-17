@@ -24,6 +24,7 @@ it exposes a set of MCP tools for agent-driven refactoring.
 ## Features
 
 - 🔨 **`ast_move`** — Move classes, functions, or constants between files with transitive dependency resolution (imports, constants, helpers)
+- ✏️ **`ast_rename`** — Rename top-level symbols in place and rewrite cross-file callers atomically (definition + internal usages + `from mod import Old` imports and usages in every caller)
 - 🔁 **Smart import merging** — Uses `AddImportsVisitor` to combine imports from the same module instead of duplicating
 - 🧹 **Scope-aware orphan cleanup** — Source file's unused imports are removed via `ruff check --select F401 --fix`
 - 📐 **Topological constant ordering** — Dependencies are always inserted before their dependents
@@ -42,17 +43,18 @@ it exposes a set of MCP tools for agent-driven refactoring.
 
 ### Planned tools
 
-The tools below are **not yet implemented** — `ast_move` is the only one
-currently shipped. They are listed here to convey the intended direction.
+The tools below are **not yet implemented** — `ast_move` and `ast_rename`
+are the shipped operations. The rest are listed here to convey the
+intended direction.
 
-| Tool | Description |
-|---|---|
-| `ast_move` | Move symbols between files |
-| `ast_rename` | Rename a symbol everywhere (def + callers + imports + `__all__`) |
-| `ast_split` | Split a module into N sub-modules |
-| `ast_merge` | Merge N modules into one |
-| `ast_promote` | `_foo` → `foo` + add `__all__` + update imports |
-| `ast_seal` | `foo` → `_foo` + verify zero external callers |
+| Tool | Description | Status |
+|---|---|---|
+| `ast_move` | Move symbols between files | shipped |
+| `ast_rename` | Rename a top-level symbol in place; rewrite cross-file callers (imports + usages) | shipped |
+| `ast_split` | Split a module into N sub-modules | planned |
+| `ast_merge` | Merge N modules into one | planned |
+| `ast_promote` | `_foo` → `foo` + add `__all__` + update imports | planned |
+| `ast_seal` | `foo` → `_foo` + verify zero external callers | planned |
 
 All share the same pipeline: **identify** (tree-sitter via `axm-ast`) → **blast radius** (`ast_callers`) → **transform** (libcst) → **validate** (`cst.parse_module()` + `audit(lint)`) → **write atomically** (`batch_edit`) → **rollback on error**.
 

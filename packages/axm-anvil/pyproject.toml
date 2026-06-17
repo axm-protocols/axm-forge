@@ -32,6 +32,7 @@ axm-anvil = "axm_anvil.cli:app"
 
 [project.entry-points."axm.tools"]
 ast_move = "axm_anvil.tools.move:MoveTool"
+ast_rename = "axm_anvil.tools.rename:RenameTool"
 
 [project.urls]
 Homepage = "https://forge.axm-protocols.io"
