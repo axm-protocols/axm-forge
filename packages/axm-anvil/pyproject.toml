@@ -31,9 +31,9 @@ dependencies = [
 axm-anvil = "axm_anvil.cli:app"
 
 [project.entry-points."axm.tools"]
-ast_extract = "axm_anvil.tools.extract:ExtractTool"
-ast_move = "axm_anvil.tools.move:MoveTool"
-ast_rename = "axm_anvil.tools.rename:RenameTool"
+anvil_extract = "axm_anvil.tools.extract:ExtractTool"
+anvil_move = "axm_anvil.tools.move:MoveTool"
+anvil_rename = "axm_anvil.tools.rename:RenameTool"
 
 [project.urls]
 Homepage = "https://forge.axm-protocols.io"

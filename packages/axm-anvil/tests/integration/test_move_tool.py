@@ -59,7 +59,7 @@ def test_execute_full_move_on_fixture(tmp_path: Path) -> None:
     assert str(src) in files_modified
     assert str(tgt) in files_modified
     assert result.text is not None
-    assert "ast_move" in result.text
+    assert "anvil_move" in result.text
 
     assert "TestFilesystemInvalidation" in tgt.read_text()
     assert "TestFilesystemInvalidation" not in src.read_text()

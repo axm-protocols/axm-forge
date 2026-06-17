@@ -20,7 +20,7 @@ __all__ = ["MoveTool"]
 class MoveTool(AXMTool):
     """Move top-level symbols between Python files atomically.
 
-    Registered as ``ast_move`` via the ``axm.tools`` entry point.
+    Registered as ``anvil_move`` via the ``axm.tools`` entry point.
     Delegates to :func:`axm_anvil.core.move.move_symbols` and adapts
     exceptions into ``ToolResult(success=False)``.
     """
@@ -33,7 +33,7 @@ class MoveTool(AXMTool):
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
-        return "ast_move"
+        return "anvil_move"
 
     @staticmethod
     def _normalize_execute_args(
@@ -261,7 +261,7 @@ class MoveTool(AXMTool):
         src_name = Path(from_file).name or from_file
         tgt_name = Path(to_file).name or to_file
         lines: list[str] = [
-            f"ast_move | {n} symbols | {src_name} \u2192 {tgt_name}",
+            f"anvil_move | {n} symbols | {src_name} \u2192 {tgt_name}",
             "",
         ]
         if reexport:

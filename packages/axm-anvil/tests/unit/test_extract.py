@@ -6,9 +6,9 @@ from pathlib import Path
 from axm_anvil.tools.extract import ExtractTool
 
 
-def test_name_is_ast_extract() -> None:
-    """AC1: the tool exposes the ``ast_extract`` registry name."""
-    assert ExtractTool().name == "ast_extract"
+def test_name_is_anvil_extract() -> None:
+    """AC2: the tool exposes the ``anvil_extract`` registry name."""
+    assert ExtractTool().name == "anvil_extract"
 
 
 def test_collision_returns_failure(tmp_path: Path) -> None:
@@ -47,7 +47,7 @@ def test_collision_returns_failure(tmp_path: Path) -> None:
 
 
 def test_result_data_shape(tmp_path: Path) -> None:
-    """AC5: a dry-run extract returns the same data shape as ``ast_move``:
+    """AC5: a dry-run extract returns the same data shape as ``anvil_move``:
     extracted symbols, copied dependencies, callers updated, created file."""
     src = tmp_path / "src.py"
     src.write_text(

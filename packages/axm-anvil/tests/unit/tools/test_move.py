@@ -33,7 +33,7 @@ def _plan(
 
 def test_move_tool_name_and_hint():
     tool = MoveTool()
-    assert tool.name == "ast_move"
+    assert tool.name == "anvil_move"
     assert tool.agent_hint
     assert len(tool.agent_hint) <= 200
 
@@ -51,7 +51,7 @@ def test_format_text_compact():
         to_file="tgt.py",
     )
 
-    assert "ast_move" in text
+    assert "anvil_move" in text
     assert "2 symbols" in text
     assert "Moved:" in text
     assert "Dependencies:" in text
@@ -62,7 +62,7 @@ def test_mcp_entry_point_discoverable():
     code = (
         "from importlib.metadata import entry_points;"
         "eps = entry_points(group='axm.tools');"
-        "match = [(e.name, e.value) for e in eps if e.name == 'ast_move'];"
+        "match = [(e.name, e.value) for e in eps if e.name == 'anvil_move'];"
         "print(match)"
     )
     result = subprocess.run(
@@ -71,7 +71,7 @@ def test_mcp_entry_point_discoverable():
         text=True,
         check=True,
     )
-    assert "ast_move" in result.stdout
+    assert "anvil_move" in result.stdout
     assert "axm_anvil.tools.move:MoveTool" in result.stdout
 
 

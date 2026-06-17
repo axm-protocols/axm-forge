@@ -23,8 +23,8 @@ it exposes a set of MCP tools for agent-driven refactoring.
 
 ## Features
 
-- 🔨 **`ast_move`** — Move classes, functions, or constants between files with transitive dependency resolution (imports, constants, helpers)
-- ✏️ **`ast_rename`** — Rename top-level symbols in place and rewrite cross-file callers atomically (definition + internal usages + `from mod import Old` imports and usages in every caller)
+- 🔨 **`anvil_move`** — Move classes, functions, or constants between files with transitive dependency resolution (imports, constants, helpers)
+- ✏️ **`anvil_rename`** — Rename top-level symbols in place and rewrite cross-file callers atomically (definition + internal usages + `from mod import Old` imports and usages in every caller)
 - 🔁 **Smart import merging** — Uses `AddImportsVisitor` to combine imports from the same module instead of duplicating
 - 🧹 **Scope-aware orphan cleanup** — Source file's unused imports are removed via `ruff check --select F401 --fix`
 - 📐 **Topological constant ordering** — Dependencies are always inserted before their dependents
@@ -43,14 +43,15 @@ it exposes a set of MCP tools for agent-driven refactoring.
 
 ### Planned tools
 
-The tools below are **not yet implemented** — `ast_move` and `ast_rename`
-are the shipped operations. The rest are listed here to convey the
-intended direction.
+`anvil_move`, `anvil_rename`, and `anvil_extract` are the shipped
+operations. The tools below are **not yet implemented** — they are listed
+here to convey the intended direction.
 
 | Tool | Description | Status |
 |---|---|---|
-| `ast_move` | Move symbols between files | shipped |
-| `ast_rename` | Rename a top-level symbol in place; rewrite cross-file callers (imports + usages) | shipped |
+| `anvil_move` | Move symbols between files | shipped |
+| `anvil_rename` | Rename a top-level symbol in place; rewrite cross-file callers (imports + usages) | shipped |
+| `anvil_extract` | Extract symbols into a new module (created on disk) with their transitive dependencies | shipped |
 | `ast_split` | Split a module into N sub-modules | planned |
 | `ast_merge` | Merge N modules into one | planned |
 | `ast_promote` | `_foo` → `foo` + add `__all__` + update imports | planned |

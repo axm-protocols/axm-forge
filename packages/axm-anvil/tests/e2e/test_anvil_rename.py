@@ -1,4 +1,4 @@
-"""E2E test for the ``axm ast_rename`` CLI (subprocess black box)."""
+"""E2E test for the ``axm anvil_rename`` CLI (subprocess black box)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ pytestmark = pytest.mark.e2e
 
 
 def test_cli_rename_old_new(tmp_path: Path) -> None:
-    """AC1, AC2: ``axm ast_rename --old Foo --new Bar`` rewrites the file."""
+    """AC1, AC2: ``axm anvil_rename --old Foo --new Bar`` rewrites the file."""
     mod = tmp_path / "mod.py"
     mod.write_text(
         "def Foo() -> int:\n    return 1\n\n\ndef use() -> int:\n    return Foo()\n"
@@ -20,7 +20,7 @@ def test_cli_rename_old_new(tmp_path: Path) -> None:
     proc = subprocess.run(
         [
             "axm",
-            "ast_rename",
+            "anvil_rename",
             "--path",
             str(tmp_path),
             "--file",

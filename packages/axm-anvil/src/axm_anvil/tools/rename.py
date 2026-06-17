@@ -16,7 +16,7 @@ __all__ = ["RenameTool"]
 class RenameTool(AXMTool):
     """Rename top-level symbols in place, rewriting cross-file callers.
 
-    Registered as ``ast_rename`` via the ``axm.tools`` entry point.
+    Registered as ``anvil_rename`` via the ``axm.tools`` entry point.
     Delegates to :func:`axm_anvil.core.rename.rename_symbols` and adapts
     exceptions into ``ToolResult(success=False)``. Mono-symbol renames use
     ``--old``/``--new``; batch renames pass a ``--mapping`` JSON object
@@ -32,7 +32,7 @@ class RenameTool(AXMTool):
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
-        return "ast_rename"
+        return "anvil_rename"
 
     @staticmethod
     def _resolve_mapping(
@@ -154,10 +154,10 @@ class RenameTool(AXMTool):
         return ToolResult(success=True, data=data, text=text)
 
     def _format_text(self, plan: RenamePlan, *, file: str) -> str:
-        """Render the rename plan as compact text (mirrors ast_move)."""
+        """Render the rename plan as compact text (mirrors anvil_move)."""
         n = len(plan.renamed)
         name = Path(file).name or file
-        lines: list[str] = [f"ast_rename | {n} symbols | {name}", ""]
+        lines: list[str] = [f"anvil_rename | {n} symbols | {name}", ""]
         lines.append("Renamed:")
         for old, new in plan.renamed.items():
             lines.append(f"  - {old} → {new}")

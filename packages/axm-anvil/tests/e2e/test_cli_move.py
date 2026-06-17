@@ -62,7 +62,7 @@ def test_cli_move_dry_run(fixture_dir: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "ast_move" in result.stdout
+    assert "anvil_move" in result.stdout
     assert "TestFilesystemInvalidation" in result.stdout
     assert src.read_text() == before_src
     assert tgt.read_text() == before_tgt

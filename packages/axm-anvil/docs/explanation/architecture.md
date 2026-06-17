@@ -29,7 +29,7 @@ graph TD
 ### 1. CLI / MCP Tool
 
 Entry points for user commands. `cli.py` exposes the `axm-anvil move`
-cyclopts command; `tools/move.py` exposes the same surface as the `ast_move`
+cyclopts command; `tools/move.py` exposes the same surface as the `anvil_move`
 MCP tool. Both are thin wrappers that delegate to `core.move.move_symbols`
 and handle input validation and formatted output.
 
@@ -322,7 +322,7 @@ preview contract.
 
 | Decision | Rationale |
 |---|---|
-| Thin CLI/MCP wrappers over a pure `core/` | Testable, I/O-free core; the same `move_symbols` powers both the `axm-anvil move` CLI and the `ast_move` MCP tool |
+| Thin CLI/MCP wrappers over a pure `core/` | Testable, I/O-free core; the same `move_symbols` powers both the `axm-anvil move` CLI and the `anvil_move` MCP tool |
 | `MovePlan` dataclass result | Plain `@dataclass` carrying rendered texts, moved names, copied deps, and warnings — no runtime validation overhead on a hot path |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Private `_cst/` sub-package | Share libcst primitives across tools without leaking internals |

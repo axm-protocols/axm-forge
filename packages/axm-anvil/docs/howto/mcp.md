@@ -11,21 +11,21 @@
 
 | MCP Tool | Purpose |
 |---|---|
-| `ast_move` | Deterministic CST-based refactor: move top-level symbols (classes, functions, constants) between Python modules, repairing every import and caller reference atomically |
-| `ast_rename` | Deterministic CST-based refactor: rename top-level symbols in place (definition + internal usages) and rewrite every cross-file caller (`from mod import Old` imports and usages) atomically |
-| `ast_extract` | Deterministic CST-based refactor: extract top-level symbols into a **new** module (created on disk) with their transitive dependencies, rewriting every cross-file caller, a specialisation of `ast_move` where the target module does not yet exist |
+| `anvil_move` | Deterministic CST-based refactor: move top-level symbols (classes, functions, constants) between Python modules, repairing every import and caller reference atomically |
+| `anvil_rename` | Deterministic CST-based refactor: rename top-level symbols in place (definition + internal usages) and rewrite every cross-file caller (`from mod import Old` imports and usages) atomically |
+| `anvil_extract` | Deterministic CST-based refactor: extract top-level symbols into a **new** module (created on disk) with their transitive dependencies, rewriting every cross-file caller, a specialisation of `anvil_move` where the target module does not yet exist |
 
 ## Usage
 
 !!! note "MCP dispatch"
     The example below shows the **logical API** — the parameters the tool takes.
-    In practice, AI agents call this via MCP tool dispatch (e.g. `mcp_axm-mcp_ast_move`),
+    In practice, AI agents call this via MCP tool dispatch (e.g. `mcp_axm-mcp_anvil_move`),
     not direct Python imports.
 
-`ast_move` moves the named `symbols` from `from_file` to `to_file`, copying transitively-referenced imports, constants, and local helpers, then rewriting every `from old_module import …` caller line to point at the new module. All edits are computed in memory, validated, and written all-or-nothing.
+`anvil_move` moves the named `symbols` from `from_file` to `to_file`, copying transitively-referenced imports, constants, and local helpers, then rewriting every `from old_module import …` caller line to point at the new module. All edits are computed in memory, validated, and written all-or-nothing.
 
 ```
-ast_move(
+anvil_move(
     from_file="src/mylib/models.py",
     to_file="src/mylib/services.py",
     symbols="UserService,_validate_input",
@@ -45,17 +45,17 @@ Useful options (full list in the [CLI Reference](../reference/cli.md)):
 
 The result is a `ToolResult` carrying the move plan (moved symbols, copied imports/constants, updated callers, and any warnings).
 
-### `ast_rename`
+### `anvil_rename`
 
-`ast_rename` renames the symbols in `mapping` (or the single `old`→`new`
+`anvil_rename` renames the symbols in `mapping` (or the single `old`→`new`
 pair) **in place** in `file`: it rewrites the definition and every internal
 usage, then rewrites each cross-file caller — the `from mod import Old`
-import alias and every usage of the renamed name. Unlike `ast_move` no block
+import alias and every usage of the renamed name. Unlike `anvil_move` no block
 is copied between files; the symbol keeps its module. All edits are computed
 in memory, validated, and written all-or-nothing.
 
 ```
-ast_rename(
+anvil_rename(
     file="src/mylib/models.py",
     old="OldName",
     new="NewName",
@@ -76,17 +76,17 @@ The result is a `ToolResult` carrying the rename plan (`renamed`,
 pattern-based on imports; shadowing, alias chains, and re-exports/star
 imports are out of scope (deferred to a later tier).
 
-### `ast_extract`
+### `anvil_extract`
 
-`ast_extract` extracts the named `symbols` from `from_file` into a **new**
+`anvil_extract` extracts the named `symbols` from `from_file` into a **new**
 `to_file` that it creates on disk (parent directories included), copying the
 same transitively-referenced imports, constants, and local helpers as
-`ast_move`, then rewriting every `from old_module import` caller line to
-point at the new module. It is the specialisation of `ast_move` for moving
+`anvil_move`, then rewriting every `from old_module import` caller line to
+point at the new module. It is the specialisation of `anvil_move` for moving
 code into a fresh module.
 
 ```
-ast_extract(
+anvil_extract(
     from_file="src/mylib/models.py",
     to_file="src/mylib/value_objects.py",
     symbols="Money,Currency",
@@ -105,19 +105,19 @@ Useful options:
 Extracting into a *pre-existing* module that already defines one of the
 requested symbols fails with `success=False` (no silent overwrite);
 `reexport` and `check` are intentionally not exposed. The result is a
-`ToolResult` with the same shape as `ast_move` (extracted symbols, copied
+`ToolResult` with the same shape as `anvil_move` (extracted symbols, copied
 imports/constants, updated callers, warnings, the created file).
 
 ## Other Refactorings
 
 `axm-anvil` also performs split and merge refactorings. These are available
-through the [`axm-anvil` CLI](../reference/cli.md); `ast_move`,
-`ast_rename`, and `ast_extract` are the operations surfaced as MCP tools.
+through the [`axm-anvil` CLI](../reference/cli.md); `anvil_move`,
+`anvil_rename`, and `anvil_extract` are the operations surfaced as MCP tools.
 
 ## Entry Points
 
-`ast_move`, `ast_rename`, and `ast_extract` are auto-discovered via the
-`axm.tools` entry-point group (`ast_move = "axm_anvil.tools.move:MoveTool"`,
-`ast_rename = "axm_anvil.tools.rename:RenameTool"`,
-`ast_extract = "axm_anvil.tools.extract:ExtractTool"`). `axm-mcp` picks them
+`anvil_move`, `anvil_rename`, and `anvil_extract` are auto-discovered via the
+`axm.tools` entry-point group (`anvil_move = "axm_anvil.tools.move:MoveTool"`,
+`anvil_rename = "axm_anvil.tools.rename:RenameTool"`,
+`anvil_extract = "axm_anvil.tools.extract:ExtractTool"`). `axm-mcp` picks them
 up automatically at startup.

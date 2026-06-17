@@ -22,10 +22,10 @@ __all__ = ["ExtractTool"]
 class ExtractTool(AXMTool):
     """Extract top-level symbols from a module into a brand-new module.
 
-    Registered as ``ast_extract`` via the ``axm.tools`` entry point.
+    Registered as ``anvil_extract`` via the ``axm.tools`` entry point.
     Delegates to :func:`axm_anvil.core.extract.extract_symbols` (itself a
     thin adapter over the move pipeline) and adapts exceptions into
-    ``ToolResult(success=False)``. The result shape matches ``ast_move``.
+    ``ToolResult(success=False)``. The result shape matches ``anvil_move``.
     """
 
     agent_hint: str = (
@@ -37,7 +37,7 @@ class ExtractTool(AXMTool):
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
-        return "ast_extract"
+        return "anvil_extract"
 
     @staticmethod
     def _normalize_execute_args(
@@ -231,12 +231,12 @@ class ExtractTool(AXMTool):
         from_file: str,
         to_file: str,
     ) -> str:
-        """Render the extract plan as compact text (mirrors ast_move)."""
+        """Render the extract plan as compact text (mirrors anvil_move)."""
         n = len(plan.moved_names)
         src_name = Path(from_file).name or from_file
         tgt_name = Path(to_file).name or to_file
         lines: list[str] = [
-            f"ast_extract | {n} symbols | {src_name} → {tgt_name} (new)",
+            f"anvil_extract | {n} symbols | {src_name} → {tgt_name} (new)",
             "",
             "Extracted:",
         ]

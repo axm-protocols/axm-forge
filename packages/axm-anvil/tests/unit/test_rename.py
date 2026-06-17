@@ -14,9 +14,9 @@ from pathlib import Path
 from axm_anvil.tools.rename import RenameTool
 
 
-def test_name_is_ast_rename() -> None:
-    """AC1: the tool advertises ``ast_rename`` for registry lookup."""
-    assert RenameTool().name == "ast_rename"
+def test_name_is_anvil_rename() -> None:
+    """AC2: the tool advertises ``anvil_rename`` for registry lookup."""
+    assert RenameTool().name == "anvil_rename"
 
 
 def test_missing_symbol_returns_failure(tmp_path: Path) -> None:
@@ -37,7 +37,7 @@ def test_missing_symbol_returns_failure(tmp_path: Path) -> None:
 
 
 def test_result_data_shape(tmp_path: Path) -> None:
-    """AC4: dry_run ToolResult.data exposes the same shape as ast_move."""
+    """AC4: dry_run ToolResult.data exposes the same shape as anvil_move."""
     src = tmp_path / "mod.py"
     src.write_text("def old_fn() -> int:\n    return old_fn.__name__ and 1\n")
 

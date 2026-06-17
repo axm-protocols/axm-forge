@@ -31,7 +31,7 @@ axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--strict] 
 
 ### `MoveTool`
 
-Registered as `ast_move` via the `axm.tools` entry point. Accepts the
+Registered as `anvil_move` via the `axm.tools` entry point. Accepts the
 same fields as the CLI and returns a `ToolResult` with the move plan
 (moved symbols, copied imports/constants, warnings).
 
@@ -39,11 +39,11 @@ same fields as the CLI and returns a `ToolResult` with the move plan
 
 ### `ExtractTool`
 
-Registered as `ast_extract` via the `axm.tools` entry point (reachable as
-`axm ast_extract` on the CLI and via MCP). Extracts top-level symbols from
+Registered as `anvil_extract` via the `axm.tools` entry point (reachable as
+`axm anvil_extract` on the CLI and via MCP). Extracts top-level symbols from
 `from_file` into a **new** `to_file` (created on disk, parent directories
 included), copying the same transitive dependencies (imports, local
-helpers, constants) as `ast_move` and rewriting every cross-file caller
+helpers, constants) as `anvil_move` and rewriting every cross-file caller
 (`from old import X` to `from new import X`). It is a thin specialisation of
 [`MoveTool`](#movetool) where the target module does not yet exist:
 extracting into a *pre-existing* module that already defines one of the
@@ -51,15 +51,15 @@ requested symbols fails with `success=False` (no silent overwrite). With
 `dry_run=True` the plan is computed without leaving any file on disk.
 `reexport` and `check` are intentionally not exposed (meaningless against a
 freshly created module). The returned `ToolResult` carries the same shape
-as `ast_move` (`moved`, `dependencies_copied`, `callers_updated`,
+as `anvil_move` (`moved`, `dependencies_copied`, `callers_updated`,
 `warnings`, `shared_helpers_detected`, `files_modified`).
 
 ::: axm_anvil.tools.extract.ExtractTool
 
 ### `RenameTool`
 
-Registered as `ast_rename` via the `axm.tools` entry point (so it is
-reachable as `axm ast_rename` on the CLI and via MCP). Renames top-level
+Registered as `anvil_rename` via the `axm.tools` entry point (so it is
+reachable as `axm anvil_rename` on the CLI and via MCP). Renames top-level
 symbols **in place** — definition and internal usages — and rewrites every
 cross-file caller (`from mod import Old` import alias and usages). Pass a
 mono-symbol `old`/`new` pair, or a `mapping` JSON object (e.g.
@@ -163,7 +163,7 @@ symbols (for example a `test_basic` method declared inside a `Test*`
 class, or a name that simply does not exist) is **skipped** by default:
 [`move_symbols`](#move_symbols) drops it from the move and records a
 `skipped '<name>': not a top-level symbol in source` entry on
-`MovePlan.warnings`. The CLI and the `ast_move` MCP tool surface that
+`MovePlan.warnings`. The CLI and the `anvil_move` MCP tool surface that
 warning and still exit successfully. Pass `strict=True`
 ([`move_symbols`](#move_symbols) / `MoveTool.execute`) or `--strict` on the
 CLI to raise `SymbolNotFoundError` on the first absent name (surfaced as a

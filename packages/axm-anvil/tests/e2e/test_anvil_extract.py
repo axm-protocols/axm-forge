@@ -11,7 +11,7 @@ pytestmark = pytest.mark.e2e
 
 
 def test_cli_extract_to_new_module(tmp_path: Path) -> None:
-    """AC1, AC2: the ``axm ast_extract`` CLI extracts a symbol into a new
+    """AC1, AC2: the ``axm anvil_extract`` CLI extracts a symbol into a new
     module file that is created on disk."""
     src = tmp_path / "src.py"
     src.write_text(
@@ -28,7 +28,7 @@ def test_cli_extract_to_new_module(tmp_path: Path) -> None:
             sys.executable,
             "-m",
             "axm.cli",
-            "ast_extract",
+            "anvil_extract",
             "--path",
             str(tmp_path),
             "--from-file",
