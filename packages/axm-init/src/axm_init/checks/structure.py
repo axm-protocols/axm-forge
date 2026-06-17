@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from axm_ingot.uv import find_workspace_root
+
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -206,26 +208,18 @@ def _find_uv_lock(project: Path) -> Path | None:
     """Locate uv.lock: local first, then workspace root.
 
     In a uv workspace (monorepo), ``uv.lock`` lives at the workspace root,
-    not in each member package.  Walk up parent directories looking for a
-    ``pyproject.toml`` that contains ``[tool.uv.workspace]`` and a sibling
-    ``uv.lock``.
+    not in each member package.  Workspace-root detection is delegated to
+    :func:`axm_ingot.uv.find_workspace_root`; if a root is found, its
+    sibling ``uv.lock`` is returned when present.
     """
     local = project / "uv.lock"
     if local.exists():
         return local
-    for parent in project.resolve().parents:
-        candidate = parent / "pyproject.toml"
-        if candidate.exists():
-            try:
-                text = candidate.read_text()
-                if "[tool.uv.workspace]" in text:
-                    lock = parent / "uv.lock"
-                    if lock.exists():
-                        return lock
-                    return None  # workspace root found but no lock
-            except OSError:
-                continue
-    return None
+    root = find_workspace_root(project)
+    if root is None:
+        return None
+    lock = root / "uv.lock"
+    return lock if lock.exists() else None
 
 
 def check_uv_lock(project: Path) -> CheckResult:
