@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import libcst as cst
-from axm_ast.core.workspace import analyze_workspace, build_workspace_module_graph
+from axm_ast import analyze_workspace, build_workspace_module_graph
 from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor
 

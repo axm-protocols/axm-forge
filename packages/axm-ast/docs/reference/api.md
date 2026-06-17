@@ -6,22 +6,26 @@ Public helpers exposed by `axm_ast.core.context`.
 
 ## Root re-exports
 
-The four primary analysis functions are re-exported from the package root, so
+The primary analysis functions are re-exported from the package root, so
 the canonical import path is `axm_ast` (their implementation modules under
 `axm_ast.core.*` remain importable too):
 
 ```python
 from axm_ast import (
-    find_callers,      # axm_ast.core.callers
-    trace_flow,        # axm_ast.core.flows
-    find_dead_code,    # axm_ast.core.dead_code
-    structural_diff,   # axm_ast.core.structural_diff
+    find_callers,                  # axm_ast.core.callers
+    trace_flow,                    # axm_ast.core.flows
+    find_dead_code,                # axm_ast.core.dead_code
+    structural_diff,               # axm_ast.core.structural_diff
+    analyze_workspace,             # axm_ast.core.workspace
+    build_workspace_module_graph,  # axm_ast.core.workspace
 )
 ```
 
 The result/parameter types they expose are re-exported alongside them so no
 internal type leaks from the public signatures: `CallSite`, `FlowStep`,
-`DeadSymbol`, `StructuralDiffResult` (and the already-public `PackageInfo`).
+`DeadSymbol`, `StructuralDiffResult`, `WorkspaceInfo` (the result of
+`analyze_workspace` and the parameter of `build_workspace_module_graph`), and
+the already-public `PackageInfo`.
 
 > **`find_dead_code` caveat** — reference matching is by name only against a
 > single global set of referenced names, so a dead symbol homonymous with a
