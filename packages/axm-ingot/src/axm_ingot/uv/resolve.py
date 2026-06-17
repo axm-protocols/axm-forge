@@ -15,9 +15,43 @@ from pathlib import Path
 
 from axm_ingot.uv.models import Member, ResolvedWorkspace
 
-__all__ = ["find_project_root", "find_workspace_root", "resolve_workspace"]
+__all__ = [
+    "find_project_root",
+    "find_workspace_root",
+    "parse_workspace_members",
+    "resolve_workspace",
+]
 
 _PYPROJECT = "pyproject.toml"
+
+
+def parse_workspace_members(text: str) -> list[str]:
+    """Extract the raw ``[tool.uv.workspace].members`` from pyproject text.
+
+    Pure-string helper: parses ``text`` with :func:`tomllib.loads` and returns
+    the declared members verbatim -- no glob expansion, no filesystem access,
+    no ``exclude``/``require_pyproject`` filtering. Globs (``packages/*``) and
+    literal entries are returned exactly as written. Defensive: malformed TOML
+    or an absent ``[tool.uv.workspace]`` table yields ``[]`` rather than raising.
+
+    Args:
+        text: Raw ``pyproject.toml`` content.
+
+    Returns:
+        The raw member strings declared under ``[tool.uv.workspace].members``,
+        or ``[]`` when none are declared.
+    """
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return []
+    workspace = _get_workspace_config(data)
+    if workspace is None:
+        return []
+    members = workspace.get("members")
+    if not isinstance(members, list):
+        return []
+    return [str(member) for member in members]
 
 
 def _load_pyproject(directory: Path) -> dict[str, object] | None:

@@ -10,7 +10,7 @@ depend on without creating a dependency cycle.
 graph TD
     subgraph "axm_ingot.uv"
         Models["models.py — Member, ResolvedWorkspace"]
-        Resolve["resolve.py — resolve_workspace, find_workspace_root, find_project_root"]
+        Resolve["resolve.py — resolve_workspace, parse_workspace_members, find_workspace_root, find_project_root"]
     end
     Resolve --> Models
 ```
@@ -25,9 +25,10 @@ Frozen value types — `Member` (`name`, `path`) and `ResolvedWorkspace`
 ### `axm_ingot.uv.resolve`
 
 The resolution logic — `resolve_workspace`, `find_workspace_root`, and
-`find_project_root`, plus private helpers (`_load_pyproject`,
-`_get_workspace_config`, `_resolve_glob_dirs`). Pure functions over the
-filesystem; all TOML parsing is defensive.
+`find_project_root`, plus `parse_workspace_members` (the pure-text reader of
+the raw `[tool.uv.workspace].members` array, no glob/filesystem), and private
+helpers (`_load_pyproject`, `_get_workspace_config`, `_resolve_glob_dirs`).
+Pure functions over the filesystem; all TOML parsing is defensive.
 
 ## Design Decisions
 

@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import logging
 import re
-import tomllib
 from pathlib import Path
 from typing import TypedDict
 
-from axm_ingot.uv import resolve_workspace
+from axm_ingot.uv import parse_workspace_members, resolve_workspace
 
 from axm_ast.core.analyzer import build_import_graph, module_dotted_name
 from axm_ast.core.cache import get_package
@@ -96,31 +95,6 @@ def detect_workspace(path: Path) -> WorkspaceInfo | None:
         packages=[],
         package_edges=[],
     )
-
-
-def parse_workspace_members(text: str) -> list[str]:
-    """Extract workspace member names from pyproject.toml text.
-
-    Parses the ``[tool.uv.workspace]`` members list. Pure-string helper
-    promoted to a stable module-public surface so callers (and tests) can
-    inspect the raw ``[tool.uv.workspace].members`` array without forcing
-    a full :func:`analyze_workspace` round-trip.
-
-    Args:
-        text: Raw pyproject.toml content.
-
-    Returns:
-        List of member directory names, empty if not found.
-    """
-    try:
-        data = tomllib.loads(text)
-    except tomllib.TOMLDecodeError:
-        return []
-
-    members = data.get("tool", {}).get("uv", {}).get("workspace", {}).get("members")
-    if not isinstance(members, list):
-        return []
-    return [str(m) for m in members]
 
 
 def _expand_workspace_members(root: Path, raw_members: list[str]) -> list[str]:

@@ -56,6 +56,10 @@ root = find_workspace_root(Path.cwd())
 - ✅ **Canonical uv-workspace resolution** — `resolve_workspace` parses
   `[tool.uv.workspace]`, expands `members` globs, subtracts `exclude`, and
   enforces `require_pyproject`, returning members sorted by name
+- ✅ **Raw members parsing** — `parse_workspace_members` reads the
+  `[tool.uv.workspace].members` array from pyproject text verbatim (no glob
+  expansion, no filesystem access), for callers that only need the declared
+  member strings; defensive (returns `[]` on malformed TOML or absent table)
 - ✅ **Workspace-root discovery** — `find_workspace_root` walks parents to the
   first `pyproject.toml` carrying a `[tool.uv.workspace]` section
 - ✅ **Project-root discovery** — `find_project_root` walks parents to the first
