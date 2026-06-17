@@ -55,12 +55,12 @@ aborts the audit of the other packages.
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | 6 |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule`, `UvWorkspaceLocalityRule` | 5 |
 | `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule` | 5 |
 | `structure` | `TestsPyramidRule`, `PyprojectCompletenessRule` | 2 |
 | `tooling` | `ToolAvailabilityRule` | 1 |
 
-**Total: 29 rule classes across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored). `get_rules_for_category(None)` returns **31 instances**: `ToolAvailabilityRule.get_instances()` yields one instance per required tool (`ruff`, `mypy`, `uv`), so its single class expands to 3 instances.
+**Total: 30 rule classes across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored). `get_rules_for_category(None)` returns **32 instances**: `ToolAvailabilityRule.get_instances()` yields one instance per required tool (`ruff`, `mypy`, `uv`), so its single class expands to 3 instances.
 
 ### 3. Tool Integration
 
