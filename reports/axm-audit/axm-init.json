@@ -1,5 +1,5 @@
 {
-  "score": 98.0,
+  "score": 98.1,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 22,
-        "avg_coupling": 3.09,
+        "avg_coupling": 3.14,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.0919540229885,
+        "coverage": 96.3600782778865,
         "failures": []
       },
       "metadata": null
@@ -222,7 +222,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "56 cluster(s), 0 clustered pair(s)",
+      "message": "55 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -509,39 +509,6 @@
             ],
             "cluster_hash": "0ecd42b79a6c",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _read(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_get_template_path__template_type.py",
-                "name": "test_standalone_pyproject_pins_prek",
-                "line": 168
-              },
-              {
-                "file": "tests/integration/test_get_template_path__template_type.py",
-                "name": "test_workspace_pyproject_pins_prek",
-                "line": 181
-              },
-              {
-                "file": "tests/integration/test_get_template_path__template_type.py",
-                "name": "test_workspace_copier_installs_prek",
-                "line": 187
-              },
-              {
-                "file": "tests/integration/test_get_template_path__template_type.py",
-                "name": "test_workspace_contributing_mentions_prek",
-                "line": 193
-              },
-              {
-                "file": "tests/integration/test_get_template_path__template_type.py",
-                "name": "test_member_pyproject_pins_prek",
-                "line": 199
-              }
-            ],
-            "cluster_hash": "e4367285cf79"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -838,22 +805,22 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_scaffold__check_engine.py",
+                "file": "tests/integration/test_grade__project_context.py",
                 "name": "test_uv_workspace_template_scores_100",
                 "line": 142
               },
               {
-                "file": "tests/integration/test_scaffold__check_engine.py",
+                "file": "tests/integration/test_grade__project_context.py",
                 "name": "test_python_project_template_scores_100",
                 "line": 150
               },
               {
-                "file": "tests/integration/test_scaffold__check_engine.py",
+                "file": "tests/integration/test_grade__project_context.py",
                 "name": "test_workspace_member_template_scores_100",
                 "line": 158
               }
             ],
-            "cluster_hash": "1dd0bfdab867"
+            "cluster_hash": "b266595e6b08"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1571,54 +1538,23 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 19,
-          "AMBIGUOUS": 152,
-          "UNIQUE": 339
+          "AMBIGUOUS": 147,
+          "UNIQUE": 341
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "1dd0bfdab867",
+            "reason": "The three *_scores_100 tests in test_scaffold__check_engine.py share the score==100/grade A assertion shape but diverge in setup: each consumes a distinct module-scoped fixture (workspace_project, standalone_project, member_project) built by a different Copier render path \u2014 the member fixture additionally scaffolds a workspace, renders a MEMBER inside packages/, and runs patch_all \u2014 and asserts a different detect_context (WORKSPACE/STANDALONE/MEMBER). Parametrizing would fuse three heavyweight module-scope fixtures into one and erase the per-context scaffold setup that is the point of the test. ambiguous_setup_divergence \u2014 ACK."
+          }
+        ]
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "3 naming finding(s): 3 INFO + 0 WARNING",
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_check_precommit_installed_content.py",
-            "proposed_name": "test_check_precommit_exists__check_precommit_ruff.py",
-            "path": "tests/integration/test_check_precommit_installed_content.py",
-            "tuple": [
-              "check_precommit_exists",
-              "check_precommit_ruff"
-            ]
-          },
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_scaffold__check_engine.py",
-            "proposed_name": "test_grade__project_context.py",
-            "path": "tests/integration/test_scaffold__check_engine.py",
-            "tuple": [
-              "Grade",
-              "ProjectContext"
-            ]
-          },
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_template_config.py",
-            "proposed_name": "test_template_type.py",
-            "path": "tests/integration/test_template_config.py",
-            "tuple": [
-              "TemplateType"
-            ]
-          }
-        ]
+        "findings": []
       },
       "metadata": null
     },

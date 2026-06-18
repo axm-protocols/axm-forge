@@ -828,33 +828,9 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "2 naming finding(s): 2 INFO + 0 WARNING",
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_cli.py",
-            "proposed_name": "test_read_input.py",
-            "path": "tests/integration/test_cli.py",
-            "tuple": [
-              "read_input"
-            ]
-          },
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_code_block_preservation.py",
-            "proposed_name": "test_collapse_whitespace_strategy__format.py",
-            "path": "tests/integration/test_code_block_preservation.py",
-            "tuple": [
-              "CollapseWhitespaceStrategy",
-              "Format"
-            ]
-          }
-        ]
+        "findings": []
       },
       "metadata": null
     },

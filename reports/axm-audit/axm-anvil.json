@@ -1,5 +1,5 @@
 {
-  "score": 96.9,
+  "score": 97.0,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -28,14 +28,14 @@
       "passed": true,
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
-        "max_fan_out": 19,
-        "max_fan_in": 9,
-        "avg_coupling": 4.13,
+        "max_fan_out": 20,
+        "max_fan_in": 11,
+        "avg_coupling": 4.55,
         "n_over_threshold": 1,
         "over_threshold": [
           {
             "module": "axm_anvil.core.move",
-            "fan_out": 19,
+            "fan_out": 20,
             "role": "orchestrator",
             "effective_threshold": 15,
             "severity": "warning"
@@ -77,9 +77,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (90/100)",
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 90.71251329315845,
+        "coverage": 91.29471351693574,
         "failures": []
       },
       "metadata": null
@@ -160,7 +160,9 @@
         "orphan": [],
         "exempt": [
           "cli.py",
-          "postprocess.py"
+          "extract.py",
+          "postprocess.py",
+          "rename.py"
         ],
         "exempt_tests": []
       },
@@ -197,11 +199,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (39/39)",
+      "message": "Docstring coverage: 100% (47/47)",
       "details": {
         "coverage": 1.0,
-        "total": 39,
-        "documented": 39,
+        "total": 47,
+        "documented": 47,
         "missing": []
       },
       "metadata": null
@@ -209,7 +211,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "17 cluster(s), 0 clustered pair(s)",
+      "message": "19 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -298,6 +300,34 @@
               }
             ],
             "cluster_hash": "0e3a67678730"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT exception_to_result(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test__common.py",
+                "name": "test_exception_symbol_not_found_maps_to_source_module_message",
+                "line": 46
+              },
+              {
+                "file": "tests/unit/tools/test__common.py",
+                "name": "test_exception_already_exists_maps_to_target_module_message",
+                "line": 53
+              },
+              {
+                "file": "tests/unit/tools/test__common.py",
+                "name": "test_exception_shared_helpers_lists_the_helpers",
+                "line": 60
+              },
+              {
+                "file": "tests/unit/tools/test__common.py",
+                "name": "test_exception_unknown_falls_back_to_str",
+                "line": 82
+              }
+            ],
+            "cluster_hash": "a8bfcffbb4b8"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -395,24 +425,6 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _write(2)>move_symbols(3|dry_run=True)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_all_added_to_existing_target",
-                "line": 227
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_all_untouched_for_unexported_symbol",
-                "line": 251
-              }
-            ],
-            "cluster_hash": "0b2c2a1695cd"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT tgt.read_text(0)",
             "similarity": 0.0,
             "members": [
@@ -428,6 +440,24 @@
               }
             ],
             "cluster_hash": "b6006d88e10e"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _write(2)>move_symbols(3|dry_run=True)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_all_added_to_existing_target",
+                "line": 227
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_all_untouched_for_unexported_symbol",
+                "line": 251
+              }
+            ],
+            "cluster_hash": "0b2c2a1695cd"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -464,6 +494,24 @@
               }
             ],
             "cluster_hash": "5484f529270a"
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT move_symbols(3|dry_run=False)>source.read_text(0)>target.read_text(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_move_resolves_project_root",
+                "line": 38
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_fallback_when_no_pyproject",
+                "line": 60
+              }
+            ],
+            "cluster_hash": "4ef007749bc2"
           },
           {
             "signal": "signal1_call_assert",
@@ -600,8 +648,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 4,
-          "AMBIGUOUS": 44,
-          "UNIQUE": 185
+          "AMBIGUOUS": 50,
+          "UNIQUE": 221
         },
         "stale_acknowledged": [
           {
@@ -727,14 +775,14 @@
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1477
+            "line": 1468
           },
           {
             "severity": "LOW",
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1611
+            "line": 1602
           }
         ]
       },

@@ -1,5 +1,5 @@
 {
-  "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil",
+  "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-ingot",
   "score": 98,
   "grade": "A",
   "context": "member",
@@ -250,7 +250,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "35 test file(s) found across unit/integration/e2e"
+      "message": "5 test file(s) found across unit/integration/e2e"
     },
     {
       "name": "structure.uv_lock",

@@ -1,5 +1,5 @@
 {
-  "score": 96.9,
+  "score": 97.0,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -29,8 +29,8 @@
       "message": "Coupling: 6 module(s) above threshold (-18 pts)",
       "details": {
         "max_fan_out": 15,
-        "max_fan_in": 49,
-        "avg_coupling": 6.87,
+        "max_fan_in": 50,
+        "avg_coupling": 6.89,
         "n_over_threshold": 6,
         "over_threshold": [
           {
@@ -112,9 +112,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (90/100)",
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 90.97966971511283,
+        "coverage": 91.00882887561673,
         "failures": []
       },
       "metadata": null
@@ -225,11 +225,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 87% (191/220)",
+      "message": "Docstring coverage: 87% (194/223)",
       "details": {
         "coverage": 0.87,
-        "total": 220,
-        "documented": 191,
+        "total": 223,
+        "documented": 194,
         "missing": [
           "axm_audit/core/fix/cst_rewrite.py:leave_Subscript",
           "axm_audit/core/fix/cst_rewrite.py:leave_Attribute",
@@ -712,7 +712,8 @@
                 "line": 41
               }
             ],
-            "cluster_hash": "ca50721fafe4"
+            "cluster_hash": "ca50721fafe4",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2851,14 +2852,9 @@
         "bucket_counts": {
           "CLUSTERED": 14,
           "AMBIGUOUS": 325,
-          "UNIQUE": 1134
+          "UNIQUE": 1149
         },
-        "stale_acknowledged": [
-          {
-            "hash": "9c8e457234da",
-            "reason": "Inter-file cluster of 8 audit_project/auditor tests with the ambiguous_raises_divergence false-positive signal (asymmetric pytest.raises across members). They guard disjoint contracts: three edge-case-survival tests (broken-lint, no-tests-dir, syntax-error) each assert isinstance(quality_score, float) on a different fixture; returns_audit_result asserts the AuditResult shape; runs_all_categories asserts category coverage; safe_check_isolation monkeypatches SecurityRule.check to raise and asserts the failure is recorded not propagated; crashing_rule_penalizes_score asserts crashed_rules + score penalty; nonexistent_path_raises_error (unit) asserts pytest.raises(FileNotFoundError). Different fixtures, assertion targets and branches; no shared helper signature across the 5 files. Distinct-branch \u2014 ACK."
-          }
-        ]
+        "stale_acknowledged": []
       }
     },
     {

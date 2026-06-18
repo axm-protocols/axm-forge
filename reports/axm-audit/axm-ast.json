@@ -79,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.32016632016632,
+        "coverage": 91.31022999271516,
         "failures": []
       },
       "metadata": null
@@ -198,11 +198,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (189/190)",
+      "message": "Docstring coverage: 99% (188/189)",
       "details": {
         "coverage": 0.99,
-        "total": 190,
-        "documented": 189,
+        "total": 189,
+        "documented": 188,
         "missing": [
           "axm_ast/tools/_base.py:wrapper"
         ]
@@ -356,7 +356,8 @@
                 "line": 230
               }
             ],
-            "cluster_hash": "f0ce85ddcd18"
+            "cluster_hash": "f0ce85ddcd18",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -3076,14 +3077,9 @@
         "bucket_counts": {
           "CLUSTERED": 32,
           "AMBIGUOUS": 346,
-          "UNIQUE": 1114
+          "UNIQUE": 1118
         },
-        "stale_acknowledged": [
-          {
-            "hash": "4f82f9d1ae07",
-            "reason": "5 analyze_package tests mix two distinct contracts: 3 success-path src-layout/namespace tests (test_src_layout_multiple_packages, test_namespace_package_no_init, test_src_layout_name \u2014 assert on pkg.name with different fixtures: 2-package src, namespace-no-init, single-pkg src) and 2 error-or-empty-path tests inside TestAnalyzePackageIntegration (test_not_a_directory uses pytest.raises(ValueError, match='not a directory'); test_no_python_files asserts pkg.modules == [] on empty dir) \u2014 parametrization would conflate raises-vs-success branches and force a heterogeneous expected_* parameter across mutually exclusive assertion targets (.name vs .modules vs exception)"
-          }
-        ]
+        "stale_acknowledged": []
       }
     },
     {

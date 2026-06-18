@@ -1,0 +1,338 @@
+{
+  "score": 99.2,
+  "grade": "A",
+  "total": 31,
+  "failed": 0,
+  "success": true,
+  "checks": [
+    {
+      "rule_id": "ARCH_CIRCULAR",
+      "passed": true,
+      "message": "0 circular import(s) found",
+      "details": {
+        "cycles": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_GOD_CLASS",
+      "passed": true,
+      "message": "0 god class(es) found",
+      "details": {
+        "god_classes": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_COUPLING",
+      "passed": true,
+      "message": "Coupling: 0 modules above threshold (max fan-out: 3)",
+      "details": {
+        "max_fan_out": 3,
+        "max_fan_in": 2,
+        "avg_coupling": 1.67,
+        "n_over_threshold": 0,
+        "over_threshold": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_DUPLICATION",
+      "passed": true,
+      "message": "0 duplicate block(s) found",
+      "details": {
+        "dup_count": 0,
+        "clones": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "details": {
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "cognitive_disabled": false
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_COVERAGE",
+      "passed": true,
+      "message": "Test coverage: 93% (92/100)",
+      "details": {
+        "coverage": 92.91338582677166,
+        "failures": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_DEAD_CODE",
+      "passed": true,
+      "message": "No dead code detected.",
+      "details": {
+        "dead_count": 0,
+        "symbols": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_LINT",
+      "passed": true,
+      "message": "Lint score: 100/100 (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "checked": "src/ tests/",
+        "issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_FORMAT",
+      "passed": true,
+      "message": "Format score: 100/100 (0 unformatted)",
+      "details": {
+        "unformatted_count": 0,
+        "unformatted_files": [],
+        "checked": "src/ tests/"
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_DIFF_SIZE",
+      "passed": true,
+      "message": "No uncommitted changes",
+      "details": {
+        "lines_changed": 0
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "passed": true,
+      "message": "No known vulnerabilities",
+      "details": {
+        "vuln_count": 0,
+        "top_vulns": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "DEPS_HYGIENE",
+      "passed": true,
+      "message": "Clean dependencies (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "top_issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": true,
+      "message": "All source modules have test files",
+      "details": {
+        "missing": [],
+        "orphan": [],
+        "exempt": [],
+        "exempt_tests": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "passed": true,
+      "message": "No anti-mirror naming violations",
+      "details": {
+        "anti_mirror": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BARE_EXCEPT",
+      "passed": true,
+      "message": "0 bare except(s) found",
+      "details": {
+        "bare_except_count": 0,
+        "locations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BLOCKING_IO",
+      "passed": true,
+      "message": "0 blocking-IO violation(s) found",
+      "details": {
+        "violations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_DOCSTRING",
+      "passed": true,
+      "message": "Docstring coverage: 100% (4/4)",
+      "details": {
+        "coverage": 1.0,
+        "total": 4,
+        "documented": 4,
+        "missing": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
+      "passed": true,
+      "message": "1 cluster(s), 0 clustered pair(s)",
+      "details": null,
+      "metadata": {
+        "clusters": [
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT resolve_workspace(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_resolve_workspace.py",
+                "name": "test_applies_exclude",
+                "line": 39
+              },
+              {
+                "file": "tests/integration/test_resolve_workspace.py",
+                "name": "test_skips_dirs_without_pyproject",
+                "line": 58
+              }
+            ],
+            "cluster_hash": "d7e5d8df11c9",
+            "acknowledged": true
+          }
+        ],
+        "bucket_counts": {
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 2,
+          "UNIQUE": 9
+        },
+        "stale_acknowledged": []
+      }
+    },
+    {
+      "rule_id": "TEST_QUALITY_FILE_NAMING",
+      "passed": true,
+      "message": "every integration/e2e file matches its canonical tuple",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
+      "passed": true,
+      "message": "every integration/e2e test exercises the package",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "passed": true,
+      "message": "No private imports in tests/ (see docs/test_quality.md#private-imports)",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
+      "passed": true,
+      "message": "pyramid levels match folder layout",
+      "details": {
+        "mismatches": [],
+        "total": 0
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_TAUTOLOGY",
+      "passed": true,
+      "message": "no tautologies found",
+      "details": null,
+      "metadata": {
+        "verdicts": []
+      }
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests/",
+        "errors": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_SECURITY",
+      "passed": true,
+      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
+      "details": {
+        "high_count": 0,
+        "medium_count": 0,
+        "top_issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_SECURITY",
+      "passed": true,
+      "message": "0 potential secret(s) found",
+      "details": {
+        "secret_count": 0,
+        "matches": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_TESTS_PYRAMID",
+      "passed": true,
+      "message": "pyramid layout ok: unit, integration, e2e",
+      "details": {
+        "self_contained": false
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_PYPROJECT",
+      "passed": true,
+      "message": "pyproject.toml completeness: 9/9 fields",
+      "details": {
+        "fields_present": 9,
+        "total_fields": 9,
+        "missing": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_RUFF",
+      "passed": true,
+      "message": "ruff found",
+      "details": null,
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_MYPY",
+      "passed": true,
+      "message": "mypy found",
+      "details": null,
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_UV",
+      "passed": true,
+      "message": "uv found",
+      "details": null,
+      "metadata": null
+    }
+  ]
+}
