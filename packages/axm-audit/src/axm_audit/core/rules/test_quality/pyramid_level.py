@@ -62,6 +62,72 @@ __all__ = [
 
 _TMP_PATH_NAMES: frozenset[str] = frozenset({"tmp_path", "tmp_path_factory"})
 
+# Heavy ML / native-compute optional deps. ``pytest.importorskip``-guarding one
+# genuinely loads a heavy extension and runs its real code path, so it is a HARD
+# real-I/O integration signal that even a SUT mock cannot neutralise. Deliberately
+# conservative — light optional deps (e.g. ``click``) must NOT be listed, or a
+# pure-function unit test guarded by ``importorskip("click")`` would regress.
+_HEAVY_HARD_MODULES: frozenset[str] = frozenset(
+    {
+        "mlx",
+        "mlx_audio",
+        "mlx_lm",
+        "parakeet_mlx",
+        "torch",
+        "torchaudio",
+        "torchvision",
+        "tensorflow",
+        "jax",
+        "jaxlib",
+        "onnx",
+        "onnxruntime",
+        "transformers",
+        "sentencepiece",
+        "misaki",
+    }
+)
+
+# Native device / codec bindings (PortAudio, libsndfile …). Guarding one means
+# the test *can* touch a real device, so by default it is an integration signal —
+# but a test that fully mocks its SUT and only references the module for an
+# exception class / constant does no real I/O, so this signal IS neutralisable.
+_HEAVY_SOFT_MODULES: frozenset[str] = frozenset({"sounddevice", "soundfile"})
+
+_HEAVY_OPTIONAL_MODULES: frozenset[str] = _HEAVY_HARD_MODULES | _HEAVY_SOFT_MODULES
+
+# Native-audio IO modules + their conventional import aliases. A mock target
+# whose dotted path contains one of these tokens patches a real device/codec
+# write (e.g. ``…sf.write`` / ``…sd.play``), i.e. an IO seam the generic catalog
+# misses. Used to recognise such mocks as IO coverage during neutralisation.
+_NATIVE_AUDIO_IO_TOKENS: frozenset[str] = frozenset(
+    {"soundfile", "sounddevice", "sf", "sd"}
+)
+
+# tmp_path attrs that read or write **file content** — genuine I/O that keeps a
+# test at integration even when the SUT is otherwise mocked.
+_TMP_PATH_CONTENT_ATTRS: frozenset[str] = frozenset(
+    {"write_text", "write_bytes", "read_text", "read_bytes"}
+)
+
+# Path attrs that only **query** existence/metadata or **clean up** a path — no
+# content, no new filesystem structure. On a tmp_path whose SUT is mocked these
+# are test scaffolding (assert-and-cleanup), so they are neutralisable. NOTE:
+# creation attrs (``mkdir``/``touch``/``makedirs``/``rename``/``replace`` …) are
+# deliberately EXCLUDED — they build real fs structure the SUT then reads, which
+# is genuine integration setup and must stay real I/O.
+_PATH_QUERY_CLEANUP_ATTRS: frozenset[str] = frozenset(
+    {
+        "exists",
+        "is_file",
+        "is_dir",
+        "stat",
+        "lstat",
+        "unlink",
+        "rmdir",
+        "removedirs",
+    }
+)
+
 # Context-manager calls that catch the runtime effect of the wrapped block.
 # When every reference to ``tmp_path`` lives inside one of these blocks the
 # test exercises pre-flight validation, not real I/O.
@@ -518,18 +584,101 @@ def _tmp_path_reaches_call(func: ast.FunctionDef, tainted: set[str]) -> bool:
 
 
 def _detect_tmp_path_usage(func: ast.FunctionDef) -> bool:
-    """True if the function uses ``tmp_path`` **and** writes/reads through it."""
+    """True if the function uses ``tmp_path`` **and** reads/writes content through it.
+
+    Only genuine **content** I/O (``write_text``/``write_bytes``/``read_text``/
+    ``read_bytes``) counts as the hard ``tmp_path+write/read`` signal. Pure
+    path-bookkeeping (``.exists()``, ``.unlink()``, ``.mkdir()`` …) is reported
+    separately as a *soft* signal by :func:`_detect_tmp_path_bookkeeping`, so a
+    fully-mocked SUT whose only residual tmp_path usage is cleanup is not forced
+    to integration.
+    """
     uses_tmp = any(arg.arg in _TMP_PATH_NAMES for arg in func.args.args)
     if not uses_tmp:
         return False
     for node in ast.walk(func):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if node.func.attr in _IO_WRITER_ATTRS or node.func.attr in (
-                "read_text",
-                "read_bytes",
-            ):
+            if node.func.attr in _TMP_PATH_CONTENT_ATTRS:
                 return True
     return False
+
+
+def _detect_tmp_path_bookkeeping(func: ast.FunctionDef) -> bool:
+    """True if a ``tmp_path`` test does query/cleanup bookkeeping, no content I/O.
+
+    Restricted to existence/metadata queries and cleanup (``exists``, ``is_file``,
+    ``unlink``, ``rmdir`` …, see :data:`_PATH_QUERY_CLEANUP_ATTRS`). Creation attrs
+    (``mkdir``/``touch`` …) are NOT bookkeeping — they build real fs structure, so
+    they keep firing the normal attr-IO path. The signal is soft: un-mocked it
+    still flags real I/O, but a full SUT mock neutralises it (see
+    :func:`_apply_mock_neutralization`).
+    """
+    uses_tmp = any(arg.arg in _TMP_PATH_NAMES for arg in func.args.args)
+    if not uses_tmp:
+        return False
+    for node in ast.walk(func):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in _PATH_QUERY_CLEANUP_ATTRS:
+                return True
+    return False
+
+
+def _heavy_module_of_importorskip(call: ast.Call) -> str | None:
+    """Return the heavy top-level module of an ``importorskip`` *call*, else None.
+
+    Matches both ``pytest.importorskip("<mod>")`` (attribute) and a bare
+    ``importorskip("<mod>")`` with a string-literal first argument, keeping only
+    modules whose top-level package is in :data:`_HEAVY_OPTIONAL_MODULES`. Light
+    optional deps return ``None`` so they never flip a test to integration.
+    """
+    if not call.args:
+        return None
+    callee = call.func
+    name = (
+        callee.attr
+        if isinstance(callee, ast.Attribute)
+        else callee.id
+        if isinstance(callee, ast.Name)
+        else None
+    )
+    if name != "importorskip":
+        return None
+    first = call.args[0]
+    if not (isinstance(first, ast.Constant) and isinstance(first.value, str)):
+        return None
+    top = first.value.split(".")[0]
+    return top if top in _HEAVY_OPTIONAL_MODULES else None
+
+
+def _heavy_importorskip_modules(func: ast.FunctionDef) -> list[str]:
+    """Heavy optional modules guarded by ``importorskip`` inside *func*'s body."""
+    found: list[str] = []
+    for node in ast.walk(func):
+        if isinstance(node, ast.Call):
+            mod = _heavy_module_of_importorskip(node)
+            if mod is not None and mod not in found:
+                found.append(mod)
+    return found
+
+
+def _file_heavy_importorskip_modules(tree: ast.Module) -> list[str]:
+    """Heavy optional modules guarded by a **module-level** ``importorskip``.
+
+    A top-level ``pytest.importorskip("mlx_audio")`` skips the whole module when
+    the dep is missing — it is a file-scope real-I/O signal that bleeds to every
+    test in the file (mirrors the ``file_has_io`` file-scope mechanism). Only
+    statements directly in the module body are considered; in-function guards are
+    handled per-test by :func:`_heavy_importorskip_modules`.
+    """
+    found: list[str] = []
+    for stmt in tree.body:
+        value = stmt.value if isinstance(stmt, (ast.Expr, ast.Assign)) else None
+        if not isinstance(value, ast.Call):
+            continue
+        mod = _heavy_module_of_importorskip(value)
+        if mod is not None and mod not in found:
+            found.append(mod)
+    return found
 
 
 # ── R4 — conftest fixture IO resolution ───────────────────────────────
@@ -589,12 +738,87 @@ def _apply_conftest_fixture_io(
 def _signal_is_hard(sig: str) -> bool:
     if sig == "tmp_path+write/read":
         return True
+    if sig.startswith("importorskip-heavy:"):
+        mod = sig[len("importorskip-heavy:") :]
+        # Native device/codec bindings are soft: a fully-mocked SUT that only
+        # references the module (e.g. for an exception class) does no real I/O.
+        return mod in _HEAVY_HARD_MODULES
     if sig.startswith("attr:."):
         attr = sig[len("attr:.") :].rstrip("()")
-        return attr in _IO_WRITER_ATTRS
+        # Content writes/reads AND structural-creation writers (mkdir/touch/
+        # makedirs/rename/replace/symlink … i.e. _IO_WRITER_ATTRS minus the
+        # query/cleanup set) stay hard: they build real fs structure. Only
+        # pure existence/metadata queries and cleanup (exists/unlink/rmdir …)
+        # are soft, so a fully-mocked SUT whose residual tmp_path usage is
+        # assert-and-cleanup can be neutralised.
+        if attr in _PATH_QUERY_CLEANUP_ATTRS:
+            return False
+        return attr in _TMP_PATH_CONTENT_ATTRS or attr in _IO_WRITER_ATTRS
     if sig.startswith("conftest-fixture-io:"):
         return True
     return False
+
+
+def _is_active_bookkeeping_signal(sig: str) -> bool:
+    """True for an *active* path query/cleanup call (``.exists()``/``.unlink()``).
+
+    These are concrete bookkeeping operations in the test body. A soft native
+    importorskip also counts (the module is only referenced, not exercised).
+    The bare ``fixture-arg:tmp_path`` marker is excluded — see
+    :func:`_is_neutralisable_residual`.
+    """
+    if sig == "tmp_path-bookkeeping":
+        return True
+    if sig.startswith("importorskip-heavy:"):
+        return sig[len("importorskip-heavy:") :] in _HEAVY_SOFT_MODULES
+    if sig.startswith("attr:."):
+        attr = sig[len("attr:.") :].rstrip("()")
+        return attr in _PATH_QUERY_CLEANUP_ATTRS
+    return False
+
+
+def _is_neutralisable_residual(sig: str) -> bool:
+    """True for any signal a fully-mocked SUT may leave as scaffolding.
+
+    Superset of :func:`_is_active_bookkeeping_signal` that also tolerates the
+    *passive* ``fixture-arg:tmp_path`` marker (declaring/passing a tmp path). On
+    its own ``fixture-arg:tmp_path`` is too coarse to neutralise (it would flip
+    legit integration tests), so neutralisation additionally REQUIRES at least
+    one active bookkeeping signal — see :func:`_apply_mock_neutralization`.
+    """
+    return sig == "fixture-arg:tmp_path" or _is_active_bookkeeping_signal(sig)
+
+
+def _target_is_native_audio_io(target: str) -> bool:
+    """True if a mock *target* patches a native-audio IO seam (soundfile/sd).
+
+    Recognises both full module names and their conventional aliases (``sf`` /
+    ``sd``) as dotted segments, e.g. ``axm_voice.tools.speak.sf.write``.
+    """
+    return any(tok in _NATIVE_AUDIO_IO_TOKENS for tok in target.split("."))
+
+
+def _mock_covers_io(targets: list[str]) -> bool:
+    """True if any patched target is an IO call/module (catalog or native-audio)."""
+    return any(
+        not t.startswith("mock-factory:")
+        and (target_matches_io(t) or _target_is_native_audio_io(t))
+        for t in targets
+    )
+
+
+def _residual_is_bookkeeping_only(signals: list[str]) -> bool:
+    """True if residual signals are all neutralisable AND ≥1 active bookkeeping.
+
+    AC2 — a SUT-mocking test whose residual real-I/O signals are all path
+    query/cleanup bookkeeping (``.exists()``/``.unlink()`` on a tmp file, a soft
+    native-audio importorskip, plus passing a tmp_path) does no real I/O of its
+    own. The ≥1 *active* requirement stops a bare ``fixture-arg:tmp_path`` alone
+    from flipping a legit integration test.
+    """
+    return all(_is_neutralisable_residual(s) for s in signals) and any(
+        _is_active_bookkeeping_signal(s) for s in signals
+    )
 
 
 def _apply_mock_neutralization(
@@ -610,11 +834,13 @@ def _apply_mock_neutralization(
     targets = extract_mock_targets(func)
     if not targets:
         return True, signals
-    has_io_target = any(
-        not t.startswith("mock-factory:") and target_matches_io(t) for t in targets
-    )
     has_factory = any(t.startswith("mock-factory:") for t in targets)
-    if not (has_io_target or has_factory):
+    neutralize = (
+        _mock_covers_io(targets)
+        or has_factory
+        or _residual_is_bookkeeping_only(signals)
+    )
+    if not neutralize:
         return True, signals
     first_two = ",".join(targets[:2])
     return False, [*signals, f"mock-neutralized:{first_two}"]
@@ -677,6 +903,12 @@ def _collect_tmp_path_signals(
         if "tmp_path+write/read" not in signals:
             signals.append("tmp_path+write/read")
         fired = True
+    elif _detect_tmp_path_bookkeeping(node):
+        # Soft signal: real I/O when un-mocked, but neutralisable by a full
+        # SUT mock (the residual usage is path lifecycle, not content).
+        if "tmp_path-bookkeeping" not in signals:
+            signals.append("tmp_path-bookkeeping")
+        fired = True
     return signals, fired
 
 
@@ -727,6 +959,7 @@ def _collect_signals(  # noqa: PLR0913
     file_has_io: bool,
     file_signals: list[str],
     helpers: dict[str, ast.FunctionDef],
+    file_heavy_importorskip: list[str],
 ) -> tuple[list[str], bool, list[str]]:
     """Collect R1 + file-scope + R3 signals for *node*.
 
@@ -759,7 +992,31 @@ def _collect_signals(  # noqa: PLR0913
     if tmp_fired:
         has_real_io = True
 
+    # importorskip on a heavy/native optional dep is a real-I/O integration signal
+    if _apply_heavy_importorskip_signals(node, file_heavy_importorskip, signals):
+        has_real_io = True
+
     return signals, has_real_io, list(attr_sigs)
+
+
+def _apply_heavy_importorskip_signals(
+    node: ast.FunctionDef, file_heavy_importorskip: list[str], signals: list[str]
+) -> bool:
+    """Append ``importorskip-heavy:<mod>`` markers; return whether any fired.
+
+    Merges in-function ``importorskip`` guards with module-level ones (which
+    bleed to every test in the file). The dep is loaded at runtime regardless of
+    SUT mocking, so any hit is real I/O.
+    """
+    heavy_mods = _heavy_importorskip_modules(node)
+    for mod in file_heavy_importorskip:
+        if mod not in heavy_mods:
+            heavy_mods.append(mod)
+    for mod in heavy_mods:
+        sig = f"importorskip-heavy:{mod}"
+        if sig not in signals:
+            signals.append(sig)
+    return bool(heavy_mods)
 
 
 def _apply_r4_conftest(  # noqa: PLR0913
@@ -810,6 +1067,7 @@ class _ScanContext:
     file_has_io: bool
     file_has_subprocess: bool
     file_signals: list[str]
+    file_heavy_importorskip: list[str]
     project_scripts: set[str]
     helpers: dict[str, ast.FunctionDef]
     fixtures: dict[str, ast.FunctionDef] | None = None
@@ -833,6 +1091,7 @@ def _build_scan_context(  # noqa: PLR0913
         file_import_signals,
     ) = analyze_imports(tree, pkg_prefixes, init_all, pkg_root)
     file_has_io, file_has_subprocess, file_signals = detect_real_io(tree)
+    file_heavy_importorskip = _file_heavy_importorskip_modules(tree)
     return _ScanContext(
         test_file=test_file,
         tree=tree,
@@ -848,6 +1107,7 @@ def _build_scan_context(  # noqa: PLR0913
         file_has_io=file_has_io,
         file_has_subprocess=file_has_subprocess,
         file_signals=file_signals,
+        file_heavy_importorskip=file_heavy_importorskip,
         project_scripts=load_project_scripts(pkg_root),
         helpers=_collect_helpers(tree),
     )
@@ -864,6 +1124,7 @@ def _resolve_io_for_test(
         file_has_io=ctx.file_has_io,
         file_signals=ctx.file_signals,
         helpers=ctx.helpers,
+        file_heavy_importorskip=ctx.file_heavy_importorskip,
     )
     has_subprocess = ctx.file_has_subprocess
     has_in_package_subprocess = _has_in_package_subprocess_for_test(ctx, node)

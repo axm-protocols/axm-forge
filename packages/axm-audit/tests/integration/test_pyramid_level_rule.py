@@ -157,6 +157,68 @@ def test_empty_tests_returns_pass(tmp_path: Path) -> None:
     assert list(result.findings) == []
 
 
+def test_scan_package_no_unexpected_findings_delta(tmp_path: Path) -> None:
+    """AC4: only the intended FP patterns drive the classified-level delta.
+
+    On a real on-disk fixture tree, a heavy-``importorskip`` test in ``unit/``
+    surfaces as an integration mismatch, while a fully-mocked ``tmp_path`` test
+    and a pure public-API test in ``unit/`` produce no mismatch.
+    """
+    pkg = _make_pkg(tmp_path)
+    unit_dir = pkg / "tests" / "unit"
+    unit_dir.mkdir()
+    (unit_dir / "__init__.py").write_text("")
+    integ_dir = pkg / "tests" / "integration"
+    integ_dir.mkdir()
+    (integ_dir / "__init__.py").write_text("")
+    _write(
+        unit_dir / "test_heavy.py",
+        """
+        import pytest
+        from pkg.core import add
+
+        def test_uses_heavy_dep():
+            pytest.importorskip("mlx_audio")
+            assert add(1, 1) == 2
+        """,
+    )
+    _write(
+        unit_dir / "test_mocked.py",
+        """
+        from pkg.core import add
+
+        def test_speak(mocker, tmp_path):
+            mocker.patch("pkg.core.open")
+            mocker.patch("pkg.core.add")
+            out = tmp_path / "out.wav"
+            if out.exists():
+                out.unlink()
+        """,
+    )
+    _write(
+        unit_dir / "test_pure.py",
+        """
+        from pkg.core import add
+
+        def test_pure():
+            assert add(1, 1) == 2
+        """,
+    )
+
+    result = PyramidLevelRule().check(pkg)
+
+    assert result.details is not None
+    mismatches = result.details["mismatches"]
+    mismatch_funcs = {m["function"] for m in mismatches}
+    # The fully-mocked + pure tests stay unit -> no mismatch in unit/.
+    assert "test_speak" not in mismatch_funcs
+    assert "test_pure" not in mismatch_funcs
+    # The heavy-importorskip test classifies integration -> mismatch in unit/.
+    heavy = [m for m in mismatches if m["function"] == "test_uses_heavy_dep"]
+    assert len(heavy) == 1
+    assert heavy[0]["level"] == "integration"
+
+
 def test_parametrized_path_arg_no_mismatch(tmp_path: Path) -> None:
     """AC4, AC5: a real unit test file using the ``axm-bib`` repro pattern
     (``@parametrize("pdf_path", ...)``) yields zero pyramid mismatches."""

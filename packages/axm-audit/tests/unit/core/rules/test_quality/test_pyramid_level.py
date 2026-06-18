@@ -21,7 +21,28 @@ from axm_audit.core.rules.test_quality.pyramid_level import (
     classify_level,
     has_in_package_subprocess_invocation,
     render_mismatch_text,
+    scan_test_file,
 )
+
+
+def _classify_synthetic(source: str) -> dict[str, str]:
+    """Classify every ``test_*`` function in *source* via the public scan entry.
+
+    Drives ``scan_test_file`` against an in-memory AST (no disk writes), so the
+    full signal-collection pipeline (R1..R5) runs without real I/O. Returns a
+    ``{function_name: classified_level}`` mapping read off each ``Finding``.
+    """
+    tree = ast.parse(textwrap.dedent(source))
+    pkg_root = Path("/synthetic/pkg")
+    findings = scan_test_file(
+        test_file=pkg_root / "tests" / "unit" / "test_synthetic.py",
+        tree=tree,
+        pkg_root=pkg_root,
+        pkg_prefixes={"sample"},
+        init_all={"public_fn"},
+        tests_dir=pkg_root / "tests",
+    )
+    return {f.function: f.level for f in findings}
 
 
 def _run_call(source: str) -> ast.Call:
@@ -334,3 +355,105 @@ def test_render_signal_order_stable() -> None:
     text_b = render_mismatch_text([finding_b], Path("/proj"))
 
     assert text_a == text_b
+
+
+def test_importorskip_heavy_dep_is_integration() -> None:
+    """AC1: importorskip on a heavy external dep is a real-I/O signal.
+
+    A test that ``pytest.importorskip("mlx_audio")`` then imports the public API
+    and calls a pure function must NOT be rescued to unit by R2 — the heavy
+    optional dep is the integration signal.
+    """
+    levels = _classify_synthetic(
+        """
+        import pytest
+        from sample import public_fn
+
+        def test_uses_heavy_dep():
+            pytest.importorskip("mlx_audio")
+            assert public_fn() == 1
+        """
+    )
+
+    assert levels["test_uses_heavy_dep"] == "integration"
+
+
+def test_importorskip_light_dep_stays_unit() -> None:
+    """AC1: importorskip on a light dep (not in the allowlist) stays unit.
+
+    ``importorskip("click")`` is NOT a heavy ML/native dep, so it must not flip
+    a pure-function public-API test to integration.
+    """
+    levels = _classify_synthetic(
+        """
+        import pytest
+        from sample import public_fn
+
+        def test_uses_light_dep():
+            pytest.importorskip("click")
+            assert public_fn() == 1
+        """
+    )
+
+    assert levels["test_uses_light_dep"] == "unit"
+
+
+def test_fully_mocked_tmp_path_is_unit() -> None:
+    """AC2: residual tmp_path path-bookkeeping under full mocking stays unit.
+
+    When every real-I/O target is patched and the only tmp_path usage is
+    bookkeeping (``.exists()`` / ``.unlink()``) with no content read/write, the
+    test is a unit test, not integration.
+    """
+    levels = _classify_synthetic(
+        """
+        from sample import public_fn
+
+        def test_speak(mocker, tmp_path):
+            mocker.patch("sample.open")
+            mocker.patch("sample.public_fn")
+            out = tmp_path / "out.wav"
+            if out.exists():
+                out.unlink()
+        """
+    )
+
+    assert levels["test_speak"] == "unit"
+
+
+def test_real_tmp_path_write_stays_integration() -> None:
+    """AC2: a genuine tmp_path content write is still integration.
+
+    An unmocked ``write_text(content)`` on a tmp_path is real I/O and must keep
+    the test at integration even though tmp_path is a fixture.
+    """
+    levels = _classify_synthetic(
+        """
+        from sample import public_fn
+
+        def test_writes_real_file(tmp_path):
+            out = tmp_path / "out.txt"
+            out.write_text("payload")
+            assert public_fn(out) is not None
+        """
+    )
+
+    assert levels["test_writes_real_file"] == "integration"
+
+
+def test_no_pattern_match_verdict_unchanged() -> None:
+    """AC3: a test matching neither new pattern keeps its prior verdict.
+
+    A pure public-API unit test (no importorskip, no tmp_path) must remain
+    unit — byte-identical to the pre-change behavior.
+    """
+    levels = _classify_synthetic(
+        """
+        from sample import public_fn
+
+        def test_pure():
+            assert public_fn() == 1
+        """
+    )
+
+    assert levels["test_pure"] == "unit"
