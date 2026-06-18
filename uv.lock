@@ -394,10 +394,6 @@ dependencies = [
     { name = "axm-ast" },
     { name = "numpy" },
     { name = "scikit-learn" },
-]
-
-[package.optional-dependencies]
-neural = [
     { name = "sentence-transformers" },
     { name = "torch" },
 ]
@@ -424,10 +420,9 @@ requires-dist = [
     { name = "axm-ast", editable = "packages/axm-ast" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "scikit-learn", specifier = ">=1.5" },
-    { name = "sentence-transformers", marker = "extra == 'neural'", specifier = ">=3.0" },
-    { name = "torch", marker = "extra == 'neural'", specifier = ">=2.2" },
+    { name = "sentence-transformers", specifier = ">=3.0" },
+    { name = "torch", specifier = ">=2.2" },
 ]
-provides-extras = ["neural"]
 
 [package.metadata.requires-dev]
 dev = [

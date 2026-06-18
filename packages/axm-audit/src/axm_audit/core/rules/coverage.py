@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,11 +12,50 @@ from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.test_runner import TestReport
 from axm_audit.models.results import CheckResult, Severity
 
-__all__ = ["TestCoverageRule"]
+__all__ = ["TestCoverageRule", "read_coverage_config"]
 
 logger = logging.getLogger(__name__)
 
 _FULL_COVERAGE: int = 100  # Target coverage percentage for compact text output
+_DEFAULT_MIN_COVERAGE: float = 90.0  # Pass threshold when unconfigured
+
+
+def _safe_float(value: object, default: float) -> float:
+    """Coerce ``value`` to a float in ``[0, 100]``, else return ``default``.
+
+    Mirrors the robustness philosophy of ``coupling.safe_int``: a non-numeric
+    type, a ``bool``, a ``NaN``/``inf``, or an out-of-bounds number all fall
+    back to ``default`` rather than raising.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    coerced = float(value)
+    if not math.isfinite(coerced) or coerced < 0 or coerced > _FULL_COVERAGE:
+        return default
+    return coerced
+
+
+def read_coverage_config(project_path: Path) -> float:
+    """Read ``[tool.axm-audit.coverage].min_coverage`` from pyproject.toml.
+
+    Returns the configured pass threshold (bounds-checked to ``[0, 100]``),
+    falling back to ``90.0`` on any error: missing file, missing section,
+    missing key, malformed TOML, or an out-of-bounds / non-numeric value.
+    Never raises.
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return _DEFAULT_MIN_COVERAGE
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return _DEFAULT_MIN_COVERAGE
+
+    section = data.get("tool", {}).get("axm-audit", {}).get("coverage", {})
+    return _safe_float(
+        section.get("min_coverage", _DEFAULT_MIN_COVERAGE), _DEFAULT_MIN_COVERAGE
+    )
 
 
 @dataclass
@@ -47,8 +88,9 @@ class TestCoverageRule(ProjectRule):
         """
         from axm_audit.core.test_runner import run_tests
 
+        effective = read_coverage_config(project_path)
         report = run_tests(project_path, mode="compact", stop_on_first=False)
-        return self._report_to_result(report)
+        return self._report_to_result(report, min_coverage=effective)
 
     def _no_coverage_result(self, failures: list[dict[str, str]]) -> CheckResult:
         """Build the ``CheckResult`` returned when pytest-cov is not configured."""
@@ -106,18 +148,27 @@ class TestCoverageRule(ProjectRule):
             return f"Test coverage: {coverage_pct:.0f}% ({total_fails} test(s) failed)"
         return f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
 
-    def _report_to_result(self, report: TestReport) -> CheckResult:
+    def _report_to_result(
+        self, report: TestReport, min_coverage: float | None = None
+    ) -> CheckResult:
         """Convert a ``TestReport`` to a ``CheckResult``.
+
+        ``min_coverage`` is the effective pass threshold resolved by ``check``
+        from ``[tool.axm-audit.coverage]`` (defaults to ``self.min_coverage``
+        when not supplied, preserving the no-config behavior). ``self`` is
+        never mutated, so a shared rule instance never leaks one package's
+        threshold into the next.
 
         Builds a compact text summary with bullet lines for coverage gap
         (``• cov N% → 100%``) and up to 10 short failure names
         (``• FAIL test_name``).  Returns ``text=None`` when coverage is
         full and no failures exist.
         """
+        effective = self.min_coverage if min_coverage is None else min_coverage
         coverage_pct = report.coverage if report.coverage is not None else 0.0
         score = int(coverage_pct)
         has_failures = report.failed > 0 or report.errors > 0
-        passed = coverage_pct >= self.min_coverage and not has_failures
+        passed = coverage_pct >= effective and not has_failures
         total_fails = report.failed + report.errors
 
         failures: list[dict[str, str]] = [
@@ -144,16 +195,16 @@ class TestCoverageRule(ProjectRule):
                 "failures": failures,
             },
             text="\n".join(text_parts) if text_parts else None,
-            fix_hint=self._generate_fix_hints(has_failures, coverage_pct),
+            fix_hint=self._generate_fix_hints(has_failures, coverage_pct, effective),
         )
 
     def _generate_fix_hints(
-        self, has_failures: bool, coverage_pct: float
+        self, has_failures: bool, coverage_pct: float, min_coverage: float
     ) -> str | None:
-        """Generate fix hints based on failures and coverage."""
+        """Generate fix hints based on failures and the effective threshold."""
         fix_hints: list[str] = []
         if has_failures:
             fix_hints.append("Fix failing tests")
-        if coverage_pct < self.min_coverage:
-            fix_hints.append(f"Increase test coverage to >= {self.min_coverage:.0f}%")
+        if coverage_pct < min_coverage:
+            fix_hints.append(f"Increase test coverage to >= {min_coverage:.0f}%")
         return "; ".join(fix_hints) if fix_hints else None

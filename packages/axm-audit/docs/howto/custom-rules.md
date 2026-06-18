@@ -129,6 +129,24 @@ are automatically classified as orchestrators and receive the `orchestrator_bonu
 on top of the base threshold. This avoids false positives on modules whose high
 fan-out is structural (e.g. a `runner.py` that coordinates multiple subsystems).
 
+## Configuring the coverage threshold
+
+The `TestCoverageRule` (`QUALITY_COVERAGE`) pass threshold defaults to **90%**.
+Lower (or raise) it per-package via `pyproject.toml`:
+
+```toml
+[tool.axm-audit.coverage]
+min_coverage = 75              # pass threshold in percent (default: 90)
+```
+
+The value is bounds-checked to `[0, 100]`; a missing file/section/key, malformed
+TOML, or an out-of-bounds / non-numeric value silently falls back to the default
+90 (the reader never raises). Set `min_coverage = 0` to let a package pass the
+gate at any coverage level — useful for early-stage or coverage-exempt packages.
+The effective threshold also drives the fix hint text
+(`Increase test coverage to >= {threshold}%`). A package without the section
+behaves exactly as before.
+
 ## Existing rules as examples
 
 | Rule | Pattern | Good example of |
