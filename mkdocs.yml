@@ -84,6 +84,7 @@ plugins:
             - packages/axm-init/src
             - packages/axm-git/src
             - packages/axm-smelt/src
+            - packages/axm-ingot/src
           options:
             docstring_style: google
             show_root_heading: true
