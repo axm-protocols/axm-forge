@@ -8,13 +8,8 @@ from pathlib import Path
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_anvil.core.extract import extract_symbols
-from axm_anvil.core.plan import (
-    ImportCycleError,
-    MovePlan,
-    SharedHelpersError,
-    SymbolAlreadyExistsError,
-    SymbolNotFoundError,
-)
+from axm_anvil.core.plan import MovePlan
+from axm_anvil.tools._common import exception_to_result, normalize_execute_args
 
 __all__ = ["ExtractTool"]
 
@@ -38,23 +33,6 @@ class ExtractTool(AXMTool):
     def name(self) -> str:
         """Return tool name for registry lookup."""
         return "anvil_extract"
-
-    @staticmethod
-    def _normalize_execute_args(
-        path: str,
-        symbols: str,
-        from_file: str,
-        to_file: str,
-    ) -> tuple[Path, Path, Path, list[str]]:
-        symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
-        root = Path(path).resolve()
-        src_path = Path(from_file)
-        tgt_path = Path(to_file)
-        if not src_path.is_absolute():
-            src_path = root / src_path
-        if not tgt_path.is_absolute():
-            tgt_path = root / tgt_path
-        return root, src_path, tgt_path, symbol_list
 
     @staticmethod
     def _parse_decorators(spec: str | None) -> frozenset[str] | None:
@@ -94,35 +72,6 @@ class ExtractTool(AXMTool):
             ],
             "files_modified": [str(src_path), str(tgt_path)],
         }
-
-    @staticmethod
-    def _exception_to_result(exc: Exception) -> ToolResult:
-        match exc:
-            case SymbolNotFoundError():
-                return ToolResult(
-                    success=False,
-                    error=f"Symbol {exc!s} not found in source module",
-                )
-            case SymbolAlreadyExistsError():
-                return ToolResult(
-                    success=False,
-                    error=f"Symbol {exc!s} already exists in target module",
-                )
-            case SharedHelpersError():
-                joined = ", ".join(exc.shared_helpers)
-                return ToolResult(
-                    success=False,
-                    error=f"Shared helpers detected: {joined}",
-                )
-            case ImportCycleError():
-                return ToolResult(success=False, error=str(exc))
-            case NotImplementedError():
-                return ToolResult(
-                    success=False,
-                    error=("shared_helpers='extract' is not yet implemented (Phase 3)"),
-                )
-            case _:
-                return ToolResult(success=False, error=str(exc))
 
     def execute(  # noqa: PLR0913
         self,
@@ -189,7 +138,7 @@ class ExtractTool(AXMTool):
             ``success=False`` with a message (missing symbol, collision,
             shared helpers, validation error).
         """
-        root, src_path, tgt_path, symbol_list = self._normalize_execute_args(
+        root, src_path, tgt_path, symbol_list = normalize_execute_args(
             path, symbols, from_file, to_file
         )
 
@@ -218,7 +167,7 @@ class ExtractTool(AXMTool):
                 side_effect_decorators=extra_decorators,
             )
         except Exception as exc:  # noqa: BLE001
-            return self._exception_to_result(exc)
+            return exception_to_result(exc)
 
         data = self._build_result_data(plan, src_path, tgt_path)
         text = self._format_text(plan, from_file=str(src_path), to_file=str(tgt_path))
