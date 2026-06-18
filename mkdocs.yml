@@ -59,6 +59,7 @@ nav:
     - axm-init: '!include ./packages/axm-init/mkdocs.yml'
     - axm-git: '!include ./packages/axm-git/mkdocs.yml'
     - axm-smelt: '!include ./packages/axm-smelt/mkdocs.yml'
+    - axm-ingot: '!include ./packages/axm-ingot/mkdocs.yml'
   - Contributing:
     - contributing.md
 
@@ -110,4 +111,3 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - axm-ingot: '!include ./packages/axm-ingot/mkdocs.yml'
