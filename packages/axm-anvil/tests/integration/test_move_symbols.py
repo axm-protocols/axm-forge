@@ -1,3 +1,12 @@
+"""Integration tests for :func:`axm_anvil.core.move.move_symbols`.
+
+Groups the move-pipeline scenarios that exercise only ``move_symbols`` (the
+FILE_NAMING canonical tuple): project-root / pyproject fallback resolution, and
+workspace-graph caller rewriting (AC3 of AXM-2136 — anvil's workspace-graph
+imports run through the public ``axm_ast`` surface and must not regress the
+cross-module move).
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -64,3 +73,24 @@ def test_fallback_when_no_pyproject(tmp_path: Path) -> None:
     assert "moved" in plan.moved_names
     assert "moved" in target.read_text()
     assert "moved" not in source.read_text()
+
+
+def test_move_still_resolves_workspace_graph(workspace: Path) -> None:
+    """AC3: a cross-module move updates callers via the workspace graph."""
+    pkg = workspace / "src" / "pkg"
+    old = pkg / "old.py"
+    new = pkg / "new.py"
+    old.write_text("def Foo():\n    return 1\n")
+    new.write_text("")
+    caller = pkg / "caller.py"
+    caller.write_text("from pkg.old import Foo\n\nFoo()\n")
+
+    plan = move_symbols(old, new, ["Foo"], workspace_root=workspace)
+
+    # The workspace graph was resolved: the caller import was rewritten to the
+    # new module (proof the move pipeline still walks the workspace module
+    # graph through the public axm_ast surface).
+    assert "Foo" in plan.moved_names
+    caller_text = caller.read_text()
+    assert "from pkg.new import Foo" in caller_text
+    assert "from pkg.old import Foo" not in caller_text
