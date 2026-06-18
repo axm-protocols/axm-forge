@@ -41,17 +41,34 @@ uv add "axm-echo[neural]"
 ## Quick Start
 
 ```python
-from axm_echo import __version__
+from axm_echo import embed, extract_monorepo, neighbors
 
-print(f"axm-echo v{__version__}")
+# 1. Build a corpus of public symbols across the configured workspaces
+#    (driven by ~/.axm/echo.toml, falling back to the current dir).
+symbols = extract_monorepo()
+texts = [s["embed_text"] for s in symbols]
+
+# 2. Embed it. "tfidf" stays pure-CPU (no torch); "st" uses MiniLM.
+matrix = embed(texts, backend="tfidf")
+
+# 3. Find the nearest neighbours of a symbol (exact cosine top-k).
+for idx, score in neighbors(matrix[0], matrix, k=5):
+    print(f"{score:.3f}  {symbols[idx]['qualname']}")
 ```
 
 ## Features
 
+- ✅ **Two embedding backends** — `tfidf` (code, scikit-learn) and `st`
+  (MiniLM `all-MiniLM-L6-v2`), selected by a registry
+- ✅ **Exact neighbour search** — brute-force cosine matmul, no ANN
 - ✅ **Light base install** — numpy + scikit-learn, no torch
-- ✅ **Optional `[neural]` extra** — torch + sentence-transformers on demand
+- ✅ **Lazy neural backend** — torch is imported only inside the `st`
+  backend (the `tfidf` path never loads it)
+- ✅ **axm-ast corpus extractor** — public symbols with signature +
+  docstring, `embed_text` falling back to code when undocumented
+- ✅ **Scope loader** — `~/.axm/echo.toml`, graceful degradation to the
+  current workspace
 - ✅ **Modern Python** — 3.12+ with strict typing
-- ✅ **Tested** — Full coverage with pytest
 
 ---
 

@@ -25,15 +25,45 @@ To enable the optional neural backend (`torch` + `sentence-transformers`):
 uv add "axm-echo[neural]"   # or: pip install "axm-echo[neural]"
 ```
 
-## Step 1: Verify Installation
+## Step 1: Embed a Few Texts
+
+The `tfidf` backend is pure-CPU (numpy + scikit-learn) and never imports
+torch, so it works out of the box on a base install:
 
 ```python
-from axm_echo import __version__
+from axm_echo import embed, neighbors
 
-print(f"axm-echo v{__version__}")
+texts = [
+    "raise an error when the API rate limit is exceeded",
+    "raise an error when the request quota is exceeded",
+    "read rows from a CSV file into a list of dicts",
+]
+matrix = embed(texts, backend="tfidf")
+
+# Nearest neighbours of the first text (exact cosine top-k).
+for idx, score in neighbors(matrix[0], matrix, k=2):
+    print(f"{score:.3f}  {texts[idx]}")
 ```
 
-## Step 2: Run the Tests
+## Step 2: Extract a Corpus From Code
+
+`extract_package` walks a package via [axm-ast](https://pypi.org/project/axm-ast/)
+and returns one record per public function/class:
+
+```python
+from pathlib import Path
+
+from axm_echo import extract_package
+
+for sym in extract_package(Path("packages/axm-echo")):
+    print(sym["qualname"], "->", sym["doc_first_line"])
+```
+
+`extract_monorepo()` does the same across every package declared in
+`~/.axm/echo.toml` (`workspace_roots`), degrading gracefully to the
+current directory when no config is present.
+
+## Step 3: Run the Tests
 
 ```bash
 cd packages/axm-echo
@@ -44,5 +74,4 @@ This runs lint + type check + security audit + tests.
 
 ## Next Steps
 
-- [CLI Reference](../reference/cli.md) — Full command documentation
 - [Architecture](../explanation/architecture.md) — How the project is structured

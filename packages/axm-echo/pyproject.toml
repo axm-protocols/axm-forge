@@ -118,6 +118,18 @@ disallow_incomplete_defs = true
 check_untyped_defs = true
 show_error_codes = true
 
+# Third-party libs without type stubs that axm-echo actually imports.
+# sentence_transformers / torch live behind the optional `neural` extra,
+# so they may be entirely absent from the base env; sklearn ships no
+# py.typed marker.
+[[tool.mypy.overrides]]
+module = [
+    "sklearn.*",
+    "sentence_transformers.*",
+    "torch.*",
+]
+ignore_missing_imports = true
+
 [[tool.mypy.overrides]]
 module = ["tests.*", "conftest"]
 disallow_untyped_defs = false
