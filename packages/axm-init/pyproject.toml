@@ -494,6 +494,10 @@ reason = "Intra-file residual in test_check_py_typed.py: test_pass asserts r.pas
 hash = "92568377c76c"
 reason = "Intra-file fail/pass pair in test_check_ci_test_job.py: both call the same SUT check_ci_test_job but on opposite gold fixtures with divergent assertions — test_ci_test_job_requires_real_matrix feeds a comment-only CI (no python-version matrix test job) and asserts result.passed is False, while test_ci_test_job_passes_with_matrix feeds a real test job carrying a python-version matrix + pytest step and asserts result.passed is True. The negative/positive contract pair documents the matrix-detection boundary; parametrizing would collapse two opposite-outcome fixtures into one table and erase the per-branch literals."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1dd0bfdab867"
+reason = "The three *_scores_100 tests in test_scaffold__check_engine.py share the score==100/grade A assertion shape but diverge in setup: each consumes a distinct module-scoped fixture (workspace_project, standalone_project, member_project) built by a different Copier render path — the member fixture additionally scaffolds a workspace, renders a MEMBER inside packages/, and runs patch_all — and asserts a different detect_context (WORKSPACE/STANDALONE/MEMBER). Parametrizing would fuse three heavyweight module-scope fixtures into one and erase the per-context scaffold setup that is the point of the test. ambiguous_setup_divergence — ACK."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 

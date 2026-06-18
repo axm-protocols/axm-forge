@@ -165,10 +165,49 @@ class TestPrekMigration:
     scaffolded-output behaviour is covered in ``test_scaffold_flow_via_cli.py``.
     """
 
-    def test_standalone_pyproject_pins_prek(self) -> None:
-        """AC1: python-project dev deps pin prek (version-agnostic)."""
-        content = _read(TemplateType.STANDALONE, "pyproject.toml.jinja")
-        assert '"prek>=' in content
+    @pytest.mark.parametrize(
+        ("template", "parts", "needle"),
+        [
+            pytest.param(
+                TemplateType.STANDALONE,
+                ("pyproject.toml.jinja",),
+                '"prek>=',
+                id="standalone-pyproject-pins",
+            ),
+            pytest.param(
+                TemplateType.WORKSPACE,
+                ("pyproject.toml.jinja",),
+                '"prek>=',
+                id="workspace-pyproject-pins",
+            ),
+            pytest.param(
+                TemplateType.MEMBER,
+                ("pyproject.toml.jinja",),
+                '"prek>=',
+                id="member-pyproject-pins",
+            ),
+            pytest.param(
+                TemplateType.WORKSPACE,
+                ("copier.yml",),
+                "uv run prek install",
+                id="workspace-copier-installs",
+            ),
+            pytest.param(
+                TemplateType.WORKSPACE,
+                ("CONTRIBUTING.md.jinja",),
+                "uv run prek install",
+                id="workspace-contributing-mentions",
+            ),
+        ],
+    )
+    def test_template_file_uses_prek_not_precommit(
+        self, template: TemplateType, parts: tuple[str, ...], needle: str
+    ) -> None:
+        """AC1-AC3: each migrated template file carries its prek marker (version
+        pin in pyproject, ``uv run prek install`` in copier/CONTRIBUTING) and no
+        longer mentions pre-commit."""
+        content = _read(template, *parts)
+        assert needle in content
         assert "pre-commit" not in content
 
     def test_standalone_copier_installs_prek(self) -> None:
@@ -176,30 +215,6 @@ class TestPrekMigration:
         content = _read(TemplateType.STANDALONE, "copier.yml")
         assert "uv run prek install" in content
         assert " prek " in content  # `uv add --group dev ... prek ...`
-        assert "pre-commit" not in content
-
-    def test_workspace_pyproject_pins_prek(self) -> None:
-        """AC2: uv-workspace dev deps pin prek (version-agnostic)."""
-        content = _read(TemplateType.WORKSPACE, "pyproject.toml.jinja")
-        assert '"prek>=' in content
-        assert "pre-commit" not in content
-
-    def test_workspace_copier_installs_prek(self) -> None:
-        """AC2: uv-workspace copier task runs prek install."""
-        content = _read(TemplateType.WORKSPACE, "copier.yml")
-        assert "uv run prek install" in content
-        assert "pre-commit" not in content
-
-    def test_workspace_contributing_mentions_prek(self) -> None:
-        """AC2: uv-workspace CONTRIBUTING.md says `uv run prek install`."""
-        content = _read(TemplateType.WORKSPACE, "CONTRIBUTING.md.jinja")
-        assert "uv run prek install" in content
-        assert "pre-commit" not in content
-
-    def test_member_pyproject_pins_prek(self) -> None:
-        """AC3: workspace-member dev deps pin prek (version-agnostic)."""
-        content = _read(TemplateType.MEMBER, "pyproject.toml.jinja")
-        assert '"prek>=' in content
         assert "pre-commit" not in content
 
     @pytest.mark.parametrize(
