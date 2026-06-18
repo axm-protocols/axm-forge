@@ -22,7 +22,11 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
+# This file proves an INSTALL-time packaging invariant (the base dependency
+# set never resolves torch; the ``neural`` extra does), not a runtime package
+# symbol. ``no_package_symbol_ok`` opts it out of TEST_QUALITY_NO_PACKAGE_SYMBOL
+# -- it is a packaging-linter check the project deliberately encodes as pytest.
+pytestmark = [pytest.mark.integration, pytest.mark.no_package_symbol_ok]
 
 # packages/axm-echo/tests/integration/ -> packages/axm-echo/
 _PKG_ROOT = Path(__file__).resolve().parents[2]

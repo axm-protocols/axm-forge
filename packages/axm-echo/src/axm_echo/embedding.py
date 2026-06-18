@@ -87,11 +87,17 @@ def _embed_tfidf(texts: Sequence[str]) -> NDArray[np.float64]:
     return np.asarray(matrix.todense(), dtype=np.float64)
 
 
-def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:
+def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:  # pragma: no cover
     """MiniLM sentence-transformer embedding.
 
     ``torch`` and ``sentence_transformers`` are imported here, inside the
     function, so the ``tfidf`` path never loads them (AC2).
+
+    Coverage-exempt: this path requires the optional ``neural`` extra
+    (torch + sentence-transformers, ~1-2 GB). Installing it in CI would
+    defeat the very install-isolation invariant the package guarantees, so
+    it is exercised only when the extra is present (the ``st`` integration
+    test ``importorskip``s it) and excluded from the coverage gate.
     """
     from sentence_transformers import SentenceTransformer
 

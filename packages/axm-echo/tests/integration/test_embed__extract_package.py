@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
+# A cohesive corpus-extraction scenario: it exercises several extractor
+# symbols (extract_package, extract_monorepo, embed, neighbors) on a real
+# tree, so it intentionally spans more than one canonical symbol tuple.
+pytestmark = [pytest.mark.integration, pytest.mark.scenario_name_ok]
 
 
 def _write_package(root: Path, name: str, module: str, body: str) -> Path:
@@ -116,3 +119,54 @@ def test_groundtruth_neighbors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     neighbor_idxs = [idx for idx, _score in results]
     # The quota-exceeded symbol is the closest non-self neighbor.
     assert quota_idx in neighbor_idxs
+
+
+def test_extracts_public_classes_with_bases(tmp_path: Path) -> None:
+    """A public class is projected with a ``class Name(Base)`` signature."""
+    from axm_echo.corpus import extract_package
+
+    pkg_root = _write_package(
+        tmp_path,
+        "cls-pkg",
+        "models",
+        '''
+        from __future__ import annotations
+
+
+        class Widget(dict):
+            """A documented widget projected as a class symbol."""
+        ''',
+    )
+
+    symbols = extract_package(pkg_root)
+
+    widget = next(s for s in symbols if s["name"] == "Widget")
+    assert widget["kind"] == "class"
+    assert widget["signature"] == "class Widget(dict)"
+    assert "widget" in widget["embed_text"].lower()
+    # The package lives under an `other`-style flat layout marker check too:
+    assert widget["package"] == "cls-pkg"
+
+
+def test_skips_unparseable_and_empty_init_files(tmp_path: Path) -> None:
+    """Unparseable sources are skipped silently; empty __init__ ignored."""
+    from axm_echo.corpus import extract_package
+
+    pkg_root = _write_package(
+        tmp_path,
+        "mixed-pkg",
+        "ok",
+        '''
+        def good() -> int:
+            """A perfectly valid public function."""
+            return 1
+        ''',
+    )
+    src = pkg_root / "src" / "mixed_pkg"
+    # A syntactically broken module must not crash extraction.
+    (src / "broken.py").write_text("def (:\n", encoding="utf-8")
+
+    symbols = extract_package(pkg_root)
+
+    names = {s["name"] for s in symbols}
+    assert "good" in names

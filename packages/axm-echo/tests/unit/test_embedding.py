@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import pytest
 
-from axm_echo.embedding import embed, neighbors
+from axm_echo.embedding import code_tokens, embed, neighbors
 
 
 def test_tfidf_backend_no_torch() -> None:
@@ -23,6 +23,47 @@ def test_tfidf_backend_no_torch() -> None:
 
     assert matrix.shape[0] == len(texts)
     assert "torch" not in sys.modules
+
+
+def test_embed_unknown_backend_raises() -> None:
+    """An unregistered backend name raises ValueError listing valid ones."""
+    with pytest.raises(ValueError, match="unknown backend") as exc:
+        embed(["x"], backend="nope")
+
+    # The error enumerates the registered backends to guide the caller.
+    assert "tfidf" in str(exc.value)
+
+
+def test_code_tokens_splits_camel_and_snake_case() -> None:
+    """Identifiers split into sub-tokens; structural keywords are weighted."""
+    tokens = code_tokens("def readCsvRows(file_path):\n    return file_path")
+
+    # camelCase + snake_case both decompose into lowercase sub-tokens.
+    assert "read" in tokens
+    assert "csv" in tokens
+    assert "rows" in tokens
+    assert "file" in tokens
+    assert "path" in tokens
+    # The 'return' structural keyword is appended once per occurrence.
+    assert tokens.count("return") >= 1
+
+
+def test_neighbors_threshold_drops_low_scores() -> None:
+    """A cosine threshold truncates the result below the cutoff."""
+    matrix = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    query = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+
+    results = neighbors(query, matrix, k=10, threshold=0.5)
+
+    # Only the identical row (cosine 1.0) clears the 0.5 threshold.
+    assert len(results) == 1
+    assert results[0][0] == 0
 
 
 def test_neighbors_topk_cosine() -> None:
