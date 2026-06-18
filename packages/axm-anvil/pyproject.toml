@@ -178,6 +178,7 @@ markers = [
     "integration: tests that hit real external boundaries (filesystem, DB, network)",
     "e2e: end-to-end tests that exercise the CLI via subprocess",
     "scenario_name_ok: cohesive named integration scenario; suppress FILE_NAMING SPLIT/NAME_MISMATCH",
+    "no_package_symbol_ok: subprocess CLI test whose invoked binary is not statically linkable to a package symbol",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -244,12 +245,17 @@ tag_pattern = "anvil/v[0-9].*"
 [tool.axm-audit.mirror]
 # cli.py        — thin cyclopts wrapper, delegates entirely to core (no logic)
 # core/postprocess.py — private _ruff_fix subprocess façade, covered by integration
+# core/extract.py, core/rename.py — thin adapters over the move pipeline (whose
+#   logic lives in core/move.py, unit-tested by tests/unit/core/test_move.py);
+#   their real behaviour is exercised by tests/integration/test_{extract,rename}_symbols.py
 exempt_paths = [
     "**/__init__.py",
     "_version.py",
     "__main__.py",
     "cli.py",
     "core/postprocess.py",
+    "core/extract.py",
+    "core/rename.py",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────

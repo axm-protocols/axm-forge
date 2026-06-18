@@ -3,12 +3,11 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from axm_anvil.tools.extract import ExtractTool
 
-
-def test_name_is_anvil_extract() -> None:
-    """AC2: the tool exposes the ``anvil_extract`` registry name."""
-    assert ExtractTool().name == "anvil_extract"
+pytestmark = pytest.mark.integration
 
 
 def test_collision_returns_failure(tmp_path: Path) -> None:

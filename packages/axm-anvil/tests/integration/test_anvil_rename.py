@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.integration, pytest.mark.no_package_symbol_ok]
 
 
 def test_cli_rename_old_new(tmp_path: Path) -> None:
