@@ -1,14 +1,21 @@
-"""``echo_code`` AXMTool -- cross-package echo detection over a corpus.
+"""echo AXMTools -- cross-package echo detection and intent retrieval.
 
-A read-only AXMTool in the spirit of ``ast_dead_code`` (see
-``axm_ast/tools/dead_code.py``): it walks the configured monorepo scope,
-embeds every public documented symbol, finds cross-package pairs whose
-*promises* (docstrings) are semantically close, applies the v7 anti-signals,
-and returns the surviving **duplicate clusters** plus the demoted
-parallel-API / boilerplate buckets.
+Two read-only AXMTools in the spirit of ``ast_dead_code`` (see
+``axm_ast/tools/dead_code.py``), sharing the corpus -> embed pipeline:
 
-Registered under the ``axm.tools`` entry point, so it is reachable as an MCP
-tool, an ``axm echo_code`` CLI command, and a DAG ``tool_node`` for free
+* :class:`EchoCodeTool` (``echo_code``) walks the configured monorepo scope,
+  embeds every public documented symbol, finds cross-package pairs whose
+  *promises* (docstrings) are semantically close, applies the v7 anti-signals,
+  and returns the surviving **duplicate clusters** plus the demoted
+  parallel-API / boilerplate buckets.
+* :class:`EchoCheckTool` (``echo_check``) embeds a free-form *intention* and
+  retrieves the top-k nearest public symbols across the whole monorepo, each
+  tagged with a location verdict (reuse canonical / reuse in place /
+  promotable). It does the *retrieval*, never the use/extend/nothing decision
+  -- that is left to the calling agent.
+
+Both are registered under the ``axm.tools`` entry point, so each is reachable
+as an MCP tool, an ``axm <name>`` CLI command, and a DAG ``tool_node`` for free
 (one declaration, three surfaces).
 """
 
@@ -29,7 +36,7 @@ from axm_echo.cluster import (
     split_pairs,
 )
 from axm_echo.corpus import extract_monorepo
-from axm_echo.embedding import embed
+from axm_echo.embedding import embed, neighbors
 
 if TYPE_CHECKING:
     from axm_echo.corpus import SymbolDict
@@ -37,10 +44,28 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ClusterEntry", "EchoCodeTool", "MemberEntry", "PairEntry"]
+__all__ = [
+    "CandidateEntry",
+    "ClusterEntry",
+    "EchoCheckTool",
+    "EchoCodeTool",
+    "MemberEntry",
+    "PairEntry",
+]
 
 # A cross-package comparison needs at least two documented symbols.
 _MIN_CORPUS = 2
+
+# The canonical commons package: a candidate already here is canonical.
+_INGOT_PACKAGE = "axm-ingot"
+
+# Retrieval defaults for echo_check.
+_CHECK_TOP_K = 10
+_CHECK_THRESHOLD = 0.30
+
+# A docstring this long signals a documented, general-purpose helper -- the
+# kind of symbol worth promoting into the ingot (a canonisable signal).
+_PROMOTABLE_DOC_CHARS = 40
 
 
 class MemberEntry(TypedDict):
@@ -68,6 +93,27 @@ class PairEntry(TypedDict):
     score: float
     a: MemberEntry
     b: MemberEntry
+
+
+class CandidateEntry(TypedDict):
+    """A retrieved symbol matching an intention, with its location verdict.
+
+    The ``verdict`` is purely a *location* tag (AC3) -- it never encodes a
+    use/extend/nothing decision (AC4): a high score does not mean "use this",
+    only "this is the closest existing promise". ``promotable`` flags a
+    non-ingot candidate documented well enough to be worth canonicalising.
+    """
+
+    score: float
+    verdict: str
+    promotable: bool
+    qualname: str
+    name: str
+    package: str
+    doc_first_line: str
+    doc_full: str
+    path: str
+    line: int
 
 
 def _member(sym: SymbolDict) -> MemberEntry:
@@ -231,4 +277,145 @@ class EchoCodeTool(AXMTool):
                     f"  {member['qualname']}  [{member['package']}]  "
                     f"“{member['doc_first_line']}”"
                 )
+        return "\n".join(lines)
+
+
+def _verdict_for(package: str) -> str:
+    """The location verdict for a candidate found in *package* (AC3).
+
+    ``axm-ingot`` is the canonical commons, so a hit there is "reuse the
+    canonical symbol"; anything else is "reuse it in place" -- we never hide a
+    real helper just because it has not been canonicalised yet (that absence is
+    exactly what floods the promotion backlog when the ingot is empty).
+    """
+    return "reuse_canonical" if package == _INGOT_PACKAGE else "reuse_in_place"
+
+
+def _candidate(sym: SymbolDict, score: float) -> CandidateEntry:
+    """Project a retrieved corpus symbol onto the serialized candidate view."""
+    package = str(sym.get("package", ""))
+    doc_full = str(sym.get("doc_full", ""))
+    promotable = package != _INGOT_PACKAGE and len(doc_full.strip()) >= (
+        _PROMOTABLE_DOC_CHARS
+    )
+    return {
+        "score": round(score, 4),
+        "verdict": _verdict_for(package),
+        "promotable": promotable,
+        "qualname": str(sym.get("qualname", "")),
+        "name": str(sym.get("name", "")),
+        "package": package,
+        "doc_first_line": str(sym.get("doc_first_line", "")),
+        "doc_full": doc_full,
+        "path": str(sym.get("path", "")),
+        "line": int(sym.get("line", 0) or 0),
+    }
+
+
+class EchoCheckTool(AXMTool):
+    """Retrieve the public symbols closest to a free-form *intention*.
+
+    Registered as ``echo_check`` via the ``axm.tools`` entry point. It embeds
+    the intention, retrieves the top-k nearest documented symbols across the
+    whole monorepo corpus (AC2), and tags each with a location verdict (AC3).
+    Retrieval is decoupled from the use/extend/nothing decision (AC4): the tool
+    returns ranked candidates + docstrings and leaves the call to the agent.
+    """
+
+    agent_hint = (
+        "Before writing a helper, retrieve the closest existing symbols across "
+        "the monorepo for an intention (top-k + docstrings + reuse/promote "
+        "verdict). Decide use/extend/nothing yourself -- this only ranks."
+    )
+    domain = "echo"
+    tags = frozenset({"reuse", "similarity", "echo", "retrieval"})
+
+    @property
+    def name(self) -> str:
+        """Return the tool name for registry lookup."""
+        return "echo_check"
+
+    def execute(
+        self,
+        *,
+        intention: str = "",
+        backend: Backend = "st",
+        k: int = _CHECK_TOP_K,
+        threshold: float = _CHECK_THRESHOLD,
+        **kwargs: object,
+    ) -> ToolResult:
+        """Retrieve the top-k symbols closest to *intention* over the corpus.
+
+        Args:
+            intention: Free-form description of the behaviour to implement.
+            backend: Embedding backend -- ``"st"`` (neural MiniLM, default,
+                requires the ``neural`` extra) or ``"tfidf"`` (pure CPU).
+            k: Maximum number of candidates to return.
+            threshold: Minimum cosine for a candidate to be retrieved. Below it
+                the candidate is dropped, so a novel intention returns an empty
+                list rather than a spurious match (AC4).
+
+        Returns:
+            ToolResult with ``intention``, ``corpus_size`` and ``candidates``
+            (ranked top-k, each carrying its docstrings and a location verdict).
+        """
+        try:
+            return self._run(
+                intention=intention, backend=backend, k=k, threshold=threshold
+            )
+        except Exception as exc:  # noqa: BLE001 — final tool boundary
+            logger.warning("EchoCheckTool failed: %s", exc, exc_info=True)
+            return ToolResult(success=False, error=str(exc))
+
+    def _run(
+        self, *, intention: str, backend: Backend, k: int, threshold: float
+    ) -> ToolResult:
+        """Execute the corpus -> embed -> retrieve -> verdict pipeline."""
+        if not intention.strip():
+            raise ValueError("intention must be a non-empty string")
+
+        symbols = [
+            s
+            for s in extract_monorepo()
+            if str(s.get("doc_full", "")).strip() and not is_trivial_accessor(s)
+        ]
+        if not symbols:
+            return ToolResult(
+                success=True,
+                data={"intention": intention, "corpus_size": 0, "candidates": []},
+                text=self._render_text(intention, [], corpus=0),
+            )
+
+        texts = [str(s["embed_text"]) for s in symbols]
+        matrix = embed([intention, *texts], backend=backend)
+        hits = neighbors(matrix[0], matrix[1:], k=k, threshold=threshold)
+
+        candidates = [_candidate(symbols[idx], score) for idx, score in hits]
+        data = {
+            "intention": intention,
+            "corpus_size": len(symbols),
+            "candidates": candidates,
+        }
+        text = self._render_text(intention, candidates, corpus=len(symbols))
+        return ToolResult(success=True, data=data, text=text)
+
+    @staticmethod
+    def _render_text(
+        intention: str, candidates: list[CandidateEntry], *, corpus: int
+    ) -> str:
+        """Render the retrieval report as compact, token-efficient text."""
+        header = (
+            f"echo_check | “{intention}” | {len(candidates)} candidates | "
+            f"corpus {corpus} symbols"
+        )
+        if not candidates:
+            return f"{header}\n(no candidate above threshold — likely novel)"
+        lines = [header, ""]
+        for rank, cand in enumerate(candidates, start=1):
+            promote = " (promotable→ingot)" if cand["promotable"] else ""
+            lines.append(
+                f"{rank}. {cand['qualname']}  [{cand['package']}]  "
+                f"sim={cand['score']:.3f}  {cand['verdict']}{promote}"
+            )
+            lines.append(f'   "{cand["doc_first_line"]}"')
         return "\n".join(lines)

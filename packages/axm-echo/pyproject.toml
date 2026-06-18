@@ -39,6 +39,7 @@ Issues = "https://github.com/axm-protocols/axm-forge-workspace/issues"
 
 [project.entry-points."axm.tools"]
 echo_code = "axm_echo.tools:EchoCodeTool"
+echo_check = "axm_echo.tools:EchoCheckTool"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

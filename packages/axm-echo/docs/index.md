@@ -62,6 +62,11 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
   (MCP + CLI + DAG node) clusters intent-equivalent duplicate symbols across
   packages, with the v7 anti-signals (trivial-accessor filter, parallel-API
   demotion, boilerplate-frequency demotion) applied
+- ✅ **`echo_check` intent retrieval** — the `axm echo_check` tool
+  (MCP + CLI + DAG node) embeds a free-form intention and returns the top-k
+  nearest monorepo symbols with their docstrings, each tagged with a location
+  verdict (reuse canonical / reuse in place / promotable); it does the
+  retrieval, leaving the use / extend / nothing decision to the caller
 - ✅ **Two embedding backends** — `tfidf` (code, scikit-learn) and `st`
   (MiniLM `all-MiniLM-L6-v2`), selected by a registry
 - ✅ **Exact neighbour search** — brute-force cosine matmul, no ANN
