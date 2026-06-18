@@ -206,3 +206,17 @@ commit_parsers = [
     { message = "^test", group = "🧪 Tests" },
 ]
 tag_pattern = "axm-ingot/v[0-9].*"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-audit acknowledged duplicate-test clusters (heterogeneous false positives)
+# ─────────────────────────────────────────────────────────────────────────────
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d7e5d8df11c9"
+reason = """test_applies_exclude and test_skips_dirs_without_pyproject share the \
+workspace-resolution body shape ([m.name] == [...]) but guard two distinct \
+resolve_workspace contracts: the former asserts exclude globs subtract members \
+(exclude = [...] in the pyproject), the latter asserts a glob-matched dir with \
+NO pyproject is dropped (require_pyproject). Parametrizing would fuse two \
+mutually-exclusive mechanisms (explicit exclude vs missing-pyproject filtering) \
+under a single expected-members literal, erasing which rule is under test. \
+Distinct-concern — ACK."""

@@ -72,15 +72,16 @@ def test_skips_dirs_without_pyproject(tmp_path: Path) -> None:
     assert [m.name for m in resolved.members] == ["real"]
 
 
-def test_returns_none_when_not_a_workspace(tmp_path: Path) -> None:
-    """AC2, AC5: a pyproject without [tool.uv.workspace] yields None."""
-    _write(tmp_path / "pyproject.toml", '[project]\nname = "solo"\n')
-
-    assert resolve_workspace(tmp_path) is None
-
-
-def test_malformed_pyproject_returns_none(tmp_path: Path) -> None:
-    """AC5: an invalid TOML pyproject returns None without raising."""
-    _write(tmp_path / "pyproject.toml", "[tool.uv.workspace\nmembers = [\n")
+@pytest.mark.parametrize(
+    "pyproject_text",
+    [
+        pytest.param('[project]\nname = "solo"\n', id="no-uv-workspace-table"),
+        pytest.param("[tool.uv.workspace\nmembers = [\n", id="malformed-toml"),
+    ],
+)
+def test_returns_none_when_not_a_workspace(tmp_path: Path, pyproject_text: str) -> None:
+    """AC2, AC5: a pyproject without [tool.uv.workspace] and an invalid TOML
+    pyproject both yield None without raising."""
+    _write(tmp_path / "pyproject.toml", pyproject_text)
 
     assert resolve_workspace(tmp_path) is None

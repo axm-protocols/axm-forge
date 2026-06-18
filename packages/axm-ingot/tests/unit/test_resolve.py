@@ -1,21 +1,31 @@
 from __future__ import annotations
 
+import pytest
+
 from axm_ingot.uv import parse_workspace_members
 
 
-def test_parse_workspace_members_raw() -> None:
-    """AC1: returns the raw members declared under [tool.uv.workspace]."""
-    text = '[tool.uv.workspace]\nmembers = ["packages/*", "other"]\n'
-    assert parse_workspace_members(text) == ["packages/*", "other"]
-
-
-def test_parse_members_empty_when_no_workspace() -> None:
-    """AC1: returns [] when no [tool.uv.workspace] table is present."""
-    text = '[project]\nname = "x"\n'
-    assert parse_workspace_members(text) == []
-
-
-def test_parse_members_malformed_text() -> None:
-    """AC1: malformed TOML yields [] without raising."""
-    text = "this is = not valid toml [[["
-    assert parse_workspace_members(text) == []
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param(
+            '[tool.uv.workspace]\nmembers = ["packages/*", "other"]\n',
+            ["packages/*", "other"],
+            id="raw-members-returned",
+        ),
+        pytest.param(
+            '[project]\nname = "x"\n',
+            [],
+            id="empty-when-no-workspace-table",
+        ),
+        pytest.param(
+            "this is = not valid toml [[[",
+            [],
+            id="empty-on-malformed-toml",
+        ),
+    ],
+)
+def test_parse_workspace_members(text: str, expected: list[str]) -> None:
+    """AC1: members under [tool.uv.workspace] are returned raw; a missing table
+    or malformed TOML both yield [] without raising."""
+    assert parse_workspace_members(text) == expected
