@@ -57,9 +57,16 @@ class TestParsingUnit:
                 [],
                 id="malformed_graceful",
             ),
+            pytest.param(
+                '[tool.uv.workspace]\nmembers = ["packages/*", "other"]\n',
+                ["packages/*", "other"],
+                id="glob_and_plain_raw_delegation_contract",
+            ),
         ],
     )
     def test_parse_workspace_members(self, text: str, expected: list[str]) -> None:
+        """Raw members are returned verbatim (incl. globs); after delegating to
+        axm-ingot the public axm-ast entry preserves the non-expanded contract."""
         assert parse_workspace_members(text) == expected
 
     def test_parse_workspace_members_glob(self) -> None:

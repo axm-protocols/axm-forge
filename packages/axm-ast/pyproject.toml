@@ -733,7 +733,3 @@ reason = "Same find_namespace_modules assertion (== set()) but different fixture
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "aaedb05b1e5e"
 reason = "Distinct SUTs across two files: test_impact.py::test_symbols_invalid_type validates ImpactTool.execute input type rejection while test_inspect.py::test_symbols_invalid_type validates InspectTool.execute. Same must-be-a-list error but two independent tools, no shared fixture or helper."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "65c6af843d1d"
-reason = "Inter-file, distinct concerns and pyramid levels: test_parse_workspace_members.py::test_ast_parse_delegates_same_contract (integration) guards that axm-ast's parse_workspace_members preserves the raw-members contract AFTER delegating to axm-ingot (a non-regression-of-delegation test), while test_workspace.py::TestParseWorkspaceMembers::test_parse_workspace_members (unit, already parametrized in a class) tests pure parsing. Same parse_workspace_members(text) == expected call shape, but one is an integration delegation guard and the other a unit parse check — no shared fixture, different test roots. signal1_call_assert — ACK."

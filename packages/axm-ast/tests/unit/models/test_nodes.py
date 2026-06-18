@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
 from axm_ast.models.nodes import (
@@ -634,3 +634,13 @@ def test_public_functions_with_all_extra() -> None:
         all_exports=["public", "_also_public"],
     )
     assert len(mod.public_functions) == 2
+
+
+def test_workspace_info_is_pydantic() -> None:
+    """AC2: WorkspaceInfo stays a Pydantic BaseModel defined in axm-ast."""
+    assert issubclass(WorkspaceInfo, BaseModel)
+    assert WorkspaceInfo.__module__ == "axm_ast.models.nodes"
+
+    ws = WorkspaceInfo(name="x", root=Path("/ws"))
+    assert ws.name == "x"
+    assert ws.packages == []

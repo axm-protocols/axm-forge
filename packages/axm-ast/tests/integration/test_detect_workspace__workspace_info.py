@@ -120,3 +120,34 @@ def test_detect_workspace_uv(workspace_root: Path) -> None:
     assert isinstance(ws, WorkspaceInfo)
     assert ws.name == "test-workspace"
     assert ws.root == workspace_root
+
+
+def _write_workspace(root: Path) -> None:
+    """Write a minimal uv-workspace pyproject.toml at ``root``."""
+    (root / "pyproject.toml").write_text(
+        "[project]\n"
+        'name = "my-workspace"\n'
+        'version = "0.1.0"\n'
+        "\n"
+        "[tool.uv.workspace]\n"
+        'members = ["packages/*"]\n',
+        encoding="utf-8",
+    )
+    pkg = root / "packages" / "pkg-a"
+    pkg.mkdir(parents=True)
+    (pkg / "pyproject.toml").write_text(
+        '[project]\nname = "pkg-a"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+
+
+def test_returns_workspace_info(tmp_path: Path) -> None:
+    """AC1: detect_workspace returns a WorkspaceInfo with correct root and name."""
+    _write_workspace(tmp_path)
+
+    ws = detect_workspace(tmp_path)
+
+    assert ws is not None
+    assert isinstance(ws, WorkspaceInfo)
+    assert ws.root == tmp_path.resolve()
+    assert ws.name == "my-workspace"
