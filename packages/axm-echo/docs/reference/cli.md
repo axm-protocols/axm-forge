@@ -23,24 +23,53 @@ axm echo_code --backend tfidf
 
 # Raise the cosine floor for a candidate pair (default 0.55).
 axm echo_code --threshold 0.7
+
+# Show only the 10 nearest actionable clusters (the total stays in the header).
+axm echo_code --top-n 10
+
+# Tighten the over-merge guard (default 50): drop any component above 20.
+axm echo_code --max-cluster-size 20
 ```
 
 | Option | Default | Description |
 | -- | -- | -- |
 | `--backend` | `st` | Embedding backend: `st` (neural MiniLM, the in-process default) or `tfidf` (pure CPU, no torch). |
 | `--threshold` | `0.55` | Minimum cosine similarity for a candidate pair. |
+| `--top-n` | `30` | Bound the report to the N nearest *non-acknowledged* clusters. The neural pass still finds them all — only the display is bounded; the total count stays in the header. |
+| `--max-cluster-size` | `50` | Reject any connected component larger than this as a union-find over-merge (a structural-conformity signal, not a duplicate echo — a genuine duplicate is 2-5 members). |
 
-Output names the tool, the cluster count, the corpus size, and the demoted
-buckets, then lists each cluster's members with their package and docstring
-first line:
+Output names the tool, the live/shown/actionable cluster counts, the corpus
+size, and the demoted buckets, then lists each shown cluster's members with
+their package and docstring first line:
 
 ```text
-echo_code | 1 clusters | corpus 2 symbols | 0 parallel-API · 0 boilerplate (demoted)
+echo_code | 8 clusters, 3 shown (8 actionable) | corpus 16 symbols | 0 parallel-API · 0 boilerplate (demoted)
 
 cluster 1  sim=1.000  (2 symbols)
   axm_commons.errors.RateLimitError  [axm-commons]  “Raised when the upstream API rate limit has been exceeded.”
   axm_bib.errors.RateLimitError  [axm-bib]  “Raised when the upstream API rate limit has been exceeded.”
 ```
+
+#### Acknowledging a cluster (waiver)
+
+A genuine cross-package echo that is *intended* (a parallel API, a deliberate
+wrapper) is noise on every run. Acknowledge it in the **scan-root** `pyproject.toml`
+(the first workspace root in `~/.axm/echo.toml`) so it drops out of the
+actionable top-N. Each entry is a 12-hex `cluster_hash` (printed in the tool's
+`data.clusters[*].cluster_hash`) plus a non-empty `reason`:
+
+```toml
+[[tool.axm-echo.acknowledged]]
+hash = "ca29d81fb73c"
+reason = "parallel API, intended cross-package duplication"
+```
+
+An acknowledged *live* cluster is marked `acknowledged` and excluded from the
+top-N and the `actionable_count`. The mechanism is self-cleaning: a waiver whose
+hash no longer matches any live cluster is reported under
+`data.stale_acknowledged` ("this waiver no longer serves a purpose, retire it")
+— informative, never blocking. A malformed entry (bad hash, empty reason) is
+rejected gracefully into `data.acknowledged_errors`; the run never crashes.
 
 ### `axm echo_check`
 

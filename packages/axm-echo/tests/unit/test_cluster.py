@@ -143,3 +143,22 @@ def test_cluster_pairs_empty_returns_no_clusters() -> None:
 def test_min_doc_chars_is_a_positive_floor() -> None:
     """The terse-doc floor is a small positive constant."""
     assert 0 < MIN_DOC_CHARS < 30
+
+
+def _chain(node_ids: list[int]) -> list[tuple[int, int, float]]:
+    """Link node_ids into one connected component via a chain of pairs."""
+    return [(node_ids[k], node_ids[k + 1], 0.9) for k in range(len(node_ids) - 1)]
+
+
+def test_mega_cluster_rejected() -> None:
+    """AC1: a cluster beyond max_cluster_size is dropped; a small one is kept."""
+    mega = list(range(0, 60))
+    small = [200, 201, 202]
+    pairs = _chain(mega) + _chain(small)
+
+    clusters = cluster_pairs(pairs, max_cluster_size=50)
+
+    sizes = {len(c) for c in clusters}
+    assert 60 not in sizes
+    assert any(len(c) == 3 for c in clusters)
+    assert all(len(c) <= 50 for c in clusters)

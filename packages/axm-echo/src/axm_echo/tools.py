@@ -22,11 +22,13 @@ as an MCP tool, an ``axm <name>`` CLI command, and a DAG ``tool_node`` for free
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, TypedDict
+import tomllib
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_echo.cluster import (
+    MAX_CLUSTER_SIZE,
     PAIR_THRESHOLD,
     Pair,
     cluster_pairs,
@@ -37,8 +39,19 @@ from axm_echo.cluster import (
 )
 from axm_echo.corpus import extract_monorepo
 from axm_echo.embedding import embed, neighbors
+from axm_echo.scope import load_scope
+from axm_echo.waiver import (
+    cluster_hash,
+    extract_acknowledged_section,
+    mark_acknowledged,
+    stale_acknowledged,
+    validate_acknowledged_entry,
+)
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from pathlib import Path
+
     from axm_echo.corpus import SymbolDict
     from axm_echo.embedding import Backend
 
@@ -55,6 +68,19 @@ __all__ = [
 
 # A cross-package comparison needs at least two documented symbols.
 _MIN_CORPUS = 2
+
+# The report bounds its output to the top-N nearest *non-acknowledged* clusters;
+# the neural pass still finds them all, only the display is bounded. The total
+# count stays visible. Paramétrable on the tool.
+_DEFAULT_TOP_N = 30
+
+# echo_code identifies a cluster member by its (package, qualname). The waiver
+# hash is computed over this key schema (duplicate_tests uses (file, name)).
+_ECHO_KEY_FIELDS = ("package", "qualname")
+
+# The acknowledged-waiver section is ``[[tool.axm-echo.acknowledged]]``.
+_WAIVER_TOOL = "axm-echo"
+_WAIVER_RULE = "acknowledged"
 
 # The canonical commons package: a candidate already here is canonical.
 _INGOT_PACKAGE = "axm-ingot"
@@ -79,12 +105,19 @@ class MemberEntry(TypedDict):
     line: int
 
 
-class ClusterEntry(TypedDict):
-    """A cross-package echo cluster (connected component of duplicate pairs)."""
+class ClusterEntry(TypedDict, total=False):
+    """A cross-package echo cluster (connected component of duplicate pairs).
+
+    ``cluster_hash`` is the waiver address over the members' ``(package,
+    qualname)``; ``acknowledged`` is stamped when a live cluster is waived.
+    Both are added during the run, hence ``total=False``.
+    """
 
     size: int
     score: float
     members: list[MemberEntry]
+    cluster_hash: str
+    acknowledged: bool
 
 
 class PairEntry(TypedDict):
@@ -144,6 +177,47 @@ def _pair_entries(pairs: list[Pair], symbols: list[SymbolDict]) -> list[PairEntr
     ]
 
 
+def _read_acknowledged_section(scan_root: Path) -> object:
+    """Read the ``[[tool.axm-echo.acknowledged]]`` section of a scan-root pyproject.
+
+    Returns the raw section value (a list of waiver tables when present),
+    degrading to ``{}`` when the pyproject is absent, unreadable, or invalid TOML
+    -- the read never raises.
+    """
+    pyproject = scan_root / "pyproject.toml"
+    try:
+        raw = pyproject.read_bytes()
+    except OSError:
+        return {}
+    try:
+        data = tomllib.loads(raw.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        return {}
+    return extract_acknowledged_section(data, tool=_WAIVER_TOOL, rule=_WAIVER_RULE)
+
+
+def _partition_waivers(section: object) -> tuple[list[dict[str, str]], list[str]]:
+    """Split a raw acknowledged section into valid waivers and schema errors.
+
+    Each entry is validated by :func:`validate_acknowledged_entry`; valid ones
+    are normalized to ``{"hash", "reason"}`` dicts, invalid ones contribute a
+    message. A non-list section (schema misuse) yields a single error.
+    """
+    if not isinstance(section, list):
+        if section in ({}, None):
+            return [], []
+        return [], ["acknowledged section must be an array of tables (schema error)"]
+    valid: list[dict[str, str]] = []
+    errors: list[str] = []
+    for entry in section:
+        error = validate_acknowledged_entry(entry)
+        if error is not None:
+            errors.append(error)
+            continue
+        valid.append({"hash": str(entry["hash"]), "reason": str(entry["reason"])})
+    return valid, errors
+
+
 class EchoCodeTool(AXMTool):
     """Detect cross-package code echoes (intent-equivalent duplicates).
 
@@ -167,6 +241,8 @@ class EchoCodeTool(AXMTool):
         *,
         backend: Backend = "st",
         threshold: float = PAIR_THRESHOLD,
+        top_n: int = _DEFAULT_TOP_N,
+        max_cluster_size: int = MAX_CLUSTER_SIZE,
         **kwargs: object,
     ) -> ToolResult:
         """Cluster cross-package echoes over the configured corpus.
@@ -175,18 +251,35 @@ class EchoCodeTool(AXMTool):
             backend: Embedding backend -- ``"st"`` (neural MiniLM, the
                 in-process default) or ``"tfidf"`` (pure CPU, no torch).
             threshold: Minimum cosine for a candidate pair.
+            top_n: Show at most this many of the nearest *non-acknowledged*
+                clusters; the total count stays visible in the metadata.
+            max_cluster_size: Reject components larger than this as union-find
+                over-merges (structural conformity, not a duplicate echo).
 
         Returns:
-            ToolResult with ``clusters`` (duplicate echoes), ``parallel_api``
-            and ``boilerplate`` (demoted pairs), plus corpus counts.
+            ToolResult with the bounded ``clusters`` (each carrying a
+            ``cluster_hash``), ``parallel_api`` and ``boilerplate`` (demoted
+            pairs), the live/shown/actionable counts, and ``stale_acknowledged``.
         """
         try:
-            return self._run(backend=backend, threshold=threshold)
+            return self._run(
+                backend=backend,
+                threshold=threshold,
+                top_n=top_n,
+                max_cluster_size=max_cluster_size,
+            )
         except Exception as exc:  # noqa: BLE001 — final tool boundary
             logger.warning("EchoCodeTool failed: %s", exc, exc_info=True)
             return ToolResult(success=False, error=str(exc))
 
-    def _run(self, *, backend: Backend, threshold: float) -> ToolResult:
+    def _run(
+        self,
+        *,
+        backend: Backend,
+        threshold: float,
+        top_n: int,
+        max_cluster_size: int,
+    ) -> ToolResult:
         """Execute the corpus -> embed -> pairs -> split -> cluster pipeline."""
         symbols = [
             s
@@ -197,7 +290,13 @@ class EchoCodeTool(AXMTool):
             return ToolResult(
                 success=True,
                 data=self._empty_data(len(symbols)),
-                text=self._render_text([], [], [], corpus=len(symbols)),
+                text=self._render_text(
+                    [],
+                    [],
+                    [],
+                    corpus=len(symbols),
+                    counts={"total": 0, "actionable": 0, "stale": 0},
+                ),
             )
 
         texts = [str(s["embed_text"]) for s in symbols]
@@ -208,20 +307,58 @@ class EchoCodeTool(AXMTool):
         generic = generic_docs(symbols)
         dupes, parallel, boilerplate = split_pairs(pairs, symbols, generic)
 
-        clusters = self._build_clusters(dupes, symbols)
+        clusters = self._build_clusters(dupes, symbols, max_cluster_size)
+        waivers, waiver_errors = self._load_waivers()
+        mark_acknowledged(clusters, waivers)
+        stale = stale_acknowledged(clusters, waivers)
+
+        actionable = [c for c in clusters if not c.get("acknowledged")]
+        shown = actionable[:top_n]
         parallel_entries = _pair_entries(parallel, symbols)
         boilerplate_entries = _pair_entries(boilerplate, symbols)
 
         data = {
             "corpus_size": len(symbols),
-            "clusters": clusters,
+            "clusters": shown,
+            "cluster_count": len(clusters),
+            "actionable_count": len(actionable),
+            "shown_count": len(shown),
             "parallel_api": parallel_entries,
             "boilerplate": boilerplate_entries,
+            "stale_acknowledged": stale,
+            "acknowledged_errors": waiver_errors,
         }
         text = self._render_text(
-            clusters, parallel_entries, boilerplate_entries, corpus=len(symbols)
+            shown,
+            parallel_entries,
+            boilerplate_entries,
+            corpus=len(symbols),
+            counts={
+                "total": len(clusters),
+                "actionable": len(actionable),
+                "stale": len(stale),
+            },
         )
         return ToolResult(success=True, data=data, text=text)
+
+    @staticmethod
+    def _load_waivers() -> tuple[list[dict[str, str]], list[str]]:
+        """Read ``[[tool.axm-echo.acknowledged]]`` from the scan-root pyproject.
+
+        The waiver lives in the pyproject of the *scan root* -- the first
+        :func:`load_scope` root (a documented ownership choice for the
+        cross-package case; cf. SPEC-similarity-echo §5bis). Each entry is
+        validated; malformed entries are skipped and reported, never raised.
+
+        Returns:
+            ``(valid_waivers, errors)`` where each valid waiver is a
+            ``{"hash", "reason"}`` dict and ``errors`` lists schema messages.
+        """
+        roots = load_scope()
+        if not roots:
+            return [], []
+        section = _read_acknowledged_section(roots[0])
+        return _partition_waivers(section)
 
     @staticmethod
     def _empty_data(corpus_size: int) -> dict[str, object]:
@@ -229,50 +366,73 @@ class EchoCodeTool(AXMTool):
         return {
             "corpus_size": corpus_size,
             "clusters": [],
+            "cluster_count": 0,
+            "actionable_count": 0,
+            "shown_count": 0,
             "parallel_api": [],
             "boilerplate": [],
+            "stale_acknowledged": [],
+            "acknowledged_errors": [],
         }
 
     @staticmethod
     def _build_clusters(
-        dupes: list[Pair], symbols: list[SymbolDict]
-    ) -> list[ClusterEntry]:
-        """Connected components of the duplicate pairs, serialized + scored."""
-        components = cluster_pairs(dupes)
-        clusters: list[ClusterEntry] = []
+        dupes: list[Pair], symbols: list[SymbolDict], max_cluster_size: int
+    ) -> list[dict[str, object]]:
+        """Connected components of the duplicate pairs, serialized + scored.
+
+        Each serialized cluster carries a ``cluster_hash`` over its members'
+        ``(package, qualname)`` so the waiver mechanism can address it.
+        """
+        components = cluster_pairs(dupes, max_cluster_size=max_cluster_size)
+        clusters: list[dict[str, object]] = []
         for members in components:
-            clusters.append(
-                {
-                    "size": len(members),
-                    "score": round(_max_pair_score(members, dupes), 4),
-                    "members": [_member(symbols[i]) for i in members],
-                }
-            )
-        clusters.sort(key=lambda c: c["score"], reverse=True)
+            entry: dict[str, object] = {
+                "size": len(members),
+                "score": round(_max_pair_score(members, dupes), 4),
+                "members": [_member(symbols[i]) for i in members],
+            }
+            entry["cluster_hash"] = cluster_hash(entry, key_fields=_ECHO_KEY_FIELDS)
+            clusters.append(entry)
+        clusters.sort(key=lambda c: cast("float", c["score"]), reverse=True)
         return clusters
 
     @staticmethod
     def _render_text(
-        clusters: list[ClusterEntry],
+        clusters: list[dict[str, object]],
         parallel: list[PairEntry],
         boilerplate: list[PairEntry],
         *,
         corpus: int,
+        counts: Mapping[str, int],
     ) -> str:
-        """Render the echo report as compact text for token-efficient MCP output."""
+        """Render the echo report as compact text for token-efficient MCP output.
+
+        ``counts`` carries ``total`` (live clusters), ``actionable`` (live
+        non-acknowledged) and ``stale`` (orphan waivers) for the header.
+        """
+        total = counts.get("total", 0)
+        actionable = counts.get("actionable", 0)
+        stale = counts.get("stale", 0)
         header = (
-            f"echo_code | {len(clusters)} clusters | corpus {corpus} symbols | "
+            f"echo_code | {total} clusters, {len(clusters)} shown "
+            f"({actionable} actionable) | corpus {corpus} symbols | "
             f"{len(parallel)} parallel-API · {len(boilerplate)} boilerplate (demoted)"
         )
+        if stale:
+            header += f" | {stale} stale waiver(s)"
         if not clusters:
             return header
         lines = [header, ""]
         for idx, cluster in enumerate(clusters, start=1):
             lines.append(
-                f"cluster {idx}  sim={cluster['score']:.3f}  "
+                f"cluster {idx}  sim={cast('float', cluster['score']):.3f}  "
                 f"({cluster['size']} symbols)"
             )
-            for member in cluster["members"]:
+            members = cluster["members"]
+            if not isinstance(members, list):
+                continue
+            for member in members:
                 lines.append(
                     f"  {member['qualname']}  [{member['package']}]  "
                     f"“{member['doc_first_line']}”"

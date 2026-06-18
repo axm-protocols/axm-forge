@@ -63,6 +63,12 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
   (MCP + CLI + DAG node) clusters intent-equivalent duplicate symbols across
   packages, with the v7 anti-signals (trivial-accessor filter, parallel-API
   demotion, boilerplate-frequency demotion) applied
+- ✅ **Liveable `echo_code` report** — bounded `--top-n` display (the neural
+  pass still finds them all, only the output is capped; the total stays
+  visible), `--max-cluster-size` rejection of union-find over-merges, and an
+  acknowledged-cluster **waiver** workflow (`[[tool.axm-echo.acknowledged]]`
+  in the scan-root `pyproject.toml`) that excludes intended echoes and reports
+  stale waivers to retire
 - ✅ **`echo_check` intent retrieval** — the `axm echo_check` tool
   (MCP + CLI + DAG node) embeds a free-form intention and returns the top-k
   nearest monorepo symbols with their docstrings, each tagged with a location

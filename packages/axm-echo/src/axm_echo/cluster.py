@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 import numpy as np
 
 __all__ = [
+    "MAX_CLUSTER_SIZE",
     "MIN_DOC_CHARS",
     "PAIR_THRESHOLD",
     "Pair",
@@ -54,6 +55,13 @@ __all__ = [
     "is_trivial_accessor",
     "split_pairs",
 ]
+
+# Connected components larger than this are union-find over-merges, not echoes:
+# empirically a genuine cross-package duplicate is 2-5 members, and the only
+# >20-member component on the full monorepo galaxy (cluster 1673) was 100%
+# noise (``main`` / ``render_text`` collapsed together). 50 is a comfortable
+# margin; it is paramétrable per call so nothing is frozen.
+MAX_CLUSTER_SIZE = 50
 
 # Cosine threshold for a candidate duplicate pair. Calibrated in the POC:
 # true MATCH intents land at 0.5-0.7, genuine NEW at <0.15. For docstring <->
@@ -261,13 +269,27 @@ def _both_boilerplate(a: SymbolDict, b: SymbolDict, generic: set[str]) -> bool:
     return _is_boilerplate(a, generic) and _is_boilerplate(b, generic)
 
 
-def cluster_pairs(pairs: list[Pair]) -> list[list[int]]:
+def cluster_pairs(
+    pairs: list[Pair], *, max_cluster_size: int = MAX_CLUSTER_SIZE
+) -> list[list[int]]:
     """Group pairs into connected components (clusters of echoing symbols).
 
     Each duplicate pair is an edge; the connected components of the resulting
     graph are the echo clusters. Returns one sorted index list per cluster,
     largest first, so a triple of mutually-duplicate symbols lands in a single
     cluster rather than three disjoint pairs.
+
+    A component with more than ``max_cluster_size`` members is **dropped**: such
+    a mega-cluster is a union-find over-merge (a structural-conformity signal),
+    not a genuine duplicate echo. The bound is paramétrable; the default is
+    :data:`MAX_CLUSTER_SIZE`.
+
+    Args:
+        pairs: Duplicate ``(i, j, score)`` edges.
+        max_cluster_size: Reject any component strictly larger than this.
+
+    Returns:
+        One sorted index list per surviving cluster, largest first.
     """
     parent: dict[int, int] = {}
 
@@ -289,6 +311,10 @@ def cluster_pairs(pairs: list[Pair]) -> list[list[int]]:
     groups: dict[int, list[int]] = defaultdict(list)
     for node in parent:
         groups[find(node)].append(node)
-    clusters = [sorted(members) for members in groups.values()]
+    clusters = [
+        sorted(members)
+        for members in groups.values()
+        if len(members) <= max_cluster_size
+    ]
     clusters.sort(key=len, reverse=True)
     return clusters

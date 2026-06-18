@@ -494,3 +494,112 @@ def test_parallel_api_demoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         n for pair in parallel for n in (pair["a"]["name"], pair["b"]["name"])
     }
     assert {"excel_export", "word_export"} <= parallel_names
+
+
+# Disjoint vocabularies, one per pair, so each pair forms its OWN cluster under
+# tfidf (shared vocabulary across pairs would collapse them into one component).
+_TOPICS = [
+    "Reconcile the quarterly ledger across settlement counterparties.",
+    "Render a heatmap of telemetry latency percentiles over time.",
+    "Validate passport visa entries against the immigration registry.",
+    "Compress raw seismograph waveforms with wavelet quantization.",
+    "Translate culinary recipes between metric and imperial measures.",
+    "Schedule orbital satellite handover during eclipse windows.",
+    "Diagnose turbine vibration harmonics from accelerometer traces.",
+    "Index herbarium specimens by taxonomic genus and collection date.",
+    "Encrypt courier manifests with rotating elliptic-curve keypairs.",
+    "Forecast reservoir inflow from upstream snowpack melt curves.",
+]
+
+
+def _twin_packages(ws: Path, n_pairs: int) -> None:
+    """Write n_pairs of cross-package duplicate symbols, each its own echo.
+
+    Each pair gets a topic with a disjoint vocabulary, so the two members of a
+    pair match each other (a cross-package echo) while distinct pairs stay below
+    the comparison threshold and form separate clusters.
+    """
+    for k in range(n_pairs):
+        doc = _TOPICS[k % len(_TOPICS)]
+        body = f'''
+        def fn_{k}() -> None:
+            """{doc}"""
+        '''
+        _write_package(ws, f"axm-left{k}", f"mod{k}", body)
+        _write_package(ws, f"axm-right{k}", f"mod{k}", body)
+
+
+def test_top_n_bounds_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC2: the report shows at most top_n clusters; the total count stays visible."""
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _twin_packages(ws, 8)
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute(backend="tfidf", threshold=0.5, top_n=3)
+
+    assert result.success, result.error
+    assert len(result.data["clusters"]) == 3
+    assert result.data["cluster_count"] >= 8
+    assert result.data["shown_count"] == 3
+
+
+def test_waiver_excludes_then_converges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC4, AC6: an acknowledged cluster is excluded; a re-run re-centers."""
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _twin_packages(ws, 4)
+    _point_scope_at(home, monkeypatch, ws)
+
+    first = EchoCodeTool().execute(backend="tfidf", threshold=0.5, top_n=30)
+    assert first.success, first.error
+    baseline = first.data["cluster_count"]
+    assert baseline >= 1
+    waived = str(first.data["clusters"][0]["cluster_hash"])
+
+    # Acknowledge the top cluster in the scan-root pyproject, then re-run.
+    (ws / "pyproject.toml").write_text(
+        "[[tool.axm-echo.acknowledged]]\n"
+        f'hash = "{waived}"\n'
+        'reason = "parallel API, intended cross-package duplication"\n',
+        encoding="utf-8",
+    )
+
+    second = EchoCodeTool().execute(backend="tfidf", threshold=0.5, top_n=30)
+
+    assert second.success, second.error
+    shown_hashes = {c.get("cluster_hash") for c in second.data["clusters"]}
+    assert waived not in shown_hashes
+    assert second.data["actionable_count"] == baseline - 1
+
+
+def test_stale_waiver_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC5: a waiver matching no live cluster is reported as stale, never blocks."""
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _twin_packages(ws, 2)
+    _point_scope_at(home, monkeypatch, ws)
+
+    (ws / "pyproject.toml").write_text(
+        "[[tool.axm-echo.acknowledged]]\n"
+        'hash = "deadbeef0000"\n'
+        'reason = "removed long ago, this waiver should be retired"\n',
+        encoding="utf-8",
+    )
+
+    result = EchoCodeTool().execute(backend="tfidf", threshold=0.5)
+
+    assert result.success, result.error
+    stale_hashes = {entry["hash"] for entry in result.data["stale_acknowledged"]}
+    assert "deadbeef0000" in stale_hashes
