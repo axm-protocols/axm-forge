@@ -147,3 +147,57 @@ def test_warn_only_when_ingot_absent(
         result.message + str(result.text or "") + str(result.fix_hint or "")
     ).lower()
     assert "importable" in note
+
+
+_FAULTY_GET_CHAIN = (
+    "import tomllib\n\n\n"
+    "def resolve(data: dict) -> dict:\n"
+    '    return data.get("tool", {}).get("uv", {}).get("workspace", {})\n'
+)
+_CLEAN = "def add(a: int, b: int) -> int:\n    return a + b\n"
+
+
+def _make_multimodule_project(tmp_path: Path) -> Path:
+    """Single-package project with a faulty (bad.py) and a clean (good.py) module."""
+    pkg = tmp_path / "src" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "bad.py").write_text(_FAULTY_GET_CHAIN, encoding="utf-8")
+    (pkg / "good.py").write_text(_CLEAN, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "pkg"\nversion = "0.1"\n', encoding="utf-8"
+    )
+    return tmp_path
+
+
+def test_check_flags_faulty_module(tmp_path: Path) -> None:
+    """AC1,AC2: the rule check() reports the faulty module with file + line."""
+    project = _make_multimodule_project(tmp_path)
+
+    result = UvWorkspaceLocalityRule().check(project)
+
+    assert result.passed is False
+    assert result.details is not None
+    sites = result.details["sites"]
+    assert isinstance(sites, list)
+    files = {str(s["file"]) for s in sites}
+    assert any("bad.py" in f for f in files)
+    assert all("good.py" not in f for f in files)
+    assert "axm_ingot.uv.resolve_workspace" in (result.fix_hint or "")
+
+
+def test_ingot_module_is_exempt(tmp_path: Path) -> None:
+    """AC3: the same faulty source under axm_ingot/ produces no finding."""
+    ingot = tmp_path / "src" / "axm_ingot"
+    ingot.mkdir(parents=True)
+    (ingot / "__init__.py").write_text("", encoding="utf-8")
+    (ingot / "uv.py").write_text(_FAULTY_GET_CHAIN, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "axm-ingot"\nversion = "0.1"\n', encoding="utf-8"
+    )
+
+    result = UvWorkspaceLocalityRule().check(tmp_path)
+
+    assert result.passed is True
+    assert result.details is not None
+    assert result.details["sites"] == []
