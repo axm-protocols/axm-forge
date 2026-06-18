@@ -17,6 +17,8 @@ files (whose string literals are fixtures) are exempt.
 from __future__ import annotations
 
 import ast
+import importlib.util
+import tomllib
 from pathlib import Path
 
 from axm_audit.core.rules._helpers import (
@@ -30,11 +32,22 @@ from axm_audit.models.results import CheckResult, Severity
 __all__ = [
     "UvWorkspaceLocalityRule",
     "is_exempt_path",
+    "is_ingot_importable",
     "scan_source",
 ]
 
 # The canonical seat callers must route through instead of re-parsing the key.
 _CANONICAL = "axm_ingot.uv.resolve_workspace"
+
+# Distribution / import names of the canonical workspace resolver package.
+_INGOT_DIST = "axm-ingot"
+_INGOT_IMPORT = "axm_ingot"
+
+# Warn-only note appended when the offending site cannot yet route to ingot.
+_WARN_NOTE = (
+    f"{_INGOT_DIST} not importable here — publish + add it as a dependency "
+    f"to make this blocking (then route through {_CANONICAL})"
+)
 
 # Textual markers of the forbidden key, matched inside string literals.
 _TEXT_MARKERS = ("tool.uv.workspace", "[tool.uv.workspace]")
@@ -44,6 +57,61 @@ _INGOT_SEGMENT = "axm_ingot"
 
 # This rule's own module defines the marker constants — it would self-flag.
 _SELF_MODULE = "uv_workspace_locality.py"
+
+
+def _ingot_in_pyproject(project_path: Path) -> bool:
+    """True if *project_path*'s pyproject declares ``axm-ingot`` as a dep/source.
+
+    Scans ``[project.dependencies]``, ``[project.optional-dependencies]`` and
+    ``[tool.uv.sources]`` for the ``axm-ingot`` / ``axm_ingot`` name. A declared
+    dependency means ingot resolves in this workspace even if it is not yet
+    installed in the current interpreter.
+    """
+    pyproject = project_path / "pyproject.toml"
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return False
+    project = data.get("project", {})
+    deps: list[str] = list(project.get("dependencies", []))
+    for group in project.get("optional-dependencies", {}).values():
+        deps.extend(group)
+    if any(_names_ingot(dep) for dep in deps):
+        return True
+    sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+    return any(_names_ingot(key) for key in sources)
+
+
+def _names_ingot(spec: str) -> bool:
+    """True if dependency *spec* names ``axm-ingot`` (any version marker)."""
+    head = spec.strip().split(";", 1)[0]
+    for sep in ("[", "=", ">", "<", "~", "!", "@", " "):
+        head = head.split(sep, 1)[0]
+    name = head.strip().lower().replace("_", "-")
+    return name == _INGOT_DIST
+
+
+def is_ingot_importable(project_path: Path) -> bool:
+    """True if ``axm-ingot`` is reachable from the audited *project_path*.
+
+    The decision is *calculated each run* (no frozen waiver list) from, in
+    order of confidence:
+
+    1. ``importlib.util.find_spec('axm_ingot')`` — ingot is installed in the
+       interpreter auditing the project (same workspace / installed dep).
+    2. ``axm-ingot`` declared in the project's ``pyproject.toml``
+       (``dependencies``, ``optional-dependencies`` or ``[tool.uv.sources]``).
+
+    Conservative by design: only a positive signal returns ``True``; when
+    neither holds the rule treats ingot as not-yet-importable (warn-only) so
+    a foreign workspace's CI is never broken by mistake.
+    """
+    try:
+        if importlib.util.find_spec(_INGOT_IMPORT) is not None:
+            return True
+    except (ImportError, ValueError):
+        pass
+    return _ingot_in_pyproject(project_path)
 
 
 def is_exempt_path(rel_path: str) -> bool:
@@ -212,29 +280,63 @@ class UvWorkspaceLocalityRule(ProjectRule):
         return "ARCH_UV_WORKSPACE_LOCALITY"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Flag every module outside ``axm_ingot`` that parses the key."""
+        """Flag every module outside ``axm_ingot`` that parses the key.
+
+        Whether an offending site is *blocking* is decided per run from the
+        real importability of ``axm-ingot`` in the audited project (AC1-AC3):
+        importable -> blocking (``passed=False``, score penalised); not
+        importable -> warn-only (``passed=True``, score kept, site still
+        surfaced with an actionable note). No frozen waiver list.
+        """
         early = self.check_src(project_path)
         if early is not None:
             return early
 
-        src_path = project_path / "src"
-        sites = self._scan_tree(src_path)
-        passed = not sites
-        score = max(0, 100 - len(sites) * 10)
+        sites = self._scan_tree(project_path / "src")
+        if not sites:
+            return self._clean_result()
 
-        text_lines = [f"• {s['file']}:{s['line']} ({s['symbol']})" for s in sites]
+        blocking = is_ingot_importable(project_path)
+        return self._sites_result(sites, blocking=blocking)
 
+    def _clean_result(self) -> CheckResult:
+        """Return the passing result for a project with no offending site."""
         return CheckResult(
             rule_id=self.rule_id,
-            passed=passed,
-            message=f"{len(sites)} tool.uv.workspace parsing site(s) outside axm_ingot",
-            severity=Severity.ERROR if not passed else Severity.INFO,
+            passed=True,
+            message="0 tool.uv.workspace parsing site(s) outside axm_ingot",
+            severity=Severity.INFO,
+            score=100,
+            details={"sites": []},
+            text=None,
+            fix_hint=None,
+        )
+
+    def _sites_result(
+        self, sites: list[dict[str, object]], *, blocking: bool
+    ) -> CheckResult:
+        """Build the result for offending *sites*, gated on *blocking*."""
+        text_lines = [f"• {s['file']}:{s['line']} ({s['symbol']})" for s in sites]
+        if not blocking:
+            text_lines.append(_WARN_NOTE)
+        score = max(0, 100 - len(sites) * 10) if blocking else 100
+        message = f"{len(sites)} tool.uv.workspace parsing site(s) outside axm_ingot"
+        if not blocking:
+            message = f"{message} (warn-only: {_INGOT_DIST} not importable here)"
+        fix_hint = (
+            f"Route workspace resolution through {_CANONICAL}"
+            if blocking
+            else _WARN_NOTE
+        )
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=not blocking,
+            message=message,
+            severity=Severity.ERROR if blocking else Severity.INFO,
             score=int(score),
-            details={"sites": sites},
-            text="\n".join(text_lines) if text_lines else None,
-            fix_hint=f"Route workspace resolution through {_CANONICAL}"
-            if sites
-            else None,
+            details={"sites": sites, "blocking": blocking},
+            text="\n".join(text_lines),
+            fix_hint=fix_hint,
         )
 
     def _scan_tree(self, src_path: Path) -> list[dict[str, object]]:
