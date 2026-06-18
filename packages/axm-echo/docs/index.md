@@ -67,6 +67,10 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
   nearest monorepo symbols with their docstrings, each tagged with a location
   verdict (reuse canonical / reuse in place / promotable); it does the
   retrieval, leaving the use / extend / nothing decision to the caller
+- ✅ **Structural similarity** — `statement_set` / `jaccard_similarity`
+  (with `flatten_body` / `normalize_dump`) compare two `ast.FunctionDef`
+  bodies by Jaccard over constant/identifier-normalized statement-sets;
+  100% structural, pure stdlib, never loads torch
 - ✅ **Two embedding backends** — `tfidf` (code, scikit-learn) and `st`
   (MiniLM `all-MiniLM-L6-v2`), selected by a registry
 - ✅ **Exact neighbour search** — brute-force cosine matmul, no ANN

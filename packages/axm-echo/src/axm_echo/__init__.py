@@ -14,6 +14,12 @@ from axm_echo.corpus import (
 )
 from axm_echo.embedding import Backend, code_tokens, embed, neighbors
 from axm_echo.scope import config_path, load_scope
+from axm_echo.structural import (
+    flatten_body,
+    jaccard_similarity,
+    normalize_dump,
+    statement_set,
+)
 from axm_echo.tools import EchoCodeTool
 
 __all__ = [
@@ -27,6 +33,10 @@ __all__ = [
     "embed",
     "extract_monorepo",
     "extract_package",
+    "flatten_body",
+    "jaccard_similarity",
     "load_scope",
     "neighbors",
+    "normalize_dump",
+    "statement_set",
 ]

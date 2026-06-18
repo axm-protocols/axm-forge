@@ -18,6 +18,10 @@ from itertools import combinations
 from pathlib import Path
 from typing import TypedDict
 
+from axm_echo.structural import flatten_body as _flatten_body
+from axm_echo.structural import jaccard_similarity as _jaccard_similarity
+from axm_echo.structural import normalize_dump as _normalize_dump
+from axm_echo.structural import statement_set as _statement_set
 from pydantic import Field
 
 from axm_audit.core.rules.base import ProjectRule, register_rule
@@ -378,53 +382,10 @@ class _TestFunc:
 # ── Statement-set similarity ──────────────────────────────────────────
 
 
-_CONSTANT_RE = re.compile(r"Constant\([^()]*\)")
-_NAME_RE = re.compile(r"Name\('[^']*',")
-
-
-def _flatten_body(body: list[ast.stmt]) -> list[ast.stmt]:
-    """Flatten compound statements (with/if/for/while/try) into their inner body."""
-    out: list[ast.stmt] = []
-    for stmt in body:
-        match stmt:
-            case ast.With() | ast.AsyncWith():
-                out.extend(_flatten_body(stmt.body))
-            case ast.If() | ast.For() | ast.While() | ast.AsyncFor():
-                out.extend(_flatten_body(stmt.body))
-                out.extend(_flatten_body(stmt.orelse))
-            case ast.Try():
-                out.extend(_flatten_body(stmt.body))
-                for handler in stmt.handlers:
-                    out.extend(_flatten_body(handler.body))
-                out.extend(_flatten_body(stmt.orelse))
-                out.extend(_flatten_body(stmt.finalbody))
-            case _:
-                out.append(stmt)
-    return out
-
-
-def _statement_set(node: ast.FunctionDef) -> frozenset[str]:
-    """Normalized stmt shapes (constants + name ids replaced) as a set."""
-    stmts: set[str] = set()
-    for stmt in _flatten_body(node.body):
-        try:
-            dump = ast.dump(stmt, annotate_fields=False)
-        except Exception:  # noqa: BLE001, S112
-            continue
-        dump = _CONSTANT_RE.sub("Constant(<C>)", dump)
-        dump = _NAME_RE.sub("Name(<N>,", dump)
-        stmts.add(dump)
-    return frozenset(stmts)
-
-
-def _normalize_dump(stmt: ast.stmt) -> str | None:
-    try:
-        dump = ast.dump(stmt, annotate_fields=False)
-    except Exception:  # noqa: BLE001
-        return None
-    dump = _CONSTANT_RE.sub("Constant(<C>)", dump)
-    dump = _NAME_RE.sub("Name(<N>,", dump)
-    return dump
+# ``_flatten_body``, ``_statement_set``, ``_normalize_dump`` and
+# ``_jaccard_similarity`` are now imported from ``axm_echo.structural``
+# (AXM-2172 / E5 — pure structural primitives moved to axm-echo). The audit
+# clustering, union-find, ``_cluster_hash`` and waiver stay here (A2).
 
 
 def _compute_setup_set(
@@ -449,19 +410,6 @@ def _compute_setup_set(
             continue
         setup.add(dump)
     return frozenset(setup)
-
-
-def _jaccard_similarity(
-    a: set[str] | frozenset[str], b: set[str] | frozenset[str]
-) -> float:
-    """Jaccard similarity between two sets (1.0 when both are empty)."""
-    if not a and not b:
-        return 1.0
-    if not a or not b:
-        return 0.0
-    inter = len(a & b)
-    union = len(a | b)
-    return inter / union if union else 0.0
 
 
 # ── Fingerprints ──────────────────────────────────────────────────────
