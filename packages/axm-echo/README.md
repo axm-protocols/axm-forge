@@ -1,6 +1,6 @@
 # axm-echo
 
-Similarity & echo detection over code corpora (numpy/scikit-learn).
+Neural similarity & echo detection over code corpora (MiniLM + scikit-learn).
 
 <p align="center">
   <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-echo/axm-audit.json" alt="axm-audit"></a>
@@ -13,25 +13,21 @@ Similarity & echo detection over code corpora (numpy/scikit-learn).
 
 ## Overview
 
-Similarity & echo detection over code corpora (numpy/scikit-learn).
+Neural similarity & echo detection over code corpora (MiniLM + scikit-learn).
 
 ## Features
 
-- **Light base install** — pure numeric stack (`numpy`, `scikit-learn`) for
-  classical similarity over code corpora; no heavyweight ML dependency.
-- **Optional `[neural]` extra** — opt into `torch` + `sentence-transformers`
-  only when neural embeddings are needed; `torch` is never resolved by the
-  base install.
+- **Neural by default** — the `st` (MiniLM) backend ships in the base install
+  (`torch` + `sentence-transformers`) and runs in-process; no extra to enable.
+- **`tfidf` opt-out** — the pure-CPU `numpy` + `scikit-learn` backend stays
+  available (`--backend tfidf`) for callers that want to avoid loading torch.
 - Built on `axm-ast` for code-corpus extraction (consumed in later phases).
 
 ## Installation
 
 ```bash
-# Base install — numpy + scikit-learn only (no torch)
+# echo is neural by default — the install ships torch + sentence-transformers.
 uv add axm-echo
-
-# With the neural backend — pulls torch + sentence-transformers
-uv add "axm-echo[neural]"
 ```
 
 Or as a workspace dependency in `pyproject.toml`:

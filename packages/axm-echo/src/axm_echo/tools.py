@@ -172,8 +172,8 @@ class EchoCodeTool(AXMTool):
         """Cluster cross-package echoes over the configured corpus.
 
         Args:
-            backend: Embedding backend -- ``"st"`` (neural MiniLM, default,
-                requires the ``neural`` extra) or ``"tfidf"`` (pure CPU).
+            backend: Embedding backend -- ``"st"`` (neural MiniLM, the
+                in-process default) or ``"tfidf"`` (pure CPU, no torch).
             threshold: Minimum cosine for a candidate pair.
 
         Returns:
@@ -348,8 +348,8 @@ class EchoCheckTool(AXMTool):
 
         Args:
             intention: Free-form description of the behaviour to implement.
-            backend: Embedding backend -- ``"st"`` (neural MiniLM, default,
-                requires the ``neural`` extra) or ``"tfidf"`` (pure CPU).
+            backend: Embedding backend -- ``"st"`` (neural MiniLM, the
+                in-process default) or ``"tfidf"`` (pure CPU, no torch).
             k: Maximum number of candidates to return.
             threshold: Minimum cosine for a candidate to be retrieved. Below it
                 the candidate is dropped, so a novel intention returns an empty

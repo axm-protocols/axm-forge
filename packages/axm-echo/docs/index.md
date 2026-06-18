@@ -7,7 +7,7 @@ hide:
 # axm-echo
 
 <p align="center">
-  <strong>Similarity & echo detection over code corpora (numpy/scikit-learn).</strong>
+  <strong>Neural similarity & echo detection over code corpora (MiniLM + scikit-learn).</strong>
 </p>
 
 <p align="center">
@@ -31,12 +31,13 @@ hide:
 ## Installation
 
 ```bash
-# Base install — numpy + scikit-learn only (no torch)
+# echo is neural by default — the install ships torch + sentence-transformers
+# (MiniLM) alongside numpy + scikit-learn.
 uv add axm-echo
-
-# With the optional neural backend — torch + sentence-transformers
-uv add "axm-echo[neural]"
 ```
+
+The neural `st` backend is the in-process default. The `tfidf` backend stays
+pure-CPU and never loads torch, for callers that want to skip the model.
 
 ## Quick Start
 
@@ -48,7 +49,7 @@ from axm_echo import embed, extract_monorepo, neighbors
 symbols = extract_monorepo()
 texts = [s["embed_text"] for s in symbols]
 
-# 2. Embed it. "tfidf" stays pure-CPU (no torch); "st" uses MiniLM.
+# 2. Embed it. "st" (MiniLM) is the neural default; "tfidf" stays pure-CPU.
 matrix = embed(texts, backend="tfidf")
 
 # 3. Find the nearest neighbours of a symbol (exact cosine top-k).

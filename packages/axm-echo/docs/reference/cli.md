@@ -17,7 +17,8 @@ implementation is reachable as an MCP tool and a DAG `tool_node` too.
 # Cluster echoes across the corpus (~/.axm/echo.toml scope, or the cwd).
 axm echo_code
 
-# Pure-CPU backend (no torch); the default "st" needs the [neural] extra.
+# The default backend is neural "st" (MiniLM, in-process). Opt into the
+# pure-CPU tfidf backend to avoid loading torch.
 axm echo_code --backend tfidf
 
 # Raise the cosine floor for a candidate pair (default 0.55).
@@ -26,7 +27,7 @@ axm echo_code --threshold 0.7
 
 | Option | Default | Description |
 | -- | -- | -- |
-| `--backend` | `st` | Embedding backend: `st` (neural MiniLM, needs the `neural` extra) or `tfidf` (pure CPU). |
+| `--backend` | `st` | Embedding backend: `st` (neural MiniLM, the in-process default) or `tfidf` (pure CPU, no torch). |
 | `--threshold` | `0.55` | Minimum cosine similarity for a candidate pair. |
 
 Output names the tool, the cluster count, the corpus size, and the demoted
@@ -63,7 +64,8 @@ point, so the same implementation is reachable as an MCP tool and a DAG
 # Retrieve the closest existing symbols for an intention.
 axm echo_check --intention "HTTP request with retry and backoff"
 
-# Pure-CPU backend (no torch); the default "st" needs the [neural] extra.
+# The default backend is neural "st" (MiniLM, in-process). Opt into the
+# pure-CPU tfidf backend to avoid loading torch.
 axm echo_check --intention "slugify a string" --backend tfidf
 
 # Raise the retrieval floor / cap the number of candidates.
@@ -73,7 +75,7 @@ axm echo_check --intention "parse a CSV file" --threshold 0.5 --k 3
 | Option | Default | Description |
 | -- | -- | -- |
 | `--intention` | `""` | Free-form description of the behaviour to implement. |
-| `--backend` | `st` | Embedding backend: `st` (neural MiniLM, needs the `neural` extra) or `tfidf` (pure CPU). |
+| `--backend` | `st` | Embedding backend: `st` (neural MiniLM, the in-process default) or `tfidf` (pure CPU, no torch). |
 | `--k` | `10` | Maximum number of candidates to return. |
 | `--threshold` | `0.30` | Minimum cosine similarity for a candidate to be retrieved. Below it the candidate is dropped, so a novel intention returns an empty list rather than a spurious match. |
 

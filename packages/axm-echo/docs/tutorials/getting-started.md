@@ -19,16 +19,15 @@ Or with pip:
 pip install axm-echo
 ```
 
-To enable the optional neural backend (`torch` + `sentence-transformers`):
-
-```bash
-uv add "axm-echo[neural]"   # or: pip install "axm-echo[neural]"
-```
+The neural `st` backend (`torch` + `sentence-transformers`, MiniLM) ships in
+the base install and is the default — there is no extra to enable. The `tfidf`
+backend stays pure-CPU for callers that want to skip loading torch.
 
 ## Step 1: Embed a Few Texts
 
-The `tfidf` backend is pure-CPU (numpy + scikit-learn) and never imports
-torch, so it works out of the box on a base install:
+The neural `st` backend (MiniLM) is the default. The `tfidf` backend is
+pure-CPU (numpy + scikit-learn) and never imports torch, used here so the
+snippet stays fast and deterministic:
 
 ```python
 from axm_echo import embed, neighbors

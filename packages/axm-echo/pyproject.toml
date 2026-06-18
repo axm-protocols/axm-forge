@@ -1,7 +1,7 @@
 [project]
 name = "axm-echo"
 dynamic = ["version"]
-description = "Similarity & echo detection over code corpora (numpy/scikit-learn)."
+description = "Neural similarity & echo detection over code corpora (MiniLM + scikit-learn)."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
@@ -21,12 +21,10 @@ dependencies = [
     "axm-ast",
     "numpy>=2.0",
     "scikit-learn>=1.5",
-]
-
-[project.optional-dependencies]
-# Neural backend, isolated behind an extra so the base install stays light
-# (no torch). Install with `uv sync --extra neural` / `pip install axm-echo[neural]`.
-neural = [
+    # echo IS neural: the default backend is MiniLM (sentence-transformers on
+    # torch), so the neural stack ships in the base install (AXM-2188). The
+    # `tfidf` backend remains a pure-CPU option for callers that want to avoid
+    # loading torch at runtime.
     "torch>=2.2",
     "sentence-transformers>=3.0",
 ]
@@ -123,9 +121,8 @@ check_untyped_defs = true
 show_error_codes = true
 
 # Third-party libs without type stubs that axm-echo actually imports.
-# sentence_transformers / torch live behind the optional `neural` extra,
-# so they may be entirely absent from the base env; sklearn ships no
-# py.typed marker.
+# sentence_transformers / torch are base deps (AXM-2188) but ship no py.typed
+# marker, same as sklearn.
 [[tool.mypy.overrides]]
 module = [
     "sklearn.*",

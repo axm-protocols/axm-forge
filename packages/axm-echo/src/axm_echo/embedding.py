@@ -6,9 +6,10 @@ Two registered backends, ported from the dedup-detection POC
 - ``tfidf``  : TF-IDF over code tokens (scikit-learn). Pure CPU, no torch.
 - ``st``     : sentence-transformers MiniLM (``all-MiniLM-L6-v2``).
 
-``torch`` / ``sentence_transformers`` are imported **lazily**, inside the
-``st`` backend only, so the ``tfidf`` path never pulls torch into the
-process (the base install ships without the ``neural`` extra).
+``torch`` / ``sentence_transformers`` are base dependencies (AXM-2188): the
+``st`` backend is the default and runs in-process. The heavy model import is
+still done lazily inside the ``st`` backend purely for first-call latency, so
+the ``tfidf`` path stays light and never loads torch.
 
 Neighbor search is an **exact brute-force matmul** (no ANN): under ~10^5
 vectors a single normalized dot product beats an approximate index by
@@ -87,17 +88,12 @@ def _embed_tfidf(texts: Sequence[str]) -> NDArray[np.float64]:
     return np.asarray(matrix.todense(), dtype=np.float64)
 
 
-def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:  # pragma: no cover
-    """MiniLM sentence-transformer embedding.
+def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:
+    """MiniLM sentence-transformer embedding (the default neural backend).
 
-    ``torch`` and ``sentence_transformers`` are imported here, inside the
-    function, so the ``tfidf`` path never loads them (AC2).
-
-    Coverage-exempt: this path requires the optional ``neural`` extra
-    (torch + sentence-transformers, ~1-2 GB). Installing it in CI would
-    defeat the very install-isolation invariant the package guarantees, so
-    it is exercised only when the extra is present (the ``st`` integration
-    test ``importorskip``s it) and excluded from the coverage gate.
+    ``torch`` and ``sentence_transformers`` are base dependencies (AXM-2188);
+    they are imported here lazily only for first-call latency, so the ``tfidf``
+    path stays light. No subprocess is forked -- embedding runs in-process.
     """
     from sentence_transformers import SentenceTransformer
 
@@ -130,8 +126,9 @@ def embed(texts: Sequence[str], *, backend: Backend = "tfidf") -> NDArray[np.flo
 
     Args:
         texts: Texts to embed (one row per text).
-        backend: ``"tfidf"`` (code, scikit-learn) or ``"st"`` (MiniLM).
-            The ``st`` backend lazily imports torch; ``tfidf`` never does.
+        backend: ``"tfidf"`` (code, scikit-learn) or ``"st"`` (MiniLM, the
+            default neural backend). The ``st`` backend lazily imports torch
+            for first-call latency; ``tfidf`` never loads it.
 
     Returns:
         A ``(len(texts), dim)`` float matrix. Rows are not guaranteed

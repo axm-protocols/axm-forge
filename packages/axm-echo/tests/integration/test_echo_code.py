@@ -4,9 +4,10 @@ These build a self-contained corpus on disk reproducing the textbook
 cross-package duplications and the anti-signal cases, point
 ``~/.axm/echo.toml`` at it, and run the real ``EchoCodeTool`` end to end.
 
-The tool's clustering backend is the neural ``st`` (MiniLM) registry, so the
-ground-truth cases ``importorskip`` ``sentence_transformers`` -- they only run
-when the optional ``neural`` extra is installed.
+Since AXM-2188, ``torch`` is a BASE dependency of axm-echo: the neural ``st``
+(MiniLM) clustering backend runs in-process by default, with no
+``importorskip`` guard and no out-of-process subprocess. The structural /
+anti-signal cases still use the cheaper ``tfidf`` backend.
 """
 
 from __future__ import annotations
@@ -222,11 +223,79 @@ def test_empty_corpus_returns_no_clusters(
     assert "echo_code" in result.text
 
 
+def _forbid_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make any out-of-process fork raise (AC3/AC4 — embedding stays in-process).
+
+    Patches the ``subprocess`` module surface itself so *any* module reaching
+    for ``run``/``Popen``/``call`` during embedding is caught, regardless of how
+    it imported subprocess.
+    """
+    import subprocess
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("echo forked an out-of-process subprocess")
+
+    monkeypatch.setattr(subprocess, "run", _boom)
+    monkeypatch.setattr(subprocess, "Popen", _boom)
+    monkeypatch.setattr(subprocess, "call", _boom)
+    monkeypatch.setattr(subprocess, "check_call", _boom)
+    monkeypatch.setattr(subprocess, "check_output", _boom)
+
+
+def test_neural_clusters_no_subprocess(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3, AC4: the default neural backend clusters in-process, no subprocess.
+
+    With ``torch`` in base, ``EchoCodeTool`` clusters with the neural ``st``
+    backend by default (no explicit ``backend=`` arg). It must embed entirely
+    in-process -- any out-of-process fork (the abandoned ``python -c`` path)
+    raises. The cross-package ``RateLimitError`` echo is still detected.
+    """
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-commons",
+        "errors",
+        '''
+        class RateLimitError(Exception):
+            """Raised when the upstream API rate limit has been exceeded."""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-bib",
+        "errors",
+        '''
+        class RateLimitError(Exception):
+            """Raised when the upstream API rate limit has been exceeded."""
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    _forbid_subprocess(monkeypatch)
+    result = EchoCodeTool().execute()
+
+    assert result.success, result.error
+    rate_clusters = [
+        c
+        for c in _cluster_qualnames(result.data["clusters"])
+        if any("RateLimitError" in q for q in c)
+    ]
+    assert rate_clusters, "neural default did not cluster RateLimitError"
+
+
 def test_groundtruth_ratelimiterror(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC4: ``RateLimitError`` is clustered cross-package on its docstring."""
-    pytest.importorskip("sentence_transformers")
+    """AC4: ``RateLimitError`` is clustered cross-package on its docstring.
+
+    Torch is in base since AXM-2188, so the neural path runs directly.
+    """
     from axm_echo.tools import EchoCodeTool
 
     ws = tmp_path / "ws"
@@ -282,8 +351,10 @@ def test_groundtruth_ratelimiterror(
 def test_groundtruth_request_with_retry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC4: ``request_with_retry`` is clustered cross-package on its docstring."""
-    pytest.importorskip("sentence_transformers")
+    """AC4: ``request_with_retry`` is clustered cross-package on its docstring.
+
+    Torch is in base since AXM-2188, so the neural path runs directly.
+    """
     from axm_echo.tools import EchoCodeTool
 
     ws = tmp_path / "ws"
@@ -335,8 +406,10 @@ def test_groundtruth_request_with_retry(
 def test_trivial_accessors_filtered(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC3: trivial accessors are filtered out and never form a cluster."""
-    pytest.importorskip("sentence_transformers")
+    """AC3: trivial accessors are filtered out and never form a cluster.
+
+    Torch is in base since AXM-2188, so the neural path runs directly.
+    """
     from axm_echo.tools import EchoCodeTool
 
     ws = tmp_path / "ws"
@@ -376,8 +449,10 @@ def test_trivial_accessors_filtered(
 
 
 def test_parallel_api_demoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC3: name-parallel API pairs (excel_*/word_*) are demoted, not duplicates."""
-    pytest.importorskip("sentence_transformers")
+    """AC3: name-parallel API pairs (excel_*/word_*) are demoted, not duplicates.
+
+    Torch is in base since AXM-2188, so the neural path runs directly.
+    """
     from axm_echo.tools import EchoCodeTool
 
     ws = tmp_path / "ws"
