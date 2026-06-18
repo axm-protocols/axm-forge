@@ -9,79 +9,106 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+def _fake_popen(returncode: int = 0, stdout: str = "", stderr: str = "") -> MagicMock:
+    """Build a MagicMock standing in for a ``subprocess.Popen`` instance.
+
+    ``communicate(timeout=...)`` returns ``(stdout, stderr)`` and the
+    instance exposes ``returncode`` + ``pid`` like the real object.
+    """
+    proc = MagicMock()
+    proc.pid = 4242
+    proc.returncode = returncode
+    proc.communicate.return_value = (stdout, stderr)
+    return proc
+
+
 class TestRunInProjectUnit:
     """Unit tests for run_in_project (mocked subprocess, no real I/O)."""
 
     def test_without_venv_falls_back_to_bare_cmd(self, tmp_path: Path) -> None:
-        """When no .venv exists, should run cmd directly with cwd."""
+        """AC3: when no .venv exists, run cmd directly with cwd (command unchanged)."""
         from axm_audit.core.runner import run_in_project
 
-        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
+        with patch("axm_audit.core.runner.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _fake_popen()
             run_in_project(["ruff", "check", "src"], tmp_path)
 
-            args = mock_run.call_args[0][0]
+            args = mock_popen.call_args[0][0]
             assert args == ["ruff", "check", "src"]
-            assert mock_run.call_args[1]["cwd"] == str(tmp_path)
+            assert mock_popen.call_args[1]["cwd"] == str(tmp_path)
 
-    def test_passes_kwargs(self, tmp_path: Path) -> None:
-        """Extra kwargs should be forwarded to subprocess.run."""
+    def test_new_session_for_process_group(self, tmp_path: Path) -> None:
+        """AC2: the child is started in a new session/process group on POSIX."""
         from axm_audit.core.runner import run_in_project
 
-        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
-            run_in_project(["ruff", "check"], tmp_path, capture_output=True, text=True)
+        with patch("axm_audit.core.runner.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _fake_popen()
+            run_in_project(["ruff", "check"], tmp_path)
 
-            kwargs = mock_run.call_args[1]
-            assert kwargs["capture_output"] is True
+            kwargs = mock_popen.call_args[1]
+            assert kwargs.get("start_new_session") is True
+
+    def test_passes_capture_and_text_contract(self, tmp_path: Path) -> None:
+        """AC3: capture_output/text are honored (stdout/stderr piped, decoded)."""
+        from axm_audit.core.runner import run_in_project
+
+        with patch("axm_audit.core.runner.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _fake_popen(stdout="out", stderr="err")
+            result = run_in_project(
+                ["ruff", "check"], tmp_path, capture_output=True, text=True
+            )
+
+            kwargs = mock_popen.call_args[1]
+            assert kwargs["stdout"] == subprocess.PIPE
+            assert kwargs["stderr"] == subprocess.PIPE
             assert kwargs["text"] is True
+            assert result.stdout == "out"
+            assert result.stderr == "err"
 
     def test_run_in_project_timeout(self, tmp_path: Path) -> None:
-        """TimeoutExpired is caught and results in a clear error."""
+        """AC1/AC3: TimeoutExpired yields synthetic rc=124 and kills the group."""
         from axm_audit.core.runner import run_in_project
 
-        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(
-                cmd=["ruff", "check"], timeout=10
-            )
+        proc = _fake_popen()
+        proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd=["ruff", "check"], timeout=10),
+            ("", ""),
+        ]
+        with (
+            patch("axm_audit.core.runner.subprocess.Popen", return_value=proc),
+            patch("axm_audit.core.runner.os.getpgid", return_value=4242),
+            patch("axm_audit.core.runner.os.killpg") as mock_killpg,
+        ):
             result = run_in_project(["ruff", "check"], tmp_path, timeout=10)
 
             assert result.returncode == 124
             assert "timed out after 10s" in result.stderr
             assert result.stdout == ""
+            mock_killpg.assert_called_once()
 
     def test_run_in_project_default_timeout(self, tmp_path: Path) -> None:
-        """Default timeout of 300s is passed to subprocess.run."""
+        """AC3: default timeout of 300s is passed to communicate()."""
         from axm_audit.core.runner import run_in_project
 
-        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
+        proc = _fake_popen()
+        with patch("axm_audit.core.runner.subprocess.Popen", return_value=proc):
             run_in_project(["ruff", "check"], tmp_path)
 
-            kwargs = mock_run.call_args[1]
-            assert kwargs["timeout"] == 300
+            assert proc.communicate.call_args[1]["timeout"] == 300
 
     def test_with_packages_ignored_without_venv(self, tmp_path: Path) -> None:
-        """with_packages has no effect when no .venv exists (bare cmd)."""
+        """AC3: with_packages has no effect when no .venv exists (bare cmd)."""
         from axm_audit.core.runner import run_in_project
 
-        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
+        with patch("axm_audit.core.runner.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _fake_popen()
             run_in_project(
                 ["pytest", "--json-report"],
                 tmp_path,
                 with_packages=["pytest-json-report"],
             )
 
-            args = mock_run.call_args[0][0]
+            args = mock_popen.call_args[0][0]
             assert args == ["pytest", "--json-report"]
             assert "--with" not in args
 
@@ -264,10 +291,15 @@ def test_run_in_project_check_true_raises_on_timeout(tmp_path: Path) -> None:
     """AC3: check=True on a timeout raises instead of returning rc=124."""
     from axm_audit.core.runner import run_in_project
 
-    with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ruff"], timeout=1)
-        with pytest.raises(subprocess.TimeoutExpired):
-            run_in_project(["ruff"], tmp_path, check=True)
+    proc = _fake_popen()
+    proc.communicate.side_effect = subprocess.TimeoutExpired(cmd=["ruff"], timeout=1)
+    with (
+        patch("axm_audit.core.runner.subprocess.Popen", return_value=proc),
+        patch("axm_audit.core.runner.os.getpgid", return_value=4242),
+        patch("axm_audit.core.runner.os.killpg"),
+        pytest.raises(subprocess.TimeoutExpired),
+    ):
+        run_in_project(["ruff"], tmp_path, check=True)
 
 
 def test_run_in_project_check_false_returns_synthetic_on_timeout(
@@ -276,7 +308,15 @@ def test_run_in_project_check_false_returns_synthetic_on_timeout(
     """AC3: check=False on a timeout keeps the synthetic rc=124 result."""
     from axm_audit.core.runner import run_in_project
 
-    with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ruff"], timeout=1)
+    proc = _fake_popen()
+    proc.communicate.side_effect = [
+        subprocess.TimeoutExpired(cmd=["ruff"], timeout=1),
+        ("", ""),
+    ]
+    with (
+        patch("axm_audit.core.runner.subprocess.Popen", return_value=proc),
+        patch("axm_audit.core.runner.os.getpgid", return_value=4242),
+        patch("axm_audit.core.runner.os.killpg"),
+    ):
         result = run_in_project(["ruff"], tmp_path, check=False)
     assert result.returncode == 124

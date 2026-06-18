@@ -10,6 +10,22 @@ import pytest
 from axm_audit.core.rules.security import SecurityRule
 
 
+def _patch_bandit(
+    monkeypatch: pytest.MonkeyPatch, *, stdout: str, returncode: int = 0
+) -> None:
+    """Patch the runner's ``subprocess.Popen`` to simulate a bandit invocation.
+
+    ``run_in_project`` now drives the child via ``Popen.communicate`` instead of
+    ``subprocess.run``; the consumer-facing contract (the CompletedProcess the
+    rule sees) is unchanged.
+    """
+    proc = MagicMock()
+    proc.pid = 4242
+    proc.returncode = returncode
+    proc.communicate.return_value = (stdout, "")
+    monkeypatch.setattr(subprocess, "Popen", MagicMock(return_value=proc))
+
+
 def test_top_issues_reported(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -18,37 +34,36 @@ def test_top_issues_reported(
     src_path = tmp_path / "src"
     src_path.mkdir()
 
-    mock_result = MagicMock()
-    mock_result.stdout = json.dumps(
-        {
-            "results": [
-                {
-                    "issue_severity": "HIGH",
-                    "issue_text": "Use of exec()",
-                    "filename": "src/main.py",
-                    "line_number": 42,
-                    "test_id": "B102",
+    _patch_bandit(
+        monkeypatch,
+        stdout=json.dumps(
+            {
+                "results": [
+                    {
+                        "issue_severity": "HIGH",
+                        "issue_text": "Use of exec()",
+                        "filename": "src/main.py",
+                        "line_number": 42,
+                        "test_id": "B102",
+                    },
+                    {
+                        "issue_severity": "MEDIUM",
+                        "issue_text": "Weak crypto",
+                        "filename": "src/crypto.py",
+                        "line_number": 10,
+                        "test_id": "B304",
+                    },
+                ],
+                "metrics": {
+                    "_totals": {
+                        "SEVERITY.HIGH": 1,
+                        "SEVERITY.MEDIUM": 1,
+                        "SEVERITY.LOW": 0,
+                    }
                 },
-                {
-                    "issue_severity": "MEDIUM",
-                    "issue_text": "Weak crypto",
-                    "filename": "src/crypto.py",
-                    "line_number": 10,
-                    "test_id": "B304",
-                },
-            ],
-            "metrics": {
-                "_totals": {
-                    "SEVERITY.HIGH": 1,
-                    "SEVERITY.MEDIUM": 1,
-                    "SEVERITY.LOW": 0,
-                }
-            },
-        }
+            }
+        ),
     )
-
-    mock_run = MagicMock(return_value=mock_result)
-    monkeypatch.setattr(subprocess, "run", mock_run)
 
     rule = SecurityRule()
     result = rule.check(tmp_path)
@@ -67,22 +82,21 @@ def test_fix_hint_provided(
     src_path = tmp_path / "src"
     src_path.mkdir()
 
-    mock_result = MagicMock()
-    mock_result.stdout = json.dumps(
-        {
-            "results": [{"issue_severity": "HIGH", "issue_text": "Use of exec()"}],
-            "metrics": {
-                "_totals": {
-                    "SEVERITY.HIGH": 1,
-                    "SEVERITY.MEDIUM": 0,
-                    "SEVERITY.LOW": 0,
-                }
-            },
-        }
+    _patch_bandit(
+        monkeypatch,
+        stdout=json.dumps(
+            {
+                "results": [{"issue_severity": "HIGH", "issue_text": "Use of exec()"}],
+                "metrics": {
+                    "_totals": {
+                        "SEVERITY.HIGH": 1,
+                        "SEVERITY.MEDIUM": 0,
+                        "SEVERITY.LOW": 0,
+                    }
+                },
+            }
+        ),
     )
-
-    mock_run = MagicMock(return_value=mock_result)
-    monkeypatch.setattr(subprocess, "run", mock_run)
 
     rule = SecurityRule()
     result = rule.check(tmp_path)
@@ -99,12 +113,7 @@ def test_json_decode_error_handling(
     src_path = tmp_path / "src"
     src_path.mkdir()
 
-    mock_result = MagicMock()
-    mock_result.stdout = "invalid json"
-    mock_result.returncode = 1
-
-    mock_run = MagicMock(return_value=mock_result)
-    monkeypatch.setattr(subprocess, "run", mock_run)
+    _patch_bandit(monkeypatch, stdout="invalid json", returncode=1)
 
     rule = SecurityRule()
     result = rule.check(tmp_path)
@@ -123,17 +132,17 @@ def test_bandit_issues_rc1_still_reported(
     src_path = tmp_path / "src"
     src_path.mkdir()
 
-    mock_result = MagicMock()
-    mock_result.stdout = json.dumps(
-        {
-            "results": [
-                {"issue_severity": "HIGH", "issue_text": "exec() call"},
-            ],
-        }
+    _patch_bandit(
+        monkeypatch,
+        stdout=json.dumps(
+            {
+                "results": [
+                    {"issue_severity": "HIGH", "issue_text": "exec() call"},
+                ],
+            }
+        ),
+        returncode=1,
     )
-    mock_result.returncode = 1
-
-    monkeypatch.setattr(subprocess, "run", MagicMock(return_value=mock_result))
 
     rule = SecurityRule()
     result = rule.check(tmp_path)

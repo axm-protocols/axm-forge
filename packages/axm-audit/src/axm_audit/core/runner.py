@@ -6,8 +6,11 @@ execute in *that* project's virtual environment, not axm-audit's own.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
+import os
+import signal
 import subprocess
 from enum import Enum
 from pathlib import Path
@@ -106,6 +109,47 @@ def find_venv(project_path: Path) -> Path | None:
     return None
 
 
+def _process_group_isolation() -> tuple[bool, int]:
+    """Return ``(start_new_session, creationflags)`` to isolate the child.
+
+    POSIX: ``start_new_session=True`` runs ``os.setsid`` so the child leads
+    a fresh session/process group that ``os.killpg`` can reap wholesale.
+    Windows: ``CREATE_NEW_PROCESS_GROUP`` is the closest equivalent. If
+    neither primitive is available, fall back to no isolation rather than
+    crash (the direct child is still terminated on timeout). Both values
+    are accepted by ``Popen`` on every platform (``creationflags=0`` and
+    ``start_new_session=False`` are no-ops), so passing them explicitly is
+    cross-platform safe.
+    """
+    if hasattr(os, "setsid"):
+        return True, 0
+    creation_flag = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    return False, int(creation_flag)
+
+
+def _kill_process_group(proc: subprocess.Popen[str]) -> None:
+    """Kill ``proc`` and every descendant it forked, best-effort.
+
+    POSIX: ``os.killpg`` SIGKILLs the whole process group created by
+    ``start_new_session`` so a wrapper such as ``uv`` and its inner
+    ``python`` die together. Windows / no-killpg platforms: fall back to
+    killing the direct child. A process that already exited (race) is
+    swallowed silently.
+    """
+    killpg = getattr(os, "killpg", None)
+    getpgid = getattr(os, "getpgid", None)
+    try:
+        if killpg is not None and getpgid is not None:
+            killpg(getpgid(proc.pid), signal.SIGKILL)
+        else:
+            proc.kill()
+    except (ProcessLookupError, PermissionError, OSError):
+        # Group/process already gone, or platform refused the signal:
+        # fall back to killing the direct child and ignore if it too is gone.
+        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+            proc.kill()
+
+
 def run_in_project(  # noqa: PLR0913
     cmd: list[str],
     project_path: Path,
@@ -134,13 +178,23 @@ def run_in_project(  # noqa: PLR0913
             is found (i.e. when ``uv run`` is used).  Allows audit tools
             to be available in the target project without requiring
             them as declared dependencies.
-        capture_output: Forwarded to ``subprocess.run``; capture stdout/stderr.
-        text: Forwarded to ``subprocess.run``; decode output as text.
-        check: Forwarded to ``subprocess.run``; raise on non-zero exit.
+        capture_output: Capture stdout/stderr (piped). Preserves the prior
+            ``subprocess.run`` contract.
+        text: Decode output as text. Preserves the prior contract.
+        check: Raise ``CalledProcessError`` on non-zero exit; a timeout under
+            ``check=True`` re-raises ``TimeoutExpired`` instead of returning
+            the synthetic rc=124 result.
 
     Returns:
         CompletedProcess result.  On timeout, returns a synthetic result
         with ``returncode=124`` and the timeout message in ``stderr``.
+
+    Note:
+        The child is launched in its own process group / session
+        (``start_new_session`` on POSIX, ``CREATE_NEW_PROCESS_GROUP`` on
+        Windows). On timeout the **whole group** is killed, so a wrapper
+        such as ``uv`` and every process it forked (the inner ``python``,
+        worker threads, …) are reaped together instead of being orphaned.
     """
     venv = find_venv(project_path)
     cwd: str | None = None
@@ -154,18 +208,25 @@ def run_in_project(  # noqa: PLR0913
         full_cmd = cmd
         cwd = str(project_path)
 
+    pipe = subprocess.PIPE if capture_output else None
+    new_session, creation_flags = _process_group_isolation()
+    proc = subprocess.Popen(  # noqa: S603
+        full_cmd,
+        stdout=pipe,
+        stderr=pipe,
+        text=text,
+        cwd=cwd,
+        start_new_session=new_session,
+        creationflags=creation_flags,
+    )
     try:
-        return subprocess.run(  # noqa: S603
-            full_cmd,
-            timeout=timeout,
-            capture_output=capture_output,
-            text=text,
-            check=check,
-            cwd=cwd,
-        )
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         cmd_str = " ".join(full_cmd)
         logger.warning("Command timed out after %ds: %s", timeout, cmd_str)
+        _kill_process_group(proc)
+        # Drain so no file descriptors or zombie processes are left behind.
+        proc.communicate()
         if check:
             # Honor the documented ``check`` contract: a timeout under
             # ``check=True`` must fail loud, never be swallowed into a
@@ -177,3 +238,10 @@ def run_in_project(  # noqa: PLR0913
             stdout="",
             stderr=f"Command timed out after {timeout}s: {cmd_str}",
         )
+
+    result = subprocess.CompletedProcess(
+        args=full_cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
+    )
+    if check:
+        result.check_returncode()
+    return result

@@ -13,6 +13,25 @@ from axm_audit.core.rules.security import SecurityRule
 from axm_audit.models.results import Severity
 
 
+def _patch_bandit(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
+) -> None:
+    """Patch the runner's ``subprocess.Popen`` to simulate a bandit invocation.
+
+    ``run_in_project`` now drives the child via ``Popen.communicate`` instead of
+    ``subprocess.run``; the CompletedProcess the rule observes is unchanged.
+    """
+    proc = MagicMock()
+    proc.pid = 4242
+    proc.returncode = returncode
+    proc.communicate.return_value = (stdout, stderr)
+    monkeypatch.setattr(subprocess, "Popen", MagicMock(return_value=proc))
+
+
 def test_no_src_directory(tmp_path: Path) -> None:
     """Should return passing result if src/ doesn't exist."""
     rule = SecurityRule()
@@ -31,24 +50,22 @@ def test_no_issues_perfect_score(
     src_path = tmp_path / "src"
     src_path.mkdir()
 
-    # Mock subprocess.run to return no issues
-    mock_result = MagicMock()
-    mock_result.stdout = json.dumps(
-        {
-            "results": [],
-            "metrics": {
-                "_totals": {
-                    "SEVERITY.HIGH": 0,
-                    "SEVERITY.MEDIUM": 0,
-                    "SEVERITY.LOW": 0,
-                }
-            },
-        }
+    _patch_bandit(
+        monkeypatch,
+        stdout=json.dumps(
+            {
+                "results": [],
+                "metrics": {
+                    "_totals": {
+                        "SEVERITY.HIGH": 0,
+                        "SEVERITY.MEDIUM": 0,
+                        "SEVERITY.LOW": 0,
+                    }
+                },
+            }
+        ),
+        returncode=0,
     )
-    mock_result.returncode = 0
-
-    mock_run = MagicMock(return_value=mock_result)
-    monkeypatch.setattr(subprocess, "run", mock_run)
 
     rule = SecurityRule()
     result = rule.check(tmp_path)
@@ -70,26 +87,25 @@ def test_high_severity_issues_scoring(
     src_path.mkdir()
 
     # Mock 2 HIGH, 1 MEDIUM issue
-    mock_result = MagicMock()
-    mock_result.stdout = json.dumps(
-        {
-            "results": [
-                {"issue_severity": "HIGH", "issue_text": "Use of exec()"},
-                {"issue_severity": "HIGH", "issue_text": "Hardcoded password"},
-                {"issue_severity": "MEDIUM", "issue_text": "Weak crypto"},
-            ],
-            "metrics": {
-                "_totals": {
-                    "SEVERITY.HIGH": 2,
-                    "SEVERITY.MEDIUM": 1,
-                    "SEVERITY.LOW": 0,
-                }
-            },
-        }
+    _patch_bandit(
+        monkeypatch,
+        stdout=json.dumps(
+            {
+                "results": [
+                    {"issue_severity": "HIGH", "issue_text": "Use of exec()"},
+                    {"issue_severity": "HIGH", "issue_text": "Hardcoded password"},
+                    {"issue_severity": "MEDIUM", "issue_text": "Weak crypto"},
+                ],
+                "metrics": {
+                    "_totals": {
+                        "SEVERITY.HIGH": 2,
+                        "SEVERITY.MEDIUM": 1,
+                        "SEVERITY.LOW": 0,
+                    }
+                },
+            }
+        ),
     )
-
-    mock_run = MagicMock(return_value=mock_result)
-    monkeypatch.setattr(subprocess, "run", mock_run)
 
     rule = SecurityRule()
     result = rule.check(tmp_path)
@@ -113,7 +129,7 @@ def test_bandit_not_found_graceful(
 
     monkeypatch.setattr(
         subprocess,
-        "run",
+        "Popen",
         MagicMock(side_effect=FileNotFoundError("bandit")),
     )
 
@@ -137,12 +153,12 @@ def test_bandit_crash_not_false_positive(
     src_path = tmp_path / "src"
     src_path.mkdir()
 
-    mock_result = MagicMock()
-    mock_result.stdout = ""
-    mock_result.stderr = "bandit: error: configuration problem"
-    mock_result.returncode = 2
-
-    monkeypatch.setattr(subprocess, "run", MagicMock(return_value=mock_result))
+    _patch_bandit(
+        monkeypatch,
+        stdout="",
+        stderr="bandit: error: configuration problem",
+        returncode=2,
+    )
 
     rule = SecurityRule()
     result = rule.check(tmp_path)
