@@ -55,7 +55,7 @@ aborts the audit of the other packages.
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | 6 |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule`, `UvWorkspaceLocalityRule` | 5 |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
 | `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule` | 5 |
 | `structure` | `TestsPyramidRule`, `PyprojectCompletenessRule` | 2 |
 | `tooling` | `ToolAvailabilityRule` | 1 |

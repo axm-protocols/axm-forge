@@ -455,32 +455,3 @@ def test_audit_project_workspace_parallel_matches_serial(
     blob = " ".join(c.text or "" for c in parallel.checks)
     assert "pkg-alpha" in blob
     assert "pkg-bravo" in blob
-
-
-def test_audit_project_surfaces_uv_workspace_locality(tmp_path: Path) -> None:
-    """AC1,AC4: the architecture category surfaces a faulty workspace-parsing
-    module via the public audit_project entry point."""
-    pkg = tmp_path / "src" / "pkg"
-    pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text("", encoding="utf-8")
-    (pkg / "bad.py").write_text(
-        "import tomllib\n\n\n"
-        "def resolve(data: dict) -> dict:\n"
-        '    return data.get("tool", {}).get("uv", {}).get("workspace", {})\n',
-        encoding="utf-8",
-    )
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "pkg"\nversion = "0.1"\n', encoding="utf-8"
-    )
-
-    result = audit_project(tmp_path, category="architecture")
-
-    locality = next(
-        (c for c in result.checks if c.rule_id == "ARCH_UV_WORKSPACE_LOCALITY"),
-        None,
-    )
-    assert locality is not None, "the locality rule must run under architecture"
-    assert locality.passed is False
-    assert locality.details is not None
-    files = {str(s["file"]) for s in locality.details["sites"]}
-    assert any("bad.py" in f for f in files)
