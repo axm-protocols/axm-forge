@@ -6,6 +6,8 @@ filesystem-walking ``check()`` is exercised in tests/integration.
 
 from __future__ import annotations
 
+import pytest
+
 from axm_audit.core.rules.architecture.uv_workspace_locality import (
     UvWorkspaceLocalityRule,
     is_exempt_path,
@@ -42,16 +44,17 @@ def test_flags_workspace_parsing_outside_ingot() -> None:
     assert 4 in linenos, f"expected the offending line (4) in {linenos}"
 
 
-def test_flags_section_literal() -> None:
-    """AC1: the textual ``[tool.uv.workspace]`` section literal is flagged."""
-    sites = scan_source(_FAULTY_SECTION_LITERAL)
-
-    assert sites, "a [tool.uv.workspace] literal must be flagged"
-
-
-def test_flags_dotted_literal() -> None:
-    """AC1: the textual ``tool.uv.workspace`` dotted literal is flagged."""
-    sites = scan_source(_FAULTY_DOTTED_LITERAL)
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(_FAULTY_SECTION_LITERAL, id="section-literal"),
+        pytest.param(_FAULTY_DOTTED_LITERAL, id="dotted-literal"),
+    ],
+)
+def test_flags_workspace_key_literal(source: str) -> None:
+    """AC1: a textual tool.uv.workspace key literal (section or dotted) is
+    flagged."""
+    sites = scan_source(source)
 
     assert sites, "a tool.uv.workspace literal must be flagged"
 
@@ -87,17 +90,23 @@ def test_tests_paths_are_exempt() -> None:
     assert is_exempt_path("pkg/tests/test_x.py") is True
 
 
-def test_business_module_not_exempt() -> None:
-    """AC1,AC3: an ordinary business module is not exempt."""
-    assert is_exempt_path("axm_audit/core/auditor.py") is False
-
-
-def test_rule_own_module_is_exempt() -> None:
-    """AC4: the rule's own module holds the marker constants by definition."""
-    assert (
-        is_exempt_path("axm_audit/core/rules/architecture/uv_workspace_locality.py")
-        is True
-    )
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        pytest.param(
+            "axm_audit/core/auditor.py", False, id="business-module-not-exempt"
+        ),
+        pytest.param(
+            "axm_audit/core/rules/architecture/uv_workspace_locality.py",
+            True,
+            id="rule-own-module-exempt",
+        ),
+    ],
+)
+def test_module_exemption(path: str, *, expected: bool) -> None:
+    """AC1,AC3,AC4: an ordinary business module is not exempt, while the rule's
+    own module (holding the marker constants by definition) is."""
+    assert is_exempt_path(path) is expected
 
 
 def test_rule_id_and_category() -> None:
