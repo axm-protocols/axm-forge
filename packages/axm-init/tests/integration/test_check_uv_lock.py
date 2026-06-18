@@ -44,3 +44,22 @@ class TestCheckUvLock:
         (pkg / "pyproject.toml").write_text('[project]\nname = "pkg"\n')
         r = check_uv_lock(pkg)
         assert r.passed is False
+
+    def test_local_lock_preferred_over_root(self, tmp_path: Path) -> None:
+        """A member's own uv.lock wins over a workspace-root lock."""
+        member = tmp_path / "packages" / "member-pkg"
+        member.mkdir(parents=True)
+        (member / "pyproject.toml").write_text(
+            '[project]\nname = "member-pkg"\nversion = "0.1.0"\n'
+        )
+        (member / "uv.lock").write_text("version = 1\n")
+        # Workspace root also has a lock — the local one must win.
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        )
+        (tmp_path / "uv.lock").write_text("version = 1\n")
+
+        r = check_uv_lock(member)
+
+        assert r.passed is True
+        assert r.message == "uv.lock found"
