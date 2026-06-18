@@ -13,6 +13,7 @@ on:
       - "git/v*"
       - "smelt/v*"
       - "ingot/v*"
+      - "echo/v*"
 
 jobs:
   detect-package:
@@ -52,6 +53,12 @@ jobs:
           elif [[ "$TAG" == smelt/* ]]; then
             echo "package=axm-smelt" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-smelt" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == ingot/* ]]; then
+            echo "package=axm-ingot" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-ingot" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == echo/* ]]; then
+            echo "package=axm-echo" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-echo" >> "$GITHUB_OUTPUT"
           else
             echo "::error::Unknown tag prefix: $TAG"
             exit 1

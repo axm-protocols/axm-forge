@@ -31,6 +31,7 @@ dependencies = [
     "axm-mcp",
     "axm-smelt",
     "axm-ingot",
+    "axm-echo",
 ]
 
 [dependency-groups]
@@ -69,6 +70,7 @@ axm-edit = { workspace = true }
 axm-init = { workspace = true }
 axm-git = { workspace = true }
 axm-ingot = { workspace = true }
+axm-echo = { workspace = true }
 axm-mcp = { workspace = true }
 axm-smelt = { workspace = true }
 
@@ -85,6 +87,7 @@ testpaths = [
     "packages/axm-mcp/tests",
     "packages/axm-smelt/tests",
     "packages/axm-ingot/tests",
+    "packages/axm-echo/tests",
 ]
 
 [tool.ruff.lint.per-file-ignores]

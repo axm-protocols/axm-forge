@@ -116,3 +116,11 @@ test-axm-ingot:
 ## Lint axm-ingot
 lint-axm-ingot:
 	uv run ruff check packages/axm-ingot/src/axm_ingot/
+
+## Test axm-echo
+test-axm-echo:
+	uv run pytest --package axm-echo -q
+
+## Lint axm-echo
+lint-axm-echo:
+	uv run ruff check packages/axm-echo/src/axm_echo/
