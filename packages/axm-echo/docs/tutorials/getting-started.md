@@ -59,6 +59,12 @@ for sym in extract_package(Path("packages/axm-echo")):
     print(sym["qualname"], "->", sym["doc_first_line"])
 ```
 
+Only first-party source is extracted: the walk skips test trees and any
+vendored or generated subtree (a committed `.venv`, `site-packages`,
+`__pycache__`, `node_modules`, `.tox`, `build`, `dist`, `.git`), so
+third-party libraries installed inside a checked-in virtualenv never leak
+into the corpus.
+
 `extract_monorepo()` does the same across every package declared in
 `~/.axm/echo.toml` (`workspace_roots`), degrading gracefully to the
 current directory when no config is present. Each listed root is treated

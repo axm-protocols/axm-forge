@@ -170,3 +170,71 @@ def test_skips_unparseable_and_empty_init_files(tmp_path: Path) -> None:
 
     names = {s["name"] for s in symbols}
     assert "good" in names
+
+
+def _write_module(path: Path, body: str) -> None:
+    """Materialise a single .py module (creating parent dirs) on disk."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(textwrap.dedent(body), encoding="utf-8")
+
+
+def test_venv_files_excluded(tmp_path: Path) -> None:
+    """AC1, AC2: vendored .venv/site-packages symbols never reach the corpus."""
+    from axm_echo.corpus import extract_package
+
+    pkg_root = _write_package(
+        tmp_path,
+        "venv-pkg",
+        "bar",
+        '''
+        def bar_func(x: int) -> int:
+            """A real public function living under src/."""
+            return x + 1
+        ''',
+    )
+    _write_module(
+        pkg_root / ".venv" / "lib" / "python3.12" / "site-packages" / "foo.py",
+        '''
+        def foo_func(y: int) -> int:
+            """A vendored third-party symbol that must be excluded."""
+            return y * 2
+        ''',
+    )
+
+    symbols = extract_package(pkg_root)
+    quals = [str(s["qualname"]) for s in symbols]
+
+    assert any("bar_func" in q for q in quals)
+    assert all("foo_func" not in q for q in quals)
+    assert all(".venv" not in q and "site-packages" not in q for q in quals)
+
+
+def test_pycache_excluded(tmp_path: Path) -> None:
+    """AC1: __pycache__ artifacts never reach the corpus."""
+    from axm_echo.corpus import extract_package
+
+    pkg_root = _write_package(
+        tmp_path,
+        "pycache-pkg",
+        "bar",
+        '''
+        def bar_func(x: int) -> int:
+            """A real public function living under src/."""
+            return x + 1
+        ''',
+    )
+    _write_module(
+        pkg_root / "src" / "pycache_pkg" / "__pycache__" / "x.py",
+        '''
+        def cached_func(z: int) -> int:
+            """A cached artifact that must be excluded."""
+            return z - 1
+        ''',
+    )
+
+    symbols = extract_package(pkg_root)
+    quals = [str(s["qualname"]) for s in symbols]
+
+    assert any("bar_func" in q for q in quals)
+    assert all("cached_func" not in q for q in quals)
+    assert all("__pycache__" not in q for q in quals)

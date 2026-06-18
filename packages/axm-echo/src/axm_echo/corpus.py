@@ -114,12 +114,39 @@ def _first_doc_line(docstring: str | None) -> str:
     return first[0].strip() if first else ""
 
 
+#: Path segments whose subtrees never contain first-party source: test
+#: trees plus vendored / generated artefacts (a committed ``.venv``,
+#: caches, JS deps, build outputs). Matched on whole path *segments*
+#: (``in py.parts``), never as substrings — so a legitimate package such
+#: as ``buildkit`` is not excluded by the ``build`` entry.
+_EXCLUDED_SEGMENTS: frozenset[str] = frozenset(
+    {
+        "tests",
+        ".venv",
+        "venv",
+        "site-packages",
+        "__pycache__",
+        "node_modules",
+        ".tox",
+        "build",
+        "dist",
+        ".git",
+    }
+)
+
+
 def _iter_source_files(pkg_root: Path) -> Iterator[Path]:
-    """Yield parseable, non-test source files of a package."""
+    """Yield parseable, non-test source files of a package.
+
+    Any file under an excluded segment (``tests``, ``.venv``,
+    ``site-packages``, ``__pycache__``, build/vendored trees — see
+    :data:`_EXCLUDED_SEGMENTS`) is skipped so third-party libraries living
+    inside a committed virtualenv never leak into the corpus.
+    """
     src = pkg_root / "src"
     search_root = src if src.exists() else pkg_root
     for py in sorted(search_root.rglob("*.py")):
-        if "tests" in py.parts:
+        if _EXCLUDED_SEGMENTS.intersection(py.parts):
             continue
         if py.name == "__init__.py" and py.stat().st_size == 0:
             continue
