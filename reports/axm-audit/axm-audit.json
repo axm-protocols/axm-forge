@@ -1,5 +1,5 @@
 {
-  "score": 97.0,
+  "score": 96.9,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -112,9 +112,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 91.00882887561673,
+        "coverage": 90.9958452350039,
         "failures": []
       },
       "metadata": null
