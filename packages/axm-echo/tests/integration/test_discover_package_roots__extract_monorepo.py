@@ -1,8 +1,12 @@
-"""Integration tests for the data-driven package discovery walk (AC4).
+"""Integration tests for the data-driven package discovery walk.
 
 Exercises ``discover_package_roots`` + ``extract_monorepo`` against a real
-workspace tree on disk: the ``<ws>/packages/<pkg>`` convention, the flat
-``other/<pkg>`` layout, and the automatic pickup of newly-added packages.
+workspace tree on disk that reproduces the genuine AXM convention: the
+scope (``~/.axm/echo.toml``) lists *workspace roots directly*, and packages
+live at ``<workspace_root>/packages/<pkg>`` (AXM-2184: the buggy code looked
+one level too deep). Also covers the flat ``other/<pkg>`` layout, rejection
+of doc dirs / stray ``*.py`` directories, and the automatic pickup of
+newly-added packages.
 """
 
 from __future__ import annotations
@@ -40,52 +44,115 @@ def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> 
     monkeypatch.setenv("HOME", str(home))
 
 
-def test_discovers_packages_and_other_layout(
+def test_workspace_packages_layout_discovered(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC4: both ``<ws>/packages/<pkg>`` and flat ``other/<pkg>`` are walked."""
-    ws = tmp_path / "workspace"
+    """AC1, AC3: packages under ``<ws>/packages/<pkg>`` are discovered.
+
+    Reproduces the genuine convention where the scope lists the workspace
+    root directly (e.g. ``axm-forge``) and packages live one level below in
+    ``packages/``.
+    """
+    ws = tmp_path / "axm-forge"
     home = tmp_path / "home"
     home.mkdir()
 
-    # `<ws>/<child>/packages/<pkg>` convention.
-    _src_package(
-        ws / "axm-thing" / "packages",
-        "pkg-one",
-        'def alpha() -> None:\n    """A."""\n',
-    )
-    # Flat `other/<pkg>` layout.
-    _src_package(ws / "other", "flat-pkg", 'def beta() -> None:\n    """B."""\n')
+    for name in ("axm-ast", "axm-audit", "axm-echo"):
+        sym = name.replace("-", "_")
+        _src_package(ws / "packages", name, f'def s_{sym}() -> None:\n    """Doc."""\n')
 
     _point_scope_at(home, monkeypatch, ws)
 
     roots = discover_package_roots()
-    names = {r.name for r in roots}
+    pkgs = ws / "packages"
+    expected = {pkgs / "axm-ast", pkgs / "axm-audit", pkgs / "axm-echo"}
 
-    assert "pkg-one" in names
-    assert "flat-pkg" in names
+    assert expected.issubset(set(roots))
+    assert len(roots) == 3
     # The list is sorted and de-duplicated.
     assert roots == sorted(set(roots))
+
+
+def test_docs_dir_not_a_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC2, AC4: a ``docs/`` dir with a stray ``*.py`` is not a package."""
+    ws = tmp_path / "axm-forge"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    _src_package(ws / "packages", "axm-ast", 'def alpha() -> None:\n    """A."""\n')
+    docs = ws / "packages" / "docs"
+    docs.mkdir(parents=True)
+    (docs / "gen_ref_pages.py").write_text("# doc generator\n", encoding="utf-8")
+
+    _point_scope_at(home, monkeypatch, ws)
+
+    roots = discover_package_roots()
+
+    assert (ws / "packages" / "axm-ast") in roots
+    assert docs not in roots
+
+
+def test_other_flat_layout_still_works(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3: the flat ``other/<pkg>`` layout remains discoverable."""
+    ws = tmp_path / "axm-workspaces"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    _src_package(ws / "other", "axm-imessage", 'def beta() -> None:\n    """B."""\n')
+    _src_package(ws / "other", "gitagent", 'def gamma() -> None:\n    """G."""\n')
+
+    _point_scope_at(home, monkeypatch, ws)
+
+    roots = discover_package_roots()
+
+    assert (ws / "other" / "axm-imessage") in roots
+    assert (ws / "other" / "gitagent") in roots
+
+
+def test_pyproject_marks_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC4: a dir is a package iff it has ``src/`` or ``pyproject.toml``.
+
+    A dir holding only a stray ``*.py`` (no ``src/``, no ``pyproject.toml``)
+    must NOT be discovered. Verified through the public
+    ``discover_package_roots`` boundary, not the private helper.
+    """
+    ws = tmp_path / "axm-workspaces"
+    home = tmp_path / "home"
+    home.mkdir()
+
+    real = ws / "other" / "real-pkg"
+    real.mkdir(parents=True)
+    (real / "pyproject.toml").write_text('[project]\nname = "real"\n', encoding="utf-8")
+    fake = ws / "other" / "fake-pkg"
+    fake.mkdir()
+    (fake / "helper.py").write_text("x = 1\n", encoding="utf-8")
+
+    _point_scope_at(home, monkeypatch, ws)
+
+    roots = discover_package_roots()
+
+    assert real in roots
+    assert fake not in roots
 
 
 def test_extract_monorepo_concatenates_symbols(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """extract_monorepo returns the concatenated corpus across packages."""
-    ws = tmp_path / "workspace"
+    ws = tmp_path / "axm-forge"
     home = tmp_path / "home"
     home.mkdir()
 
     _src_package(
-        ws / "axm-a" / "packages",
-        "pkg-a",
-        'def alpha() -> None:\n    """Alpha doc."""\n',
+        ws / "packages", "pkg-a", 'def alpha() -> None:\n    """Alpha doc."""\n'
     )
-    _src_package(
-        ws / "axm-b" / "packages",
-        "pkg-b",
-        'def beta() -> None:\n    """Beta doc."""\n',
-    )
+    _src_package(ws / "packages", "pkg-b", 'def beta() -> None:\n    """Beta doc."""\n')
 
     _point_scope_at(home, monkeypatch, ws)
 

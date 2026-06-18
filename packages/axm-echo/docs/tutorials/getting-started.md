@@ -61,7 +61,12 @@ for sym in extract_package(Path("packages/axm-echo")):
 
 `extract_monorepo()` does the same across every package declared in
 `~/.axm/echo.toml` (`workspace_roots`), degrading gracefully to the
-current directory when no config is present.
+current directory when no config is present. Each listed root is treated
+as a workspace, so packages are discovered at `<root>/packages/<pkg>` (the
+monorepo convention) as well as in the flat `other/<pkg>` layout. A
+directory only counts as a package when it carries a real marker — a
+`src/` directory or a `pyproject.toml` — so doc folders such as
+`docs/gen_ref_pages.py` are never mistaken for packages.
 
 ## Step 3: Run the Tests
 

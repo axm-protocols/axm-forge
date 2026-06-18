@@ -237,27 +237,30 @@ def discover_package_roots() -> list[Path]:
 def _packages_in_workspace(workspace_root: Path) -> Iterator[Path]:
     """Yield package dirs under one workspace root (or the root itself).
 
-    Handles three layouts off each workspace child:
-      - ``<child>/packages/<pkg>`` (the AXM convention)
-      - ``other/<pkg>`` (flat: ``other`` holds packages directly)
-      - ``<child>`` itself being an extractable package
-    Falls back to the workspace root as a single package when it has no
-    recognisable children.
+    The scope (``~/.axm/echo.toml``) lists *workspace roots directly*, so
+    packages live one level below the root. Handles, off the workspace root:
+      - ``<workspace_root>/packages/<pkg>`` (the AXM monorepo convention)
+      - ``<workspace_root>/other/<pkg>`` (the ``other`` subdir as a flat
+        container of packages)
+      - ``<workspace_root>/<pkg>`` (flat: the root itself holds packages as
+        direct children, e.g. when the ``other`` dir is listed as a root)
+    Falls back to the workspace root as a single package when it exposes no
+    recognisable package directory.
     """
     if not workspace_root.is_dir():
         return
     found = False
+    for container in (workspace_root / "packages", workspace_root / "other"):
+        if container.is_dir():
+            for pkg in sorted(container.iterdir()):
+                if _is_package_dir(pkg):
+                    found = True
+                    yield pkg
+    # Flat layout: a root (e.g. ``other`` listed directly) that holds packages
+    # as direct children. Harmless for a monorepo root, whose direct children
+    # (``packages``, ``other``, ``docs``, ``.github`` …) are not package dirs.
     for child in sorted(workspace_root.iterdir()):
-        if not child.is_dir():
-            continue
-        pkgs = child / "packages"
-        if pkgs.is_dir():
-            found = True
-            yield from (p for p in sorted(pkgs.iterdir()) if p.is_dir())
-        elif child.name == "other":
-            found = True
-            yield from (p for p in sorted(child.iterdir()) if _is_package_dir(p))
-        elif _is_package_dir(child):
+        if child.name not in {"packages", "other"} and _is_package_dir(child):
             found = True
             yield child
     if not found and _is_package_dir(workspace_root):
@@ -265,10 +268,15 @@ def _packages_in_workspace(workspace_root: Path) -> Iterator[Path]:
 
 
 def _is_package_dir(path: Path) -> bool:
-    """Whether ``path`` looks like an extractable package."""
-    if (path / "src").is_dir():
-        return True
-    return any(path.glob("*.py"))
+    """Whether ``path`` looks like an extractable package.
+
+    Requires a genuine package marker — a ``src/`` directory OR a
+    ``pyproject.toml`` — so doc dirs and folders holding a stray ``*.py``
+    (e.g. ``docs/gen_ref_pages.py``) are not mistaken for packages (AC4).
+    """
+    if not path.is_dir():
+        return False
+    return (path / "src").is_dir() or (path / "pyproject.toml").is_file()
 
 
 def extract_monorepo() -> list[SymbolDict]:

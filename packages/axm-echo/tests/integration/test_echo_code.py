@@ -23,12 +23,17 @@ pytestmark = [pytest.mark.integration, pytest.mark.scenario_name_ok]
 
 
 def _write_package(root: Path, name: str, module: str, body: str) -> Path:
-    """Materialise a minimal real package tree on disk; return its root."""
-    pkg = root / name / "src" / name.replace("-", "_")
+    """Materialise a minimal real package tree on disk; return its root.
+
+    Packages live under the canonical ``<workspace_root>/packages/<pkg>``
+    convention (the scope lists the workspace root directly).
+    """
+    pkg_root = root / "packages" / name
+    pkg = pkg_root / "src" / name.replace("-", "_")
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text("", encoding="utf-8")
     (pkg / f"{module}.py").write_text(textwrap.dedent(body), encoding="utf-8")
-    return root / name
+    return pkg_root
 
 
 def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
