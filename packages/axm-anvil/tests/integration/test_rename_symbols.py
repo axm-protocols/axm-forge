@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from axm_anvil.core.plan import MoveValidationError
 from axm_anvil.core.rename import rename_symbols
 
 pytestmark = pytest.mark.integration
@@ -88,3 +89,90 @@ def test_rename_dry_run_no_write(tmp_path: Path) -> None:
 
     assert plan is not None
     assert mod.read_text() == original
+
+
+def test_rename_module_level_assignment(tmp_path: Path) -> None:
+    """A top-level assignment (plain and annotated) is renamable in place."""
+    mod = tmp_path / "mod.py"
+    mod.write_text(
+        "OLD_CONST = 1\n"
+        "OLD_TYPED: int = 2\n"
+        "\n"
+        "\n"
+        "def use() -> int:\n"
+        "    return OLD_CONST + OLD_TYPED\n"
+    )
+
+    plan = rename_symbols(
+        tmp_path,
+        "mod.py",
+        {"OLD_CONST": "NEW_CONST", "OLD_TYPED": "NEW_TYPED"},
+        workspace_root=tmp_path,
+    )
+
+    assert plan.renamed == {"OLD_CONST": "NEW_CONST", "OLD_TYPED": "NEW_TYPED"}
+    text = mod.read_text()
+    assert "NEW_CONST = 1" in text
+    assert "NEW_TYPED: int = 2" in text
+    assert "return NEW_CONST + NEW_TYPED" in text
+    assert "OLD_CONST" not in text
+    assert "OLD_TYPED" not in text
+
+
+def test_rename_absent_symbol_warns_and_skips(tmp_path: Path) -> None:
+    """A non-strict rename of an absent symbol records a warning and writes
+    nothing (the all-absent mapping yields an empty active set)."""
+    mod = tmp_path / "mod.py"
+    original = "def kept() -> int:\n    return 1\n"
+    mod.write_text(original)
+
+    plan = rename_symbols(
+        tmp_path,
+        "mod.py",
+        {"Ghost": "Spectre"},
+        workspace_root=tmp_path,
+    )
+
+    assert plan.renamed == {}
+    assert plan.files_modified == []
+    assert any("Ghost" in w for w in plan.warnings)
+    assert mod.read_text() == original
+
+
+def test_rename_to_keyword_raises_validation_error(tmp_path: Path) -> None:
+    """Renaming to a Python keyword produces unparseable code and raises
+    MoveValidationError from the render/validate step."""
+    mod = tmp_path / "mod.py"
+    mod.write_text("def foo() -> int:\n    return 1\n")
+
+    with pytest.raises(MoveValidationError):
+        rename_symbols(
+            tmp_path,
+            "mod.py",
+            {"foo": "def"},
+            workspace_root=tmp_path,
+        )
+
+
+def test_rename_source_outside_root_skips_callers(tmp_path: Path) -> None:
+    """When the source file is not under the workspace root, caller discovery
+    is skipped (the _module_path_from_file ValueError path) so no callers are
+    rewritten; computed in dry_run to avoid the out-of-root write guard."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    mod = outside / "mod.py"
+    mod.write_text("def Old() -> int:\n    return Old.__name__ and 1\n")
+
+    plan = rename_symbols(
+        root,
+        mod,
+        {"Old": "New"},
+        dry_run=True,
+        workspace_root=root,
+    )
+
+    assert plan.renamed == {"Old": "New"}
+    assert plan.callers_updated == []
+    assert "def New()" in plan.source_text_new
