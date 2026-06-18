@@ -1,4 +1,4 @@
-site_name: "axm-ingot"
+site_name: ingot
 docs_dir: docs
 
 nav:
@@ -8,7 +8,7 @@ nav:
   - How-To Guides:
     - howto/index.md
   - Reference:
-    - API: reference/cli.md
-    - Python API: reference/api/
+    - CLI: reference/cli.md
+    - Python API: reference/
   - Explanation:
     - Architecture: explanation/architecture.md

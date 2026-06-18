@@ -83,6 +83,7 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 | **[axm-edit](edit/index.md)** | Atomic batch file editing for AI agents | [![PyPI](https://img.shields.io/pypi/v/axm-edit)](https://pypi.org/project/axm-edit/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | **[axm-anvil](anvil/index.md)** | Deterministic CST-based refactoring toolkit — move, rename, split, merge symbols atomically | [![PyPI](https://img.shields.io/pypi/v/axm-anvil)](https://pypi.org/project/axm-anvil/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | **[axm-smelt](smelt/index.md)** | Deterministic token compaction for LLM inputs | [![PyPI](https://img.shields.io/pypi/v/axm-smelt)](https://pypi.org/project/axm-smelt/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-smelt/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-smelt/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
+| **[axm-ingot](ingot/index.md)** | Shared helper library — common code factored out and tested once, reused across packages | [![PyPI](https://img.shields.io/pypi/v/axm-ingot)](https://pypi.org/project/axm-ingot/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 
 ## Quick Start
 
@@ -128,8 +129,10 @@ graph TD
     classDef edit fill:#AB47BC,stroke:#8E24AA
     classDef axm fill:#66BB6A,stroke:#43A047
     classDef mcp fill:#8D6E63,stroke:#6D4C41
+    classDef ingot fill:#BDBDBD,stroke:#757575
 
     AXM["axm<br/>Core SDK + ToolResult"]:::axm
+    INGOT["axm-ingot<br/>Shared helper library"]:::ingot
     MCP["axm-mcp<br/>MCP Server"]:::mcp --> AXM
     AST["axm-ast<br/>AST introspection"]:::ast --> AXM
     AUDIT["axm-audit<br/>Code auditing"]:::audit --> AST
@@ -139,6 +142,10 @@ graph TD
     SMELT["axm-smelt<br/>Token compaction"]:::smelt --> AXM
     ANVIL["axm-anvil<br/>CST refactoring"]:::anvil --> EDIT
     EDIT["axm-edit<br/>Batch file editing"]:::edit --> AXM
+    AST --> INGOT
+    AUDIT --> INGOT
+    INIT --> INGOT
+    ANVIL --> INGOT
 ```
 
 ## Learn More
@@ -148,3 +155,4 @@ graph TD
 - **Scaffolding projects?** Read the [axm-init docs](init/index.md)
 - **Git automation?** Check [axm-git](git/index.md)
 - **Token compaction?** See [axm-smelt](smelt/index.md)
+- **Factoring shared helpers?** See [axm-ingot](ingot/index.md)

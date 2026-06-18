@@ -63,6 +63,14 @@ hide:
 
     [:octicons-arrow-right-24: Getting Started](../smelt/index.md)
 
+-   :material-package-variant-closed:{ .lg .middle } **axm-ingot**
+
+    ---
+
+    Shared helper library — common code factored out and tested once, reused across packages.
+
+    [:octicons-arrow-right-24: Getting Started](../ingot/index.md)
+
 </div>
 
 ## Architecture
@@ -74,10 +82,13 @@ graph TD
     classDef init fill:#26C6DA,stroke:#00ACC1
     classDef git fill:#78909C,stroke:#546E7A
     classDef smelt fill:#FFA726,stroke:#FB8C00
+    classDef ingot fill:#BDBDBD,stroke:#757575
 
-    AST["axm-ast\nAST introspection"]:::ast
+    AST["axm-ast\nAST introspection"]:::ast --> INGOT
     AUDIT["axm-audit\nCode auditing"]:::audit --> AST
-    INIT["axm-init\nScaffolding"]:::init
+    AUDIT --> INGOT
+    INIT["axm-init\nScaffolding"]:::init --> INGOT
     GIT["axm-git\nGit automation"]:::git
     SMELT["axm-smelt\nToken compaction"]:::smelt
+    INGOT["axm-ingot\nShared helper library"]:::ingot
 ```
