@@ -18,8 +18,15 @@ duplicate clusters carry signal, not noise:
   symbols (``CLI entry point.``) matches all its twins at ~1.0 without meaning
   duplication; demoted to the ``boilerplate`` bucket.
 
-FINE calibration of the boilerplate floor (``min_repeat`` x length) is left to
-E3bis (refine-loop). Here the POC defaults are ported as-is, not finalised.
+CALIBRATION (E3bis / AXM-2171, refine-loop, 2026-06): the two boilerplate
+seuils were tuned against the real monorepo corpus (3.6k documented symbols).
+``min_repeat=4`` catches the genuine mass-recurring promises (``CLI entry
+point.`` 9x, ``main entry point.`` 5x, ``render the failure-path ...`` 10x,
+the office table ops 4x) while leaving the 550+ unique terse promises and the
+ground-truth duplicates (``RateLimitError``, ``request_with_retry``) alone; the
+length floor stays at ``MIN_DOC_CHARS=15`` so a legitimate terse promise
+(``APIUnavailable``, 38 chars) is never re-dropped. Two consecutive passes are
+stable. The defaults below are the calibrated values, not raw POC ports.
 """
 
 from __future__ import annotations
@@ -54,7 +61,9 @@ __all__ = [
 PAIR_THRESHOLD = 0.55
 
 # Trivially-short docstrings ("Run.", "TODO") are floor-filtered; the real
-# boilerplate filter is corpus-frequency (see ``generic_docs``).
+# boilerplate filter is corpus-frequency (see ``generic_docs``). Calibrated
+# floor (E3bis/AXM-2171): 15 chars keeps every unique terse legit promise
+# (``APIUnavailable``, 38 chars) -- a higher floor re-drops them (POC bug).
 MIN_DOC_CHARS = 15
 
 # A pair: (index_a, index_b, cosine_similarity) over the symbol corpus.
