@@ -58,6 +58,10 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
 
 ## Features
 
+- ✅ **`echo_code` cross-package echo detection** — the `axm echo_code` tool
+  (MCP + CLI + DAG node) clusters intent-equivalent duplicate symbols across
+  packages, with the v7 anti-signals (trivial-accessor filter, parallel-API
+  demotion, boilerplate-frequency demotion) applied
 - ✅ **Two embedding backends** — `tfidf` (code, scikit-learn) and `st`
   (MiniLM `all-MiniLM-L6-v2`), selected by a registry
 - ✅ **Exact neighbour search** — brute-force cosine matmul, no ANN

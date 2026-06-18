@@ -1,0 +1,416 @@
+"""Integration tests for the ``echo_code`` AXMTool (real FS + neural backend).
+
+These build a self-contained corpus on disk reproducing the textbook
+cross-package duplications and the anti-signal cases, point
+``~/.axm/echo.toml`` at it, and run the real ``EchoCodeTool`` end to end.
+
+The tool's clustering backend is the neural ``st`` (MiniLM) registry, so the
+ground-truth cases ``importorskip`` ``sentence_transformers`` -- they only run
+when the optional ``neural`` extra is installed.
+"""
+
+from __future__ import annotations
+
+import textwrap
+from pathlib import Path
+
+import pytest
+
+# A cohesive echo-detection scenario exercising the full EchoCodeTool pipeline
+# (corpus -> embed -> cross_pairs -> anti-signals -> clusters) on a real tree;
+# it intentionally spans more than one canonical symbol tuple.
+pytestmark = [pytest.mark.integration, pytest.mark.scenario_name_ok]
+
+
+def _write_package(root: Path, name: str, module: str, body: str) -> Path:
+    """Materialise a minimal real package tree on disk; return its root."""
+    pkg = root / name / "src" / name.replace("-", "_")
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / f"{module}.py").write_text(textwrap.dedent(body), encoding="utf-8")
+    return root / name
+
+
+def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    """Make ``load_scope`` read a config whose only workspace root is ``root``."""
+    config_dir = home / ".axm"
+    config_dir.mkdir()
+    (config_dir / "echo.toml").write_text(
+        f'workspace_roots = ["{root}"]\n', encoding="utf-8"
+    )
+    monkeypatch.setenv("HOME", str(home))
+
+
+def _cluster_qualnames(clusters: list[dict[str, object]]) -> list[set[str]]:
+    """Project each cluster onto the set of member qualnames."""
+    out: list[set[str]] = []
+    for cluster in clusters:
+        members = cluster.get("members", [])
+        assert isinstance(members, list)
+        out.append({str(m["qualname"]) for m in members})
+    return out
+
+
+def test_tfidf_clusters_ratelimiterror_cross_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC1, AC2, AC4: full pipeline clusters a cross-package echo (tfidf path).
+
+    Deterministic, no neural extra: the tfidf backend always resolves, so this
+    exercises the whole ``EchoCodeTool`` pipeline (corpus -> embed -> pairs ->
+    anti-signals -> clusters -> render) and the AC4 ground-truth shape without
+    requiring torch.
+    """
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-commons",
+        "errors",
+        '''
+        class RateLimitError(Exception):
+            """Raised when the upstream API rate limit has been exceeded."""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-bib",
+        "errors",
+        '''
+        class RateLimitError(Exception):
+            """Raised when the upstream API rate limit has been exceeded."""
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute(backend="tfidf")
+
+    assert result.success, result.error
+    assert result.data["corpus_size"] == 2
+    rate_clusters = [
+        c
+        for c in _cluster_qualnames(result.data["clusters"])
+        if any("RateLimitError" in q for q in c)
+    ]
+    assert rate_clusters, "RateLimitError was not clustered cross-package"
+    # The compact text report names the tool and the cluster count.
+    assert result.text is not None
+    assert "echo_code" in result.text
+    assert "cluster" in result.text.lower()
+
+
+def test_tfidf_filters_trivial_accessors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3 (tfidf): trivial accessors never form a cluster."""
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-alpha",
+        "models",
+        '''
+        def name(self) -> str:
+            """Return the name."""
+            return self._name
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-beta",
+        "models",
+        '''
+        def name(self) -> str:
+            """Return the name."""
+            return self._name
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute(backend="tfidf")
+
+    assert result.success, result.error
+    # Both accessors are filtered up front, so the corpus collapses below the
+    # comparison floor and no clusters are produced.
+    assert not any(
+        any(q.endswith(".name") for q in c)
+        for c in _cluster_qualnames(result.data["clusters"])
+    )
+
+
+def test_tfidf_demotes_parallel_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3 (tfidf): excel_*/word_* land in parallel_api, not clusters."""
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-excel",
+        "render",
+        '''
+        def excel_export(path: str) -> None:
+            """Export the active document to a file on disk at the given path."""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-word",
+        "render",
+        '''
+        def word_export(path: str) -> None:
+            """Export the active document to a file on disk at the given path."""
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute(backend="tfidf")
+
+    assert result.success, result.error
+    leaked = any(
+        any("excel_export" in q for q in c) and any("word_export" in q for q in c)
+        for c in _cluster_qualnames(result.data["clusters"])
+    )
+    assert not leaked, "parallel-API pair leaked into duplicate clusters"
+    parallel_names = {
+        n
+        for pair in result.data["parallel_api"]
+        for n in (pair["a"]["name"], pair["b"]["name"])
+    }
+    assert {"excel_export", "word_export"} <= parallel_names
+
+
+def test_empty_corpus_returns_no_clusters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corpus with fewer than two documented symbols yields no clusters."""
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-solo",
+        "mod",
+        '''
+        def only_one() -> None:
+            """The single documented symbol in the whole corpus."""
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute(backend="tfidf")
+
+    assert result.success, result.error
+    assert result.data["clusters"] == []
+    assert result.text is not None
+    assert "echo_code" in result.text
+
+
+def test_groundtruth_ratelimiterror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC4: ``RateLimitError`` is clustered cross-package on its docstring."""
+    pytest.importorskip("sentence_transformers")
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-commons",
+        "errors",
+        '''
+        class RateLimitError(Exception):
+            """Raised when the upstream API rate limit has been exceeded."""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-bib",
+        "errors",
+        '''
+        class RateLimitError(Exception):
+            """Raised when the upstream API rate limit has been exceeded."""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-other",
+        "io",
+        '''
+        def read_csv_rows() -> None:
+            """Read rows from a csv file into a list of dictionaries."""
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute()
+
+    assert result.success, result.error
+    clusters = result.data["clusters"]
+    rate_clusters = [
+        c for c in _cluster_qualnames(clusters) if any("RateLimitError" in q for q in c)
+    ]
+    assert rate_clusters, "RateLimitError was not clustered cross-package"
+    # The cluster spans both packages (it is a cross-package echo).
+    members = next(
+        c["members"]
+        for c in clusters
+        if any("RateLimitError" in str(m["qualname"]) for m in c["members"])
+    )
+    packages = {m["package"] for m in members}
+    assert {"axm-commons", "axm-bib"} <= packages
+
+
+def test_groundtruth_request_with_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC4: ``request_with_retry`` is clustered cross-package on its docstring."""
+    pytest.importorskip("sentence_transformers")
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-commons",
+        "net",
+        '''
+        def request_with_retry(url: str) -> bytes:
+            """Perform an HTTP request, retrying with backoff on transient errors."""
+            return b""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-bib",
+        "net",
+        '''
+        def request_with_retry(url: str) -> bytes:
+            """Perform an HTTP request, retrying with backoff on transient errors."""
+            return b""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-other",
+        "text",
+        '''
+        def slugify(value: str) -> str:
+            """Lowercase a string and replace spaces with hyphens for a slug."""
+            return value
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute()
+
+    assert result.success, result.error
+    clusters = _cluster_qualnames(result.data["clusters"])
+    retry_clusters = [c for c in clusters if any("request_with_retry" in q for q in c)]
+    assert retry_clusters, "request_with_retry was not clustered cross-package"
+    # Members come from two distinct packages.
+    qualnames = retry_clusters[0]
+    assert len(qualnames) >= 2
+
+
+def test_trivial_accessors_filtered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3: trivial accessors are filtered out and never form a cluster."""
+    pytest.importorskip("sentence_transformers")
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    # Two cross-package trivial accessors with the same boilerplate promise.
+    _write_package(
+        ws,
+        "axm-alpha",
+        "models",
+        '''
+        def name(self) -> str:
+            """Return the name."""
+            return self._name
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-beta",
+        "models",
+        '''
+        def name(self) -> str:
+            """Return the name."""
+            return self._name
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute()
+
+    assert result.success, result.error
+    clusters = _cluster_qualnames(result.data["clusters"])
+    # The trivial accessor must not appear in any duplicate cluster.
+    assert not any(any(q.endswith(".name") for q in c) for c in clusters), (
+        "trivial accessor leaked into a cluster"
+    )
+
+
+def test_parallel_api_demoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC3: name-parallel API pairs (excel_*/word_*) are demoted, not duplicates."""
+    pytest.importorskip("sentence_transformers")
+    from axm_echo.tools import EchoCodeTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-excel",
+        "render",
+        '''
+        def excel_export(path: str) -> None:
+            """Export the active document to a file on disk at the given path."""
+        ''',
+    )
+    _write_package(
+        ws,
+        "axm-word",
+        "render",
+        '''
+        def word_export(path: str) -> None:
+            """Export the active document to a file on disk at the given path."""
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    result = EchoCodeTool().execute()
+
+    assert result.success, result.error
+    duplicate_clusters = _cluster_qualnames(result.data["clusters"])
+    # The excel_/word_ parallel pair must not be reported as a duplicate cluster.
+    leaked = any(
+        any("excel_export" in q for q in c) and any("word_export" in q for q in c)
+        for c in duplicate_clusters
+    )
+    assert not leaked, "parallel-API pair leaked into duplicate clusters"
+    # It is recorded in the demoted parallel-API bucket instead.
+    parallel = result.data["parallel_api"]
+    parallel_names = {
+        n for pair in parallel for n in (pair["a"]["name"], pair["b"]["name"])
+    }
+    assert {"excel_export", "word_export"} <= parallel_names

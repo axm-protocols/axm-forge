@@ -14,9 +14,11 @@ from axm_echo.corpus import (
 )
 from axm_echo.embedding import Backend, code_tokens, embed, neighbors
 from axm_echo.scope import config_path, load_scope
+from axm_echo.tools import EchoCodeTool
 
 __all__ = [
     "Backend",
+    "EchoCodeTool",
     "Symbol",
     "SymbolDict",
     "code_tokens",
