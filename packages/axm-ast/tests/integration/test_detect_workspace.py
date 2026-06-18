@@ -59,23 +59,14 @@ def test_detect_workspace_returns_none(
 ) -> None:
     """AC1: non-workspace setups return None.
 
-    Covers: regular project, missing pyproject, empty members.
+    Covers: regular project (plain non-workspace pyproject), missing pyproject,
+    empty members.
     """
     if pyproject_content is not None:
         (tmp_path / "pyproject.toml").write_text(
             pyproject_content,
             encoding="utf-8",
         )
-    assert detect_workspace(tmp_path) is None
-
-
-def test_none_when_not_workspace(tmp_path: Path) -> None:
-    """AC1: detect_workspace returns None for a plain (non-workspace) pyproject."""
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "solo"\nversion = "0.1.0"\n',
-        encoding="utf-8",
-    )
-
     assert detect_workspace(tmp_path) is None
 
 

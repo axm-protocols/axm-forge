@@ -300,8 +300,8 @@ hash = "dda854a2ad14"
 reason = "5 test_bad_path unit tests live in 5 distinct tool-mirror test files (test_dead_code/describe/docs/flows/graph.py) — each instantiates a different Tool class (DeadCodeTool, DescribeTool, DocsTool, FlowsTool, GraphTool) and exercises its own .execute(path=\"/nonexistent/...\") error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "4f82f9d1ae07"
-reason = "5 analyze_package tests mix two distinct contracts: 3 success-path src-layout/namespace tests (test_src_layout_multiple_packages, test_namespace_package_no_init, test_src_layout_name — assert on pkg.name with different fixtures: 2-package src, namespace-no-init, single-pkg src) and 2 error-or-empty-path tests inside TestAnalyzePackageIntegration (test_not_a_directory uses pytest.raises(ValueError, match='not a directory'); test_no_python_files asserts pkg.modules == [] on empty dir) — parametrization would conflate raises-vs-success branches and force a heterogeneous expected_* parameter across mutually exclusive assertion targets (.name vs .modules vs exception)"
+hash = "f0ce85ddcd18"
+reason = "12 analyze_package tests (re-anchored from 4f82f9d1ae07, grown 5→12) mix mutually-exclusive contracts on the same SUT analyze_package: success-path src-layout/namespace/flat tests assert on pkg.name/pkg.modules with different fixtures (multi-package src, namespace-no-init, single-pkg, single-file, venv/dir skipping), while test_not_a_directory uses pytest.raises(ValueError, match='not a directory') and test_no_python_files asserts pkg.modules == [] on empty dir. Parametrization would conflate raises-vs-success branches and force a heterogeneous expected_* parameter across mutually exclusive assertion targets (.name vs .modules vs exception). ambiguous_raises_divergence — ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "3a89b94d3d70"
@@ -733,3 +733,7 @@ reason = "Same find_namespace_modules assertion (== set()) but different fixture
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "aaedb05b1e5e"
 reason = "Distinct SUTs across two files: test_impact.py::test_symbols_invalid_type validates ImpactTool.execute input type rejection while test_inspect.py::test_symbols_invalid_type validates InspectTool.execute. Same must-be-a-list error but two independent tools, no shared fixture or helper."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "65c6af843d1d"
+reason = "Inter-file, distinct concerns and pyramid levels: test_parse_workspace_members.py::test_ast_parse_delegates_same_contract (integration) guards that axm-ast's parse_workspace_members preserves the raw-members contract AFTER delegating to axm-ingot (a non-regression-of-delegation test), while test_workspace.py::TestParseWorkspaceMembers::test_parse_workspace_members (unit, already parametrized in a class) tests pure parsing. Same parse_workspace_members(text) == expected call shape, but one is an integration delegation guard and the other a unit parse check — no shared fixture, different test roots. signal1_call_assert — ACK."
