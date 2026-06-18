@@ -12,7 +12,7 @@ on:
       - "init/v*"
       - "git/v*"
       - "smelt/v*"
-      - "axm-ingot/v*"
+      - "ingot/v*"
 
 permissions:
   contents: write
@@ -58,7 +58,7 @@ jobs:
           elif [[ "$TAG" == smelt/* ]]; then
             echo "package=axm-smelt" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-smelt" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == axm-ingot/* ]]; then
+          elif [[ "$TAG" == ingot/* ]]; then
             echo "package=axm-ingot" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-ingot" >> "$GITHUB_OUTPUT"
           else

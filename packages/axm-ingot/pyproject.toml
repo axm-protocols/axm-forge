@@ -30,8 +30,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = "axm-ingot/v(?P<version>.*)"
-raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match axm-ingot/v*" }
+tag-pattern = "ingot/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match ingot/v*" }
 fallback-version = "0.0.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
@@ -206,7 +206,7 @@ commit_parsers = [
     { message = "^refactor", group = "🔧 Refactor" },
     { message = "^test", group = "🧪 Tests" },
 ]
-tag_pattern = "axm-ingot/v[0-9].*"
+tag_pattern = "ingot/v[0-9].*"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # axm-audit acknowledged duplicate-test clusters (heterogeneous false positives)
