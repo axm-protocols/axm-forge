@@ -108,3 +108,11 @@ help:  ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help
+
+## Test axm-ingot
+test-axm-ingot:
+	uv run pytest --package axm-ingot -q
+
+## Lint axm-ingot
+lint-axm-ingot:
+	uv run ruff check packages/axm-ingot/src/axm_ingot/

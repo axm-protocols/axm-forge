@@ -91,6 +91,14 @@ updates:
           - "*"
 
   # ── GitHub Actions used by the workspace workflows ─────────────────────────
+  - package-ecosystem: uv
+    directory: /packages/axm-ingot
+    schedule:
+      interval: weekly
+    groups:
+      axm-ingot:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -12,6 +12,7 @@ on:
       - "init/v*"
       - "git/v*"
       - "smelt/v*"
+      - "axm-ingot/v*"
 
 jobs:
   detect-package:

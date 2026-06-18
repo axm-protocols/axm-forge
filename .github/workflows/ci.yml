@@ -50,13 +50,15 @@ jobs:
               - 'packages/axm-git/**'
             axm-smelt:
               - 'packages/axm-smelt/**'
+            axm-ingot:
+              - 'packages/axm-ingot/**'
       - name: Compute package matrix
         id: set
         env:
           SHARED: ${{ steps.filter.outputs.shared }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
-          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt"]'
+          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot"]'
           if [ "$SHARED" = "true" ]; then
             echo "Shared file changed -> full matrix"
             PACKAGES="$ALL"
@@ -113,6 +115,9 @@ jobs:
       - name: MyPy (axm-smelt)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-smelt')
         run: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src/ packages/axm-smelt/tests/
+      - name: MyPy (axm-ingot)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-ingot')
+        run: uv run --package axm-ingot mypy --config-file packages/axm-ingot/pyproject.toml packages/axm-ingot/src/ packages/axm-ingot/tests/
 
   security:
     name: Security Audit
