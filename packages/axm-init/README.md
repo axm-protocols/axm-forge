@@ -79,6 +79,7 @@ Score a project against the AXM gold standard (49 checks across 8 categories).
 |---|---|---|---|
 | `PATH` | | `.` | Directory to check |
 | `--category` | `-c` | *all* | Filter to one category |
+| `--verbose` | `-v` | `False` | Show all checks including passed |
 | `--json` | | `False` | Output as JSON |
 | `--agent` | | `False` | Compact agent-friendly output |
 

@@ -16,13 +16,18 @@
 
 ## Scoring System
 
-Each of the 49 checks has a **weight** (1–4 points), totaling **123 raw points** (104 base + 19 workspace).
+Each check has a **weight** (1–4 points). The score is computed over the checks
+that **actually run** for the project's context, not against a fixed point total:
 
 ```
-Score = (earned points / 104) × 100
+Score = round(earned points / weight of executed checks × 100)
 ```
 
-The result is a normalized score from 0 to 100. For example, earning 101 out of 104 raw points gives a score of 97. The score maps to a grade using the boundaries above.
+The denominator is **dynamic**. The check engine selects which checks run from the
+project context (standalone, workspace, member) — a `WORKSPACE` adds the 19 workspace
+points, while a member skips the checks listed in `SKIP_FOR_MEMBER` (e.g. CI and the
+docs-group/`gen_ref_pages` checks, since those are owned by the monorepo root). The
+result is always normalized to 0–100 and mapped to a grade using the boundaries above.
 
 ## The 8 Categories
 
@@ -105,6 +110,10 @@ Dependency groups:
 |-------|--------|-----------------|
 | `deps.dev_group` | 3 | pytest, ruff, mypy, prek in dev group |
 | `deps.docs_group` | 2 | mkdocs-material, mkdocstrings, gen-files, literate-nav |
+
+!!! note "Members"
+    `deps.docs_group` is skipped for workspace members — the docs dependencies
+    live at the monorepo root, so a member only counts `deps.dev_group` here.
 
 ### changelog (5 pts)
 
