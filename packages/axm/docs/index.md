@@ -18,7 +18,7 @@
 
 - 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
 - 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
-- 🛠️ **Shared interface** — re-exports the core contracts from the package root (`from axm import AXMTool, ToolResult, HookAction, HookResult, WitnessResult, ValidationFeedback, WitnessRule`): `AXMTool`/`ToolResult` (with `text` for pre-rendered output), `HookAction`/`HookResult`, and `WitnessResult`/`ValidationFeedback`/`WitnessRule` for ecosystem development
+- 🛠️ **Shared interface** — re-exports the core contracts from the package root (`from axm import AXMTool, ToolResult, HookAction, HookResult, WitnessResult, ValidationFeedback, WitnessRule, tool_node, tool_metadata, ToolMetadata, ToolNodeError`): `AXMTool`/`ToolResult` (with `text` for pre-rendered output), `HookAction`/`HookResult`, `WitnessResult`/`ValidationFeedback`/`WitnessRule`, and `tool_node` (adapt any `axm.tools` tool into a DAG python-node) for ecosystem development
 - 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
 
 ## Installation
@@ -61,12 +61,13 @@ The `axm` CLI discovers these at startup and exposes them as subcommands.
 ```
 axm/
 ├── src/axm/
-│   ├── cli.py         # Autodiscovery wrapper (~80 lines)
+│   ├── cli.py            # Lazy, dispatch-first autodiscovery wrapper
 │   ├── hooks/
-│   │   └── base.py    # HookAction Protocol + HookResult
+│   │   └── base.py       # HookAction Protocol + HookResult
 │   ├── tools/
-│   │   └── base.py    # AXMTool Protocol + ToolResult
-│   └── witnesses.py   # WitnessResult + ValidationFeedback + WitnessRule
+│   │   ├── base.py       # AXMTool Protocol + ToolResult + ToolMetadata
+│   │   └── node.py       # tool_node adapter + ToolNodeError (AXMTool → DAG node)
+│   └── witnesses.py      # WitnessResult + ValidationFeedback + WitnessRule
 └── tests/
 ```
 

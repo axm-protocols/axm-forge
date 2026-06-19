@@ -21,7 +21,7 @@
 
 - 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
 - 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
-- 🛠️ **Shared interface** — re-exports the core contracts from the package root (`from axm import AXMTool, ToolResult, HookAction, HookResult, WitnessResult, ValidationFeedback, WitnessRule`): `AXMTool`/`ToolResult` (with optional `agent_hint` for LLM-optimized descriptions and `text` for pre-rendered output), `HookAction`/`HookResult`, and `WitnessResult`/`ValidationFeedback`/`WitnessRule` for ecosystem development
+- 🛠️ **Shared interface** — re-exports the core contracts from the package root (`from axm import AXMTool, ToolResult, HookAction, HookResult, WitnessResult, ValidationFeedback, WitnessRule, tool_node, tool_metadata, ToolMetadata, ToolNodeError`): `AXMTool`/`ToolResult` (with optional `agent_hint` for LLM-optimized descriptions and `text` for pre-rendered output), `HookAction`/`HookResult`, `WitnessResult`/`ValidationFeedback`/`WitnessRule`, and `tool_node` (adapt any `axm.tools` tool into a DAG python-node) for ecosystem development
 - 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
 
 ## Installation
@@ -77,22 +77,20 @@ The `axm` CLI discovers these at startup and exposes them as subcommands.
 ```
 axm/
 ├── src/axm/
-│   ├── cli.py         # Autodiscovery wrapper (~80 lines)
+│   ├── cli.py            # Lazy, dispatch-first autodiscovery wrapper
 │   ├── hooks/
-│   │   ├── base.py    # HookAction Protocol + HookResult (lifecycle hooks)
+│   │   ├── base.py       # HookAction Protocol + HookResult (lifecycle hooks)
 │   │   └── __init__.py
 │   ├── tools/
-│   │   ├── base.py    # AXMTool Protocol + ToolResult (shared interface)
+│   │   ├── base.py       # AXMTool Protocol + ToolResult + ToolMetadata
+│   │   ├── node.py       # tool_node adapter + ToolNodeError (AXMTool → DAG node)
+│   │   ├── _discovery.py # entry-point metadata helper
 │   │   └── __init__.py
-│   ├── witnesses.py   # WitnessResult + ValidationFeedback + WitnessRule
+│   ├── witnesses.py      # WitnessResult + ValidationFeedback + WitnessRule
 │   └── __init__.py
 └── tests/
-    ├── hooks/
-    │   └── test_base.py
-    ├── tools/
-    │   └── test_base.py
-    ├── test_cli.py
-    └── test_version.py
+    ├── unit/             # mirrors src/ (hooks/, tools/, cli, witnesses, __init__)
+    └── e2e/              # CLI invoked as a subprocess (test_axm.py)
 ```
 
 ## Development
