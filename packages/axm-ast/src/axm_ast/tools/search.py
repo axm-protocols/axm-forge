@@ -359,10 +359,13 @@ class SearchTool(AXMTool):
         if isinstance(kind_enum, ToolResult):
             return kind_enum
 
-        return _search(
-            pkg,
-            name=name,
-            returns=returns,
-            kind=kind_enum,
-            inherits=inherits,
-        )
+        try:
+            return _search(
+                pkg,
+                name=name,
+                returns=returns,
+                kind=kind_enum,
+                inherits=inherits,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))

@@ -61,12 +61,18 @@ class AstFileHeaderTool(AXMTool):
                 success=False, error=error, text=render_failure_text(error=error)
             )
 
-        unique_files = list(dict.fromkeys(files))
-        headers = [
-            entry
-            for file in unique_files
-            if (entry := _extract_header(working_dir, file, max_lines)) is not None
-        ]
+        try:
+            unique_files = list(dict.fromkeys(files))
+            headers = [
+                entry
+                for file in unique_files
+                if (entry := _extract_header(working_dir, file, max_lines)) is not None
+            ]
+        except Exception as exc:  # noqa: BLE001
+            error = str(exc)
+            return ToolResult(
+                success=False, error=error, text=render_failure_text(error=error)
+            )
         data: dict[str, object] = {"headers": headers}
         return ToolResult(success=True, data=data, text=render_text(headers))
 

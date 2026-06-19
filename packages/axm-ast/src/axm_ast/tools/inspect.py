@@ -84,10 +84,13 @@ class InspectTool(AXMTool):
         if isinstance(project_path, ToolResult):
             return project_path
 
-        if symbols is not None:
-            return self._inspect_batch(project_path, symbols, source=source)
+        try:
+            if symbols is not None:
+                return self._inspect_batch(project_path, symbols, source=source)
 
-        return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
+            return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
     def _inspect_batch(
         self,

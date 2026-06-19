@@ -54,12 +54,15 @@ class GraphTool(AXMTool):
             ToolResult with graph data.
         """
         project_path = Path(path).resolve()
-        if scope is not None:
-            return self._execute_scoped(project_path, scope=scope, format=format)
-        # scope is None — preserve legacy auto-detection.
-        if self._detect_workspace(project_path):
-            return self._execute_workspace(project_path, format=format)
-        return self._execute_package_checked(project_path, format=format)
+        try:
+            if scope is not None:
+                return self._execute_scoped(project_path, scope=scope, format=format)
+            # scope is None — preserve legacy auto-detection.
+            if self._detect_workspace(project_path):
+                return self._execute_workspace(project_path, format=format)
+            return self._execute_package_checked(project_path, format=format)
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
     def _execute_scoped(
         self, project_path: Path, *, scope: str, format: str

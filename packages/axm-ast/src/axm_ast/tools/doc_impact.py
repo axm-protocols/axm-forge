@@ -51,7 +51,10 @@ class DocImpactTool(AXMTool):
 
         from axm_ast.core.doc_impact import analyze_doc_impact
 
-        result: DocImpactResult = analyze_doc_impact(project_path, symbols)
+        try:
+            result: DocImpactResult = analyze_doc_impact(project_path, symbols)
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
         from axm_ast.tools.doc_impact_text import (
             DocImpactResult as DocImpactTextResult,

@@ -120,21 +120,24 @@ class FlowsTool(AXMTool):
                 ),
             )
 
-        pkg = get_package(pkg_path)
+        try:
+            pkg = get_package(pkg_path)
 
-        if entry is not None:
-            return self._trace_entry(
-                pkg,
-                entry,
-                max_depth=max_depth,
-                cross_module=cross_module,
-                detail=detail,
-                exclude_stdlib=exclude_stdlib,
-                trace_flow=trace_flow,
-                format_flow_compact=format_flow_compact,
-            )
+            if entry is not None:
+                return self._trace_entry(
+                    pkg,
+                    entry,
+                    max_depth=max_depth,
+                    cross_module=cross_module,
+                    detail=detail,
+                    exclude_stdlib=exclude_stdlib,
+                    trace_flow=trace_flow,
+                    format_flow_compact=format_flow_compact,
+                )
 
-        return self._detect_entries(pkg, find_entry_points)
+            return self._detect_entries(pkg, find_entry_points)
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
     def _trace_entry(  # noqa: PLR0913
         self,
