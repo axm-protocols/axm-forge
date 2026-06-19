@@ -96,7 +96,7 @@ def test_groundtruth_neighbors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         ''',
     )
 
-    config_dir = tmp_path / ".axm"
+    config_dir = tmp_path / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{tmp_path}"]\n', encoding="utf-8"

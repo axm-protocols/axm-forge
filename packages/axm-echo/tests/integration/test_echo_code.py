@@ -2,7 +2,7 @@
 
 These build a self-contained corpus on disk reproducing the textbook
 cross-package duplications and the anti-signal cases, point
-``~/.axm/echo.toml`` at it, and run the real ``EchoCodeTool`` end to end.
+``~/axm/echo.toml`` at it, and run the real ``EchoCodeTool`` end to end.
 
 Since AXM-2188, ``torch`` is a BASE dependency of axm-echo: the neural ``st``
 (MiniLM) clustering backend runs in-process by default, with no
@@ -39,7 +39,7 @@ def _write_package(root: Path, name: str, module: str, body: str) -> Path:
 
 def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     """Make ``load_scope`` read a config whose only workspace root is ``root``."""
-    config_dir = home / ".axm"
+    config_dir = home / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{root}"]\n', encoding="utf-8"

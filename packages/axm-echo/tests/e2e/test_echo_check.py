@@ -2,7 +2,7 @@
 
 The ``echo_check`` AXMTool is auto-registered as a CLI command via the
 ``axm.tools`` entry point, so ``axm echo_check`` must run end to end and emit
-the ranked candidates with their docstrings. We point ``~/.axm/echo.toml`` at a
+the ranked candidates with their docstrings. We point ``~/axm/echo.toml`` at a
 tiny on-disk corpus so the walk is bounded and deterministic, and pass
 ``--backend tfidf`` so the test runs without the optional ``neural`` extra
 (torch).
@@ -43,7 +43,7 @@ def test_cli_echo_check(tmp_path: Path) -> None:
             return b""
         ''',
     )
-    config_dir = home / ".axm"
+    config_dir = home / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{ws}"]\n', encoding="utf-8"

@@ -264,7 +264,7 @@ def discover_package_roots() -> list[Path]:
 def _packages_in_workspace(workspace_root: Path) -> Iterator[Path]:
     """Yield package dirs under one workspace root (or the root itself).
 
-    The scope (``~/.axm/echo.toml``) lists *workspace roots directly*, so
+    The scope (``~/axm/echo.toml``) lists *workspace roots directly*, so
     packages live one level below the root. Handles, off the workspace root:
       - ``<workspace_root>/packages/<pkg>`` (the AXM monorepo convention)
       - ``<workspace_root>/other/<pkg>`` (the ``other`` subdir as a flat

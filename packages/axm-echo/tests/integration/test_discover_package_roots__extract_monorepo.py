@@ -2,7 +2,7 @@
 
 Exercises ``discover_package_roots`` + ``extract_monorepo`` against a real
 workspace tree on disk that reproduces the genuine AXM convention: the
-scope (``~/.axm/echo.toml``) lists *workspace roots directly*, and packages
+scope (``~/axm/echo.toml``) lists *workspace roots directly*, and packages
 live at ``<workspace_root>/packages/<pkg>`` (AXM-2184: the buggy code looked
 one level too deep). Also covers the flat ``other/<pkg>`` layout, rejection
 of doc dirs / stray ``*.py`` directories, and the automatic pickup of
@@ -36,7 +36,7 @@ def _src_package(parent: Path, name: str, body: str) -> Path:
 
 def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     """Make ``load_scope`` read a config whose only workspace root is ``root``."""
-    config_dir = home / ".axm"
+    config_dir = home / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{root}"]\n', encoding="utf-8"

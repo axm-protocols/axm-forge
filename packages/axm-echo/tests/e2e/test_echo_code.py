@@ -2,7 +2,7 @@
 
 The ``echo_code`` AXMTool is auto-registered as a CLI command via the
 ``axm.tools`` entry point, so ``axm echo_code`` must run end to end and emit
-the clusters report. We point ``~/.axm/echo.toml`` at a tiny on-disk corpus so
+the clusters report. We point ``~/axm/echo.toml`` at a tiny on-disk corpus so
 the walk is bounded and deterministic, and pass ``--backend tfidf`` so the test
 runs without the optional ``neural`` extra (torch).
 """
@@ -50,7 +50,7 @@ def test_cli_echo_code(tmp_path: Path) -> None:
             """Raised when the upstream API rate limit has been exceeded."""
         ''',
     )
-    config_dir = home / ".axm"
+    config_dir = home / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{ws}"]\n', encoding="utf-8"

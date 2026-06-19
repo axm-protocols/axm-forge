@@ -8,7 +8,7 @@ either seuil is caught here rather than in the field.
 These tests build a self-contained on-disk corpus that mirrors the real
 monorepo's boilerplate shape (mass-recurring CLI/render promises vs unique
 terse legit promises vs the ground-truth duplicates), point
-``~/.axm/echo.toml`` at it, and run the real ``EchoCodeTool`` pipeline
+``~/axm/echo.toml`` at it, and run the real ``EchoCodeTool`` pipeline
 end to end via the deterministic ``tfidf`` backend (no neural extra).
 
 test_spec named ``axm_echo.clustering.filter_boilerplate``; the real boilerplate
@@ -40,7 +40,7 @@ def _write_package(root: Path, name: str, module: str, body: str) -> Path:
 
 def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     """Make ``load_scope`` read a config whose only workspace root is ``root``."""
-    config_dir = home / ".axm"
+    config_dir = home / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{root}"]\n', encoding="utf-8"

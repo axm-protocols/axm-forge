@@ -1,7 +1,7 @@
 """Integration tests for the ``echo_check`` AXMTool (real FS + corpus walk).
 
 Each test materialises a self-contained corpus on disk, points
-``~/.axm/echo.toml`` at it, and runs the real :class:`~axm_echo.tools.EchoCheckTool`
+``~/axm/echo.toml`` at it, and runs the real :class:`~axm_echo.tools.EchoCheckTool`
 end to end: it embeds the supplied *intention*, retrieves the top-k nearest
 candidates across the whole monorepo, and tags each with a location verdict
 (canonical / reuse-in-place / promote).
@@ -41,7 +41,7 @@ def _write_package(root: Path, name: str, module: str, body: str) -> Path:
 
 def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     """Make ``load_scope`` read a config whose only workspace root is ``root``."""
-    config_dir = home / ".axm"
+    config_dir = home / "axm"
     config_dir.mkdir()
     (config_dir / "echo.toml").write_text(
         f'workspace_roots = ["{root}"]\n', encoding="utf-8"
