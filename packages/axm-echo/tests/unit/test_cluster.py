@@ -8,6 +8,7 @@ live at the unit tier with no real boundary.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from axm_echo.cluster import (
     MIN_DOC_CHARS,
@@ -36,14 +37,18 @@ def _sym(**over: object) -> dict[str, object]:
     return base
 
 
-def test_is_trivial_accessor_on_return_promise() -> None:
-    """A ``Return the X.`` docstring marks a trivial accessor."""
-    assert is_trivial_accessor(_sym(name="name", doc_first_line="Return the name."))
-
-
-def test_is_trivial_accessor_on_get_promise() -> None:
-    """A ``Get the value`` docstring marks a trivial accessor."""
-    assert is_trivial_accessor(_sym(name="value", doc_first_line="Get the value"))
+@pytest.mark.parametrize(
+    ("sym_name", "doc_first_line"),
+    [
+        pytest.param("name", "Return the name.", id="return_promise"),
+        pytest.param("value", "Get the value", id="get_promise"),
+    ],
+)
+def test_is_trivial_accessor_on_boilerplate_promise(
+    sym_name: str, doc_first_line: str
+) -> None:
+    """A ``Return the X.`` / ``Get the value`` docstring marks a trivial accessor."""
+    assert is_trivial_accessor(_sym(name=sym_name, doc_first_line=doc_first_line))
 
 
 def test_is_trivial_accessor_false_on_substantive_doc() -> None:
@@ -85,20 +90,28 @@ def test_generic_docs_keeps_unique_terse_line() -> None:
     assert "502/503/504 - service temporarily down." not in generic_docs(syms)
 
 
-def test_cross_pairs_keeps_only_cross_package_above_threshold() -> None:
-    """cross_pairs returns distinct-package upper-triangle pairs over threshold."""
-    # Rows 0 and 1 identical (sim 1.0), row 2 orthogonal.
-    matrix = np.array([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]], dtype=np.float64)
-    packages = ["axm-a", "axm-b", "axm-a"]
-    pairs = cross_pairs(matrix, packages, threshold=0.55)
-    assert pairs == [(0, 1, 1.0)]
-
-
-def test_cross_pairs_drops_same_package_pairs() -> None:
-    """Two identical symbols in the same package are not a cross-package pair."""
-    matrix = np.array([[1.0, 0.0], [1.0, 0.0]], dtype=np.float64)
-    pairs = cross_pairs(matrix, ["axm-a", "axm-a"], threshold=0.55)
-    assert pairs == []
+@pytest.mark.parametrize(
+    ("matrix", "packages", "expected"),
+    [
+        pytest.param(
+            np.array([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]], dtype=np.float64),
+            ["axm-a", "axm-b", "axm-a"],
+            [(0, 1, 1.0)],
+            id="keeps_cross_package_above_threshold",
+        ),
+        pytest.param(
+            np.array([[1.0, 0.0], [1.0, 0.0]], dtype=np.float64),
+            ["axm-a", "axm-a"],
+            [],
+            id="drops_same_package_pairs",
+        ),
+    ],
+)
+def test_cross_pairs_filters_by_package_and_threshold(
+    matrix: np.ndarray, packages: list[str], expected: list[tuple[int, int, float]]
+) -> None:
+    """cross_pairs keeps distinct-package pairs over threshold, drops same-package."""
+    assert cross_pairs(matrix, packages, threshold=0.55) == expected
 
 
 def test_split_pairs_routes_each_bucket() -> None:

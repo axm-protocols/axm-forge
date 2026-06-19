@@ -10,21 +10,21 @@ from __future__ import annotations
 import ast
 import sys
 
+import pytest
+
 from axm_echo.structural import jaccard_similarity, statement_set
 
 
-def test_jaccard_identical_sets() -> None:
-    """AC1: Jaccard of two identical sets is 1.0."""
-    a = {"x", "y", "z"}
-    b = {"x", "y", "z"}
-    assert jaccard_similarity(a, b) == 1.0
-
-
-def test_jaccard_disjoint() -> None:
-    """AC1: Jaccard of two disjoint sets is 0.0."""
-    a = {"a", "b"}
-    b = {"c", "d"}
-    assert jaccard_similarity(a, b) == 0.0
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        pytest.param({"x", "y", "z"}, {"x", "y", "z"}, 1.0, id="identical_sets"),
+        pytest.param({"a", "b"}, {"c", "d"}, 0.0, id="disjoint_sets"),
+    ],
+)
+def test_jaccard_extremes(a: set[str], b: set[str], expected: float) -> None:
+    """AC1: Jaccard is 1.0 for identical sets, 0.0 for disjoint sets."""
+    assert jaccard_similarity(a, b) == expected
 
 
 def test_statement_set_normalizes_constants() -> None:

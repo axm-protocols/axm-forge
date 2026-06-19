@@ -108,15 +108,24 @@ def test_tfidf_clusters_ratelimiterror_cross_package(
     assert "cluster" in result.text.lower()
 
 
-def test_tfidf_filters_trivial_accessors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "backend",
+    [pytest.param("tfidf", id="tfidf"), pytest.param(None, id="neural_default")],
+)
+def test_trivial_accessors_never_cluster(
+    backend: str | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC3 (tfidf): trivial accessors never form a cluster."""
+    """AC3: trivial accessors are filtered out and never form a cluster.
+
+    Exercised on both backends: the explicit ``tfidf`` path and the neural
+    default (torch is in base since AXM-2188, so the neural path runs directly).
+    """
     from axm_echo.tools import EchoCodeTool
 
     ws = tmp_path / "ws"
     home = tmp_path / "home"
     home.mkdir()
+    # Two cross-package trivial accessors with the same boilerplate promise.
     _write_package(
         ws,
         "axm-alpha",
@@ -139,14 +148,15 @@ def test_tfidf_filters_trivial_accessors(
     )
     _point_scope_at(home, monkeypatch, ws)
 
-    result = EchoCodeTool().execute(backend="tfidf")
+    kwargs = {"backend": backend} if backend is not None else {}
+    result = EchoCodeTool().execute(**kwargs)
 
     assert result.success, result.error
     # Both accessors are filtered up front, so the corpus collapses below the
-    # comparison floor and no clusters are produced.
-    assert not any(
-        any(q.endswith(".name") for q in c)
-        for c in _cluster_qualnames(result.data["clusters"])
+    # comparison floor and the trivial accessor leaks into no cluster.
+    clusters = _cluster_qualnames(result.data["clusters"])
+    assert not any(any(q.endswith(".name") for q in c) for c in clusters), (
+        "trivial accessor leaked into a cluster"
     )
 
 
@@ -401,51 +411,6 @@ def test_groundtruth_request_with_retry(
     # Members come from two distinct packages.
     qualnames = retry_clusters[0]
     assert len(qualnames) >= 2
-
-
-def test_trivial_accessors_filtered(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AC3: trivial accessors are filtered out and never form a cluster.
-
-    Torch is in base since AXM-2188, so the neural path runs directly.
-    """
-    from axm_echo.tools import EchoCodeTool
-
-    ws = tmp_path / "ws"
-    home = tmp_path / "home"
-    home.mkdir()
-    # Two cross-package trivial accessors with the same boilerplate promise.
-    _write_package(
-        ws,
-        "axm-alpha",
-        "models",
-        '''
-        def name(self) -> str:
-            """Return the name."""
-            return self._name
-        ''',
-    )
-    _write_package(
-        ws,
-        "axm-beta",
-        "models",
-        '''
-        def name(self) -> str:
-            """Return the name."""
-            return self._name
-        ''',
-    )
-    _point_scope_at(home, monkeypatch, ws)
-
-    result = EchoCodeTool().execute()
-
-    assert result.success, result.error
-    clusters = _cluster_qualnames(result.data["clusters"])
-    # The trivial accessor must not appear in any duplicate cluster.
-    assert not any(any(q.endswith(".name") for q in c) for c in clusters), (
-        "trivial accessor leaked into a cluster"
-    )
 
 
 def test_parallel_api_demoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
