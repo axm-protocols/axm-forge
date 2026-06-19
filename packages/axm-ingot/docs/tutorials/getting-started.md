@@ -50,12 +50,19 @@ root = find_workspace_root(Path.cwd())  # walks up to the workspace root
 
 ## Step 3: Run the Tests
 
+`axm-ingot` has no package-local `Makefile` — run its test suite directly
+through `uv` from the workspace root:
+
 ```bash
-cd packages/axm-ingot
-make check
+uv run --package axm-ingot --directory packages/axm-ingot pytest -x -q
 ```
 
-This runs lint + type check + security audit + tests.
+To lint and type-check the whole workspace at once, use the root `Makefile`
+target (run it from the workspace root, not from inside the package):
+
+```bash
+make check  # lint + type-check + tests, across every workspace package
+```
 
 ## Next Steps
 

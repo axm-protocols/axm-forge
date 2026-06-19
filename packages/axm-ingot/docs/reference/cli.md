@@ -41,6 +41,26 @@ with no `pyproject.toml` in any ancestor it falls back to the (resolved)
 starting directory. Use it to anchor relative-import resolution on the nearest
 enclosing project rather than on a uv-workspace boundary.
 
+## `parse_workspace_members`
+
+```python
+parse_workspace_members(text: str) -> list[str]
+```
+
+Pure-string primitive imported from the `axm_ingot.uv` subpackage (it is **not**
+re-exported at the top-level `axm_ingot`). Parses `text` with `tomllib.loads`
+and returns the declared `[tool.uv.workspace].members` strings **verbatim** — no
+glob expansion, no filesystem access, no `exclude` / `require_pyproject`
+filtering. Defensive: malformed TOML or an absent `[tool.uv.workspace]` table
+yields `[]` rather than raising.
+
+```python
+from axm_ingot.uv import parse_workspace_members
+
+parse_workspace_members('[tool.uv.workspace]\nmembers = ["packages/*"]\n')
+# ['packages/*']  — raw, unexpanded
+```
+
 ## `ResolvedWorkspace`
 
 ```python
