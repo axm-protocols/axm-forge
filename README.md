@@ -16,17 +16,26 @@
 
 ---
 
-## Philosophy
+## What do you need?
 
-AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool returns structured, deterministic results — designed for AI agents that need precise answers, not text to parse.
+AXM Forge is the **developer toolchain for the AXM ecosystem** — every tool returns structured, deterministic output built for AI agents, not text to parse. Arrive with a problem, leave with the exact tool to call.
 
-- 📦 **Automated Scaffolding** — Generate projects, workspaces, and workspace members that pass all 39 governance checks from day one.
-- 🛡️ **Codified Quality Gates** — 40+ rules covering lint, types, coverage, complexity, security, and project governance — all in a single `verify()` call.
-- 🌳 **AST-Powered Introspection** — Tree-sitter based analysis that understands Python at the structural level. Find callers, measure blast radius, and trace import graphs — all without grep noise.
-- 🔀 **Git Workflow Automation** — Structured commits with auto-staging, commit-hook retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
-- ✏️ **Atomic Batch Editing** — Replace, create, and delete across dozens of files in a single transactional call. No partial writes, no half-applied refactors — it all lands or none of it does.
-- 🔨 **CST-Based Refactoring** — Move, rename, split, and merge symbols across a codebase without breaking a single import. Concrete syntax trees keep every reference in sync.
-- 🔥 **Token Compaction** — Deterministic text compression that shrinks LLM inputs while preserving semantic content. Compact tool outputs, audit reports, and AST results before they hit context windows.
+| You want to… | Use |
+|---|---|
+| Quality-gate a package — lint, types, complexity, security, all in one call | [`verify`](packages/axm-audit/docs/index.md) |
+| Re-check one dimension (lint, types, security…) during a fix loop | [`audit`](packages/axm-audit/docs/index.md) |
+| Run tests with structured pass/fail output | [`audit_test`](packages/axm-audit/docs/index.md) |
+| Edit many files atomically — all of it lands or none of it does | [`batch_edit`](packages/axm-edit/docs/index.md) |
+| Commit with auto-staging + conventional-commit enforcement | [`git_commit`](packages/axm-git/docs/index.md) |
+| Get an overview of an unfamiliar project | [`ast_context`](packages/axm-ast/docs/index.md) |
+| Find a symbol across the codebase (no grep noise) | [`ast_search`](packages/axm-ast/docs/index.md) |
+| Inspect a symbol — signature, body, docstring | [`ast_inspect`](packages/axm-ast/docs/index.md) |
+| Know who calls a function before you change it | [`ast_callers`](packages/axm-ast/docs/index.md) |
+| Measure the blast radius of a change | [`ast_impact`](packages/axm-ast/docs/index.md) |
+| Scaffold a package that passes every quality gate from day one | [`init_scaffold`](packages/axm-init/docs/index.md) |
+| Find duplicate code / check a helper already exists before writing it | [`echo_code`](packages/axm-echo/docs/index.md) |
+
+> **…and 35+ more** — CST refactoring (`ast_move`), token compaction (`smelt`), the full git workflow (`git_pr`, `git_tag`, `git_worktree`…), dead-code and flow analysis, and more. Browse them per package below or in the [docs](https://forge.axm-protocols.io).
 
 ## Packages
 
@@ -41,6 +50,7 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 | [axm-edit](packages/axm-edit/) | Atomic batch file editing for AI agents | [![PyPI](https://img.shields.io/pypi/v/axm-edit)](https://pypi.org/project/axm-edit/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-anvil](packages/axm-anvil/) | Deterministic CST-based refactoring toolkit — move, rename, split, merge symbols atomically | [![PyPI](https://img.shields.io/pypi/v/axm-anvil)](https://pypi.org/project/axm-anvil/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-smelt](packages/axm-smelt/) | Deterministic token compaction for LLM inputs | [![PyPI](https://img.shields.io/pypi/v/axm-smelt)](https://pypi.org/project/axm-smelt/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-smelt/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-smelt/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
+| [axm-echo](packages/axm-echo/) | Neural similarity detection — cross-package dedup and upstream-reuse retrieval | [![PyPI](https://img.shields.io/pypi/v/axm-echo)](https://pypi.org/project/axm-echo/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-echo/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-echo/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-ingot](packages/axm-ingot/) | Shared helper library — common code factored out and tested once, reused across packages | [![PyPI](https://img.shields.io/pypi/v/axm-ingot)](https://pypi.org/project/axm-ingot/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 
 ## Quick Start
@@ -95,6 +105,7 @@ graph TD
     classDef axm fill:#66BB6A,stroke:#43A047
     classDef mcp fill:#8D6E63,stroke:#6D4C41
     classDef ingot fill:#BDBDBD,stroke:#757575
+    classDef echo fill:#EC407A,stroke:#D81B60
 
     AXM["axm<br/>Core SDK + ToolResult"]:::axm
     INGOT["axm-ingot<br/>Shared helper library"]:::ingot
@@ -107,15 +118,19 @@ graph TD
     SMELT["axm-smelt<br/>Token compaction"]:::smelt --> AXM
     ANVIL["axm-anvil<br/>CST refactoring"]:::anvil --> EDIT
     EDIT["axm-edit<br/>Batch file editing"]:::edit --> AXM
+    ECHO["axm-echo<br/>Neural similarity"]:::echo --> AST
+    ECHO --> AXM
+    AUDIT --> ECHO
     AST --> INGOT
     AUDIT --> INGOT
     INIT --> INGOT
     ANVIL --> INGOT
+    ECHO --> INGOT
 ```
 
 ## Development
 
-Each package is independently versioned with prefixed tags (`anvil/v*`, `ast/v*`, `audit/v*`, `edit/v*`, `init/v*`, `git/v*`, `smelt/v*`).
+Each package is independently versioned with prefixed tags (`anvil/v*`, `ast/v*`, `audit/v*`, `echo/v*`, `edit/v*`, `init/v*`, `git/v*`, `smelt/v*`).
 
 | Command | Description |
 |---|---|
