@@ -1,6 +1,6 @@
 """Scope loader for the echo corpus.
 
-Reads the optional ``~/.axm/echo.toml`` config to decide which workspace
+Reads the optional ``~/axm/echo.toml`` config to decide which workspace
 roots the corpus extractor walks. Self-contained: only ``tomllib`` +
 ``pathlib``, zero external dependency (AC5).
 
@@ -21,11 +21,11 @@ from pathlib import Path
 
 __all__ = ["config_path", "load_scope"]
 
-_CONFIG_RELATIVE = Path(".axm") / "echo.toml"
+_CONFIG_RELATIVE = Path("axm") / "echo.toml"
 
 
 def config_path() -> Path:
-    """Return the path to the echo config (``~/.axm/echo.toml``).
+    """Return the path to the echo config (``~/axm/echo.toml``).
 
     Does not check existence; callers degrade gracefully when absent.
     """
@@ -35,7 +35,7 @@ def config_path() -> Path:
 def load_scope() -> list[Path]:
     """Return the workspace roots to scan, with graceful degradation.
 
-    Reads ``workspace_roots`` from ``~/.axm/echo.toml`` when present and
+    Reads ``workspace_roots`` from ``~/axm/echo.toml`` when present and
     well-formed. On any failure (file absent, unreadable, invalid TOML,
     missing or empty ``workspace_roots``) returns ``[Path.cwd()]`` so the
     caller still has the current workspace to scan -- never an exception.

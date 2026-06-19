@@ -1,6 +1,6 @@
 """Integration tests for axm_echo.scope.load_scope (real filesystem I/O).
 
-These exercise the on-disk config contract (``~/.axm/echo.toml``) and the
+These exercise the on-disk config contract (``~/axm/echo.toml``) and the
 graceful-degradation fallback, so they write a real config file under a
 ``tmp_path`` HOME -- hence the integration tier, not unit.
 """
@@ -32,7 +32,7 @@ def test_unusable_config_falls_back_to_cwd(
     """AC5: every unusable-config shape degrades to the cwd, never raises."""
     monkeypatch.setenv("HOME", str(tmp_path))
     if config_text is not None:
-        config_dir = tmp_path / ".axm"
+        config_dir = tmp_path / "axm"
         config_dir.mkdir()
         (config_dir / "echo.toml").write_text(config_text, encoding="utf-8")
     cwd = tmp_path / "work"
@@ -46,9 +46,9 @@ def test_unusable_config_falls_back_to_cwd(
 
 
 def test_reads_workspace_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC5: workspace_roots declared in ~/.axm/echo.toml are read."""
+    """AC5: workspace_roots declared in ~/axm/echo.toml are read."""
     monkeypatch.setenv("HOME", str(tmp_path))
-    config_dir = tmp_path / ".axm"
+    config_dir = tmp_path / "axm"
     config_dir.mkdir()
     root_a = tmp_path / "ws_a"
     root_b = tmp_path / "ws_b"
@@ -70,7 +70,7 @@ def test_non_string_entries_within_list_are_skipped(
 ) -> None:
     """A list mixing a valid path with a non-string keeps only the path."""
     monkeypatch.setenv("HOME", str(tmp_path))
-    config_dir = tmp_path / ".axm"
+    config_dir = tmp_path / "axm"
     config_dir.mkdir()
     root_a = tmp_path / "ws_a"
     root_a.mkdir()
