@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+import pytest
 
 from axm_edit.tools.read_file import ReadFileTool
 
@@ -154,6 +157,19 @@ class TestReadFileTool:
         assert result.data["showing"]["start"] == 1
         assert result.data["showing"]["end"] == 3
         assert result.data["showing"]["count"] == 3
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses file permission bits")
+    def test_unreadable_file_returns_error_not_raise(self, tmp_project: Path) -> None:
+        """An OSError on read is turned into a failed ToolResult, not a leak."""
+        unreadable = tmp_project / "src" / "secret.py"
+        unreadable.write_text("x = 1\n", encoding="utf-8")
+        unreadable.chmod(0o000)
+        try:
+            result = ReadFileTool().execute(path=str(tmp_project), file="src/secret.py")
+        finally:
+            unreadable.chmod(0o644)
+        assert result.success is False
+        assert "read failed" in (result.error or "").lower()
 
 
 class TestReadFileSkipsBinary:

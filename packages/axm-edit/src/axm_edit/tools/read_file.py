@@ -171,6 +171,11 @@ class ReadFileTool:
                 success=False,
                 error=f"Cannot decode file as UTF-8: {file_rel}",
             )
+        except OSError as exc:
+            return ToolResult(
+                success=False,
+                error=f"Read failed: {file_rel}: {exc}",
+            )
 
         all_lines = text.splitlines(keepends=True)
         selected, first_line_num = _select_lines(all_lines, start_line, end_line)
