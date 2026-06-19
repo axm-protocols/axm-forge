@@ -64,11 +64,14 @@ to leave `_slug` behind.
 ## Step 3: Run the Tests
 
 ```bash
-cd packages/axm-anvil
+# This package's tests, from the workspace root
+make test-anvil
+
+# Or the full workspace quality gate
 make check
 ```
 
-This runs lint + type check + security audit + tests.
+`make check` runs lint + type check + tests across the workspace (`check: lint test-all`).
 
 ## Next Steps
 

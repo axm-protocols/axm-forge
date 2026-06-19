@@ -110,9 +110,10 @@ imports/constants, updated callers, warnings, the created file).
 
 ## Other Refactorings
 
-`axm-anvil` also performs split and merge refactorings. These are available
-through the [`axm-anvil` CLI](../reference/cli.md); `anvil_move`,
-`anvil_rename`, and `anvil_extract` are the operations surfaced as MCP tools.
+`anvil_move`, `anvil_rename`, and `anvil_extract` are the shipped operations,
+surfaced both as MCP tools and on the [`axm-anvil` CLI](../reference/cli.md).
+Split, merge, promote, and seal refactorings are on the
+[roadmap](https://github.com/axm-protocols/axm-forge) but not yet implemented.
 
 ## Entry Points
 

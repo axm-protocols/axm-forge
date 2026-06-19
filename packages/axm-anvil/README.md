@@ -33,7 +33,7 @@ it exposes a set of MCP tools for agent-driven refactoring.
 - 🪢 **`--reexport` mode** — Leaves callers untouched and injects a `from new_module import <Symbol>  # re-export for backwards compat` shim into the source module for gradual migration
 - 🎯 **Overload-aware** — Detects `@overload` companions and moves them together as an indivisible group
 - 📦 **Lossless formatting** — Comments, whitespace, and trailing commas preserved exactly via libcst round-trip
-- 🤝 **Complementary to `axm-ast`** — Uses `ast_callers` and `ast_graph` for blast radius detection
+- 🤝 **Complementary to `axm-ast`** — Builds the workspace-wide module graph via `analyze_workspace` + `build_workspace_module_graph` to detect newly-introduced cross-package import cycles
 - ✏️ **`--rename` on move** — Rename moved definitions in flight (JSON `{"Old": "New"}`); references, `__all__` entries, and string forward-references are all rewritten to the new name
 - 📍 **`--insert-after`** — Splice moved blocks after a named target symbol instead of appending at end-of-file
 - 🚫 **`--no-include-helpers`** — Skip auto-copying local helpers/constants into the target (imports are still copied); emits a warning listing the un-copied names
@@ -52,12 +52,12 @@ here to convey the intended direction.
 | `anvil_move` | Move symbols between files | shipped |
 | `anvil_rename` | Rename a top-level symbol in place; rewrite cross-file callers (imports + usages) | shipped |
 | `anvil_extract` | Extract symbols into a new module (created on disk) with their transitive dependencies | shipped |
-| `ast_split` | Split a module into N sub-modules | planned |
-| `ast_merge` | Merge N modules into one | planned |
-| `ast_promote` | `_foo` → `foo` + add `__all__` + update imports | planned |
-| `ast_seal` | `foo` → `_foo` + verify zero external callers | planned |
+| `anvil_split` | Split a module into N sub-modules | planned |
+| `anvil_merge` | Merge N modules into one | planned |
+| `anvil_promote` | `_foo` → `foo` + add `__all__` + update imports | planned |
+| `anvil_seal` | `foo` → `_foo` + verify zero external callers | planned |
 
-All share the same pipeline: **identify** (tree-sitter via `axm-ast`) → **blast radius** (`ast_callers`) → **transform** (libcst) → **validate** (`cst.parse_module()` + `audit(lint)`) → **write atomically** (`batch_edit`) → **rollback on error**.
+All share the same pipeline: **identify** (libcst block extraction) → **blast radius** (libcst caller discovery + the workspace module graph from `axm-ast`) → **transform** (libcst) → **validate** (`cst.parse_module()` + `ruff check --fix`) → **write atomically** (`batch_edit`) → **rollback on error**.
 
 ## Installation
 
@@ -125,10 +125,10 @@ This package is part of the **axm-forge** uv workspace.
 
 ```bash
 # Run tests for this package
-uv run pytest --package axm-anvil
+uv run --package axm-anvil --directory packages/axm-anvil pytest
 
 # From workspace root
-make test-axm-anvil
+make test-anvil
 ```
 
 ## License
