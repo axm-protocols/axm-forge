@@ -16,7 +16,14 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.e2e
+pytestmark = [
+    pytest.mark.e2e,
+    # Invoked via the generic ``axm`` binary (echo exposes its tools through the
+    # ``axm.tools`` entry point, not a dedicated ``axm-echo`` script), so the
+    # subprocess is not statically linkable to a package symbol. This is a true
+    # CLI black-box e2e, not a packaging-invariant test -- opt out explicitly.
+    pytest.mark.no_package_symbol_ok,
+]
 
 
 def _write_package(root: Path, name: str, module: str, body: str) -> None:
