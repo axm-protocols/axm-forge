@@ -73,7 +73,7 @@ Strategies applied: none
 Strategy estimates:
   minify: 18.2%
   drop_nulls: 9.5%
-  flatten: 0.0%
+  strip_quotes: 4.8%
 ```
 
 ## Step 4: Count Tokens

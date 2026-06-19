@@ -6,14 +6,14 @@ Presets are named collections of strategies ordered for best results.
 
 | Preset | Strategies | Use when |
 |---|---|---|
-| `safe` | `minify` | Output must be semantically identical |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values`, `tabular`, `strip_quotes` | Structural transforms are acceptable |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values`, `strip_quotes` | Maximum savings, float precision may change |
+| `safe` | `minify`, `collapse_whitespace` | Output must be semantically identical |
+| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Structural transforms are acceptable |
+| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Maximum savings, float precision may change |
 
 ## CLI
 
 ```bash
-# Default (safe) — just minify
+# Default (safe) — minify + collapse_whitespace
 axm-smelt compact --file data.json
 
 # Moderate

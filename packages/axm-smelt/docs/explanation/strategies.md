@@ -88,7 +88,7 @@ Best savings on large arrays of uniform records (e.g., database query results, C
 
 ---
 
-## dedup_values
+## dedup_values_with_refs
 
 **Category:** structural
 **Lossless:** yes (aliases are defined in `_refs`)

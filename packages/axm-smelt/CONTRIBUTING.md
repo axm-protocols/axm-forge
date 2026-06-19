@@ -3,8 +3,8 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/axm-protocols/axm-smelt.git
-cd axm-smelt
+git clone https://github.com/axm-protocols/axm-forge.git
+cd axm-forge
 uv sync --all-groups
 ```
 
