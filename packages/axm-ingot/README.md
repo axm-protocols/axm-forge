@@ -48,6 +48,28 @@ their own logic:
 Today the shared surface is uv-workspace resolution; the library grows by
 **promotion** — when a helper proves useful to a second package, it moves here.
 
+## What belongs here (the light-leaf invariant)
+
+`axm-ingot` is a **dependency-graph leaf** imported across the whole galaxy. Its
+value depends on staying **light**: every consumer that imports it for one small
+helper inherits *all* of its dependencies. A fat leaf is no longer a leaf.
+
+**Hard rule — a helper may be promoted into `axm-ingot` only if its dependencies
+are stdlib + the universal base (`pydantic`)** — i.e. it adds **no dependency the
+consumer doesn't already have**. `dependencies` here stays effectively empty.
+
+| Belongs in ingot ✅ | Does **not** belong ❌ |
+|---|---|
+| stdlib-only (`pathlib`, `tomllib`, `re`, `dataclasses`, `json`…) | pulls `httpx`, `pandas`, `torch`, a DB driver, an SDK… |
+| `pydantic` models (already a universal AXM dep) | anything adding a new external dependency |
+| e.g. `resolve_workspace` (tomllib + pathlib) | e.g. `request_with_retry` (needs `httpx`) |
+
+A reusable-but-heavy helper does **not** come here even when it has several
+consumers: keep it `reuse_in_place` (import it from the package that owns it), or
+give it a **thematic light lib** of its own (e.g. an `axm-net` for resilient
+HTTP) — never the generic leaf. The Rule of Three (≥ 2 consumers) is *necessary*
+for promotion but **not sufficient**; the dependency gate is the second lock.
+
 ## Features
 
 - **uv-workspace resolution** — `resolve_workspace()` parses
