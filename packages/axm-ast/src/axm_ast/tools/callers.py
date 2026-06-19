@@ -65,27 +65,30 @@ class CallersTool(AXMTool):
             return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
         try:
-            from axm_ast.core.callers import find_callers_workspace
-            from axm_ast.core.workspace import analyze_workspace
+            try:
+                from axm_ast.core.callers import find_callers_workspace
+                from axm_ast.core.workspace import analyze_workspace
 
-            ws = analyze_workspace(project_path)
-            callers = find_callers_workspace(ws, symbol)
-        except ValueError:
-            from axm_ast.core.cache import get_package
-            from axm_ast.core.callers import find_callers
+                ws = analyze_workspace(project_path)
+                callers = find_callers_workspace(ws, symbol)
+            except ValueError:
+                from axm_ast.core.cache import get_package
+                from axm_ast.core.callers import find_callers
 
-            pkg = get_package(project_path)
-            callers = find_callers(pkg, symbol)
+                pkg = get_package(project_path)
+                callers = find_callers(pkg, symbol)
 
-        caller_data: list[CallerEntry] = [
-            {
-                "module": c.module,
-                "line": c.line,
-                "context": c.context,
-                "call_expression": c.call_expression,
-            }
-            for c in callers
-        ]
+            caller_data: list[CallerEntry] = [
+                {
+                    "module": c.module,
+                    "line": c.line,
+                    "context": c.context,
+                    "call_expression": c.call_expression,
+                }
+                for c in callers
+            ]
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
         return ToolResult(
             success=True,

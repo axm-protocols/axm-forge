@@ -59,21 +59,24 @@ class DeadCodeTool(AXMTool):
         if not pkg_path.is_dir():
             return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
 
-        from axm_ast.core.cache import get_package
-        from axm_ast.core.dead_code import find_dead_code
+        try:
+            from axm_ast.core.cache import get_package
+            from axm_ast.core.dead_code import find_dead_code
 
-        pkg = get_package(pkg_path)
-        dead = find_dead_code(pkg, include_tests=include_tests)
+            pkg = get_package(pkg_path)
+            dead = find_dead_code(pkg, include_tests=include_tests)
 
-        symbols: list[DeadSymbolEntry] = [
-            {
-                "name": d.name,
-                "module_path": d.module_path,
-                "line": d.line,
-                "kind": d.kind,
-            }
-            for d in dead
-        ]
+            symbols: list[DeadSymbolEntry] = [
+                {
+                    "name": d.name,
+                    "module_path": d.module_path,
+                    "line": d.line,
+                    "kind": d.kind,
+                }
+                for d in dead
+            ]
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
         return ToolResult(
             success=True,
