@@ -260,6 +260,24 @@ class EchoCodeTool(AXMTool):
             ``cluster_hash``), ``parallel_api`` and ``boilerplate`` (demoted
             pairs), the live/shown/actionable counts, and ``stale_acknowledged``.
         """
+        if backend not in ("st", "tfidf"):
+            return ToolResult(
+                success=False,
+                error=f"Invalid backend {backend!r}; must be 'st' or 'tfidf'",
+            )
+        if not 0.0 <= threshold <= 1.0:
+            return ToolResult(
+                success=False,
+                error=f"threshold must be a cosine in [0.0, 1.0], got {threshold}",
+            )
+        if top_n < 1:
+            return ToolResult(success=False, error=f"top_n must be >= 1, got {top_n}")
+        if max_cluster_size < 1:
+            return ToolResult(
+                success=False,
+                error=f"max_cluster_size must be >= 1, got {max_cluster_size}",
+            )
+
         try:
             return self._run(
                 backend=backend,
@@ -269,7 +287,15 @@ class EchoCodeTool(AXMTool):
             )
         except Exception as exc:  # noqa: BLE001 — final tool boundary
             logger.warning("EchoCodeTool failed: %s", exc, exc_info=True)
-            return ToolResult(success=False, error=str(exc))
+            return ToolResult(
+                success=False,
+                error=str(exc),
+                hint=(
+                    "Clustering failed over the monorepo corpus. Retry with "
+                    "backend='tfidf' (no torch) if the neural backend is "
+                    "unavailable, or check the corpus is reachable."
+                ),
+            )
 
     def _run(
         self,
