@@ -131,23 +131,27 @@ def _make_low_coverage_project(tmp_path: Path, coverage_section: str) -> Path:
 
 
 @pytest.mark.integration
-def test_check_honors_configured_zero_threshold(tmp_path: Path) -> None:
-    """AC5: a low-coverage project with ``min_coverage = 0`` passes the gate."""
-    project = _make_low_coverage_project(
-        tmp_path,
-        "\n[tool.axm-audit.coverage]\nmin_coverage = 0\n",
-    )
+@pytest.mark.parametrize(
+    ("coverage_section", "expected_passed"),
+    [
+        pytest.param(
+            "\n[tool.axm-audit.coverage]\nmin_coverage = 0\n",
+            True,
+            id="configured_zero_threshold_passes",
+        ),
+        pytest.param("", False, id="default_threshold_fails_low_coverage"),
+    ],
+)
+def test_check_honors_configured_threshold(
+    tmp_path: Path, coverage_section: str, expected_passed: bool
+) -> None:
+    """AC4/AC5: the configured min_coverage governs the gate on a low-cov project.
+
+    With ``min_coverage = 0`` the same low-coverage project passes; without any
+    config it fails against the default 90.
+    """
+    project = _make_low_coverage_project(tmp_path, coverage_section)
 
     result = TestCoverageRule().check(project)
 
-    assert result.passed is True
-
-
-@pytest.mark.integration
-def test_check_default_threshold_fails_low_coverage(tmp_path: Path) -> None:
-    """AC4: the same low-coverage project WITHOUT config fails at the default 90."""
-    project = _make_low_coverage_project(tmp_path, "")
-
-    result = TestCoverageRule().check(project)
-
-    assert result.passed is False
+    assert result.passed is expected_passed

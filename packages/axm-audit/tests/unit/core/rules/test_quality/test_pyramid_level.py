@@ -357,103 +357,86 @@ def test_render_signal_order_stable() -> None:
     assert text_a == text_b
 
 
-def test_importorskip_heavy_dep_is_integration() -> None:
-    """AC1: importorskip on a heavy external dep is a real-I/O signal.
+@pytest.mark.parametrize(
+    ("source", "fn_name", "expected_level"),
+    [
+        pytest.param(
+            """
+            import pytest
+            from sample import public_fn
 
-    A test that ``pytest.importorskip("mlx_audio")`` then imports the public API
-    and calls a pure function must NOT be rescued to unit by R2 — the heavy
-    optional dep is the integration signal.
+            def test_uses_heavy_dep():
+                pytest.importorskip("mlx_audio")
+                assert public_fn() == 1
+            """,
+            "test_uses_heavy_dep",
+            "integration",
+            id="importorskip_heavy_dep_is_integration",
+        ),
+        pytest.param(
+            """
+            import pytest
+            from sample import public_fn
+
+            def test_uses_light_dep():
+                pytest.importorskip("click")
+                assert public_fn() == 1
+            """,
+            "test_uses_light_dep",
+            "unit",
+            id="importorskip_light_dep_stays_unit",
+        ),
+        pytest.param(
+            """
+            from sample import public_fn
+
+            def test_speak(mocker, tmp_path):
+                mocker.patch("sample.open")
+                mocker.patch("sample.public_fn")
+                out = tmp_path / "out.wav"
+                if out.exists():
+                    out.unlink()
+            """,
+            "test_speak",
+            "unit",
+            id="fully_mocked_tmp_path_is_unit",
+        ),
+        pytest.param(
+            """
+            from sample import public_fn
+
+            def test_writes_real_file(tmp_path):
+                out = tmp_path / "out.txt"
+                out.write_text("payload")
+                assert public_fn(out) is not None
+            """,
+            "test_writes_real_file",
+            "integration",
+            id="real_tmp_path_write_stays_integration",
+        ),
+        pytest.param(
+            """
+            from sample import public_fn
+
+            def test_pure():
+                assert public_fn() == 1
+            """,
+            "test_pure",
+            "unit",
+            id="no_pattern_match_verdict_unchanged",
+        ),
+    ],
+)
+def test_classify_synthetic_signal_rescues(
+    source: str, fn_name: str, expected_level: str
+) -> None:
+    """R1..R5 signal rescues: heavy/light importorskip, mocked vs real tmp_path I/O.
+
+    Each case drives scan_test_file over a synthetic source and asserts the
+    classified level of its single test function, covering: heavy optional dep
+    (integration), light dep (unit), fully-mocked tmp_path bookkeeping (unit),
+    a genuine tmp_path write (integration), and a pure public-API test (unit).
     """
-    levels = _classify_synthetic(
-        """
-        import pytest
-        from sample import public_fn
+    levels = _classify_synthetic(source)
 
-        def test_uses_heavy_dep():
-            pytest.importorskip("mlx_audio")
-            assert public_fn() == 1
-        """
-    )
-
-    assert levels["test_uses_heavy_dep"] == "integration"
-
-
-def test_importorskip_light_dep_stays_unit() -> None:
-    """AC1: importorskip on a light dep (not in the allowlist) stays unit.
-
-    ``importorskip("click")`` is NOT a heavy ML/native dep, so it must not flip
-    a pure-function public-API test to integration.
-    """
-    levels = _classify_synthetic(
-        """
-        import pytest
-        from sample import public_fn
-
-        def test_uses_light_dep():
-            pytest.importorskip("click")
-            assert public_fn() == 1
-        """
-    )
-
-    assert levels["test_uses_light_dep"] == "unit"
-
-
-def test_fully_mocked_tmp_path_is_unit() -> None:
-    """AC2: residual tmp_path path-bookkeeping under full mocking stays unit.
-
-    When every real-I/O target is patched and the only tmp_path usage is
-    bookkeeping (``.exists()`` / ``.unlink()``) with no content read/write, the
-    test is a unit test, not integration.
-    """
-    levels = _classify_synthetic(
-        """
-        from sample import public_fn
-
-        def test_speak(mocker, tmp_path):
-            mocker.patch("sample.open")
-            mocker.patch("sample.public_fn")
-            out = tmp_path / "out.wav"
-            if out.exists():
-                out.unlink()
-        """
-    )
-
-    assert levels["test_speak"] == "unit"
-
-
-def test_real_tmp_path_write_stays_integration() -> None:
-    """AC2: a genuine tmp_path content write is still integration.
-
-    An unmocked ``write_text(content)`` on a tmp_path is real I/O and must keep
-    the test at integration even though tmp_path is a fixture.
-    """
-    levels = _classify_synthetic(
-        """
-        from sample import public_fn
-
-        def test_writes_real_file(tmp_path):
-            out = tmp_path / "out.txt"
-            out.write_text("payload")
-            assert public_fn(out) is not None
-        """
-    )
-
-    assert levels["test_writes_real_file"] == "integration"
-
-
-def test_no_pattern_match_verdict_unchanged() -> None:
-    """AC3: a test matching neither new pattern keeps its prior verdict.
-
-    A pure public-API unit test (no importorskip, no tmp_path) must remain
-    unit — byte-identical to the pre-change behavior.
-    """
-    levels = _classify_synthetic(
-        """
-        from sample import public_fn
-
-        def test_pure():
-            assert public_fn() == 1
-        """
-    )
-
-    assert levels["test_pure"] == "unit"
+    assert levels[fn_name] == expected_level

@@ -17,56 +17,43 @@ def _write_pyproject(tmp_path: Path, body: str) -> Path:
     return tmp_path
 
 
-def test_read_coverage_config_default_when_absent(tmp_path: Path) -> None:
-    """AC1: a pyproject lacking the section returns the default 90.0."""
-    project = _write_pyproject(
-        tmp_path,
-        '[project]\nname = "demo"\nversion = "0.1.0"\n',
-    )
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        pytest.param(
+            '[project]\nname = "demo"\nversion = "0.1.0"\n',
+            90.0,
+            id="default_when_absent",
+        ),
+        pytest.param(
+            "[tool.axm-audit.coverage]\nmin_coverage = 75\n", 75.0, id="configured"
+        ),
+        pytest.param(
+            "[tool.axm-audit.coverage]\nmin_coverage = 0\n", 0.0, id="zero_in_bounds"
+        ),
+        pytest.param(
+            "[tool.axm-audit.coverage]\nmin_coverage = 150\n",
+            90.0,
+            id="too_high_falls_back",
+        ),
+        pytest.param(
+            '[tool.axm-audit.coverage]\nmin_coverage = "high"\n',
+            90.0,
+            id="non_numeric_falls_back",
+        ),
+        pytest.param(
+            "[tool.axm-audit.coverage\nmin_coverage = = 75\n",
+            90.0,
+            id="malformed_toml_falls_back",
+        ),
+    ],
+)
+def test_read_coverage_config(tmp_path: Path, body: str, expected: float) -> None:
+    """read_coverage_config reads min_coverage, defaulting to 90.0 on any problem.
 
-    assert read_coverage_config(project) == 90.0
+    Covers: absent section, in-bounds values (incl. 0), out-of-bounds and
+    non-numeric fall-backs, and malformed TOML (never raises).
+    """
+    project = _write_pyproject(tmp_path, body)
 
-
-def test_read_coverage_config_returns_configured(tmp_path: Path) -> None:
-    """AC1: a configured ``min_coverage`` is read back as a float."""
-    project = _write_pyproject(
-        tmp_path,
-        "[tool.axm-audit.coverage]\nmin_coverage = 75\n",
-    )
-
-    assert read_coverage_config(project) == 75.0
-
-
-def test_read_coverage_config_zero(tmp_path: Path) -> None:
-    """AC5: ``min_coverage = 0`` is a valid in-bounds value, returned as 0.0."""
-    project = _write_pyproject(
-        tmp_path,
-        "[tool.axm-audit.coverage]\nmin_coverage = 0\n",
-    )
-
-    assert read_coverage_config(project) == 0.0
-
-
-def test_read_coverage_config_out_of_bounds_falls_back(tmp_path: Path) -> None:
-    """AC2: out-of-[0,100] or non-numeric values fall back to the default 90.0."""
-    too_high = _write_pyproject(
-        tmp_path,
-        "[tool.axm-audit.coverage]\nmin_coverage = 150\n",
-    )
-    assert read_coverage_config(too_high) == 90.0
-
-    non_numeric = _write_pyproject(
-        tmp_path,
-        '[tool.axm-audit.coverage]\nmin_coverage = "high"\n',
-    )
-    assert read_coverage_config(non_numeric) == 90.0
-
-
-def test_read_coverage_config_malformed_toml(tmp_path: Path) -> None:
-    """AC1: invalid TOML never raises — falls back to the default 90.0."""
-    project = _write_pyproject(
-        tmp_path,
-        "[tool.axm-audit.coverage\nmin_coverage = = 75\n",
-    )
-
-    assert read_coverage_config(project) == 90.0
+    assert read_coverage_config(project) == expected
