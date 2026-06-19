@@ -38,7 +38,7 @@ from axm_echo.cluster import (
     split_pairs,
 )
 from axm_echo.corpus import extract_monorepo
-from axm_echo.embedding import embed, neighbors
+from axm_echo.embedding import Backend, embed, neighbors
 from axm_echo.scope import load_scope
 from axm_echo.waiver import (
     cluster_hash,
@@ -53,7 +53,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from axm_echo.corpus import SymbolDict
-    from axm_echo.embedding import Backend
 
 logger = logging.getLogger(__name__)
 
