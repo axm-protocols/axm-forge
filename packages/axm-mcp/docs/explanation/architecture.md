@@ -96,7 +96,9 @@ sequenceDiagram
 | `facade/tools.py` | `register_facade()`, `FACADE_TOOLS` | Registers `axm_search` / `axm_describe` / `axm_call` / `axm_capabilities` against a `ToolCatalog` |
 | `web_fetch.py` | `fetch_page()`, `WebFetchTool` | Built-in `web_fetch` tool — anti-bot page fetching via Scrapling (modes: auto / basic / dynamic / stealth) |
 | `wrapping.py` | `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable; `protocol_*` and `git_*` tools are serialized with async keyed locks |
+| `schema.py` | `signature_params()`, `apply_signature()`, `extract_docstring_params()` | Derives a tool's typed `__signature__` from its `execute()` (falling back to docstring params) so FastMCP and `ToolCatalog.describe` build the right schema |
 | `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
+| `verify_format.py` | `format_verify_text()` | Compact text rendering of a `verify_project` result |
 
 | `lifecycle.py` | `find_binary()`, `generate_plist()`, `install()`, `uninstall()` | launchd service management — install/uninstall axm-mcp as a macOS background service |
 | `plist_template.py` | `PLIST_TEMPLATE` | launchd plist XML template used by `lifecycle.generate_plist()` |
