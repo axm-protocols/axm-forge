@@ -45,10 +45,12 @@ This shows a **detailed** view: module names, public functions with docstrings a
     Table-of-contents view: module names, docstrings, and symbol counts only — no individual function/class details. Use this to decide which modules to drill into.
 
 !!! tip "Budget mode"
-    Use `--budget N` to limit output to the N highest-ranked symbols:
+    Use `--budget N` to cap the output at the first N lines (intelligent
+    truncation). Combine with `--rank` to surface the highest-ranked symbols
+    before the cut:
 
     ```bash
-    axm-ast describe src/mylib --budget 10
+    axm-ast describe src/mylib --budget 10 --rank
     ```
 
 ## Ranked Output

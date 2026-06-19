@@ -41,9 +41,9 @@ uv add axm-ast
 
 ```bash
 # One-shot project context for AI agents
-axm-ast context src/mylib
-axm-ast context src/mylib --depth none  # full context (all modules + dependency graph)
+axm-ast context src/mylib               # full context (all modules + dependency graph)
 axm-ast context src/mylib --depth 0     # compact top-5 overview
+axm-ast context src/mylib --depth 1     # sub-packages with aggregate counts
 
 # Describe a package at different detail levels
 axm-ast describe src/mylib
@@ -127,11 +127,12 @@ axm-ast flows src/mylib --trace main --json
 
 | Command | Description |
 |---|---|
-| `axm-ast describe` | Introspect a package (toc / summary / detailed / full / compress), optional `--modules` filter |
+| `axm-ast describe` | Introspect a package (toc / summary / detailed / compress), optional `--modules` filter |
 | `axm-ast inspect` | Inspect a symbol by name across a package (supports dotted paths, `--source` for source code) |
 | `axm-ast graph` | Visualize import dependency graph (text / mermaid / json) |
 | `axm-ast search` | Search symbols by name, return type, kind, or base class |
 | `axm-ast callers` | Find all call-sites of a symbol |
+| `axm-ast callees` | Find all call-sites *within* a symbol's body (inverse of `callers`) |
 | `axm-ast context` | One-shot project context dump for AI agents |
 | `axm-ast impact` | Change impact analysis for a symbol |
 | `axm-ast dead-code` | Detect unreferenced symbols with smart exemptions |

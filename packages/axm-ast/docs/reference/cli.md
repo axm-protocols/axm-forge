@@ -23,7 +23,7 @@ axm-ast describe [OPTIONS] [PATH]
 | `--modules` | `-m` | string | *none* | Comma-separated module name filters (substring, case-insensitive) |
 | `--json` | | bool | `False` | Output as JSON |
 | `--rank` | | bool | `False` | Sort by PageRank importance |
-| `--budget` | `-b` | int | *none* | Limit to top N symbols |
+| `--budget` | `-b` | int | *none* | Limit output to the top N lines (intelligent truncation) |
 
 **Example:**
 
