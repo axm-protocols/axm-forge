@@ -14,7 +14,7 @@ The command is auto-registered from the `axm.tools` entry point, so the same
 implementation is reachable as an MCP tool and a DAG `tool_node` too.
 
 ```bash
-# Cluster echoes across the corpus (~/.axm/echo.toml scope, or the cwd).
+# Cluster echoes across the corpus (~/axm/echo.toml scope, or the cwd).
 axm echo_code
 
 # The default backend is neural "st" (MiniLM, in-process). Opt into the
@@ -54,7 +54,7 @@ cluster 1  sim=1.000  (2 symbols)
 
 A genuine cross-package echo that is *intended* (a parallel API, a deliberate
 wrapper) is noise on every run. Acknowledge it in the **scan-root** `pyproject.toml`
-(the first workspace root in `~/.axm/echo.toml`) so it drops out of the
+(the first workspace root in `~/axm/echo.toml`) so it drops out of the
 actionable top-N. Each entry is a 12-hex `cluster_hash` (printed in the tool's
 `data.clusters[*].cluster_hash`) plus a non-empty `reason`:
 

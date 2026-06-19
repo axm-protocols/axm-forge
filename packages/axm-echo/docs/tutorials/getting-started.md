@@ -65,7 +65,7 @@ third-party libraries installed inside a checked-in virtualenv never leak
 into the corpus.
 
 `extract_monorepo()` does the same across every package declared in
-`~/.axm/echo.toml` (`workspace_roots`), degrading gracefully to the
+`~/axm/echo.toml` (`workspace_roots`), degrading gracefully to the
 current directory when no config is present. Each listed root is treated
 as a workspace, so packages are discovered at `<root>/packages/<pkg>` (the
 monorepo convention) as well as in the flat `other/<pkg>` layout. A
@@ -76,11 +76,16 @@ directory only counts as a package when it carries a real marker — a
 ## Step 3: Run the Tests
 
 ```bash
-cd packages/axm-echo
+# Run this package's tests (from anywhere in the workspace).
+uv run pytest --package axm-echo
+
+# Or, from the workspace root, the full lint + type-check + tests gate:
 make check
 ```
 
-This runs lint + type check + security audit + tests.
+`uv run pytest --package axm-echo` runs the package test suite; `make check`
+(a workspace-root target — there is no per-package Makefile) runs `lint`
+(ruff + mypy) plus the whole workspace test run.
 
 ## Next Steps
 

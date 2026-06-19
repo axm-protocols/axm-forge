@@ -21,7 +21,8 @@ Neural similarity & echo detection over code corpora (MiniLM + scikit-learn).
   (`torch` + `sentence-transformers`) and runs in-process; no extra to enable.
 - **`tfidf` opt-out** — the pure-CPU `numpy` + `scikit-learn` backend stays
   available (`--backend tfidf`) for callers that want to avoid loading torch.
-- Built on `axm-ast` for code-corpus extraction (consumed in later phases).
+- Built on `axm-ast` for code-corpus extraction — the corpus feeding both
+  `echo_code` (cross-package dedup) and `echo_check` (reuse retrieval).
 
 ## Installation
 

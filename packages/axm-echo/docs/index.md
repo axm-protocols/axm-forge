@@ -45,7 +45,7 @@ pure-CPU and never loads torch, for callers that want to skip the model.
 from axm_echo import embed, extract_monorepo, neighbors
 
 # 1. Build a corpus of public symbols across the configured workspaces
-#    (driven by ~/.axm/echo.toml, falling back to the current dir).
+#    (driven by ~/axm/echo.toml, falling back to the current dir).
 symbols = extract_monorepo()
 texts = [s["embed_text"] for s in symbols]
 
@@ -78,15 +78,15 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
   (with `flatten_body` / `normalize_dump`) compare two `ast.FunctionDef`
   bodies by Jaccard over constant/identifier-normalized statement-sets;
   100% structural, pure stdlib, never loads torch
-- ✅ **Two embedding backends** — `tfidf` (code, scikit-learn) and `st`
-  (MiniLM `all-MiniLM-L6-v2`), selected by a registry
+- ✅ **Two embedding backends** — `st` (MiniLM `all-MiniLM-L6-v2`, the neural
+  default) and `tfidf` (code, scikit-learn), selected by a registry
 - ✅ **Exact neighbour search** — brute-force cosine matmul, no ANN
-- ✅ **Light base install** — numpy + scikit-learn, no torch
-- ✅ **Lazy neural backend** — torch is imported only inside the `st`
-  backend (the `tfidf` path never loads it)
+- ✅ **Lazy torch import** — `torch` + `sentence-transformers` ship in the
+  base install (neural-by-default), but torch is imported only inside the
+  `st` backend, so the `tfidf` path never loads it at runtime
 - ✅ **axm-ast corpus extractor** — public symbols with signature +
   docstring, `embed_text` falling back to code when undocumented
-- ✅ **Scope loader** — `~/.axm/echo.toml`, graceful degradation to the
+- ✅ **Scope loader** — `~/axm/echo.toml`, graceful degradation to the
   current workspace
 - ✅ **Modern Python** — 3.12+ with strict typing
 
