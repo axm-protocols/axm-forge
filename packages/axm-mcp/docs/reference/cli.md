@@ -31,17 +31,32 @@ The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "
 | Tool | Description |
 |---|---|
 | `verify` | One-shot quality check: audit + init check + AST enrichment |
+| `web_fetch` | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
+| `list_tools` | List all available tools (always enumerates the full surface) |
 
-The `verify` meta-tool is registered alongside the auto-discovered tools (see `mcp_app.py`).
+These built-ins are always registered directly alongside the discovered tools (see `mcp_app.py`).
+
+### Facade Meta-Tools
+
+By default (`AXM_MCP_FACADE=1`) the discovered tools are surfaced through a compact facade instead of being registered one-by-one, keeping the `tools/list` payload small:
+
+| Tool | Description |
+|---|---|
+| `axm_search` | Search the tool catalog by keyword/tag |
+| `axm_describe` | Full invocation contract (typed params + docstring) for one tool |
+| `axm_call` | Execute any tool by name and return its text output |
+| `axm_capabilities` | List tools grouped by domain |
+
+Set `AXM_MCP_FACADE=0` to register every discovered tool directly instead.
 
 ### Discovered Tools
 
-All tools registered via `axm.tools` entry points are exposed automatically. Common tools include:
+All tools registered via `axm.tools` entry points are discovered automatically and reachable through the facade (`axm_call`) — or registered directly in legacy mode / when they opt into the hot path via `expose_directly`. Common tools include:
 
 | Tool | Package | Description |
 |---|---|---|
 | `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
-| `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
+| `init_check` | `axm-init` | 49 governance checks against AXM gold standard |
 | `init_scaffold` | `axm-init` | Scaffold a new Python project |
 | `bib_search` | `axm-bib` | Search academic papers by title |
 | `bib_resolve` | `axm-bib` | Resolve a DOI/arXiv ref → BibTeX |

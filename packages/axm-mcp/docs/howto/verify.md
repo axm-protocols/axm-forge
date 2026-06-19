@@ -13,7 +13,7 @@ Run a one-shot quality check on any Python project.
 `verify` orchestrates three tools in one call:
 
 1. **`audit`** (from `axm-audit`) — Lint, types, complexity, security, coverage, architecture
-2. **`init_check`** (from `axm-init`) — 39 governance checks against AXM gold standard
+2. **`init_check`** (from `axm-init`) — 49 governance checks against AXM gold standard
 3. **AST enrichment** (from `axm-ast`) — Adds caller/impact context to failures
 
 ## Output Structure

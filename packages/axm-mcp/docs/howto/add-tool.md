@@ -38,8 +38,8 @@ uv pip install -e .
 axm-mcp
 ```
 
-Call `list_tools` — your tool should appear in the list.
+Call `list_tools` — your tool should appear in the list (it always enumerates the full surface). To invoke it, use the facade: `axm_describe` for its contract, then `axm_call`.
 
 ## How Discovery Works
 
-`axm-mcp` uses `importlib.metadata.entry_points(group="axm.tools")` at startup. It instantiates each entry point class and registers it as an MCP tool. No configuration needed — just install the package.
+`axm-mcp` uses `importlib.metadata.entry_points(group="axm.tools")` at startup (`discover_tools()`). Each entry point is instantiated if it is a class, or used as-is if it is a plain dispatcher function. By default (`AXM_MCP_FACADE=1`) the discovered tools are then surfaced through the compact facade — reachable via `axm_search` / `axm_describe` / `axm_call` — unless they opt into the direct hot path with `expose_directly`. Set `AXM_MCP_FACADE=0` to register every discovered tool directly instead. Either way, no configuration is needed — just install the package.

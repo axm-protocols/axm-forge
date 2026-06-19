@@ -2,7 +2,9 @@
 
 ## Overview
 
-`axm-mcp` is a thin MCP shell with zero imports from AXM core. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (the simple default, one process per conversation) and **Streamable HTTP** (an advanced option, single shared server).
+`axm-mcp` is a thin MCP shell whose only import from AXM core is `axm.tools.base` (shared types + `tool_metadata`) — no business-tool implementations. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (the simple default, one process per conversation) and **Streamable HTTP** (an advanced option, single shared server).
+
+By default (`AXM_MCP_FACADE=1`) the discovered tools are surfaced through a **compact facade**: four meta-tools (`axm_search` / `axm_describe` / `axm_call` / `axm_capabilities`) index the catalog and keep the `tools/list` payload small, while a *hot path* of tools opting in via `expose_directly` plus the built-ins (`verify`, `web_fetch`, `list_tools`) are registered individually. Setting `AXM_MCP_FACADE=0` falls back to the legacy behaviour — every discovered tool registered directly.
 
 ```mermaid
 graph TD
@@ -89,7 +91,10 @@ sequenceDiagram
 | `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT` | Streamable HTTP transport — sets `wrapping._HTTP_MODE = True` then runs the FastMCP instance over HTTP on port 9427 (or `AXM_MCP_PORT`) |
 | `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
-| `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
+| `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `register_list_tools()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
+| `facade/catalog.py` | `ToolCatalog`, `UnknownToolError` | Searchable index over discovered tools — backs the four facade meta-tools (`search`/`describe`/`call`/`capabilities`, `hot_path()`) |
+| `facade/tools.py` | `register_facade()`, `FACADE_TOOLS` | Registers `axm_search` / `axm_describe` / `axm_call` / `axm_capabilities` against a `ToolCatalog` |
+| `web_fetch.py` | `fetch_page()`, `WebFetchTool` | Built-in `web_fetch` tool — anti-bot page fetching via Scrapling (modes: auto / basic / dynamic / stealth) |
 | `wrapping.py` | `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable; `protocol_*` and `git_*` tools are serialized with async keyed locks |
 | `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
 
@@ -105,13 +110,14 @@ sequenceDiagram
 | Entry points for discovery | Standard Python mechanism, no config files needed |
 | `verify` as meta-tool | Single call replaces 3 separate tool invocations |
 | AST enrichment of failures | Adds blast-radius context to help agents prioritize fixes |
+| Compact facade (default) | Four meta-tools keep the `tools/list` payload small; the full catalog stays reachable via `axm_call`. Reversible with `AXM_MCP_FACADE=0` |
 
 ## Tool Lifecycle
 
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
-2. **Registration**: `register_tools()` wraps each tool as an MCP callable
-3. **Verify tool**: `register_one()` registers the `verify` meta-tool from `VerifyTool`
-4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → on a **successful** `ToolResult` with `text` set, returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting
+2. **Registration** (facade, default): the `expose_directly` hot path is registered individually via `register_one()`, the built-ins (`verify`, `web_fetch`) are registered directly, and `register_facade()` registers the four facade meta-tools over a `ToolCatalog`. In legacy mode (`AXM_MCP_FACADE=0`), `register_tools()` registers **every** discovered tool individually instead.
+3. **Listing**: `register_list_tools()` registers `list_tools`, which always enumerates the **full** surface (so facade-only tools remain discoverable)
+4. **Execution**: MCP client calls a tool (directly or via `axm_call`) → wrapper delegates to `tool.execute(**kwargs)` → on a **successful** `ToolResult` with `text` set, returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
 
 ## Concurrency Model (HTTP mode)

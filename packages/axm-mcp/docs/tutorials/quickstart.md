@@ -62,6 +62,13 @@ You should see `verify`, `audit`, `ast_*`, `init_*`, `bib_*`, and the rest of
 the discovered tools. If the list is nearly empty, you almost certainly dropped
 the `[all]` extra — revisit Step 1.
 
+By default the server exposes a **compact facade** (`AXM_MCP_FACADE=1`): the
+client's `tools/list` shows the four meta-tools (`axm_search`, `axm_describe`,
+`axm_call`, `axm_capabilities`), a small hot path, and the built-ins — while
+`list_tools` always enumerates the *full* catalog. To run a tool that isn't on
+the hot path, call it through `axm_call` (use `axm_describe` first to see its
+parameters). Set `AXM_MCP_FACADE=0` to register every discovered tool directly.
+
 ## Step 3: Run verify
 
 The `verify` tool checks any project in one shot:

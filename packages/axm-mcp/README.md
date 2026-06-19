@@ -21,6 +21,7 @@
 
 - 🔌 **Auto-discovery** — Finds all `axm.tools` entry points from installed packages
 - 🛠️ **MCP bridge** — Exposes discovered tools as Model Context Protocol callables
+- 🔎 **Compact facade** — Four meta-tools (`axm_search` / `axm_describe` / `axm_call` / `axm_capabilities`) index the full catalog and keep the `tools/list` payload small (toggle via `AXM_MCP_FACADE`)
 - ✅ **Verify** — One-shot project quality check: audit + init check + AST enrichment
 - 🌐 **Web fetch** — Anti-bot web page fetching via Scrapling (basic / dynamic / stealth)
 - 📋 **List tools** — Built-in `list_tools` meta-tool to enumerate all available tools and their descriptions
@@ -98,16 +99,30 @@ axm-mcp uninstall
 
 ## MCP Tools
 
-| Tool | Package | Description |
+By default (`AXM_MCP_FACADE=1`) the server keeps the `tools/list` payload small
+by exposing a **compact facade** — four meta-tools that index the full catalog —
+plus a *hot path* of frequently-used tools that opt in via `expose_directly`, and
+the always-on built-ins (`verify`, `web_fetch`, `list_tools`). Every other
+discovered tool stays reachable through `axm_call`. Set `AXM_MCP_FACADE=0` to fall
+back to the legacy behaviour (register every discovered tool directly).
+
+| Facade meta-tool | Description |
+|---|---|
+| `axm_search` | Search the tool catalog by keyword/tag → name + summary + domain + tags |
+| `axm_describe` | Full invocation contract (typed params + docstring) for one tool |
+| `axm_call` | Execute any tool by name and return its text output |
+| `axm_capabilities` | List tools grouped by domain |
+
+| Built-in / discovered tool | Package | Description |
 |---|---|---|
-| `list_tools` | built-in | List all available tools |
+| `list_tools` | built-in | List all available tools (always enumerates the full surface) |
 | `verify` | built-in | One-shot audit + init check + AST enrichment |
 | `web_fetch` | built-in | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
 | `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
-| `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
+| `init_check` | `axm-init` | 49 governance checks against AXM gold standard |
 | `init_scaffold` | `axm-init` | Scaffold a new Python project |
 | `bib_search` | `axm-bib` | Search academic papers by title |
-| `bib_doi` | `axm-bib` | Resolve DOI → BibTeX |
+| `bib_resolve` | `axm-bib` | Resolve a DOI/arXiv ref → BibTeX |
 | `bib_pdf` | `axm-bib` | Download paper PDF |
 | `bib_extract` | `axm-bib` | Extract text from PDF |
 

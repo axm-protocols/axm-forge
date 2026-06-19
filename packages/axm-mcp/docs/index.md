@@ -39,11 +39,18 @@ client.
 
 ## MCP Tools
 
+By default the server exposes a compact facade — `axm_search` / `axm_describe` /
+`axm_call` / `axm_capabilities` — over the full catalog (`AXM_MCP_FACADE=1`),
+plus the built-ins below. Set `AXM_MCP_FACADE=0` to register every discovered
+tool directly.
+
 | Tool | Package | Description |
 |---|---|---|
 | `verify` | built-in | One-shot audit + init check + AST enrichment |
+| `web_fetch` | built-in | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
+| `list_tools` | built-in | List all available tools |
 | `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
-| `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
+| `init_check` | `axm-init` | 49 governance checks against AXM gold standard |
 | `init_scaffold` | `axm-init` | Scaffold a new Python project |
 | `bib_search` | `axm-bib` | Search academic papers by title |
 | `bib_resolve` | `axm-bib` | Resolve a DOI/arXiv ref → BibTeX |
