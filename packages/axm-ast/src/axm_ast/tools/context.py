@@ -56,39 +56,42 @@ class ContextTool(AXMTool):
             return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
         try:
-            from axm_ast.core.workspace import (
-                build_workspace_context,
-                format_workspace_context,
-                format_workspace_text,
+            try:
+                from axm_ast.core.workspace import (
+                    build_workspace_context,
+                    format_workspace_context,
+                    format_workspace_text,
+                )
+
+                ws_ctx = build_workspace_context(project_path)
+                ws_formatted = format_workspace_context(
+                    ws_ctx, depth=depth if depth is not None else 1
+                )
+                return ToolResult(
+                    success=True,
+                    data=cast("dict[str, object]", ws_formatted),
+                    text=format_workspace_text(ws_formatted),
+                )
+            except ValueError:
+                pass
+
+            from axm_ast.core.context import (
+                build_context,
+                format_context_json,
+                format_context_text,
             )
 
-            ws_ctx = build_workspace_context(project_path)
-            ws_formatted = format_workspace_context(
-                ws_ctx, depth=depth if depth is not None else 1
-            )
-            return ToolResult(
-                success=True,
-                data=cast("dict[str, object]", ws_formatted),
-                text=format_workspace_text(ws_formatted),
-            )
-        except ValueError:
-            pass
-
-        from axm_ast.core.context import (
-            build_context,
-            format_context_json,
-            format_context_text,
-        )
-
-        ctx: ContextResult = build_context(project_path)
-        formatted: FormattedContext = format_context_json(ctx, depth=depth)
-        text: str | None
-        try:
-            text = format_context_text(
-                formatted, depth=depth if depth is not None else 0
-            )
-        except (KeyError, TypeError):
-            text = None
+            ctx: ContextResult = build_context(project_path)
+            formatted: FormattedContext = format_context_json(ctx, depth=depth)
+            text: str | None
+            try:
+                text = format_context_text(
+                    formatted, depth=depth if depth is not None else 0
+                )
+            except (KeyError, TypeError):
+                text = None
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
         # ``ToolResult.data`` is declared ``dict[str, Any]`` upstream
         # (axm.tools.base); ``FormattedContext`` is structurally compatible
         # but ``TypedDict`` is invariant under ``dict[...]`` — narrow cast.

@@ -84,40 +84,43 @@ class DescribeTool(AXMTool):
         if not project_path.is_dir():
             return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
-        from axm_ast.core.cache import get_package
-        from axm_ast.formatters import (
-            filter_modules,
-            format_compressed,
-            format_json,
-            format_toc,
-        )
+        try:
+            from axm_ast.core.cache import get_package
+            from axm_ast.formatters import (
+                filter_modules,
+                format_compressed,
+                format_json,
+                format_toc,
+            )
 
-        pkg = get_package(project_path)
-        pkg = filter_modules(pkg, modules)
+            pkg = get_package(project_path)
+            pkg = filter_modules(pkg, modules)
 
-        result_data: dict[str, object]
-        if detail == "toc":
-            toc = format_toc(pkg)
-            result_data = {
-                "modules": toc,
-                "module_count": len(toc),
-            }
-            result_text = render_describe_text(result_data, "toc")
-        elif compress:
-            body = format_compressed(pkg)
-            header = f"ast_describe | compress | {len(pkg.modules)} modules"
-            text = f"{header}\n{body}"
-            result_data = {
-                "compressed": text,
-                "module_count": len(pkg.modules),
-            }
-            result_text = text
-        else:
-            data = format_json(pkg, detail=detail)
-            result_data = {
-                "modules": data["modules"],
-                "module_count": len(pkg.modules),
-            }
-            result_text = render_describe_text(result_data, detail)
+            result_data: dict[str, object]
+            if detail == "toc":
+                toc = format_toc(pkg)
+                result_data = {
+                    "modules": toc,
+                    "module_count": len(toc),
+                }
+                result_text = render_describe_text(result_data, "toc")
+            elif compress:
+                body = format_compressed(pkg)
+                header = f"ast_describe | compress | {len(pkg.modules)} modules"
+                text = f"{header}\n{body}"
+                result_data = {
+                    "compressed": text,
+                    "module_count": len(pkg.modules),
+                }
+                result_text = text
+            else:
+                data = format_json(pkg, detail=detail)
+                result_data = {
+                    "modules": data["modules"],
+                    "module_count": len(pkg.modules),
+                }
+                result_text = render_describe_text(result_data, detail)
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
         return ToolResult(success=True, data=result_data, text=result_text)

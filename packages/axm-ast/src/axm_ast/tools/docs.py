@@ -54,8 +54,11 @@ class DocsTool(AXMTool):
 
         from axm_ast.core.docs import discover_docs, format_docs_json
 
-        result: DocsResult = discover_docs(project_path, detail=detail, pages=pages)
-        data = cast("dict[str, object]", format_docs_json(result))
+        try:
+            result: DocsResult = discover_docs(project_path, detail=detail, pages=pages)
+            data = cast("dict[str, object]", format_docs_json(result))
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
         try:
             text: str | None = render_docs_text(data, detail)
         except (KeyError, TypeError, AttributeError):

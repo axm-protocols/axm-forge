@@ -58,7 +58,10 @@ class DiffTool(AXMTool):
 
         from axm_ast.core.structural_diff import structural_diff
 
-        result = structural_diff(project_path, base, head)
+        try:
+            result = structural_diff(project_path, base, head)
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
         if "error" in result:
             err = result["error"]
