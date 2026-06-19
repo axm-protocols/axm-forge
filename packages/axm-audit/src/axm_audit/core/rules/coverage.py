@@ -58,6 +58,39 @@ def read_coverage_config(project_path: Path) -> float:
     )
 
 
+@dataclass(frozen=True)
+class _CoverageMetrics:
+    """Derived coverage metrics for a single ``TestReport``."""
+
+    effective: float
+    coverage_pct: float
+    score: int
+    has_failures: bool
+    passed: bool
+    total_fails: int
+    failures: list[dict[str, str]]
+
+    @classmethod
+    def from_report(
+        cls, report: TestReport, default_min: float, min_coverage: float | None
+    ) -> _CoverageMetrics:
+        """Compute metrics from *report*, resolving the pass threshold."""
+        effective = default_min if min_coverage is None else min_coverage
+        coverage_pct = report.coverage if report.coverage is not None else 0.0
+        has_failures = report.failed > 0 or report.errors > 0
+        return cls(
+            effective=effective,
+            coverage_pct=coverage_pct,
+            score=int(coverage_pct),
+            has_failures=has_failures,
+            passed=coverage_pct >= effective and not has_failures,
+            total_fails=report.failed + report.errors,
+            failures=[
+                {"test": f.test, "traceback": f.message} for f in report.failures or []
+            ],
+        )
+
+
 @dataclass
 @register_rule("testing")
 class TestCoverageRule(ProjectRule):
@@ -164,38 +197,27 @@ class TestCoverageRule(ProjectRule):
         (``• FAIL test_name``).  Returns ``text=None`` when coverage is
         full and no failures exist.
         """
-        effective = self.min_coverage if min_coverage is None else min_coverage
-        coverage_pct = report.coverage if report.coverage is not None else 0.0
-        score = int(coverage_pct)
-        has_failures = report.failed > 0 or report.errors > 0
-        passed = coverage_pct >= effective and not has_failures
-        total_fails = report.failed + report.errors
-
-        failures: list[dict[str, str]] = [
-            {"test": f.test, "traceback": f.message} for f in report.failures or []
-        ]
+        m = _CoverageMetrics.from_report(report, self.min_coverage, min_coverage)
 
         if report.timed_out:
-            return self._timeout_result(failures)
-
+            return self._timeout_result(m.failures)
         if report.coverage is None:
-            return self._no_coverage_result(failures)
+            return self._no_coverage_result(m.failures)
 
-        message = self._build_message(coverage_pct, score, has_failures, total_fails)
-        text_parts = self._build_text_parts(coverage_pct, failures)
-
+        text_parts = self._build_text_parts(m.coverage_pct, m.failures)
         return CheckResult(
             rule_id=self.rule_id,
-            passed=passed,
-            message=message,
-            severity=Severity.WARNING if not passed else Severity.INFO,
-            score=int(score),
-            details={
-                "coverage": coverage_pct,
-                "failures": failures,
-            },
+            passed=m.passed,
+            message=self._build_message(
+                m.coverage_pct, m.score, m.has_failures, m.total_fails
+            ),
+            severity=Severity.WARNING if not m.passed else Severity.INFO,
+            score=m.score,
+            details={"coverage": m.coverage_pct, "failures": m.failures},
             text="\n".join(text_parts) if text_parts else None,
-            fix_hint=self._generate_fix_hints(has_failures, coverage_pct, effective),
+            fix_hint=self._generate_fix_hints(
+                m.has_failures, m.coverage_pct, m.effective
+            ),
         )
 
     def _generate_fix_hints(

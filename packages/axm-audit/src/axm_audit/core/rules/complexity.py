@@ -162,16 +162,7 @@ class ComplexityRule(ProjectRule):
         for file_path, blocks in data.items():
             file_key = _relative_key(file_path, src_path)
             for block in blocks:
-                if not isinstance(block, dict):
-                    continue
-                rank = str(block.get("rank", ""))
-                raw_cc = block.get("complexity", 0)
-                cc = int(raw_cc) if isinstance(raw_cc, int | float | str) else 0
-                raw_name = str(block.get("name", ""))
-                classname = str(block.get("classname", ""))
-                name = f"{classname}.{raw_name}" if classname else raw_name
-                cognitive = _lookup_cognitive(cog_map, (file_key, name), cog_disabled)
-                offender = _classify(file_key, name, cc, rank, cognitive)
+                offender = _block_to_offender(block, file_key, cog_map, cog_disabled)
                 if offender is not None:
                     offenders.append(offender)
         return self._build_result(offenders, cog_disabled)
@@ -256,6 +247,25 @@ def _try_import_complexipy() -> Callable[[str], object] | None:
         return file_complexity
     except ModuleNotFoundError:
         return None
+
+
+def _block_to_offender(
+    block: object,
+    file_key: str,
+    cog_map: dict[tuple[str, str], int],
+    cog_disabled: bool,
+) -> dict[str, str | int] | None:
+    """Extract and classify a single radon block. Return offender or None."""
+    if not isinstance(block, dict):
+        return None
+    rank = str(block.get("rank", ""))
+    raw_cc = block.get("complexity", 0)
+    cc = int(raw_cc) if isinstance(raw_cc, int | float | str) else 0
+    raw_name = str(block.get("name", ""))
+    classname = str(block.get("classname", ""))
+    name = f"{classname}.{raw_name}" if classname else raw_name
+    cognitive = _lookup_cognitive(cog_map, (file_key, name), cog_disabled)
+    return _classify(file_key, name, cc, rank, cognitive)
 
 
 def _classify(
