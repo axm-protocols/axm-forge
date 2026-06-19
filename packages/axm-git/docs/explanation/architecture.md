@@ -127,5 +127,5 @@ All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to sk
 | `AXMTool` protocol | Consistent interface, auto-discovery via entry points |
 | `subprocess` over `gitpython` | Zero dependency, deterministic, same behavior as manual CLI |
 | Auto-retry on commit-hook fix | Avoids a wasted tool call on hook autofix |
-| `git add -A --` | Handles additions, modifications, AND deletions in one command |
+| Per-file staging (`stage_spec_files`) | Stages each spec file with `git add -- <file>` (subdir-aware path resolution); a `git ls-files -d` probe covers tracked-but-deleted files and gitignored paths are skipped with a warning — handles additions, modifications, AND deletions without an indiscriminate `git add -A` |
 | Soft CI check | `gh` is optional — tagging still works without GitHub CLI |

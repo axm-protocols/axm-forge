@@ -36,7 +36,7 @@ git_branch(name="feat/new-thing", path="/path/to/repo")
 git_commit(path="/path/to/repo", commits=[{"files": ["src/foo.py"], "message": "feat: add foo"}])
 ```
 
-`git_commit` handles staging internally (including deletions via `git add -A`), so you never run `git add` separately.
+`git_commit` handles staging internally — it stages each spec file individually (`git add -- <file>`, with a `git ls-files -d` probe so tracked-but-deleted paths are staged as deletions, and gitignored paths skipped with a warning), so you never run `git add` separately.
 
 ## Entry Points
 

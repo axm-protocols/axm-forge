@@ -87,6 +87,7 @@ Create or checkout a git branch.
 | `name` | *required* | Branch name |
 | `from_ref` | `None` | Ref to branch from (tag, commit, branch) |
 | `checkout_only` | `False` | If `True`, checkout existing branch without creating |
+| `delete` | `False` | If `True`, delete the branch (`git branch -D`) instead of creating/checking out |
 | `path` | `.` | Project root directory |
 
 Returns: `{branch: "<current branch>"}` on success.
@@ -134,7 +135,8 @@ Push the current branch to a remote after verifying a clean working tree.
 | `path` | `.` | Project root directory |
 | `remote` | `origin` | Remote name |
 | `set_upstream` | `True` | Auto-set upstream for new branches |
-| `force` | `False` | Force-push |
+| `force` | `False` | Force-push using `--force-with-lease` (safe: only overwrites if the remote has not advanced past our tracking ref) |
+| `force_unconditional` | `False` | When `True` (and `force` set), use a bare `--force` instead — unconditional overwrite (data-loss risk) |
 
 Pipeline: repo check → dirty check → detect branch → detect upstream → push.
 
@@ -149,6 +151,7 @@ Add, remove, or list git worktrees.
 | `worktree_path` | `None` | Path for the new or existing worktree |
 | `branch` | `None` | Branch name for `add` |
 | `base` | `None` | Base ref for `add` (defaults to repo default) |
+| `force` | `False` | Force removal for the `remove` action |
 
 ### `git_pr`
 

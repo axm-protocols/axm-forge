@@ -4,7 +4,7 @@ Task-oriented guides for common workflows.
 
 ## Commit deleted files
 
-When a file has been removed from disk, `git_commit` handles it automatically via `git add -A --`:
+When a file has been removed from disk, `git_commit` stages the deletion automatically — `stage_spec_files()` probes `git ls-files -d` per spec file, so a tracked-but-deleted path is staged as a deletion without any extra step:
 
 ```python
 from axm_git.tools.commit import GitCommitTool
