@@ -8,6 +8,8 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
+from axm_init.core.framework import Framework
+
 __all__ = ["InitScaffoldTool", "read_workspace_name"]
 
 
@@ -72,6 +74,22 @@ class _ProjectMeta:
     author_email: str
 
 
+@dataclass(frozen=True, slots=True)
+class _ScaffoldInputs:
+    """Validated inputs for :meth:`InitScaffoldTool.execute`."""
+
+    path: str
+    name: str | None
+    org: str
+    author: str
+    email: str
+    license_type: str
+    description: str
+    workspace: bool
+    member: str | None
+    framework: Framework
+
+
 class InitScaffoldTool:
     """Initialize a new Python project with best practices.
 
@@ -86,10 +104,10 @@ class InitScaffoldTool:
     def _validate_inputs(
         self,
         kwargs: dict[str, object],
-    ) -> tuple[str, str | None, str, str, str, str, str, bool, str | None] | ToolResult:
+    ) -> _ScaffoldInputs | ToolResult:
         """Extract and validate inputs from kwargs.
 
-        Returns a tuple of validated values or a ToolResult on error.
+        Returns a :class:`_ScaffoldInputs` on success or a ToolResult on error.
         """
 
         def _str(key: str, default: str = "") -> str:
@@ -100,35 +118,37 @@ class InitScaffoldTool:
             v = kwargs.get(key)
             return v if isinstance(v, str) else None
 
-        path: str = _str("path", ".")
-        name: str | None = _opt_str("name")
-        org: str = _str("org")
-        author: str = _str("author")
-        email: str = _str("email")
-        license_type: str = _str("license", "Apache-2.0")
-        description: str = _str("description")
         workspace_raw = kwargs.get("workspace", False)
         workspace: bool = (
             bool(workspace_raw) if isinstance(workspace_raw, bool) else False
         )
-        member: str | None = _opt_str("member")
 
-        if not org or not author or not email:
+        if not _str("org") or not _str("author") or not _str("email"):
             return ToolResult(
                 success=False,
                 error="org, author, and email are required",
             )
 
-        return (
-            path,
-            name,
-            org,
-            author,
-            email,
-            license_type,
-            description,
-            workspace,
-            member,
+        try:
+            framework = Framework(_str("framework", Framework.PYTHON.value))
+        except ValueError:
+            valid = ", ".join(f.value for f in Framework)
+            return ToolResult(
+                success=False,
+                error=f"Unknown framework '{_str('framework')}'. Valid: {valid}",
+            )
+
+        return _ScaffoldInputs(
+            path=_str("path", "."),
+            name=_opt_str("name"),
+            org=_str("org"),
+            author=_str("author"),
+            email=_str("email"),
+            license_type=_str("license", "Apache-2.0"),
+            description=_str("description"),
+            workspace=workspace,
+            member=_opt_str("member"),
+            framework=framework,
         )
 
     def _build_template_data(
@@ -176,50 +196,48 @@ class InitScaffoldTool:
         if isinstance(validated, ToolResult):
             return validated
 
-        path, name, org, author, email, license_type, description, workspace, member = (
-            validated
-        )
+        inp = validated
 
         try:
-            target_path = Path(path).resolve()
+            target_path = Path(inp.path).resolve()
 
-            if member:
+            if inp.member:
                 return self._scaffold_member(
                     target_path,
-                    member,
+                    inp.member,
                     scaffold_data={
-                        "org": org,
-                        "author_name": author,
-                        "author_email": email,
-                        "license": license_type,
-                        "description": description,
+                        "org": inp.org,
+                        "author_name": inp.author,
+                        "author_email": inp.email,
+                        "license": inp.license_type,
+                        "description": inp.description,
                     },
                 )
 
-            project_name = name or target_path.name
+            project_name = inp.name or target_path.name
 
             from axm_init.adapters.copier import CopierAdapter, CopierConfig
             from axm_init.core.templates import TemplateType, get_template_path
 
             template_type = (
-                TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
+                TemplateType.WORKSPACE if inp.workspace else TemplateType.STANDALONE
             )
             meta = _ProjectMeta(
-                org=org,
-                license_type=license_type,
-                author_name=author,
-                author_email=email,
+                org=inp.org,
+                license_type=inp.license_type,
+                author_name=inp.author,
+                author_email=inp.email,
             )
             data = self._build_template_data(
                 project_name=project_name,
-                workspace=workspace,
-                description=description,
+                workspace=inp.workspace,
+                description=inp.description,
                 meta=meta,
             )
 
             copier_adapter = CopierAdapter()
             copier_config = CopierConfig(
-                template_path=get_template_path(template_type),
+                template_path=get_template_path(template_type, inp.framework),
                 destination=target_path,
                 data=data,
                 trust_template=True,

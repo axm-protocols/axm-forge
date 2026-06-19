@@ -1,0 +1,22 @@
+{
+  "name": "{{ package_name }}",
+  "version": "0.1.0",
+  "description": "{{ description }}",
+  "license": "{{ license }}",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/{{ org }}/{{ package_name }}.git"
+  },
+  "author": "{{ author_name }} <{{ author_email }}>",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "typescript": "^5",
+    "vitest": "^2"
+  }
+}

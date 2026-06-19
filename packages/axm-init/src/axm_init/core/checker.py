@@ -16,6 +16,7 @@ from axm_init.checks._workspace import (
     detect_context,
     find_workspace_root,
 )
+from axm_init.core.framework import Framework, detect_framework
 from axm_init.models.check import CheckResult, ProjectResult
 
 if TYPE_CHECKING:
@@ -64,29 +65,60 @@ REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
 )
 
 
-def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
-    """Auto-discover ``check_*`` functions from all modules in ``axm_init.checks``.
+# Sub-packages of ``axm_init.checks`` that hold a non-Python framework's
+# checks. They are skipped by the default (Python) discovery scan and picked up
+# only when the project's framework selects them.
+_FRAMEWORK_CHECK_PACKAGES: frozenset[str] = frozenset({"node", "svelte"})
 
-    Scans every public module in the ``checks`` package (skipping private
-    ``_``-prefixed modules) and collects all public ``check_*`` functions.
-    The module name becomes the category key.
-    """
+
+def _collect_check_fns(module: object) -> list[Callable[[Path], CheckResult]]:
+    """Return the public ``check_*`` functions defined on *module*."""
     import inspect
 
+    return [
+        obj
+        for name, obj in inspect.getmembers(module, inspect.isfunction)
+        if name.startswith("check_") and not name.startswith("_")
+    ]
+
+
+def _discover_checks(
+    package: object = _checks_pkg,
+    *,
+    prefix: str = "axm_init.checks",
+    skip_packages: frozenset[str] = _FRAMEWORK_CHECK_PACKAGES,
+) -> dict[str, list[Callable[[Path], CheckResult]]]:
+    """Auto-discover ``check_*`` functions from the modules of *package*.
+
+    Scans every public module (skipping private ``_``-prefixed modules and the
+    framework sub-packages in *skip_packages*) and collects all public
+    ``check_*`` functions. The module name becomes the category key.
+
+    Args:
+        package: The package object to scan (defaults to ``axm_init.checks``).
+        prefix: Import prefix for the package's modules.
+        skip_packages: Sub-package names to skip (the per-framework check sets).
+    """
     registry: dict[str, list[Callable[[Path], CheckResult]]] = {}
-    for info in pkgutil.iter_modules(_checks_pkg.__path__):
-        if info.name.startswith("_"):
-            continue  # Skip private modules like _utils
-        module_path = f"axm_init.checks.{info.name}"
-        mod = importlib.import_module(module_path)
-        fns: list[Callable[[Path], CheckResult]] = [
-            obj
-            for name, obj in inspect.getmembers(mod, inspect.isfunction)
-            if name.startswith("check_") and not name.startswith("_")
-        ]
+    for info in pkgutil.iter_modules(package.__path__):  # type: ignore[attr-defined]
+        if info.name.startswith("_") or info.name in skip_packages:
+            continue
+        mod = importlib.import_module(f"{prefix}.{info.name}")
+        fns = _collect_check_fns(mod)
         if fns:
             registry[info.name] = fns
     return registry
+
+
+def _discover_node_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
+    """Discover the Node/Svelte gold-standard checks under ``checks.node``."""
+    import axm_init.checks.node as _node_pkg
+
+    return _discover_checks(
+        _node_pkg,
+        prefix="axm_init.checks.node",
+        skip_packages=frozenset(),
+    )
 
 
 def get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
@@ -156,10 +188,21 @@ def _redirect_to_root(
     return wrapper
 
 
-# Registry: category -> list of check functions
+# Registry: category -> list of check functions (Python gold standard).
 ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 
-VALID_CATEGORIES = set(ALL_CHECKS.keys())
+# Per-framework gold-standard check sets, keyed by framework.
+NODE_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_node_checks()
+
+CHECKS_BY_FRAMEWORK: dict[Framework, dict[str, list[Callable[[Path], CheckResult]]]] = {
+    Framework.PYTHON: ALL_CHECKS,
+    Framework.NODE: NODE_CHECKS,
+    # Svelte reuses the node check set for the POC; svelte-specific checks
+    # (svelte.config.js, a11y, …) would be layered here.
+    Framework.SVELTE: NODE_CHECKS,
+}
+
+VALID_CATEGORIES = set(ALL_CHECKS.keys()) | set(NODE_CHECKS.keys())
 
 
 SKIP_FOR_MEMBER: frozenset[str] = frozenset(
@@ -176,9 +219,20 @@ SKIP_FOR_MEMBER: frozenset[str] = frozenset(
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
-    def __init__(self, project_path: Path, *, category: str | None = None) -> None:
+    def __init__(
+        self,
+        project_path: Path,
+        *,
+        category: str | None = None,
+        framework: Framework | str | None = None,
+    ) -> None:
         self.project_path = project_path.resolve()
         self.category = category
+        self.framework = (
+            detect_framework(self.project_path)
+            if framework is None
+            else Framework(framework)
+        )
         self.context = detect_context(self.project_path)
         self.workspace_root = find_workspace_root(self.project_path)
 
@@ -261,15 +315,19 @@ class CheckEngine:
         return kept, excluded_names
 
     def run(self) -> ProjectResult:
-        """Run all checks (or filtered by category) and return result."""
+        """Run all checks (or filtered by category) for the project's framework."""
+        registry = CHECKS_BY_FRAMEWORK.get(self.framework, ALL_CHECKS)
         if self.category:
-            if self.category not in VALID_CATEGORIES:
-                valid = ", ".join(sorted(VALID_CATEGORIES))
-                msg = f"Unknown category '{self.category}'. Valid: {valid}"
+            if self.category not in registry:
+                valid = ", ".join(sorted(registry.keys()))
+                msg = (
+                    f"Unknown category '{self.category}' for framework "
+                    f"'{self.framework.value}'. Valid: {valid}"
+                )
                 raise ValueError(msg)
-            checks_to_run = {self.category: ALL_CHECKS[self.category]}
+            checks_to_run = {self.category: registry[self.category]}
         else:
-            checks_to_run = ALL_CHECKS
+            checks_to_run = registry
 
         exclusions = load_exclusions(self.project_path)
         all_fns = self._filter_checks(checks_to_run)

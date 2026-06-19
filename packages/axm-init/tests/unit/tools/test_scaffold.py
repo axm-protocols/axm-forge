@@ -278,8 +278,11 @@ class TestScaffoldToolTemplateSelection:
         assert tool_result.data is not None
         assert tool_result.data["template"] == expected_template_name
 
+        from axm_init.core.framework import Framework
         from axm_init.core.templates import TemplateType
 
+        # Scaffold now selects a template per (type, framework); the default
+        # framework is python so existing callers map to the python templates.
         mock_get_path.assert_called_once_with(
-            getattr(TemplateType, expected_template_type)
+            getattr(TemplateType, expected_template_type), Framework.PYTHON
         )
