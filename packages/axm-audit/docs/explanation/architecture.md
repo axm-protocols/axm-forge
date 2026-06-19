@@ -60,7 +60,7 @@ aborts the audit of the other packages.
 | `structure` | `TestsPyramidRule`, `PyprojectCompletenessRule` | 2 |
 | `tooling` | `ToolAvailabilityRule` | 1 |
 
-**Total: 30 rule classes across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored). `get_rules_for_category(None)` returns **32 instances**: `ToolAvailabilityRule.get_instances()` yields one instance per required tool (`ruff`, `mypy`, `uv`), so its single class expands to 3 instances.
+**Total: 29 rule classes across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored). `get_rules_for_category(None)` returns **31 instances**: `ToolAvailabilityRule.get_instances()` yields one instance per required tool (`ruff`, `mypy`, `uv`), so its single class expands to 3 instances.
 
 ### 3. Tool Integration
 
@@ -107,10 +107,12 @@ edits without redundant parse/serialize round-trips.
 | `backfill_import(module, mapping)` | `_insert_imports_cst` | Insert `from {mod} import {name}` entries (idempotent, post-`__future__`) |
 
 Import resolution is backed by a project-wide cache:
-`_resolve_import_for_symbol(project_path, symbol)` returns a fresh
-`ast.ImportFrom` statement that brings `symbol` into scope, building
-the index lazily via `_build_project_symbol_index` and caching it in
-`_PROJECT_IMPORT_INDEX_CACHE`. Call `_invalidate_import_index(project_path)`
+`resolve_import_for_symbol(project_path, symbol)` returns a
+`tuple[ast.stmt, ast.stmt | None] | None` — the import statement that
+brings `symbol` into scope (plus an optional companion statement), or
+`None` when it can't be resolved — building the index lazily via
+`_build_project_symbol_index` and caching it in
+`_PROJECT_IMPORT_INDEX_CACHE`. Call `invalidate_import_index(project_path)`
 after mutating the file tree so the next lookup rebuilds.
 
 Layout & move (`core/fix/layout_and_move.py`) wraps axm-anvil's

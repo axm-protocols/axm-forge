@@ -118,7 +118,7 @@ Per-category pass threshold: ≥ 90 (≤ 2 errors).
 score = max(0, 100 − high_complexity_count × 10)
 ```
 
-High complexity = cyclomatic complexity ≥ 10. Per-category pass threshold: ≥ 90 (≤ 1 complex function).
+High complexity = radon rank ≥ C (cyclomatic complexity ≥ 11) **or** cognitive complexity > 15 (via complexipy). Per-category pass threshold: ≥ 90 (≤ 1 complex function).
 
 ### Security Score
 

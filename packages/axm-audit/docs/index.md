@@ -24,7 +24,7 @@
 |---|---|---|
 | **Linting** | Ruff | 15% |
 | **Type Safety** | mypy | 15% |
-| **Complexity** | radon | 15% |
+| **Complexity** | radon + complexipy | 15% |
 | **Security** | Bandit | 10% |
 | **Dependencies** | pip-audit + deptry | 10% |
 | **Testing** | pytest-cov | 10% |
@@ -58,14 +58,14 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
 - 🔒 **Type Safety** — Strict mypy (per-project `pyproject.toml` config)
-- 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
+- 📊 **Complexity** — Cyclomatic + cognitive complexity (radon + complexipy)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage, bare except detection, blocking I/O, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 429 tests, 93% coverage
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, high test coverage
 
 ## Learn More
 

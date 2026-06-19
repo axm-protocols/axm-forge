@@ -27,7 +27,7 @@
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
 - 🔒 **Type Checking** — Strict mypy (per-project `pyproject.toml` config)
-- 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
+- 📊 **Complexity** — Cyclomatic + cognitive complexity (radon + complexipy)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, uv workspace support (auto-aggregation across members), and dual-format text output (`• pkg ver→fix CVE-id` with `+N` suffix for multiple CVEs)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
@@ -161,7 +161,7 @@ When no configuration is present, the default threshold of 10 and multiplier of 
 
 ### Mirror Exemptions
 
-`MirrorRule` (alias `TestMirrorRule`) reads optional exemptions for both
+`MirrorRule` reads optional exemptions for both
 mirror directions from `pyproject.toml`:
 
 ```toml
@@ -191,9 +191,9 @@ rule with a `fix_hint` instead of raising.
 
 ## Test Quality
 
-The `test_quality` category ships four rules (private-imports,
-pyramid-level, duplicate-tests, tautology) plus the v6 pyramid stack and
-the v4 tautology triage ladder. See [docs/test_quality.md](docs/test_quality.md)
+The `test_quality` category ships six rules (private-imports,
+pyramid-level, duplicate-tests, tautology, file-naming, no-package-symbol)
+plus the v6 pyramid stack and the v4 tautology triage ladder. See [docs/test_quality.md](docs/test_quality.md)
 for the full guide, including the 5 pyramid scoping rules, the 3 + 4
 duplicate signals/rescues, and the 22-step triage ladder.
 

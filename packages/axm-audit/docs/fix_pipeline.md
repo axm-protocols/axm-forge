@@ -50,12 +50,12 @@ hexagonal layer:
 
 ```
 core/fix/
-├── __init__.py             — public API: run, format_report, PipelineReport, FileOp
+├── __init__.py             — public API: run, format_report, PipelineReport, FileOp, OpKind
 ├── models.py               — FileOp, OpKind, PipelineReport + constants
 │                             (NON_DETERMINISTIC_RULES, CANONICAL_TIERS, MAX_ITERATIONS, TOP_K)
-├── io_primitives.py        — _cst_load/save/top_level/unwrap + _git_mv
-├── paths.py                — _tier_for_path, _retier, _safe_filename,
-│                             _module_path_for_test_file, _file_depth_from_project
+├── io_primitives.py        — cst_load/save/top_level/unwrap + _git_mv
+├── paths.py                — tier_for_path, retier, safe_filename,
+│                             module_path_for_test_file, file_depth_from_project
 ├── tests_ast.py            — read-only AST: tests, classes (pathological detection),
 │                             helpers, markers (usefixtures), imports analysis
 ├── cst_rewrite.py          — write CST: flatten class, rename, delete, reorder,
@@ -104,7 +104,7 @@ auto-fix).
 1. **Anvil's `rename=` param doesn't help cross-file collisions** — it
    validates target absence under the *original* name before applying
    the rename. The pipeline works around it by renaming the symbol in
-   source first (via `_rename_top_level_in_source` in `cst_rewrite.py`),
+   source first (via `rename_top_level_in_source` in `cst_rewrite.py`),
    then handing anvil a clean conflict-free move.
 
 2. **`audit_project()` cache breaks after in-flight mutations** —
@@ -184,7 +184,7 @@ auto-fix).
   (3-deep) keeps its `FIXTURES = Path(__file__).parents[2] / "fixtures"`
   constant, which now points to project root instead of `tests/`.
   `_patch_file_dunder_depth()` (`cst_rewrite.py`) detects the depth
-  delta from `_file_depth_from_project()` and rewrites both surface
+  delta from `file_depth_from_project()` and rewrites both surface
   forms (`parents[N]` subscript and `.parent.parent...` chains) via
   libcst. The id-collection pre-pass MUST run *after* `_DunderPatcher`
   since libcst rebuilds nodes during any visit (even no-op transforms),
@@ -204,7 +204,7 @@ auto-fix).
   `referenced` with a fixed-point closure that walks names → source
   helpers → names-they-reference until no new helpers appear.
 - **Promoted helper's dependencies left behind** — when
-  `_extract_shared_helpers_in_tier()` (`extract_helpers.py`) promotes a
+  `extract_shared_helpers_in_tier()` (`extract_helpers.py`) promotes a
   fixture to `tests/conftest.py`, its helper dependencies (already
   living in `tests/<tier>/_helpers.py`) are not imported by the
   destination conftest. `_synth_import_from_helpers()` in

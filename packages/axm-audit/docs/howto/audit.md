@@ -113,16 +113,16 @@ if not result.success:
 | `audit_project(path)` | Run all checks (single-package or multi-package workspace) |
 | `audit_project(path, category=...)` | Filter to one category |
 | `audit_project(path, quick=True)` | Lint + type only |
+| `format_report(result)` | Human-readable report |
+| `format_json(result)` | JSON-serializable dict |
+| `format_agent(result)` | Agent-optimized output (compact passed, detailed failed) |
+| `format_agent_text(data, category=None)` | Compact text rendering of agent dict for LLM consumption |
 
 When *path* is a multi-package workspace (`<root>/packages/<pkg>/src/`), each
 package is audited independently and per-rule results are merged with a
 worst-of-N policy: any failure fails the merged check, scored rules report
 the minimum score across packages, and violations are prefixed with the
 package name so callers can disambiguate.
-| `format_report(result)` | Human-readable report |
-| `format_json(result)` | JSON-serializable dict |
-| `format_agent(result)` | Agent-optimized output (compact passed, detailed failed) |
-| `format_agent_text(data, category=None)` | Compact text rendering of agent dict for LLM consumption |
 
 ### CLI `--agent` Flag
 
