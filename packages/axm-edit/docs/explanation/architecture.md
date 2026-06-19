@@ -15,15 +15,19 @@ src/axm_edit/
 │   └── operations.py        # Pydantic models (Edit, ReplaceOp, CreateOp, DeleteOp, BatchResult)
 ├── core/
 │   ├── engine.py            # Validate-then-apply batch engine
-│   └── checkpoint.py        # Git stash checkpoint / rollback
+│   └── checkpoint.py        # Targeted per-path snapshot / rollback (no git)
+├── services/
+│   ├── lint.py              # filter_ruff_lines — post-apply ruff diagnostic filtering
+│   └── lint_diff.py         # compute_lint_diffs / extract_rules_by_file — tagged lint diffs
 ├── tools/
 │   ├── batch_edit.py         # BatchEditTool (AXMTool protocol)
 │   ├── batch_rollback.py     # BatchRollbackTool (AXMTool protocol)
 │   ├── read_file.py          # ReadFileTool (AXMTool protocol)
+│   ├── write_file.py         # WriteFileTool (AXMTool protocol)
+│   ├── edit_file.py          # EditFileTool (AXMTool protocol)
 │   ├── search_files.py       # SearchFilesTool (AXMTool protocol)
 │   ├── list_dir.py           # ListDirTool (AXMTool protocol)
-│   ├── run_command.py        # RunCommandTool (AXMTool protocol)
-│   └── write_file.py         # WriteFileTool (AXMTool protocol)
+│   └── run_command.py        # RunCommandTool (AXMTool protocol)
 └── utils/
     └── __init__.py           # Shared utilities (is_binary)
 ```

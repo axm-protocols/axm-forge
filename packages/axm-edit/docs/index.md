@@ -36,7 +36,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 | [`axm_edit.core.engine`](reference/api/axm_edit/core/engine/) | `batch_apply` — validate-then-apply batch engine |
 | [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint/) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
 | [`axm_edit.models.operations`](reference/api/axm_edit/models/operations/) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`, `rollback_failed`), `RollbackResult` — Pydantic models |
-| [`axm_edit.services.lint`](reference/api/axm_edit/services/lint/) | `harness_fix` — axm-harness auto-fix (codex-sdk default, claude-agent-sdk fallback) for remaining ruff errors (JSON old/new edit format) |
+| [`axm_edit.services.lint`](reference/api/axm_edit/services/lint/) | `filter_ruff_lines` — keep real ruff diagnostic lines, dropping summary noise (the post-apply lint step) |
 | [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff/) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
 | [`axm_edit.tools`](reference/api/axm_edit/tools/) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool` |
 

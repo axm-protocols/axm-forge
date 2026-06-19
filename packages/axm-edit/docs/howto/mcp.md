@@ -37,7 +37,7 @@ batch_edit(path="/project", operations=[
 ])
 ```
 
-Every `batch_edit` returns a `checkpoint` SHA; pass it back to undo the whole batch:
+Every `batch_edit` returns a `checkpoint` snapshot payload; pass it back to undo the whole batch:
 
 ```
 batch_rollback(path="/project", checkpoint="abc123def")

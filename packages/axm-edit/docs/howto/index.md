@@ -34,7 +34,7 @@ batch_edit(path="/project", operations=[
 
 ## Roll back after a failed edit
 
-Every `batch_edit` call returns a `checkpoint` SHA. Use it to restore the previous state:
+Every `batch_edit` call returns a `checkpoint` snapshot payload. Use it to restore the previous state:
 
 ```python
 from axm_edit.tools.batch_rollback import BatchRollbackTool
