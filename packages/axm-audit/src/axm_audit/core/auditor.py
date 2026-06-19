@@ -16,13 +16,14 @@ import os
 import traceback as _traceback
 from pathlib import Path
 
+from axm_audit.core.framework import Framework, detect_framework, resolve_frameworks
 from axm_audit.core.rules._helpers import (
     ASTCache,
     iter_workspace_packages,
     reset_ast_cache,
     set_ast_cache,
 )
-from axm_audit.core.rules.base import ProjectRule, get_registry
+from axm_audit.core.rules.base import ProjectRule, get_registry_for
 from axm_audit.models.results import (
     EXTRA_NONSCORED_CATEGORIES,
     SCORED_CATEGORIES,
@@ -45,26 +46,42 @@ def _ensure_registry_loaded() -> None:
     import axm_audit.core.rules  # noqa: F401
 
 
-def _build_all_rules() -> list[ProjectRule]:
-    """Instantiate all rules from the auto-discovery registry."""
-    _ensure_registry_loaded()
-    registry = get_registry()
+def _merged_registry(framework: Framework) -> dict[str, list[type[ProjectRule]]]:
+    """Merge the registries of every framework in *framework*'s resolution chain.
 
+    ``svelte`` resolves to ``(node, svelte)`` so a Svelte project runs the node
+    rules plus the svelte-specific ones; ``node`` and ``python`` resolve to just
+    themselves. Categories present in several chained frameworks are concatenated.
+    """
+    merged: dict[str, list[type[ProjectRule]]] = {}
+    for fw in resolve_frameworks(framework):
+        for category, classes in get_registry_for(fw).items():
+            merged.setdefault(category, []).extend(classes)
+    return merged
+
+
+def _build_all_rules(framework: Framework) -> list[ProjectRule]:
+    """Instantiate all rules for *framework* from the auto-discovery registry."""
+    _ensure_registry_loaded()
     rules: list[ProjectRule] = []
-    for _cat, rule_classes in registry.items():
+    for rule_classes in _merged_registry(framework).values():
         for cls in rule_classes:
             rules.extend(cls.get_instances())
     return rules
 
 
 def get_rules_for_category(
-    category: str | None, quick: bool = False
+    category: str | None,
+    quick: bool = False,
+    framework: Framework = Framework.PYTHON,
 ) -> list[ProjectRule]:
-    """Get rules for a specific category or all rules.
+    """Get rules for a specific category or all rules, scoped to *framework*.
 
     Args:
         category: Filter to specific category, or None for all.
         quick: If True, only lint + type checks.
+        framework: Ecosystem whose rules to return (default ``python`` keeps
+            the historical behaviour for callers that don't pass it).
 
     Returns:
         List of rule instances to run.
@@ -87,10 +104,9 @@ def get_rules_for_category(
         )
 
     if not category:
-        return _build_all_rules()
+        return _build_all_rules(framework)
 
-    registry = get_registry()
-    rule_classes = registry.get(category, [])
+    rule_classes = _merged_registry(framework).get(category, [])
     rules: list[ProjectRule] = []
     for cls in rule_classes:
         rules.extend(cls.get_instances())
@@ -123,8 +139,9 @@ def audit_project(
     project_path: Path,
     category: str | None = None,
     quick: bool = False,
+    framework: Framework | str | None = None,
 ) -> AuditResult:
-    """Audit a project against Python 2026 standards.
+    """Audit a project against its ecosystem's 2026 standards.
 
     Rules execute in parallel via ThreadPoolExecutor for speed.
     Each rule is isolated — one failure does not prevent others.
@@ -134,6 +151,9 @@ def audit_project(
         project_path: Root directory of the project to audit.
         category: Optional category filter.
         quick: If True, run only lint + type checks.
+        framework: Ecosystem to audit against. ``None`` auto-detects from the
+            project's manifest markers (:func:`detect_framework`); pass an
+            explicit value to override.
 
     Returns:
         AuditResult containing all check results.
@@ -144,13 +164,15 @@ def audit_project(
     if not project_path.exists():
         raise FileNotFoundError(f"Project path does not exist: {project_path}")
 
+    fw = detect_framework(project_path) if framework is None else Framework(framework)
+
     workspace_packages = iter_workspace_packages(project_path)
     if workspace_packages:
         return _audit_workspace(
             project_path, workspace_packages, category=category, quick=quick
         )
 
-    rules = get_rules_for_category(category, quick)
+    rules = get_rules_for_category(category, quick, framework=fw)
 
     cache = ASTCache()
     token = set_ast_cache(cache)

@@ -195,7 +195,11 @@ def test_get_rules_for_category_test_quality_picks_up_registrations(
     from axm_audit.core.rules.quality_rules import LintingRule
 
     fake_registry = {"test_quality": [LintingRule]}
-    monkeypatch.setattr(auditor_module, "get_registry", lambda: fake_registry)
+    # auditor reads the registry through ``_merged_registry`` (which resolves
+    # the framework chain) rather than the raw ``get_registry`` view.
+    monkeypatch.setattr(
+        auditor_module, "_merged_registry", lambda _framework: fake_registry
+    )
 
     rules = get_rules_for_category("test_quality")
 

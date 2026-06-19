@@ -14,6 +14,7 @@ from axm_audit.core.rules.dependencies import (
     DependencyHygieneRule,
 )
 from axm_audit.core.rules.duplication import DuplicationRule
+from axm_audit.core.rules.node import NodeLintRule
 from axm_audit.core.rules.practices.bare_except import BareExceptRule
 from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
@@ -56,6 +57,7 @@ __all__ = [
     "GodClassRule",
     "LintingRule",
     "MirrorRule",
+    "NodeLintRule",
     "ProjectRule",
     "PyprojectCompletenessRule",
     "SecurityPatternRule",

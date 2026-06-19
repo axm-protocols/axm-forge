@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from axm_audit.core.framework import Framework
 from axm_audit.core.rules._helpers import iter_src_dirs
 from axm_audit.models.results import CheckResult, Severity
 
@@ -20,30 +21,43 @@ if TYPE_CHECKING:
 # ── Auto-discovery registry ───────────────────────────────────────────
 #
 # Rule classes decorate themselves with ``@register_rule("lint")``
-# at import time.  The auditor reads ``get_registry()`` instead of a
-# hardcoded dict.  The decorator also injects ``_registered_category``
-# so that ``ProjectRule.category`` resolves without a manual property.
+# at import time.  The auditor reads the registry instead of a hardcoded
+# dict.  The decorator also injects ``_registered_category`` and
+# ``_registered_framework`` so that ``ProjectRule.category`` /
+# ``ProjectRule.framework`` resolve without a manual property.
+#
+# The registry is keyed by ``(category, framework)``. ``framework`` defaults
+# to ``"python"`` so every existing Python rule keeps its exact behaviour
+# without touching its decorator.
 
-_RULE_REGISTRY: dict[str, list[type[ProjectRule]]] = {}
+_RULE_REGISTRY: dict[tuple[str, Framework], list[type[ProjectRule]]] = {}
 
 
-def register_rule(category: str) -> Callable[[type[ProjectRule]], type[ProjectRule]]:
+def register_rule(
+    category: str,
+    framework: Framework | str = Framework.PYTHON,
+) -> Callable[[type[ProjectRule]], type[ProjectRule]]:
     """Class decorator that registers a rule in the auto-discovery registry.
 
-    Also injects ``_registered_category`` on the class so that
-    ``ProjectRule.category`` resolves automatically.
+    Also injects ``_registered_category`` and ``_registered_framework`` on the
+    class so that ``ProjectRule.category`` / ``ProjectRule.framework`` resolve
+    automatically.
 
     Args:
         category: Unified category (e.g. ``"lint"``, ``"security"``).
+        framework: Ecosystem the rule applies to (default ``"python"`` so
+            existing Python rules are unaffected).
 
     Returns:
         The unmodified class — the decorator only appends to the registry
-        and sets the ``_registered_category`` attribute.
+        and sets the ``_registered_*`` attributes.
     """
+    fw = Framework(framework)
 
     def _decorator(cls: type[ProjectRule]) -> type[ProjectRule]:
         cls._registered_category = category  # type: ignore[attr-defined]
-        bucket = _RULE_REGISTRY.setdefault(category, [])
+        cls._registered_framework = fw  # type: ignore[attr-defined]
+        bucket = _RULE_REGISTRY.setdefault((category, fw), [])
         if cls not in bucket:
             bucket.append(cls)
         return cls
@@ -52,13 +66,32 @@ def register_rule(category: str) -> Callable[[type[ProjectRule]], type[ProjectRu
 
 
 def get_registry() -> dict[str, list[type[ProjectRule]]]:
-    """Return the current rule registry (read-only view).
+    """Return the Python rule registry as a ``category -> classes`` view.
+
+    Backwards-compatible accessor: it exposes only the ``python`` framework
+    rules, keyed by category, exactly as before the framework dimension was
+    introduced. New framework-aware callers use :func:`get_registry_for`.
 
     Callers must ensure that rule modules have been imported before
-    calling this function so that ``@register_rule`` decorators have
-    fired.
+    calling this function so that ``@register_rule`` decorators have fired.
     """
-    return _RULE_REGISTRY
+    return get_registry_for(Framework.PYTHON)
+
+
+def get_registry_for(framework: Framework) -> dict[str, list[type[ProjectRule]]]:
+    """Return the rule registry for a single *framework*, keyed by category.
+
+    Args:
+        framework: Ecosystem whose rules to expose.
+
+    Returns:
+        Mapping ``category -> [rule classes]`` for that framework only.
+    """
+    view: dict[str, list[type[ProjectRule]]] = {}
+    for (category, fw), classes in _RULE_REGISTRY.items():
+        if fw is framework:
+            view.setdefault(category, []).extend(classes)
+    return view
 
 
 # ── Shared scoring constants ──────────────────────────────────────────
@@ -136,6 +169,15 @@ class ProjectRule(ABC):
         ``structure``, ``tooling``.
         """
         return getattr(self, "_registered_category", "")
+
+    @property
+    def framework(self) -> Framework:
+        """Ecosystem this rule applies to, auto-injected by ``@register_rule``.
+
+        Defaults to :attr:`Framework.PYTHON` for rules registered before the
+        framework dimension existed.
+        """
+        return getattr(self, "_registered_framework", Framework.PYTHON)
 
     @abstractmethod
     def check(self, project_path: Path) -> CheckResult:
