@@ -73,7 +73,7 @@ class ImpactTool(AXMTool):
 
         project_path = Path(path).resolve()
         if not project_path.is_dir():
-            raise NotADirectoryError(f"Not a directory: {project_path}")
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
         raw_filter = kwargs.get("test_filter")
         test_filter: str | None = raw_filter if isinstance(raw_filter, str) else None
@@ -81,24 +81,27 @@ class ImpactTool(AXMTool):
             {"test_filter": test_filter} if test_filter is not None else {}
         )
 
-        if symbols is not None:
-            return self._execute_batch(
+        try:
+            if symbols is not None:
+                return self._execute_batch(
+                    project_path,
+                    symbols,
+                    exclude_tests,
+                    detail,
+                    **tf,
+                )
+
+            if symbol is None:
+                return ToolResult(success=False, error="symbol parameter is required")
+            return self._execute_single(
                 project_path,
-                symbols,
+                symbol,
                 exclude_tests,
                 detail,
                 **tf,
             )
-
-        if symbol is None:
-            return ToolResult(success=False, error="symbol parameter is required")
-        return self._execute_single(
-            project_path,
-            symbol,
-            exclude_tests,
-            detail,
-            **tf,
-        )
+        except Exception as exc:  # noqa: BLE001
+            return ToolResult(success=False, error=str(exc))
 
     def _execute_batch(
         self,
