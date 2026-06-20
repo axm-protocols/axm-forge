@@ -72,7 +72,7 @@ REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
 # Sub-packages of ``axm_init.checks`` that hold a non-Python framework's
 # checks. They are skipped by the default (Python) discovery scan and picked up
 # only when the project's framework selects them.
-_FRAMEWORK_CHECK_PACKAGES: frozenset[str] = frozenset({"node", "svelte"})
+_FRAMEWORK_CHECK_PACKAGES: frozenset[str] = frozenset({"node", "svelte", "react"})
 
 
 def _collect_check_fns(module: object) -> list[Callable[[Path], CheckResult]]:
