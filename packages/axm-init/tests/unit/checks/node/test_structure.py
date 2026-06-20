@@ -8,8 +8,48 @@ from axm_init.checks.node.structure import (
     check_contributing,
     check_gitignore,
     check_license_file,
+    check_lock_file,
     check_readme,
+    check_tests_dir,
 )
+
+
+def test_lock_file_present_passes(tmp_path: Path) -> None:
+    """A package-lock.json passes the lockfile check."""
+    (tmp_path / "package-lock.json").write_text("{}")
+    assert check_lock_file(tmp_path).passed is True
+
+
+def test_pnpm_lock_passes(tmp_path: Path) -> None:
+    """A pnpm-lock.yaml also satisfies the lockfile check."""
+    (tmp_path / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
+    assert check_lock_file(tmp_path).passed is True
+
+
+def test_lock_file_absent_fails(tmp_path: Path) -> None:
+    """No lockfile fails."""
+    assert check_lock_file(tmp_path).passed is False
+
+
+def test_tests_dir_passes(tmp_path: Path) -> None:
+    """A tests/ directory satisfies the tests check."""
+    (tmp_path / "tests").mkdir()
+    assert check_tests_dir(tmp_path).passed is True
+
+
+def test_colocated_tests_pass(tmp_path: Path) -> None:
+    """Colocated *.test.ts files satisfy the tests check."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "a.test.ts").write_text("test('x', () => {});")
+    assert check_tests_dir(tmp_path).passed is True
+
+
+def test_no_tests_fails(tmp_path: Path) -> None:
+    """No tests anywhere fails."""
+    (tmp_path / "src").mkdir()
+    assert check_tests_dir(tmp_path).passed is False
+
 
 _README = (
     "# pkg\n## Features\nx\n## Installation\nx\n## Development\nx\n## License\nMIT\n"

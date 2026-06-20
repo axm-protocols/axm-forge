@@ -13,8 +13,10 @@ from pathlib import Path
 from axm_init.models.check import CheckResult
 
 __all__ = [
+    "check_commitlint",
     "check_engines_pinned",
     "check_eslint_config",
+    "check_git_hooks",
     "check_prettier_config",
     "check_test_script",
 ]
@@ -180,4 +182,99 @@ def check_prettier_config(project: Path) -> CheckResult:
         message="No Prettier config",
         details=[],
         fix="Add a .prettierrc (or a `prettier` key in package.json).",
+    )
+
+
+def _has_git_hook_manager(project: Path) -> bool:
+    """Return True if a git-hook manager is configured (husky/lefthook/pre-commit)."""
+    if (project / ".husky").is_dir():
+        return True
+    for name in ("lefthook.yml", "lefthook.yaml", ".pre-commit-config.yaml"):
+        if (project / name).is_file():
+            return True
+    pkg = project / "package.json"
+    if pkg.is_file():
+        try:
+            data = json.loads(pkg.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        dev = data.get("devDependencies") if isinstance(data, dict) else None
+        if isinstance(dev, dict) and any(
+            n in dev for n in ("husky", "lefthook", "simple-git-hooks")
+        ):
+            return True
+    return False
+
+
+def check_git_hooks(project: Path) -> CheckResult:
+    """Check: a git-hook manager is configured (node analog of pre-commit)."""
+    if _has_git_hook_manager(project):
+        return CheckResult(
+            name="tooling.git_hooks",
+            category="tooling",
+            passed=True,
+            weight=2,
+            message="Git-hook manager configured",
+            details=[],
+            fix="",
+        )
+    return CheckResult(
+        name="tooling.git_hooks",
+        category="tooling",
+        passed=False,
+        weight=2,
+        message="No git-hook manager (husky/lefthook)",
+        details=[],
+        fix="Add husky (or lefthook) to run lint/format/tests on commit.",
+    )
+
+
+def check_commitlint(project: Path) -> CheckResult:
+    """Check: conventional-commit enforcement is configured (commitlint).
+
+    Node analog of the Python ``tooling.precommit_conventional`` check.
+    """
+    configs = (
+        "commitlint.config.js",
+        "commitlint.config.cjs",
+        "commitlint.config.mjs",
+        "commitlint.config.ts",
+        ".commitlintrc",
+        ".commitlintrc.json",
+        ".commitlintrc.js",
+    )
+    if any((project / name).is_file() for name in configs):
+        return CheckResult(
+            name="tooling.commitlint",
+            category="tooling",
+            passed=True,
+            weight=1,
+            message="commitlint configured",
+            details=[],
+            fix="",
+        )
+    pkg = project / "package.json"
+    if pkg.is_file():
+        try:
+            data = json.loads(pkg.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        if isinstance(data, dict) and "commitlint" in data:
+            return CheckResult(
+                name="tooling.commitlint",
+                category="tooling",
+                passed=True,
+                weight=1,
+                message="commitlint configured in package.json",
+                details=[],
+                fix="",
+            )
+    return CheckResult(
+        name="tooling.commitlint",
+        category="tooling",
+        passed=False,
+        weight=1,
+        message="No commitlint config",
+        details=["Enforce Conventional Commits"],
+        fix="Add @commitlint/cli + a commitlint.config.js.",
     )

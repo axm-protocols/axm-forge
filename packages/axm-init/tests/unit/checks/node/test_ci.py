@@ -5,11 +5,48 @@ from __future__ import annotations
 from pathlib import Path
 
 from axm_init.checks.node.ci import (
+    check_ci_dependabot,
     check_ci_lint_job,
+    check_ci_publish,
     check_ci_security_job,
     check_ci_test_job,
     check_ci_workflow_exists,
 )
+
+
+def test_dependabot_config_passes(tmp_path: Path) -> None:
+    """A .github/dependabot.yml passes the dependabot check."""
+    wf = tmp_path / ".github"
+    wf.mkdir()
+    (wf / "dependabot.yml").write_text("version: 2\n")
+    assert check_ci_dependabot(tmp_path).passed is True
+
+
+def test_renovate_config_passes(tmp_path: Path) -> None:
+    """A renovate.json also satisfies the dependabot check."""
+    (tmp_path / "renovate.json").write_text("{}")
+    assert check_ci_dependabot(tmp_path).passed is True
+
+
+def test_dependabot_absent_fails(tmp_path: Path) -> None:
+    """No dependency-update config fails."""
+    assert check_ci_dependabot(tmp_path).passed is False
+
+
+def test_publish_requires_provenance(tmp_path: Path) -> None:
+    """A publish workflow needs provenance/id-token to pass."""
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "release.yml").write_text(
+        "permissions:\n  id-token: write\nsteps:\n  - run: npm publish --provenance\n"
+    )
+    assert check_ci_publish(tmp_path).passed is True
+
+
+def test_publish_without_workflow_fails(tmp_path: Path) -> None:
+    """No publish workflow fails."""
+    assert check_ci_publish(tmp_path).passed is False
+
 
 _CI = """\
 name: CI

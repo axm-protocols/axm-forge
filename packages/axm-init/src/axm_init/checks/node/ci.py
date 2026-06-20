@@ -13,7 +13,9 @@ from pathlib import Path
 from axm_init.models.check import CheckResult
 
 __all__ = [
+    "check_ci_dependabot",
     "check_ci_lint_job",
+    "check_ci_publish",
     "check_ci_security_job",
     "check_ci_test_job",
     "check_ci_workflow_exists",
@@ -128,4 +130,66 @@ def check_ci_security_job(project: Path) -> CheckResult:
         message="No security/audit job in CI",
         details=["CI should run `npm audit` or CodeQL"],
         fix="Add a job running `npm audit --audit-level high`.",
+    )
+
+
+def check_ci_dependabot(project: Path) -> CheckResult:
+    """Check: automated dependency updates are configured (dependabot/renovate).
+
+    Node analog of the Python ``ci.dependabot`` check.
+    """
+    candidates = (
+        project / ".github" / "dependabot.yml",
+        project / ".github" / "dependabot.yaml",
+        project / "renovate.json",
+        project / ".github" / "renovate.json",
+    )
+    if any(p.is_file() for p in candidates):
+        return CheckResult(
+            name="ci.dependabot",
+            category="ci",
+            passed=True,
+            weight=2,
+            message="Automated dependency updates configured",
+            details=[],
+            fix="",
+        )
+    return CheckResult(
+        name="ci.dependabot",
+        category="ci",
+        passed=False,
+        weight=2,
+        message="No dependabot/renovate config",
+        details=[],
+        fix="Add .github/dependabot.yml (or renovate.json) for the npm ecosystem.",
+    )
+
+
+def check_ci_publish(project: Path) -> CheckResult:
+    """Check: a publish/release workflow with npm provenance.
+
+    Node analog of the Python ``ci.trusted_publishing`` check — a workflow that
+    publishes to npm, ideally with provenance (``--provenance`` / ``id-token``).
+    """
+    content = _read_ci(project) or ""
+    lowered = content.lower()
+    has_publish = "npm publish" in lowered or "changeset" in lowered
+    if has_publish and ("provenance" in lowered or "id-token" in lowered):
+        return CheckResult(
+            name="ci.trusted_publishing",
+            category="ci",
+            passed=True,
+            weight=2,
+            message="Publish workflow with provenance",
+            details=[],
+            fix="",
+        )
+    return CheckResult(
+        name="ci.trusted_publishing",
+        category="ci",
+        passed=False,
+        weight=2,
+        message="No npm publish workflow with provenance",
+        details=["Publish to npm with provenance (id-token: write)"],
+        fix="Add a release workflow running `npm publish --provenance`.",
     )

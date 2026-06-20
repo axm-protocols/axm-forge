@@ -6,11 +6,45 @@ import json
 from pathlib import Path
 
 from axm_init.checks.node.tooling import (
+    check_commitlint,
     check_engines_pinned,
     check_eslint_config,
+    check_git_hooks,
     check_prettier_config,
     check_test_script,
 )
+
+
+def test_git_hooks_husky_dir_passes(tmp_path: Path) -> None:
+    """A .husky directory satisfies the git-hooks check."""
+    (tmp_path / ".husky").mkdir()
+    assert check_git_hooks(tmp_path).passed is True
+
+
+def test_git_hooks_devdep_passes(tmp_path: Path) -> None:
+    """A husky devDependency satisfies the git-hooks check."""
+    (tmp_path / "package.json").write_text(
+        json.dumps({"devDependencies": {"husky": "^9"}})
+    )
+    assert check_git_hooks(tmp_path).passed is True
+
+
+def test_git_hooks_absent_fails(tmp_path: Path) -> None:
+    """No git-hook manager fails."""
+    (tmp_path / "package.json").write_text(json.dumps({"name": "x"}))
+    assert check_git_hooks(tmp_path).passed is False
+
+
+def test_commitlint_config_passes(tmp_path: Path) -> None:
+    """A commitlint.config.js passes."""
+    (tmp_path / "commitlint.config.js").write_text("export default {};")
+    assert check_commitlint(tmp_path).passed is True
+
+
+def test_commitlint_absent_fails(tmp_path: Path) -> None:
+    """No commitlint config fails."""
+    (tmp_path / "package.json").write_text(json.dumps({"name": "x"}))
+    assert check_commitlint(tmp_path).passed is False
 
 
 def test_engines_pinned_passes(tmp_path: Path) -> None:

@@ -15,7 +15,9 @@ __all__ = [
     "check_contributing",
     "check_gitignore",
     "check_license_file",
+    "check_lock_file",
     "check_readme",
+    "check_tests_dir",
 ]
 
 _README_SECTIONS = ("Features", "Installation", "Development", "License")
@@ -135,4 +137,69 @@ def check_readme(project: Path) -> CheckResult:
         message="README follows standard",
         details=[],
         fix="",
+    )
+
+
+# Lockfiles, one per package manager (any one satisfies the check).
+_LOCK_FILES = ("package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb")
+
+
+def check_lock_file(project: Path) -> CheckResult:
+    """Check: a dependency lockfile is committed (node analog of uv.lock)."""
+    if any((project / name).is_file() for name in _LOCK_FILES):
+        return CheckResult(
+            name="structure.lock_file",
+            category="structure",
+            passed=True,
+            weight=2,
+            message="Lockfile present",
+            details=[],
+            fix="",
+        )
+    return CheckResult(
+        name="structure.lock_file",
+        category="structure",
+        passed=False,
+        weight=2,
+        message="No lockfile committed",
+        details=[],
+        fix="Commit a lockfile (package-lock.json / pnpm-lock.yaml).",
+    )
+
+
+def check_tests_dir(project: Path) -> CheckResult:
+    """Check: the project has tests (a tests/ dir or colocated *.test.ts)."""
+    if (project / "tests").is_dir():
+        return CheckResult(
+            name="structure.tests_dir",
+            category="structure",
+            passed=True,
+            weight=2,
+            message="tests/ directory present",
+            details=[],
+            fix="",
+        )
+    src = project / "src"
+    if src.is_dir() and any(
+        p.name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx"))
+        for p in src.rglob("*")
+        if p.is_file()
+    ):
+        return CheckResult(
+            name="structure.tests_dir",
+            category="structure",
+            passed=True,
+            weight=2,
+            message="Colocated tests present",
+            details=[],
+            fix="",
+        )
+    return CheckResult(
+        name="structure.tests_dir",
+        category="structure",
+        passed=False,
+        weight=2,
+        message="No tests found",
+        details=["Expected a tests/ dir or colocated *.test.ts files"],
+        fix="Add tests (tests/ directory or colocated *.test.ts).",
     )
