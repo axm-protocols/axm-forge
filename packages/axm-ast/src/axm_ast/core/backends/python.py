@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from tree_sitter import Tree
 
+    from axm_ast.models.calls import CallSite
     from axm_ast.models.nodes import ModuleInfo
 
 __all__ = ["PythonBackend"]
@@ -51,3 +52,11 @@ class PythonBackend:
     def extract_module(self, path: Path) -> ModuleInfo:
         """Extract module info via the existing Python extractor."""
         return _py_parser.extract_module_info(path)
+
+    def extract_calls(
+        self, module: ModuleInfo, module_name: str | None = None
+    ) -> list[CallSite]:
+        """Extract call-sites via the existing Python caller analysis."""
+        from axm_ast.core.callers import extract_calls
+
+        return extract_calls(module, module_name=module_name)

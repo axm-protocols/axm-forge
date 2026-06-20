@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING
 
 from tree_sitter import Language, Parser, Tree
 
+from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import (
     ClassInfo,
     ClassKind,
@@ -138,6 +139,72 @@ class TypeScriptBackend:
             functions=functions,
             classes=classes,
             imports=imports,
+        )
+
+    def extract_calls(
+        self, module: ModuleInfo, module_name: str | None = None
+    ) -> list[CallSite]:
+        """Extract call-sites from a TS module (``call_expression`` nodes)."""
+        tree = self.parse_file(module.path)
+        mod_name = module_name or module.path.stem
+        calls: list[CallSite] = []
+        self._visit_calls(tree.root_node, mod_name, None, calls)
+        return calls
+
+    def _visit_calls(
+        self,
+        node: Node,
+        module: str,
+        context: str | None,
+        calls: list[CallSite],
+    ) -> None:
+        """Walk the tree recording every call, tracking the enclosing scope."""
+        scope = self._scope_name(node) or context
+        if node.type == "call_expression":
+            site = self._call_site(node, module, context)
+            if site is not None:
+                calls.append(site)
+        for child in node.children:
+            self._visit_calls(child, module, scope, calls)
+
+    @staticmethod
+    def _scope_name(node: Node) -> str | None:
+        """Return the declared name if *node* introduces a function/class scope."""
+        if node.type in (
+            "function_declaration",
+            "method_definition",
+            "class_declaration",
+        ):
+            return _name_of(node)
+        return None
+
+    @staticmethod
+    def _call_site(node: Node, module: str, context: str | None) -> CallSite | None:
+        """Build a CallSite from a ``call_expression`` node, or None if dynamic."""
+        fn = node.child_by_field_name("function")
+        if fn is None:
+            return None
+        if fn.type == "identifier":
+            symbol = _text(fn)
+            confidence = 1.0
+        elif fn.type == "member_expression":
+            prop = fn.child_by_field_name("property")
+            symbol = _text(prop) if prop is not None else ""
+            # obj.foo() — name-only match on the property, lower confidence.
+            confidence = 0.5
+        else:
+            return None
+        if not symbol:
+            return None
+        call_text = _text(node)
+        return CallSite(
+            module=module,
+            symbol=symbol,
+            line=node.start_point[0] + 1,
+            column=node.start_point[1],
+            context=context,
+            call_expression=call_text[:200],
+            confidence=confidence,
         )
 
     @staticmethod

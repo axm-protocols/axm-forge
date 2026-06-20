@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
     from tree_sitter import Tree
 
+    from axm_ast.models.calls import CallSite
     from axm_ast.models.nodes import ModuleInfo
 
 __all__ = ["LanguageBackend"]
@@ -72,5 +73,22 @@ class LanguageBackend(Protocol):
         This is the only language-aware step: it walks the grammar's concrete
         syntax tree, mapping language-specific node types into the shared,
         language-agnostic symbol model.
+        """
+        ...
+
+    def extract_calls(
+        self, module: ModuleInfo, module_name: str | None = None
+    ) -> list[CallSite]:
+        """Extract every call-site from *module* into the shared model.
+
+        Walks the grammar's call nodes (``call`` in Python, ``call_expression``
+        in TypeScript) and records each :class:`CallSite` (symbol, location,
+        enclosing scope). The returned model is language-agnostic, so the
+        downstream call-graph / impact / dead-code layers are unchanged.
+
+        Args:
+            module: A parsed module (carries the source path).
+            module_name: Dotted module name for ``CallSite.module`` (defaults to
+                the file stem).
         """
         ...

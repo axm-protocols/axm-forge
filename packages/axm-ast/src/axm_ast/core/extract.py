@@ -22,9 +22,10 @@ if TYPE_CHECKING:
 
     from tree_sitter import Tree
 
+    from axm_ast.models.calls import CallSite
     from axm_ast.models.nodes import ModuleInfo
 
-__all__ = ["extract_module", "parse_path"]
+__all__ = ["extract_calls", "extract_module", "parse_path"]
 
 
 def parse_path(path: Path) -> Tree:
@@ -65,3 +66,24 @@ def extract_module(path: Path) -> ModuleInfo:
         msg = f"Unsupported file type for AST extraction: {path}"
         raise ValueError(msg)
     return backend.extract_module(path)
+
+
+def extract_calls(module: ModuleInfo, module_name: str | None = None) -> list[CallSite]:
+    """Extract call-sites from *module* via the backend that owns its file.
+
+    Args:
+        module: A parsed :class:`ModuleInfo` (carries the source path).
+        module_name: Dotted module name for ``CallSite.module`` (defaults to the
+            file stem).
+
+    Returns:
+        The module's call-sites in the language-agnostic model.
+
+    Raises:
+        ValueError: If no backend is registered for the module's suffix.
+    """
+    backend = backend_for(module.path)
+    if backend is None:
+        msg = f"Unsupported file type for call extraction: {module.path}"
+        raise ValueError(msg)
+    return backend.extract_calls(module, module_name=module_name)
