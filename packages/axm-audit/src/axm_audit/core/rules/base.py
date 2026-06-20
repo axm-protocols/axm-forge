@@ -111,7 +111,7 @@ def get_registry_for(framework: Framework) -> dict[str, list[type[ProjectRule]]]
 # │ QUALITY_COMPLEXITY  │ 10      │ per high-CC function     │
 # │ QUALITY_DIFF_SIZE   │ linear  │ 100→0 over [400,1200] LOC│
 # │ QUALITY_SECURITY    │ 15/5    │ per HIGH/MEDIUM finding  │
-# │ QUALITY_COVERAGE    │ ratio   │ branch coverage %        │
+# │ QUALITY_TESTS       │ ratio   │ suite health (cov/pass)  │
 # │ DEPS_AUDIT          │ 15      │ per vulnerable package   │
 # │ DEPS_HYGIENE        │ 10      │ per hygiene issue        │
 # │ ARCH_CIRCULAR       │ 20      │ per cycle                │

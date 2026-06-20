@@ -270,7 +270,7 @@ class TestEdgeCases:
         result = audit_project(no_tests_project)
         assert isinstance(result.quality_score, float)
         # Coverage check should show low/zero coverage
-        coverage_checks = [c for c in result.checks if c.rule_id == "QUALITY_COVERAGE"]
+        coverage_checks = [c for c in result.checks if c.rule_id == "QUALITY_TESTS"]
         if coverage_checks:
             cov_score = coverage_checks[0].score or 0
             assert cov_score <= 10  # No tests → ~0% coverage

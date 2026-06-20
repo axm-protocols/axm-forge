@@ -331,7 +331,7 @@ class TestRulesRegistration:
             "QUALITY_COMPLEXITY",
             "QUALITY_DIFF_SIZE",
             "QUALITY_SECURITY",
-            "QUALITY_COVERAGE",
+            "QUALITY_TESTS",
             "DEPS_AUDIT",
             "DEPS_HYGIENE",
             "ARCH_CIRCULAR",

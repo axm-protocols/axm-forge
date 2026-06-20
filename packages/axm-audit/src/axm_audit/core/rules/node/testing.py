@@ -1,7 +1,7 @@
 """Node testing rule — the Vitest pendant of :class:`TestCoverageRule`.
 
-Ports the intent of ``QUALITY_COVERAGE`` / the test-suite-runs invariant to the
-Node ecosystem via Vitest's JSON reporter.
+Emits ``QUALITY_TESTS`` (the shared cross-framework test-suite-health rule)
+via Vitest's JSON reporter.
 
 False-green guard (from the research): a green ``vitest run`` proves nothing if
 zero tests ran (``passWithNoTests``). We assert ``numTotalTests > 0`` AND all
@@ -46,8 +46,8 @@ class NodeTestRule(NodeToolRule):
 
     @property
     def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "QUALITY_TESTING"
+        """Unique identifier (shared cross-framework: test-suite health)."""
+        return "QUALITY_TESTS"
 
     @property
     def args(self) -> list[str]:

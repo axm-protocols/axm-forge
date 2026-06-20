@@ -195,7 +195,7 @@ class TestScoringIntegration:
             _make_check("QUALITY_COMPLEXITY", 100),
             _make_check("QUALITY_SECURITY", 100),
             _make_check("DEPS_AUDIT", 100),
-            _make_check("QUALITY_COVERAGE", 100),
+            _make_check("QUALITY_TESTS", 100),
             _make_check("ARCH_COUPLING", 100),
             _make_check("PRACTICE_DOCSTRING", 100),
         ]

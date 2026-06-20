@@ -78,14 +78,17 @@ def _no_package_json(project_path: Path, rule_id: str) -> CheckResult:
     )
 
 
-@register_rule("test_quality", framework=Framework.NODE)
+# Mirror lives in the ``practices`` category and shares the Python rule_id, so
+# the same invariant aggregates across frameworks (the framework is the registry
+# dimension, not part of the id).
+@register_rule("practices", framework=Framework.NODE)
 class NodeTestMirrorRule(ProjectRule):
     """Every source module has a colocated ``*.test.ts`` (node mirror idiom)."""
 
     @property
     def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "NODE_TEST_MIRROR"
+        """Unique identifier (shared with the Python mirror rule)."""
+        return "PRACTICE_TEST_MIRROR"
 
     def check(self, project_path: Path) -> CheckResult:
         """Flag source modules with no sibling test file."""
@@ -143,8 +146,8 @@ class NodeTestPyramidRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "NODE_TEST_PYRAMID_LEVEL"
+        """Unique identifier (shared with the Python pyramid-level rule)."""
+        return "TEST_QUALITY_PYRAMID_LEVEL"
 
     def check(self, project_path: Path) -> CheckResult:
         """Flag colocated unit tests that perform real I/O."""
@@ -212,8 +215,8 @@ class NodeTestTautologyRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "NODE_TEST_TAUTOLOGY"
+        """Unique identifier (shared with the Python tautology rule)."""
+        return "TEST_QUALITY_TAUTOLOGY"
 
     def check(self, project_path: Path) -> CheckResult:
         """Count tautological assertions across the project's test files."""
@@ -269,8 +272,8 @@ class NodeTestDuplicateRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "NODE_TEST_DUPLICATE"
+        """Unique identifier (shared with the Python duplicate-tests rule)."""
+        return "TEST_QUALITY_DUPLICATE_TESTS"
 
     def check(self, project_path: Path) -> CheckResult:
         """Count test cases whose normalized body duplicates an earlier one."""
