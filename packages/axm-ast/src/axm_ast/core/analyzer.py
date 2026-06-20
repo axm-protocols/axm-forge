@@ -259,20 +259,23 @@ def _discover_node_files_inner(root: Path, git_root: Path | None) -> list[Path]:
 def _analyze_node_package(path: Path) -> PackageInfo:
     """Analyze a node/TS package: discover and extract every TS module.
 
-    Dependency edges are left empty here — ES6 cross-file import resolution is
-    a separate layer. This gives the symbol-level view (functions, classes,
-    interfaces, types, enums per file) the read-only ``ast_*`` tools consume.
+    Dependency edges are built by resolving each module's relative ES6 imports
+    to a sibling module (see :mod:`axm_ast.core.node_imports`); the symbol-level
+    view (functions, classes, interfaces, types, enums per file) feeds the
+    read-only ``ast_*`` tools.
     """
     from axm_ast.core.extract import extract_module
+    from axm_ast.core.node_imports import resolve_node_edges
 
     t0 = time.perf_counter()
     ts_files = sorted(_discover_node_files(path))
     modules: list[ModuleInfo] = [extract_module(f) for f in ts_files]
+    dep_edges = resolve_node_edges(modules, path)
     pkg = PackageInfo(
         name=path.name,
         root=path,
         modules=modules,
-        dependency_edges=[],
+        dependency_edges=dep_edges,
     )
     elapsed = time.perf_counter() - t0
     logger.debug(

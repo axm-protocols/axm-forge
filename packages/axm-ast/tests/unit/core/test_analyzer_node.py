@@ -56,10 +56,14 @@ class TestAnalyzeNodePackage:
         assert "greet" in {f.name for f in mod.functions}
         assert "User" in {c.name for c in mod.classes}
 
-    def test_node_package_has_no_python_edges(self, tmp_path: Path) -> None:
-        """Node analysis leaves dependency edges empty (ES6 resolution is later)."""
-        pkg = analyze_package(_node_project(tmp_path))
-        assert pkg.dependency_edges == []
+    def test_node_package_resolves_es6_edges(self, tmp_path: Path) -> None:
+        """Relative ES6 imports build the package's dependency edges."""
+        root = _node_project(tmp_path)
+        src = root / "src"
+        (src / "util.ts").write_text("export const x = 1;\n")
+        (src / "index.ts").write_text("import { x } from './util.js';\n")
+        pkg = analyze_package(root)
+        assert ("src/index.ts", "src/util.ts") in pkg.dependency_edges
 
     def test_skips_declaration_files(self, tmp_path: Path) -> None:
         """``.d.ts`` declaration files are not treated as source modules."""
