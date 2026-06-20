@@ -24,16 +24,22 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "deadcode": "knip",
-    "cycles": "madge --circular src"
+    "cycles": "madge --circular src",
+    "docs": "typedoc",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@changesets/cli": "^2",
+    "@commitlint/cli": "^19",
+    "@commitlint/config-conventional": "^19",
     "eslint": "^9",
     "eslint-plugin-sonarjs": "^3",
-    "prettier": "^3",
-    "typescript": "^5",
-    "vitest": "^2",
+    "husky": "^9",
     "knip": "^5",
-    "madge": "^8"
+    "madge": "^8",
+    "prettier": "^3",
+    "typedoc": "^0.27",
+    "typescript": "^5",
+    "vitest": "^2"
   }
 }
