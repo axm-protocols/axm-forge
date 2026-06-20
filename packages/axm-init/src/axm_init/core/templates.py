@@ -46,9 +46,7 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
     (TemplateType.WORKSPACE, Framework.PYTHON): "uv-workspace",
     (TemplateType.MEMBER, Framework.PYTHON): "workspace-member",
     (TemplateType.STANDALONE, Framework.NODE): "node-project",
-    # Svelte standalone reuses the node template for the POC; a dedicated
-    # "svelte-project" template would slot in here.
-    (TemplateType.STANDALONE, Framework.SVELTE): "node-project",
+    (TemplateType.STANDALONE, Framework.SVELTE): "svelte-project",
 }
 
 
