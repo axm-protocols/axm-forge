@@ -112,11 +112,78 @@ Mécanisme `framework=` câblé de bout en bout dans **axm-audit** et **axm-init
 axm-init 707 tests verts (lint A 99.8 / type 100). 28 nouveaux tests ; 9 tests
 existants adaptés à l'API framework-aware (aucune régression fonctionnelle).
 
-## 8. Reste à faire (au-delà du POC)
+## 8. Architecture en couches (react-ready)
 
-Le mapping (AUDIT_RULE_MAPPING.md) liste 31 règles : 11 portables 1:1,
-17 à adapter, 3 svelte-spécifiques, 0 à drop. Le POC en porte **1** (lint) pour
-prouver la chaîne. Suite : porter les catégories par valeur décroissante
-(type → tsc/svelte-check, complexity → ESLint+sonarjs, test_quality → ts-morph,
-architecture → madge, …), factoriser `framework.py` dans `axm-ingot`, et exposer
-`framework=` dans les signatures MCP/CLI des tools `audit` / `init_*`.
+Le découpage `python | node | svelte` initial était trop grossier. Modèle final
+**en couches**, piloté par `resolve_frameworks` :
+
+- **`node`** = socle commun JS/TS (ESLint, tsc, prettier, vitest, knip, madge,
+  jscpd, npm audit, gitleaks). Réutilisé tel quel par tous.
+- **`svelte`** = `node` + delta `.svelte` (svelte-check : type + a11y que `tsc`
+  ne couvre pas). `resolve_frameworks(svelte) → (node, svelte)`.
+- **`react`** = `node` + delta `.jsx/.tsx` (eslint-plugin-react-hooks,
+  jsx-a11y, react-refresh). `resolve_frameworks(react) → (node, react)`.
+
+Ajouter un framework UI (vue, solid…) = 1 membre d'enum + 1 entrée dans
+`_NODE_UI_FRAMEWORKS` + un sous-package `rules/<fw>/` (audit) / `checks/<fw>/`
+(init). **Aucun refactor.** React est déjà câblé (enum + détection + résolution
++ `_FRAMEWORK_CHECK_PACKAGES`) ; seul son delta de règles reste à écrire.
+
+## 9. État livré (node base + svelte delta)
+
+**axm-audit — 16 règles node déclarées (12 implémentées + 4 placeholders) :**
+
+| Catégorie | Règles implémentées | Outil |
+|---|---|---|
+| lint | QUALITY_LINT, QUALITY_FORMAT, QUALITY_DEAD_CODE | ESLint, Prettier, knip |
+| type | QUALITY_TYPE | tsc |
+| complexity | QUALITY_COMPLEXITY | ESLint + sonarjs |
+| deps | DEPS_HYGIENE, DEPS_AUDIT | knip, npm audit |
+| security | PRACTICE_SECURITY | gitleaks |
+| testing | QUALITY_TESTING | vitest |
+| architecture | ARCH_CIRCULAR, ARCH_DUPLICATION | madge, jscpd |
+| structure | STRUCTURE_PACKAGE_JSON | (lecture package.json+tsconfig) |
+| test_quality | **NON IMPLÉMENTÉ** (4 placeholders) | requiert AST TS |
+
+Delta **svelte** : `SVELTE_CHECK` (type+a11y). → svelte = 13 règles, react = 12
+(node) en attendant son delta.
+
+**axm-init — 6 checks node + 1 delta svelte :** package_json (×2), tsconfig
+(exists+strict), tooling (eslint config + test script) ; delta svelte =
+svelte.config. Templates `node-project` (enrichi) et `svelte-project` (nouveau)
+qui passent leurs propres checks ET les règles audit out-of-the-box.
+
+**Doctrine appliquée partout** (issue de la recherche) : *exit code = verdict,
+JSON = détail*. Un outil non installé localement → `ERROR` non-vert (jamais de
+faux-vert). `findings_returncodes` gère les outils qui surchargent un exit non-nul
+pour signaler des findings (tsc=2, npm audit=1, vitest=1, prettier=1).
+
+**Validé e2e sur projets réels** : audit node sur un projet à 7 outils installés
+(madge/knip/eslint+sonarjs/tsc/prettier/vitest/npm-audit) → chaque règle score de
+vraies findings ; jscpd+gitleaks absents → fail loud. init scaffold→check node ET
+svelte → 100/A.
+
+## 10. La question de l'AST TS (décision)
+
+Deux familles de règles :
+- **Famille 1 (déléguées à un outil externe)** — lint, type, complexity, format,
+  deps, dead_code, security, testing, architecture, duplication. L'AST est fait
+  par l'outil node ; axm-audit score le JSON. **Ne touche pas axm-ast.** → toutes
+  implémentées.
+- **Famille 2 (analyse AST propre en Python)** — les invariants `test_quality`
+  spécifiques AXM (mirror, pyramid, tautology, duplicate). En Python elles
+  utilisent le tree-sitter d'axm-ast. **Pas d'outil node équivalent** → il faut un
+  AST TS côté Python (étendre axm-ast avec tree-sitter-typescript, ou un helper
+  ts-morph en subprocess). **Décision différée** : ces 4 règles sont déclarées
+  comme placeholders `NOT_IMPLEMENTED` (score=None, jamais de faux-vert) qui
+  nomment explicitement la dépendance manquante.
+
+## 11. Reste à faire
+
+1. **Delta react** : eslint-plugin-react-hooks (rules-of-hooks, exhaustive-deps),
+   jsx-a11y, react-refresh — sous `rules/react/` (le câblage est déjà prêt).
+2. **AST TS** : trancher famille 2 (axm-ast tree-sitter-typescript vs ts-morph)
+   pour implémenter les 4 placeholders test_quality.
+3. **Factoriser `framework.py`** dans `axm-ingot` (actuellement dupliqué
+   audit/init).
+4. **Exposer `framework=`** dans les signatures MCP/CLI des tools `audit`/`init_*`.
