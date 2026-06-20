@@ -24,6 +24,13 @@ from axm_audit.core.rules.node.security import (
     NodeSecretsRule,
     NodeVulnerabilityRule,
 )
+from axm_audit.core.rules.node.structure import NodeStructureRule
+from axm_audit.core.rules.node.test_quality import (
+    NodeTestDuplicateRule,
+    NodeTestMirrorRule,
+    NodeTestPyramidRule,
+    NodeTestTautologyRule,
+)
 from axm_audit.core.rules.node.testing import NodeTestRule
 from axm_audit.core.rules.node.typecheck import NodeTypeCheckRule
 
@@ -36,7 +43,12 @@ __all__ = [
     "NodeFormatRule",
     "NodeLintRule",
     "NodeSecretsRule",
+    "NodeStructureRule",
+    "NodeTestDuplicateRule",
+    "NodeTestMirrorRule",
+    "NodeTestPyramidRule",
     "NodeTestRule",
+    "NodeTestTautologyRule",
     "NodeTypeCheckRule",
     "NodeVulnerabilityRule",
 ]

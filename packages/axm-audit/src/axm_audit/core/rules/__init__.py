@@ -23,6 +23,7 @@ from axm_audit.core.rules.node import (
     NodeFormatRule,
     NodeLintRule,
     NodeSecretsRule,
+    NodeStructureRule,
     NodeTestRule,
     NodeTypeCheckRule,
     NodeVulnerabilityRule,
@@ -39,6 +40,7 @@ from axm_audit.core.rules.quality_rules import (
 )
 from axm_audit.core.rules.security import SecurityPatternRule, SecurityRule
 from axm_audit.core.rules.structure import PyprojectCompletenessRule
+from axm_audit.core.rules.svelte import SvelteCheckRule
 from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     duplicate_tests as _test_quality_duplicate_tests,
 )
@@ -77,6 +79,7 @@ __all__ = [
     "NodeFormatRule",
     "NodeLintRule",
     "NodeSecretsRule",
+    "NodeStructureRule",
     "NodeTestRule",
     "NodeTypeCheckRule",
     "NodeVulnerabilityRule",
@@ -84,6 +87,7 @@ __all__ = [
     "PyprojectCompletenessRule",
     "SecurityPatternRule",
     "SecurityRule",
+    "SvelteCheckRule",
     "TestCoverageRule",
     "ToolAvailabilityRule",
     "TypeCheckRule",
