@@ -35,6 +35,20 @@ class TestDetectFramework:
         )
         assert detect_framework(tmp_path) is Framework.SVELTE
 
+    def test_package_json_with_react_dep_is_react(self, tmp_path: Path) -> None:
+        """A package.json declaring react detects as react."""
+        (tmp_path / "package.json").write_text(
+            '{"name":"r","dependencies":{"react":"^19"}}'
+        )
+        assert detect_framework(tmp_path) is Framework.REACT
+
+    def test_svelte_wins_over_react_when_both_present(self, tmp_path: Path) -> None:
+        """Svelte marker takes precedence over a react dependency."""
+        (tmp_path / "package.json").write_text(
+            '{"dependencies":{"svelte":"^5","react":"^19"}}'
+        )
+        assert detect_framework(tmp_path) is Framework.SVELTE
+
     def test_svelte_config_file_is_svelte(self, tmp_path: Path) -> None:
         """A svelte.config.js next to package.json detects as svelte."""
         (tmp_path / "package.json").write_text('{"name":"s"}')
@@ -63,4 +77,11 @@ class TestResolveFrameworks:
         assert resolve_frameworks(Framework.SVELTE) == (
             Framework.NODE,
             Framework.SVELTE,
+        )
+
+    def test_react_inherits_node(self) -> None:
+        """React runs node rules first, then react-specific ones."""
+        assert resolve_frameworks(Framework.REACT) == (
+            Framework.NODE,
+            Framework.REACT,
         )

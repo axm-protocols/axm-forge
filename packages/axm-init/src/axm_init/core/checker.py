@@ -16,7 +16,11 @@ from axm_init.checks._workspace import (
     detect_context,
     find_workspace_root,
 )
-from axm_init.core.framework import Framework, detect_framework
+from axm_init.core.framework import (
+    Framework,
+    detect_framework,
+    resolve_frameworks,
+)
 from axm_init.models.check import CheckResult, ProjectResult
 
 if TYPE_CHECKING:
@@ -110,15 +114,44 @@ def _discover_checks(
     return registry
 
 
-def _discover_node_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
-    """Discover the Node/Svelte gold-standard checks under ``checks.node``."""
-    import axm_init.checks.node as _node_pkg
+def _discover_framework_checks(
+    framework: Framework,
+) -> dict[str, list[Callable[[Path], CheckResult]]]:
+    """Discover the gold-standard checks for a single non-Python *framework*.
 
-    return _discover_checks(
-        _node_pkg,
-        prefix="axm_init.checks.node",
-        skip_packages=frozenset(),
-    )
+    Looks for a ``axm_init.checks.<framework>`` sub-package. Missing packages
+    (a framework with no delta checks yet) yield an empty registry rather than
+    an error, so a UI framework can be added incrementally.
+    """
+    import importlib
+
+    pkg_name = f"axm_init.checks.{framework.value}"
+    try:
+        pkg = importlib.import_module(pkg_name)
+    except ModuleNotFoundError:
+        return {}
+    return _discover_checks(pkg, prefix=pkg_name, skip_packages=frozenset())
+
+
+def _build_checks_by_framework() -> dict[
+    Framework, dict[str, list[Callable[[Path], CheckResult]]]
+]:
+    """Build the per-framework check registry, resolving the node→UI chain.
+
+    Python uses its own check set. Each non-Python framework merges the check
+    sets of its resolution chain (e.g. svelte = node ⊕ svelte), so the shared
+    node checks run for every UI framework without duplication.
+    """
+    per_fw: dict[Framework, dict[str, list[Callable[[Path], CheckResult]]]] = {
+        Framework.PYTHON: ALL_CHECKS,
+    }
+    for framework in (Framework.NODE, Framework.SVELTE, Framework.REACT):
+        merged: dict[str, list[Callable[[Path], CheckResult]]] = {}
+        for fw in resolve_frameworks(framework):
+            for category, fns in _discover_framework_checks(fw).items():
+                merged.setdefault(category, []).extend(fns)
+        per_fw[framework] = merged
+    return per_fw
 
 
 def get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
@@ -191,18 +224,17 @@ def _redirect_to_root(
 # Registry: category -> list of check functions (Python gold standard).
 ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 
-# Per-framework gold-standard check sets, keyed by framework.
-NODE_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_node_checks()
+# Per-framework gold-standard check sets, keyed by framework. Each UI framework
+# merges the node base layer with its own delta (svelte = node ⊕ svelte, …).
+CHECKS_BY_FRAMEWORK: dict[Framework, dict[str, list[Callable[[Path], CheckResult]]]] = (
+    _build_checks_by_framework()
+)
 
-CHECKS_BY_FRAMEWORK: dict[Framework, dict[str, list[Callable[[Path], CheckResult]]]] = {
-    Framework.PYTHON: ALL_CHECKS,
-    Framework.NODE: NODE_CHECKS,
-    # Svelte reuses the node check set for the POC; svelte-specific checks
-    # (svelte.config.js, a11y, …) would be layered here.
-    Framework.SVELTE: NODE_CHECKS,
+# Union of every category across every framework — used only for the
+# error-message hint; per-framework validation happens in ``run()``.
+VALID_CATEGORIES = {
+    category for registry in CHECKS_BY_FRAMEWORK.values() for category in registry
 }
-
-VALID_CATEGORIES = set(ALL_CHECKS.keys()) | set(NODE_CHECKS.keys())
 
 
 SKIP_FOR_MEMBER: frozenset[str] = frozenset(

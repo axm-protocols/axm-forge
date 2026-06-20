@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from axm_init.core.framework import Framework, detect_framework
+from axm_init.core.framework import (
+    Framework,
+    detect_framework,
+    resolve_frameworks,
+)
 
 
 class TestDetectFramework:
@@ -30,3 +34,28 @@ class TestDetectFramework:
             '{"name":"s","dependencies":{"svelte":"^5"}}'
         )
         assert detect_framework(tmp_path) is Framework.SVELTE
+
+    def test_react_dependency_is_react(self, tmp_path: Path) -> None:
+        """A react dependency detects as react."""
+        (tmp_path / "package.json").write_text(
+            '{"name":"r","dependencies":{"react":"^19"}}'
+        )
+        assert detect_framework(tmp_path) is Framework.REACT
+
+
+class TestResolveFrameworks:
+    """``resolve_frameworks`` expands the node→UI chain."""
+
+    def test_svelte_inherits_node(self) -> None:
+        """Svelte checks run node checks first, then svelte ones."""
+        assert resolve_frameworks(Framework.SVELTE) == (
+            Framework.NODE,
+            Framework.SVELTE,
+        )
+
+    def test_react_inherits_node(self) -> None:
+        """React checks run node checks first, then react ones."""
+        assert resolve_frameworks(Framework.REACT) == (
+            Framework.NODE,
+            Framework.REACT,
+        )
