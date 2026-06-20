@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from axm_audit.core.framework import Framework
-from axm_audit.core.rules.node import lint as lint_module
+from axm_audit.core.rules.node import _base as base_module
 from axm_audit.core.rules.node.lint import NodeLintRule
 
 
@@ -45,7 +45,7 @@ class TestNodeLintRuleCheck:
     ) -> None:
         """package.json present but eslint not installed must fail, never green."""
         (tmp_path / "package.json").write_text('{"name":"n"}')
-        monkeypatch.setattr(lint_module, "node_tool_available", lambda _p, _b: False)
+        monkeypatch.setattr(base_module, "node_tool_available", lambda _p, _b: False)
         result = NodeLintRule().check(tmp_path)
         assert result.passed is False
 
@@ -54,10 +54,10 @@ class TestNodeLintRuleCheck:
     ) -> None:
         """Zero eslint findings yields a passing 100 score."""
         (tmp_path / "package.json").write_text('{"name":"n"}')
-        monkeypatch.setattr(lint_module, "node_tool_available", lambda _p, _b: True)
+        monkeypatch.setattr(base_module, "node_tool_available", lambda _p, _b: True)
         clean = '[{"errorCount":0,"warningCount":0}]'
         monkeypatch.setattr(
-            lint_module, "run_node_tool", lambda *_a, **_k: _completed(clean, 0)
+            base_module, "run_node_tool", lambda *_a, **_k: _completed(clean, 0)
         )
         result = NodeLintRule().check(tmp_path)
         assert result.passed is True
@@ -68,10 +68,10 @@ class TestNodeLintRuleCheck:
     ) -> None:
         """Three findings deduct 2 points each (100 - 3*2 = 94), like the py rule."""
         (tmp_path / "package.json").write_text('{"name":"n"}')
-        monkeypatch.setattr(lint_module, "node_tool_available", lambda _p, _b: True)
+        monkeypatch.setattr(base_module, "node_tool_available", lambda _p, _b: True)
         report = '[{"errorCount":2,"warningCount":1}]'
         monkeypatch.setattr(
-            lint_module, "run_node_tool", lambda *_a, **_k: _completed(report, 1)
+            base_module, "run_node_tool", lambda *_a, **_k: _completed(report, 1)
         )
         result = NodeLintRule().check(tmp_path)
         assert result.score == 94
@@ -82,9 +82,9 @@ class TestNodeLintRuleCheck:
     ) -> None:
         """A timeout (rc=124) is an env failure — fail loud with a zero score."""
         (tmp_path / "package.json").write_text('{"name":"n"}')
-        monkeypatch.setattr(lint_module, "node_tool_available", lambda _p, _b: True)
+        monkeypatch.setattr(base_module, "node_tool_available", lambda _p, _b: True)
         monkeypatch.setattr(
-            lint_module, "run_node_tool", lambda *_a, **_k: _completed("", 124)
+            base_module, "run_node_tool", lambda *_a, **_k: _completed("", 124)
         )
         result = NodeLintRule().check(tmp_path)
         assert result.passed is False
