@@ -93,6 +93,13 @@ def analyze_package(path: Path) -> PackageInfo:
         msg = f"{path} is not a directory"
         raise ValueError(msg)
 
+    # A node/TS project (package.json, no Python package layout) is analysed by
+    # a separate path: it has no __init__.py boundaries and ES6 import
+    # resolution differs from Python's, so it must not flow through the
+    # Python-package builder below.
+    if _is_node_project(path):
+        return _analyze_node_package(path)
+
     # Detect src-layout: src/<pkg>/__init__.py
     src_dir = path / "src"
     if src_dir.is_dir():
@@ -198,6 +205,83 @@ def _discover_py_files_inner(root: Path, git_root: Path | None) -> list[Path]:
         elif child.suffix == ".py":
             results.append(child)
     return results
+
+
+# ── Node / TypeScript package analysis ───────────────────────────────────────
+#
+# A node project is package.json-shaped, not __init__.py-shaped, so it gets its
+# own discovery + analysis path. ES6 cross-file import resolution (the call/dep
+# graph) is a later layer; this builds the per-module symbol view that
+# ast_search / ast_inspect / ast_context need.
+
+_NODE_SUFFIXES: frozenset[str] = frozenset({".ts", ".tsx"})
+
+
+def _is_node_project(path: Path) -> bool:
+    """Return True if *path* is a node/TS project rather than a Python package.
+
+    A node project has a ``package.json`` and no Python package layout
+    (no top-level ``__init__.py`` and no ``src/<pkg>/__init__.py``).
+    """
+    if not (path / "package.json").is_file():
+        return False
+    if (path / "__init__.py").is_file():
+        return False
+    src = path / "src"
+    if src.is_dir() and any(
+        child.is_dir() and (child / "__init__.py").is_file() for child in src.iterdir()
+    ):
+        return False
+    return True
+
+
+def _discover_node_files(root: Path) -> list[Path]:
+    """Discover ``.ts``/``.tsx`` files, pruning the same non-source dirs."""
+    git_root = _find_git_root(root)
+    return _discover_node_files_inner(root, git_root)
+
+
+def _discover_node_files_inner(root: Path, git_root: Path | None) -> list[Path]:
+    """Recursive helper for :func:`_discover_node_files`."""
+    results: list[Path] = []
+    for child in sorted(root.iterdir()):
+        if child.is_dir():
+            if child.name in _SKIP_DIRS or child.name.endswith(".egg-info"):
+                continue
+            if git_root is not None and _is_gitignored(child, git_root):
+                continue
+            results.extend(_discover_node_files_inner(child, git_root))
+        elif child.suffix in _NODE_SUFFIXES and not child.name.endswith(".d.ts"):
+            results.append(child)
+    return results
+
+
+def _analyze_node_package(path: Path) -> PackageInfo:
+    """Analyze a node/TS package: discover and extract every TS module.
+
+    Dependency edges are left empty here — ES6 cross-file import resolution is
+    a separate layer. This gives the symbol-level view (functions, classes,
+    interfaces, types, enums per file) the read-only ``ast_*`` tools consume.
+    """
+    from axm_ast.core.extract import extract_module
+
+    t0 = time.perf_counter()
+    ts_files = sorted(_discover_node_files(path))
+    modules: list[ModuleInfo] = [extract_module(f) for f in ts_files]
+    pkg = PackageInfo(
+        name=path.name,
+        root=path,
+        modules=modules,
+        dependency_edges=[],
+    )
+    elapsed = time.perf_counter() - t0
+    logger.debug(
+        "Analyzed node package %s in %.2fs (%d modules)",
+        path.name,
+        elapsed,
+        len(modules),
+    )
+    return pkg
 
 
 def fingerprint_source_tree(root: Path) -> frozenset[tuple[str, int]]:
