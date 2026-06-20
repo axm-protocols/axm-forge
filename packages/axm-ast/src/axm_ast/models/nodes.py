@@ -26,6 +26,22 @@ class FunctionKind(enum.StrEnum):
     ABSTRACT = "abstract"
 
 
+class ClassKind(enum.StrEnum):
+    """Classification of a class-like type declaration.
+
+    ``CLASS`` is the only kind Python emits, so it is the default and Python
+    extraction is unaffected. The others are emitted by TypeScript/JS backends
+    for declarations that have no Python equivalent (``interface``, ``type X =
+    …``, ``enum``) but share the class-like shape (name + members) the symbol
+    model and the ``ast_*`` tools already handle uniformly.
+    """
+
+    CLASS = "class"
+    INTERFACE = "interface"
+    TYPE_ALIAS = "type"
+    ENUM = "enum"
+
+
 class SymbolKind(enum.StrEnum):
     """Filter enum for symbol search — superset of FunctionKind + class.
 
@@ -141,6 +157,10 @@ class ClassInfo(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(description="Class name")
+    kind: ClassKind = Field(
+        default=ClassKind.CLASS,
+        description="Class-like declaration kind (class/interface/type/enum)",
+    )
     bases: list[str] = Field(default_factory=list, description="Base class names")
     methods: list[FunctionInfo] = Field(default_factory=list, description="Methods")
     docstring: str | None = Field(default=None, description="Docstring content")

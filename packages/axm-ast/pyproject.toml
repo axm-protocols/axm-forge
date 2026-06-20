@@ -23,6 +23,13 @@ dependencies = [
     "tree-sitter-python>=0.23",
 ]
 
+[project.optional-dependencies]
+# TypeScript/JS/TSX support. Optional so a Python-only install stays light;
+# the TypeScript backend imports these lazily and is skipped if absent.
+typescript = [
+    "tree-sitter-typescript>=0.23",
+]
+
 [project.scripts]
 axm-ast = "axm_ast.cli:main"
 
