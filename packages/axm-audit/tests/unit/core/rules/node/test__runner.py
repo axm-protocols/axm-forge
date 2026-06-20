@@ -36,5 +36,10 @@ class TestResolveCmd:
         bin_dir.mkdir(parents=True)
         local = bin_dir / "eslint"
         local.write_text("#!/bin/sh\n")
-        cmd = _resolve_cmd(tmp_path, "eslint", ["--format", "json"])
+        cmd = _resolve_cmd(tmp_path, "eslint", ["--format", "json"], on_path=False)
         assert cmd == [str(local), "--format", "json"]
+
+    def test_on_path_uses_bare_binary(self, tmp_path: Path) -> None:
+        """A PATH tool (npm, gitleaks) is invoked by bare name, ignoring local bin."""
+        cmd = _resolve_cmd(tmp_path, "npm", ["audit", "--json"], on_path=True)
+        assert cmd == ["npm", "audit", "--json"]

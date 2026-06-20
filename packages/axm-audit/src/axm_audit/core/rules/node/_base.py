@@ -19,6 +19,7 @@ from axm_audit.core.rules.node._runner import (
     ProcessVerdict,
     interpret_process,
     node_tool_available,
+    path_tool_available,
     run_node_tool,
 )
 from axm_audit.models.results import CheckResult, Severity
@@ -36,10 +37,14 @@ class NodeToolRule(ProjectRule):
     """
 
     binary: str = ""
-    """Local node_modules/.bin executable this rule drives (e.g. ``eslint``)."""
+    """Executable this rule drives (e.g. ``eslint``, ``npm``, ``gitleaks``)."""
 
     install_hint: str = ""
     """Human hint shown when the binary is not installed."""
+
+    on_path: bool = False
+    """If True, :attr:`binary` is a global PATH command (``npm``, ``gitleaks``)
+    rather than a project-local ``node_modules/.bin`` binary."""
 
     @property
     def args(self) -> list[str]:
@@ -95,17 +100,24 @@ class NodeToolRule(ProjectRule):
                 severity=Severity.INFO,
                 score=100,
             )
-        if not node_tool_available(project_path, self.binary):
+        available = (
+            path_tool_available(self.binary)
+            if self.on_path
+            else node_tool_available(project_path, self.binary)
+        )
+        if not available:
+            where = "PATH" if self.on_path else f"node_modules/.bin/{self.binary}"
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
-                message=f"{self.binary} not available "
-                f"(no node_modules/.bin/{self.binary})",
+                message=f"{self.binary} not available (not on {where})",
                 severity=Severity.ERROR,
                 fix_hint=self.install_hint,
             )
 
-        result = run_node_tool(self.binary, self.args, project_path)
+        result = run_node_tool(
+            self.binary, self.args, project_path, on_path=self.on_path
+        )
         is_findings_code = result.returncode in self.findings_returncodes
         if (
             not is_findings_code

@@ -11,6 +11,7 @@ tool that fails to *run* never scores a green result.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -25,6 +26,7 @@ __all__ = [
     "ProcessVerdict",
     "interpret_process",
     "node_tool_available",
+    "path_tool_available",
     "run_node_tool",
 ]
 
@@ -45,13 +47,26 @@ def node_tool_available(project_path: Path, binary: str) -> bool:
     return local.is_file()
 
 
-def _resolve_cmd(project_path: Path, binary: str, args: list[str]) -> list[str]:
-    """Build the argv to invoke *binary* from the project's local bin.
+def path_tool_available(binary: str) -> bool:
+    """Return True if *binary* resolves on the system PATH.
 
-    Callers must gate on :func:`node_tool_available` first; this assumes the
-    local binary exists. ``npx`` is intentionally not a fallback (see that
-    function's docstring — it produces false-green env failures).
+    For tools that are not project-local node_modules binaries but global CLIs:
+    ``npm`` (for ``npm audit``) and ``gitleaks`` (a system install).
     """
+    return shutil.which(binary) is not None
+
+
+def _resolve_cmd(
+    project_path: Path, binary: str, args: list[str], *, on_path: bool
+) -> list[str]:
+    """Build the argv to invoke *binary*.
+
+    ``on_path`` selects a global PATH command (npm, gitleaks); otherwise the
+    project-local ``node_modules/.bin`` binary. ``npx`` is intentionally not a
+    fallback for local binaries (it produces false-green env failures).
+    """
+    if on_path:
+        return [binary, *args]
     local = project_path / "node_modules" / ".bin" / binary
     if local.is_file():
         return [str(local), *args]
@@ -64,6 +79,7 @@ def run_node_tool(
     project_path: Path,
     *,
     timeout: int = _DEFAULT_TIMEOUT,
+    on_path: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a Node CLI tool in *project_path* with process-group isolation.
 
@@ -81,7 +97,7 @@ def run_node_tool(
     Returns:
         The completed process (stdout/stderr captured as text).
     """
-    full_cmd = _resolve_cmd(project_path, binary, args)
+    full_cmd = _resolve_cmd(project_path, binary, args, on_path=on_path)
     new_session, creation_flags = _process_group_isolation()
     proc = subprocess.Popen(  # noqa: S603
         full_cmd,
