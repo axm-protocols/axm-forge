@@ -1,10 +1,14 @@
-"""Unit tests for the code-metrics collector."""
+"""Integration tests for the code-metrics collector (real filesystem I/O)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_audit.code_metrics import collect_code_metrics
+
+pytestmark = pytest.mark.integration
 
 
 def test_counts_loc_under_src_skipping_blanks_and_tests(tmp_path: Path) -> None:

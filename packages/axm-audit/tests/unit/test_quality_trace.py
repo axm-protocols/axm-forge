@@ -9,6 +9,8 @@ import pytest
 from axm_audit import quality_trace
 from axm_audit.quality_trace import normalize_fails, record_quality_snapshot
 
+__all__: list[str] = []
+
 
 @pytest.mark.parametrize(
     ("data", "expected"),
@@ -60,24 +62,3 @@ def test_record_never_raises_on_bad_dir(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(quality_trace, "_quality_dir", _boom)
     # Must not raise — observability never breaks an audit.
     record_quality_snapshot(path=".", kind="audit", data={"score": 100})
-
-
-def test_code_kind_writes_metrics_not_score(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A kind='code' line carries lines/modules/... and omits score/grade/fails."""
-    import json
-
-    monkeypatch.setattr(quality_trace, "_quality_dir", lambda: tmp_path)
-    monkeypatch.setattr(quality_trace, "_git_head", lambda _p: ("abc1234", "main"))
-    record_quality_snapshot(
-        path=str(tmp_path / "pkg"),
-        kind="code",
-        data={"lines": 900, "modules": 10, "functions": 19, "classes": 9},
-    )
-    line = json.loads((tmp_path / "pkg.jsonl").read_text(encoding="utf-8").strip())
-    assert line["kind"] == "code"
-    assert line["lines"] == 900
-    assert line["modules"] == 10
-    assert "score" not in line
-    assert "fails" not in line

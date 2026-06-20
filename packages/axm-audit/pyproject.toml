@@ -183,6 +183,10 @@ exempt_paths = [
     "_version.py",
     "__main__.py",
     "tools/audit.py",
+    # I/O-only collector (filesystem rglob + git subprocess, no pure logic);
+    # its tests legitimately live in tests/integration/ — a unit mirror would
+    # be mock-everything noise.
+    "code_metrics.py",
 ]
 
 # Glob-based exemptions (MirrorRule semantics, survive refactors). The

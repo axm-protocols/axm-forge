@@ -8,9 +8,37 @@ break an audit.
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 __all__ = ["collect_code_metrics"]
+
+_GIT_TIMEOUT_S = 10
+
+
+def _count_commits(root: Path) -> int | None:
+    """Total commits that touched this package's subtree on HEAD; None on failure.
+
+    Scoped to the package dir so a monorepo reports per-package activity, not the
+    whole repo. Best-effort — git absent / not a repo / timeout → None.
+    """
+    git = shutil.which("git")
+    if git is None:
+        return None
+    try:
+        proc = subprocess.run(  # noqa: S603 - resolved git path, fixed args, path is a resolved dir
+            [git, "rev-list", "--count", "HEAD", "--", str(root)],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=_GIT_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    out = proc.stdout.strip()
+    return int(out) if proc.returncode == 0 and out.isdigit() else None
 
 
 def _count_loc(root: Path) -> int | None:
@@ -55,10 +83,14 @@ def _structural_counts(path: str) -> dict[str, int]:
 
 
 def collect_code_metrics(path: str) -> dict[str, object]:
-    """Return ``{lines, modules, functions, classes}`` (keys absent if unknown)."""
+    """Return ``{lines, modules, functions, classes, commits}`` (absent if unknown)."""
+    root = Path(path).resolve()
     metrics: dict[str, object] = {}
-    loc = _count_loc(Path(path).resolve())
+    loc = _count_loc(root)
     if loc is not None:
         metrics["lines"] = loc
+    commits = _count_commits(root)
+    if commits is not None:
+        metrics["commits"] = commits
     metrics.update(_structural_counts(path))
     return metrics
