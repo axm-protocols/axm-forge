@@ -17,9 +17,14 @@ from axm_audit.core.rules.node.architecture import (
     NodeDuplicationRule,
 )
 from axm_audit.core.rules.node.complexity import NodeComplexityRule
+from axm_audit.core.rules.node.coupling import NodeCouplingRule, NodeGodClassRule
 from axm_audit.core.rules.node.format import NodeFormatRule
 from axm_audit.core.rules.node.knip import NodeDeadCodeRule, NodeDependencyRule
 from axm_audit.core.rules.node.lint import NodeLintRule
+from axm_audit.core.rules.node.quality import (
+    NodeDiffSizeRule,
+    NodeSecurityLintRule,
+)
 from axm_audit.core.rules.node.security import (
     NodeSecretsRule,
     NodeVulnerabilityRule,
@@ -37,12 +42,16 @@ from axm_audit.core.rules.node.typecheck import NodeTypeCheckRule
 __all__ = [
     "NodeCircularImportRule",
     "NodeComplexityRule",
+    "NodeCouplingRule",
     "NodeDeadCodeRule",
     "NodeDependencyRule",
+    "NodeDiffSizeRule",
     "NodeDuplicationRule",
     "NodeFormatRule",
+    "NodeGodClassRule",
     "NodeLintRule",
     "NodeSecretsRule",
+    "NodeSecurityLintRule",
     "NodeStructureRule",
     "NodeTestDuplicateRule",
     "NodeTestMirrorRule",
