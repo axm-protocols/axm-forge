@@ -24,7 +24,10 @@ from typing import Literal
 
 __all__ = ["record_quality_snapshot"]
 
-type TraceKind = Literal["audit", "governance"]
+type TraceKind = Literal["audit", "governance", "code"]
+
+#: Code-metric keys carried on a ``kind="code"`` line (no score/grade/fails).
+_CODE_KEYS = ("lines", "modules", "functions", "classes")
 
 
 def _quality_dir() -> Path:
@@ -95,24 +98,29 @@ def record_quality_snapshot(
     Args:
         path: Path to the audited project (its directory name becomes the
             history file name).
-        kind: ``"audit"`` (axm-audit) or ``"governance"`` (axm-init).
-        data: The ``ToolResult.data`` dict — must carry ``score``/``grade``
-            and a ``failed``/``failures`` list.
+        kind: ``"audit"`` (axm-audit), ``"governance"`` (axm-init) or ``"code"``
+            (code metrics).
+        data: The ``ToolResult.data`` dict — for ``audit``/``governance`` it must
+            carry ``score``/``grade`` and a ``failed``/``failures`` list; for
+            ``code`` it carries ``lines``/``modules``/``functions``/``classes``.
     """
     try:
         project_path = Path(path).resolve()
         package = project_path.name
         sha, branch = _git_head(project_path)
-        line = {
+        line: dict[str, object] = {
             "ts": datetime.now(UTC).isoformat(timespec="seconds"),
             "repo": package,
             "sha": sha,
             "branch": branch,
             "kind": kind,
-            "score": data.get("score"),
-            "grade": data.get("grade"),
-            "fails": normalize_fails(data),
         }
+        if kind == "code":
+            line.update({k: data.get(k) for k in _CODE_KEYS})
+        else:
+            line["score"] = data.get("score")
+            line["grade"] = data.get("grade")
+            line["fails"] = normalize_fails(data)
         out_dir = _quality_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
         target = out_dir / f"{package}.jsonl"
