@@ -190,6 +190,7 @@ module = [
     "axm_ast.models.*",
     "axm_ast.core.flows",
     "axm_ast.core.impact",
+    "axm_ast.core.metrics",
 ]
 disallow_any_explicit = false
 

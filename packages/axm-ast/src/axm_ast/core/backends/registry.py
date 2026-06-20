@@ -12,6 +12,7 @@ installed (``axm-ast[typescript]``), mirroring axm-echo's lazy-torch convention.
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,6 +28,11 @@ __all__ = [
 ]
 
 _REGISTRY: dict[str, LanguageBackend] = {}
+# Guards lazy default-backend registration: the audit runner analyses rules in
+# a ThreadPoolExecutor, so first-time init can be hit concurrently. Without the
+# lock a racing thread could observe the "loaded" flag before the registry was
+# actually populated and see an empty registry.
+_init_lock = threading.Lock()
 
 
 def register_backend(backend: LanguageBackend) -> None:
@@ -65,15 +71,24 @@ def _ensure_default_backends() -> None:
     global _defaults_loaded
     if _defaults_loaded:
         return
-    _defaults_loaded = True
+    with _init_lock:
+        # Re-check under the lock: another thread may have finished init while
+        # this one waited.
+        if _defaults_loaded:
+            return
 
-    from axm_ast.core.backends.python import PythonBackend
+        from axm_ast.core.backends.python import PythonBackend
 
-    register_backend(PythonBackend())
+        register_backend(PythonBackend())
 
-    try:
-        from axm_ast.core.backends.typescript import TypeScriptBackend
-    except ImportError:
-        # Optional grammar not installed — TS files are simply unsupported.
-        return
-    register_backend(TypeScriptBackend())
+        try:
+            from axm_ast.core.backends.typescript import TypeScriptBackend
+        except ImportError:
+            # Optional grammar not installed — TS files are simply unsupported.
+            pass
+        else:
+            register_backend(TypeScriptBackend())
+
+        # Set the flag only AFTER the registry is fully populated, so a racing
+        # reader never sees "loaded" with an empty registry.
+        _defaults_loaded = True

@@ -287,7 +287,33 @@ class TypeScriptBackend:
         """Build a ClassInfo for a class/interface/type/enum declaration."""
         name = _name_of(node) or "<anonymous>"
         start, end = _line_span(node)
-        return ClassInfo(name=name, kind=kind, line_start=start, line_end=end)
+        return ClassInfo(
+            name=name,
+            kind=kind,
+            line_start=start,
+            line_end=end,
+            methods=self._class_methods(node),
+        )
+
+    def _class_methods(self, node: Node) -> list[FunctionInfo]:
+        """Extract method definitions from a class/interface ``body`` node.
+
+        Covers ``method_definition`` (classes) and ``method_signature``
+        (interfaces) so the method count feeds the god-class metric.
+        """
+        body = node.child_by_field_name("body")
+        if body is None:
+            return []
+        methods: list[FunctionInfo] = []
+        for member in body.children:
+            if member.type not in ("method_definition", "method_signature"):
+                continue
+            mname = _text(member.child_by_field_name("name"))
+            if not mname:
+                continue
+            start, end = _line_span(member)
+            methods.append(FunctionInfo(name=mname, line_start=start, line_end=end))
+        return methods
 
     def _import(self, node: Node) -> ImportInfo | None:
         """Build an ImportInfo from an ES6 ``import`` statement."""
