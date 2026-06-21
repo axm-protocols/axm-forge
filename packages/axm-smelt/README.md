@@ -26,7 +26,7 @@
 ## Features
 
 - **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
-- **Token counting** — exact counts via tiktoken (`o200k_base`), with `len//4` fallback
+- **Token counting** — always via tiktoken; Claude and unknown models route to the `o200k_base` proxy (approximate, no network)
 - **10 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `strip_quotes`, `dedup_values_with_refs`, `collapse_whitespace`, `compact_tables`, `strip_html_comments`
 - **Composable pipeline** — chain strategies explicitly or use presets (`safe`, `moderate`, `aggressive`)
 - **CLI** — `axm-smelt compact|check|count|version` with `--preset`/`--strategies`/`--file`/`--output` flags

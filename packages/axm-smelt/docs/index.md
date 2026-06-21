@@ -52,7 +52,7 @@ print(f"{report.savings_pct:.1f}% saved")
 ## Features
 
 - **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
-- **Token counting** — exact counts via tiktoken (`o200k_base`), with `len//4` fallback
+- **Token counting** — always via tiktoken; Claude and unknown models route to the `o200k_base` proxy (approximate, no network)
 - **Composable pipeline** — chain strategies or use presets (`safe`, `moderate`, `aggressive`)
 - **CLI** — `axm-smelt compact|check|count|version` commands
 - **MCP tool** — available to AI agents via `axm-mcp`

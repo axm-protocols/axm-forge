@@ -19,9 +19,9 @@ __all__ = ["check", "smelt"]
 
 
 def _worst(a: CounterBackend, b: CounterBackend) -> CounterBackend:
-    """Return ``FALLBACK`` if either input is ``FALLBACK``, else ``TIKTOKEN``."""
-    if a is CounterBackend.FALLBACK or b is CounterBackend.FALLBACK:
-        return CounterBackend.FALLBACK
+    """Combine two backends. Only ``TIKTOKEN`` exists today, so this always
+    returns ``TIKTOKEN``; retained as the seam for a future second backend."""
+    del a, b
     return CounterBackend.TIKTOKEN
 
 

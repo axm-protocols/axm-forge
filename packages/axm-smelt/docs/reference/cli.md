@@ -46,7 +46,7 @@ axm-smelt count [--file PATH] [--model MODEL]
 | `--file PATH` | stdin | Read from file instead of stdin |
 | `--model MODEL` | `o200k_base` | tiktoken encoding name (e.g. `o200k_base`, `cl100k_base`) **or** OpenAI model name (e.g. `gpt-4o`, `gpt-4`) |
 
-An unknown name degrades gracefully to an approximate `len // 4` count (with a warning on stderr) rather than failing.
+A Claude model name (e.g. `claude-opus-4-8`) or an otherwise unknown name routes to the `o200k_base` proxy encoding (an approximation, no network call) rather than failing — never a `len // 4` heuristic. For an exact Claude count, read `usage.input_tokens` from the run instead.
 
 ### `axm-smelt version`
 
