@@ -274,7 +274,7 @@
       "passed": true,
       "earned": 2,
       "weight": 2,
-      "message": "10 member(s) consistent"
+      "message": "11 member(s) consistent"
     },
     {
       "name": "workspace.monorepo_plugin",
@@ -290,7 +290,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "10 member(s) in packages/"
+      "message": "11 member(s) in packages/"
     },
     {
       "name": "workspace.pytest_importmode",
@@ -306,7 +306,7 @@
       "passed": true,
       "earned": 2,
       "weight": 2,
-      "message": "testpaths configured (10 path(s))"
+      "message": "testpaths configured (11 path(s))"
     },
     {
       "name": "workspace.quality_workflow",
@@ -330,7 +330,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "Root 'axm-forge-workspace' does not collide with 10 member(s)"
+      "message": "Root 'axm-forge-workspace' does not collide with 11 member(s)"
     }
   ],
   "failures": [

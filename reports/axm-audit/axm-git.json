@@ -1,5 +1,5 @@
 {
-  "score": 97.1,
+  "score": 97.9,
   "grade": "A",
   "total": 31,
   "failed": 1,
@@ -102,29 +102,19 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 104 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 104
+        "lines_changed": 0
       },
       "metadata": null
     },
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "2 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 2,
+        "vuln_count": 1,
         "top_vulns": [
-          {
-            "name": "msgpack",
-            "version": "1.1.2",
-            "vuln_ids": [
-              "GHSA-6v7p-g79w-8964"
-            ],
-            "fix_versions": [
-              "1.2.1"
-            ]
-          },
           {
             "name": "pydantic-settings",
             "version": "2.13.1",

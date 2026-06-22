@@ -1,5 +1,5 @@
 {
-  "score": 96.2,
+  "score": 97.0,
   "grade": "A",
   "total": 31,
   "failed": 1,
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.64036418816389,
+        "coverage": 92.63803680981596,
         "failures": []
       },
       "metadata": null
@@ -111,29 +111,19 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 104 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 104
+        "lines_changed": 0
       },
       "metadata": null
     },
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "2 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 2,
+        "vuln_count": 1,
         "top_vulns": [
-          {
-            "name": "msgpack",
-            "version": "1.1.2",
-            "vuln_ids": [
-              "GHSA-6v7p-g79w-8964"
-            ],
-            "fix_versions": [
-              "1.2.1"
-            ]
-          },
           {
             "name": "pydantic-settings",
             "version": "2.13.1",
@@ -206,11 +196,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (57/57)",
+      "message": "Docstring coverage: 100% (56/56)",
       "details": {
         "coverage": 1.0,
-        "total": 57,
-        "documented": 57,
+        "total": 56,
+        "documented": 56,
         "missing": []
       },
       "metadata": null
@@ -218,7 +208,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "19 cluster(s), 0 clustered pair(s)",
+      "message": "20 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -743,6 +733,24 @@
             "similarity": 1.0,
             "members": [
               {
+                "file": "tests/unit/core/test_counter.py",
+                "name": "test_claude_model_case_insensitive",
+                "line": 80
+              },
+              {
+                "file": "tests/unit/core/test_counter.py",
+                "name": "test_openai_model_still_exact",
+                "line": 95
+              }
+            ],
+            "cluster_hash": "9f782e0b98e8"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
                 "file": "tests/unit/strategies/test_compact_tables.py",
                 "name": "test_compact_real_table",
                 "line": 48
@@ -835,8 +843,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 6,
-          "AMBIGUOUS": 82,
-          "UNIQUE": 220
+          "AMBIGUOUS": 84,
+          "UNIQUE": 216
         },
         "stale_acknowledged": [
           {

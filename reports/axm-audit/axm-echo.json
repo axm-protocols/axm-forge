@@ -1,0 +1,437 @@
+{
+  "score": 96.5,
+  "grade": "A",
+  "total": 31,
+  "failed": 4,
+  "success": false,
+  "checks": [
+    {
+      "rule_id": "ARCH_CIRCULAR",
+      "passed": true,
+      "message": "0 circular import(s) found",
+      "details": {
+        "cycles": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_GOD_CLASS",
+      "passed": true,
+      "message": "0 god class(es) found",
+      "details": {
+        "god_classes": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_COUPLING",
+      "passed": true,
+      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
+      "details": {
+        "max_fan_out": 9,
+        "max_fan_in": 5,
+        "avg_coupling": 3.62,
+        "n_over_threshold": 0,
+        "over_threshold": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_DUPLICATION",
+      "passed": true,
+      "message": "0 duplicate block(s) found",
+      "details": {
+        "dup_count": 0,
+        "clones": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "passed": true,
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "details": {
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "axm_echo/corpus.py",
+            "function": "_packages_in_workspace",
+            "cc": 11,
+            "rank": "C",
+            "cognitive": 17,
+            "reason": "cc+cog"
+          }
+        ],
+        "cognitive_disabled": false
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_COVERAGE",
+      "passed": false,
+      "message": "Test coverage: 90% (7 test(s) failed)",
+      "details": {
+        "coverage": 90.47013977128336,
+        "failures": [
+          {
+            "test": "tests/integration/test_echo_check.py::test_neural_backend_default",
+            "traceback": "AssertionError: echo forked an out-of-process subprocess\nassert False\n +  where False = ToolResult(success=False, data={}, error='echo forked an out-of-process subprocess', hint=None, text=None).success"
+          },
+          {
+            "test": "tests/integration/test_echo_check.py::test_http_retry_intent_matches",
+            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\", hint=None, text=None).success"
+          },
+          {
+            "test": "tests/integration/test_echo_code.py::test_neural_clusters_no_subprocess",
+            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
+          },
+          {
+            "test": "tests/integration/test_echo_code.py::test_groundtruth_ratelimiterror",
+            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
+          },
+          {
+            "test": "tests/integration/test_echo_code.py::test_groundtruth_request_with_retry",
+            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
+          },
+          {
+            "test": "tests/integration/test_echo_code.py::test_parallel_api_demoted",
+            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
+          },
+          {
+            "test": "tests/integration/test_embed__extract_package.py::test_groundtruth_neighbors",
+            "traceback": "AttributeError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)"
+          }
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_DEAD_CODE",
+      "passed": true,
+      "message": "No dead code detected.",
+      "details": {
+        "dead_count": 0,
+        "symbols": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_LINT",
+      "passed": true,
+      "message": "Lint score: 100/100 (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "checked": "src/ tests/",
+        "issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_FORMAT",
+      "passed": true,
+      "message": "Format score: 100/100 (0 unformatted)",
+      "details": {
+        "unformatted_count": 0,
+        "unformatted_files": [],
+        "checked": "src/ tests/"
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_DIFF_SIZE",
+      "passed": true,
+      "message": "No uncommitted changes",
+      "details": {
+        "lines_changed": 0
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
+      "details": {
+        "vuln_count": 1,
+        "top_vulns": [
+          {
+            "name": "pydantic-settings",
+            "version": "2.13.1",
+            "vuln_ids": [
+              "GHSA-4xgf-cpjx-pc3j"
+            ],
+            "fix_versions": [
+              "2.14.2"
+            ]
+          }
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "DEPS_HYGIENE",
+      "passed": true,
+      "message": "Clean dependencies (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "top_issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": false,
+      "message": "1 orphan test(s)",
+      "details": {
+        "missing": [],
+        "orphan": [
+          "tests/unit/test_echo_code_guards.py"
+        ],
+        "exempt": [
+          "scope.py",
+          "tools.py"
+        ],
+        "exempt_tests": [
+          "tests/unit/test_version.py"
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "passed": true,
+      "message": "No anti-mirror naming violations",
+      "details": {
+        "anti_mirror": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BARE_EXCEPT",
+      "passed": true,
+      "message": "0 bare except(s) found",
+      "details": {
+        "bare_except_count": 0,
+        "locations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BLOCKING_IO",
+      "passed": true,
+      "message": "0 blocking-IO violation(s) found",
+      "details": {
+        "violations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_DOCSTRING",
+      "passed": true,
+      "message": "Docstring coverage: 94% (30/32)",
+      "details": {
+        "coverage": 0.94,
+        "total": 32,
+        "documented": 30,
+        "missing": [
+          "axm_echo/cluster.py:find",
+          "axm_echo/cluster.py:union"
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
+      "passed": true,
+      "message": "no duplicate-test clusters found",
+      "details": null,
+      "metadata": {
+        "clusters": [],
+        "bucket_counts": {
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 0,
+          "UNIQUE": 64
+        },
+        "stale_acknowledged": []
+      }
+    },
+    {
+      "rule_id": "TEST_QUALITY_FILE_NAMING",
+      "passed": true,
+      "message": "every integration/e2e file matches its canonical tuple",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
+      "passed": true,
+      "message": "every integration/e2e test exercises the package",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "passed": true,
+      "message": "No private imports in tests/ (see docs/test_quality.md#private-imports)",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
+      "passed": false,
+      "message": "2 test(s) mis-located vs. classified pyramid level",
+      "details": {
+        "mismatches": [
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/e2e/test_echo_check.py",
+            "function": "test_cli_echo_check",
+            "level": "integration",
+            "reason": "real I/O without package import (integration)",
+            "current_level": "e2e",
+            "has_real_io": true,
+            "has_subprocess": true,
+            "io_signals": [
+              "imports subprocess",
+              "call:subprocess.run",
+              "attr:.mkdir()",
+              "attr:.write_text()",
+              "fixture-arg:tmp_path",
+              "tmp_path-as-arg",
+              "tmp_path+write/read"
+            ],
+            "imports_public": [],
+            "imports_internal": [],
+            "suggested_file": "integration/test_echo_check.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/e2e/test_echo_code.py",
+            "function": "test_cli_echo_code",
+            "level": "integration",
+            "reason": "real I/O without package import (integration)",
+            "current_level": "e2e",
+            "has_real_io": true,
+            "has_subprocess": true,
+            "io_signals": [
+              "imports subprocess",
+              "call:subprocess.run",
+              "attr:.mkdir()",
+              "attr:.write_text()",
+              "fixture-arg:tmp_path",
+              "tmp_path-as-arg",
+              "tmp_path+write/read"
+            ],
+            "imports_public": [],
+            "imports_internal": [],
+            "suggested_file": "integration/test_echo_code.py",
+            "severity": "warning"
+          }
+        ],
+        "total": 2
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_TAUTOLOGY",
+      "passed": true,
+      "message": "no tautologies found",
+      "details": null,
+      "metadata": {
+        "verdicts": []
+      }
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests/",
+        "errors": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_SECURITY",
+      "passed": true,
+      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
+      "details": {
+        "high_count": 0,
+        "medium_count": 0,
+        "top_issues": [
+          {
+            "severity": "LOW",
+            "code": "B112",
+            "message": "Try, Except, Continue detected.",
+            "file": "structural.py",
+            "line": 57
+          },
+          {
+            "severity": "LOW",
+            "code": "B110",
+            "message": "Try, Except, Pass detected.",
+            "file": "embedding.py",
+            "line": 106
+          }
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_SECURITY",
+      "passed": true,
+      "message": "0 potential secret(s) found",
+      "details": {
+        "secret_count": 0,
+        "matches": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_TESTS_PYRAMID",
+      "passed": true,
+      "message": "pyramid layout ok: unit, integration, e2e",
+      "details": {
+        "self_contained": true
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_PYPROJECT",
+      "passed": true,
+      "message": "pyproject.toml completeness: 9/9 fields",
+      "details": {
+        "fields_present": 9,
+        "total_fields": 9,
+        "missing": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_RUFF",
+      "passed": true,
+      "message": "ruff found",
+      "details": null,
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_MYPY",
+      "passed": true,
+      "message": "mypy found",
+      "details": null,
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_UV",
+      "passed": true,
+      "message": "uv found",
+      "details": null,
+      "metadata": null
+    }
+  ]
+}

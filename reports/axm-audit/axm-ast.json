@@ -1,5 +1,5 @@
 {
-  "score": 96.0,
+  "score": 96.8,
   "grade": "A",
   "total": 31,
   "failed": 1,
@@ -79,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.31022999271516,
+        "coverage": 91.29714048901782,
         "failures": []
       },
       "metadata": null
@@ -119,29 +119,19 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 104 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 104
+        "lines_changed": 0
       },
       "metadata": null
     },
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "2 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 2,
+        "vuln_count": 1,
         "top_vulns": [
-          {
-            "name": "msgpack",
-            "version": "1.1.2",
-            "vuln_ids": [
-              "GHSA-6v7p-g79w-8964"
-            ],
-            "fix_versions": [
-              "1.2.1"
-            ]
-          },
           {
             "name": "pydantic-settings",
             "version": "2.13.1",
@@ -1089,27 +1079,27 @@
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_callers_none",
-                "line": 571
+                "line": 559
               },
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_tests_none",
-                "line": 575
+                "line": 563
               },
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_empty_callers_list",
-                "line": 610
+                "line": 598
               },
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_cross_package_mixed_types",
-                "line": 616
+                "line": 604
               },
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_caller_without_line",
-                "line": 636
+                "line": 624
               }
             ],
             "cluster_hash": "3ecfef5c87fe",
@@ -1832,17 +1822,17 @@
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_full_output_matches",
-                "line": 553
+                "line": 541
               },
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_error_output",
-                "line": 599
+                "line": 587
               },
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_error_report_renders_error_line",
-                "line": 654
+                "line": 642
               }
             ],
             "cluster_hash": "0359e1ed8b85",
@@ -2779,7 +2769,7 @@
               {
                 "file": "tests/unit/tools/test_impact.py",
                 "name": "test_symbols_invalid_type",
-                "line": 722
+                "line": 710
               },
               {
                 "file": "tests/unit/tools/test_inspect.py",

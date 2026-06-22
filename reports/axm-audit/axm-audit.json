@@ -1,5 +1,5 @@
 {
-  "score": 95.5,
+  "score": 97.7,
   "grade": "A",
   "total": 31,
   "failed": 1,
@@ -28,14 +28,14 @@
       "passed": true,
       "message": "Coupling: 6 module(s) above threshold (-18 pts)",
       "details": {
-        "max_fan_out": 15,
+        "max_fan_out": 16,
         "max_fan_in": 50,
-        "avg_coupling": 6.89,
+        "avg_coupling": 6.93,
         "n_over_threshold": 6,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.test_quality.duplicate_tests",
-            "fan_out": 15,
+            "fan_out": 16,
             "role": "leaf",
             "effective_threshold": 10,
             "severity": "warning"
@@ -92,19 +92,10 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
-        "top_offenders": [
-          {
-            "file": "axm_audit/core/rules/complexity.py",
-            "function": "ComplexityRule._process_radon_output",
-            "cc": 8,
-            "rank": "B",
-            "cognitive": 16,
-            "reason": "cog"
-          }
-        ],
+        "high_complexity_count": 0,
+        "top_offenders": [],
         "cognitive_disabled": false
       },
       "metadata": null
@@ -112,9 +103,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 91.02181251622955,
+        "coverage": 90.89493153351937,
         "failures": []
       },
       "metadata": null
@@ -154,29 +145,19 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 104 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 104
+        "lines_changed": 0
       },
       "metadata": null
     },
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "2 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 2,
+        "vuln_count": 1,
         "top_vulns": [
-          {
-            "name": "msgpack",
-            "version": "1.1.2",
-            "vuln_ids": [
-              "GHSA-6v7p-g79w-8964"
-            ],
-            "fix_versions": [
-              "1.2.1"
-            ]
-          },
           {
             "name": "pydantic-settings",
             "version": "2.13.1",
@@ -209,7 +190,8 @@
         "missing": [],
         "orphan": [],
         "exempt": [
-          "audit.py"
+          "audit.py",
+          "code_metrics.py"
         ],
         "exempt_tests": []
       },
@@ -1106,7 +1088,7 @@
               {
                 "file": "tests/integration/test_security_rule.py",
                 "name": "test_bandit_issues_rc1_still_reported",
-                "line": 118
+                "line": 127
               }
             ],
             "cluster_hash": "6a6792d55844",
@@ -1515,17 +1497,17 @@
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_pair_clusters_with_signal1_or_signal3",
-                "line": 76
+                "line": 156
               },
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_raises_symmetric_pair_clusters",
-                "line": 175
+                "line": 255
               },
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_same_self_attr_sut_still_clustered",
-                "line": 884
+                "line": 964
               }
             ],
             "cluster_hash": "586c324779d9",
@@ -2122,7 +2104,7 @@
               {
                 "file": "tests/integration/test_security_rule.py",
                 "name": "test_fix_hint_provided",
-                "line": 62
+                "line": 77
               }
             ],
             "cluster_hash": "129b4881db48",
@@ -2269,12 +2251,12 @@
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_cross_class_pair_demoted",
-                "line": 28
+                "line": 108
               },
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_one_with_raises_one_without_demoted",
-                "line": 126
+                "line": 206
               }
             ],
             "cluster_hash": "7a4f2c51e702",
@@ -2288,12 +2270,12 @@
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_distinct_self_attr_sut_not_clustered",
-                "line": 873
+                "line": 953
               },
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_different_sut_sharing_result_assert_not_fused",
-                "line": 1179
+                "line": 1259
               }
             ],
             "cluster_hash": "658aac0d27ad",
@@ -2782,12 +2764,12 @@
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_no_pyproject_keeps_clusters_flagged",
-                "line": 905
+                "line": 985
               },
               {
                 "file": "tests/integration/test_duplicate_tests_rule.py",
                 "name": "test_pyproject_without_section_keeps_clusters_flagged",
-                "line": 913
+                "line": 993
               }
             ],
             "cluster_hash": "608caa63b77c",
@@ -2873,7 +2855,7 @@
         "bucket_counts": {
           "CLUSTERED": 14,
           "AMBIGUOUS": 325,
-          "UNIQUE": 1149
+          "UNIQUE": 1148
         },
         "stale_acknowledged": []
       }
