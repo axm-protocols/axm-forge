@@ -3,7 +3,7 @@
   "score": 83,
   "grade": "B",
   "context": "workspace",
-  "workspace_root": null,
+  "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
   "categories": {
     "changelog": {

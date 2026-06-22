@@ -1,9 +1,9 @@
 {
-  "score": 97.9,
+  "score": 98.6,
   "grade": "A",
   "total": 31,
-  "failed": 1,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -110,22 +110,11 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "passed": true,
+      "message": "No known vulnerabilities",
       "details": {
-        "vuln_count": 1,
-        "top_vulns": [
-          {
-            "name": "pydantic-settings",
-            "version": "2.13.1",
-            "vuln_ids": [
-              "GHSA-4xgf-cpjx-pc3j"
-            ],
-            "fix_versions": [
-              "2.14.2"
-            ]
-          }
-        ]
+        "vuln_count": 0,
+        "top_vulns": []
       },
       "metadata": null
     },
