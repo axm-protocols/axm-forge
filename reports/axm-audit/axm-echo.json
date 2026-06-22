@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 9,
         "max_fan_in": 5,
-        "avg_coupling": 3.62,
+        "avg_coupling": 3.75,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": false,
       "message": "Test coverage: 90% (7 test(s) failed)",
       "details": {
-        "coverage": 90.47013977128336,
+        "coverage": 90.49429657794677,
         "failures": [
           {
             "test": "tests/integration/test_echo_check.py::test_neural_backend_default",
@@ -376,7 +376,7 @@
             "code": "B110",
             "message": "Try, Except, Pass detected.",
             "file": "embedding.py",
-            "line": 106
+            "line": 116
           }
         ]
       },
