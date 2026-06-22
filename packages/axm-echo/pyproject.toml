@@ -19,14 +19,14 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-ast",
-    "numpy>=2.0",
-    "scikit-learn>=1.5",
+    "numpy>=2.5.0",
+    "scikit-learn>=1.9.0",
     # echo IS neural: the default backend is MiniLM (sentence-transformers on
     # torch), so the neural stack ships in the base install (AXM-2188). The
     # `tfidf` backend remains a pure-CPU option for callers that want to avoid
     # loading torch at runtime.
-    "torch>=2.2",
-    "sentence-transformers>=3.0",
+    "torch>=2.12.1",
+    "sentence-transformers>=5.6.0",
 ]
 
 [project.urls]
@@ -60,17 +60,17 @@ packages = ["src/axm_echo"]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "ruff==0.15.18",
-    "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "mypy>=2.1.0",
+    "prek>=0.4.5",
 ]
 docs = [
-    "mkdocs-material>=9.0",
-    "mkdocstrings[python]>=1.0.3",
-    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.4",
+    "mkdocs-gen-files>=0.6.1",
     "mkdocs-literate-nav>=0.6.3",
 ]
 
