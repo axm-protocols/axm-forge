@@ -1,9 +1,9 @@
 {
-  "score": 97.0,
+  "score": 95.4,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -112,9 +112,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 91.02181251622955,
+        "coverage": 90.9958452350039,
         "failures": []
       },
       "metadata": null
@@ -162,11 +162,32 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "2 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "top_vulns": []
+        "vuln_count": 2,
+        "top_vulns": [
+          {
+            "name": "msgpack",
+            "version": "1.1.2",
+            "vuln_ids": [
+              "GHSA-6v7p-g79w-8964"
+            ],
+            "fix_versions": [
+              "1.2.1"
+            ]
+          },
+          {
+            "name": "pydantic-settings",
+            "version": "2.13.1",
+            "vuln_ids": [
+              "GHSA-4xgf-cpjx-pc3j"
+            ],
+            "fix_versions": [
+              "2.14.2"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
