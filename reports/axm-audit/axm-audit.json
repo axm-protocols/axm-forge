@@ -1,5 +1,5 @@
 {
-  "score": 95.4,
+  "score": 95.5,
   "grade": "A",
   "total": 31,
   "failed": 1,
@@ -112,9 +112,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (90/100)",
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 90.9958452350039,
+        "coverage": 91.02181251622955,
         "failures": []
       },
       "metadata": null
@@ -154,9 +154,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "No uncommitted changes",
+      "message": "Diff size: 104 lines changed (score 100/100)",
       "details": {
-        "lines_changed": 0
+        "lines_changed": 104
       },
       "metadata": null
     },
