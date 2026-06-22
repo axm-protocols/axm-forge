@@ -96,12 +96,12 @@ def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:
     they are imported here lazily only for first-call latency, so the ``tfidf``
     path stays light. No subprocess is forked -- embedding runs in-process.
 
-    ``TOKENIZERS_PARALLELISM`` is pinned off before the first tokenizers import:
-    HuggingFace tokenizers otherwise spin a native fork-based worker pool, and
-    on a ``fork`` start-method host (Linux CI) the child inherits a
-    half-initialised ``torch`` -> ``module 'torch' has no attribute 'types'``
-    circular-import crash (and a SIGSEGV). ``setdefault`` keeps an explicit
-    caller override intact.
+    ``TOKENIZERS_PARALLELISM`` is pinned off before the first tokenizers import
+    as a precaution: HuggingFace tokenizers otherwise spin a native fork-based
+    worker pool that deadlocks after a fork. ``setdefault`` keeps an explicit
+    caller override intact. (The Linux-CI ``torch`` circular-import crash is
+    fixed elsewhere -- the CPU torch wheel pin in the root ``pyproject.toml`` --
+    not here; this only keeps the documented in-process guarantee honest.)
     """
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 

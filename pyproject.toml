@@ -61,7 +61,20 @@ constraint-dependencies = [
 [tool.uv.workspace]
 members = ["packages/*"]
 
+# Pin torch to the CPU wheel on Linux (CI). The default PyPI Linux wheel is the
+# CUDA build: its init imports cuda.bindings, which calls find_library("dl") ->
+# subprocess.Popen(['/sbin/ldconfig', '-p']). On a GPU-less runner that fork is
+# pointless, and when an echo test mocks subprocess to assert the in-process
+# embedding guarantee, it interrupts torch mid-init -> "partially initialised
+# module 'torch' has no attribute 'types'" (circular import) + SIGSEGV. The CPU
+# wheel drops cuda.bindings entirely. macOS keeps its native wheel (CPU/MPS).
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 axm = { workspace = true }
 axm-anvil = { workspace = true }
 axm-ast = { workspace = true }
