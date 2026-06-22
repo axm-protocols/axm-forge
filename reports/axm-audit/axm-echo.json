@@ -1,8 +1,8 @@
 {
-  "score": 96.5,
+  "score": 96.6,
   "grade": "A",
   "total": 31,
-  "failed": 4,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -68,40 +68,11 @@
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "Test coverage: 90% (7 test(s) failed)",
+      "passed": true,
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 90.49429657794677,
-        "failures": [
-          {
-            "test": "tests/integration/test_echo_check.py::test_neural_backend_default",
-            "traceback": "AssertionError: echo forked an out-of-process subprocess\nassert False\n +  where False = ToolResult(success=False, data={}, error='echo forked an out-of-process subprocess', hint=None, text=None).success"
-          },
-          {
-            "test": "tests/integration/test_echo_check.py::test_http_retry_intent_matches",
-            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\", hint=None, text=None).success"
-          },
-          {
-            "test": "tests/integration/test_echo_code.py::test_neural_clusters_no_subprocess",
-            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
-          },
-          {
-            "test": "tests/integration/test_echo_code.py::test_groundtruth_ratelimiterror",
-            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
-          },
-          {
-            "test": "tests/integration/test_echo_code.py::test_groundtruth_request_with_retry",
-            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
-          },
-          {
-            "test": "tests/integration/test_echo_code.py::test_parallel_api_demoted",
-            "traceback": "AssertionError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)\nassert False\n +  where False = ToolResult(success=False, data={}, error=\"partially initialized module 'torch' has no attribute 'types' (most likely d...ry with backend='tfidf' (no torch) if the neural backend is unavailable, or check the corpus is reachable.\", text=None).success"
-          },
-          {
-            "test": "tests/integration/test_embed__extract_package.py::test_groundtruth_neighbors",
-            "traceback": "AttributeError: partially initialized module 'torch' has no attribute 'types' (most likely due to a circular import)"
-          }
-        ]
+        "coverage": 91.00126742712294,
+        "failures": []
       },
       "metadata": null
     },
