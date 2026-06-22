@@ -132,3 +132,18 @@ class TestDuplicate:
         result = NodeTestDuplicateRule().check(root)
         assert result.passed is False
         assert result.details["duplicate_count"] == 1
+
+    def test_node_modules_is_never_scanned(self, tmp_path: Path) -> None:
+        """Third-party tests under node_modules must not be counted (regression).
+
+        A project with no tests of its own but a populated node_modules (full of
+        dependency *.spec.ts) must score 100, not flag the dependencies' tests.
+        """
+        root = _node_project(tmp_path)
+        dep = root / "node_modules" / "some-dep" / "tests"
+        dep.mkdir(parents=True)
+        body = "const r = f(); expect(r).toBe(1);"
+        (dep / "a.spec.ts").write_text(
+            f"test('x', () => {{ {body} }});\ntest('y', () => {{ {body} }});\n"
+        )
+        assert NodeTestDuplicateRule().check(root).passed is True

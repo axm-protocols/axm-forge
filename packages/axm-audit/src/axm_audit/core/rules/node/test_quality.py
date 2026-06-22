@@ -38,6 +38,33 @@ _TEST_SUFFIXES = (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 _DECL_SUFFIX = ".d.ts"
 
 
+# Directories that must never be scanned — they hold third-party or built code,
+# not the project's own sources/tests (node_modules is the big one: scanning it
+# would treat every dependency's *.spec.ts as a project test).
+_SKIP_DIRS = frozenset({"node_modules", "dist", "build", ".svelte-kit", "coverage"})
+
+
+def _iter_files(root: Path) -> list[Path]:
+    """Recursively list files under *root*, pruning :data:`_SKIP_DIRS` subtrees.
+
+    Uses an explicit walk (not ``rglob('*')``) so skipped directories are never
+    descended into — essential to avoid scanning ``node_modules``.
+    """
+    if not root.is_dir():
+        return []
+    out: list[Path] = []
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        for child in current.iterdir():
+            if child.is_dir():
+                if child.name not in _SKIP_DIRS:
+                    stack.append(child)
+            elif child.is_file():
+                out.append(child)
+    return out
+
+
 def _is_test_file(path: Path) -> bool:
     """Return True if *path* is a test/spec file (by node naming convention)."""
     return any(path.name.endswith(s) for s in _TEST_SUFFIXES)
@@ -52,9 +79,7 @@ def _is_source_file(path: Path) -> bool:
 
 def _iter_source_files(src: Path) -> list[Path]:
     """List TS source modules under *src*, skipping tests and declarations."""
-    if not src.is_dir():
-        return []
-    return sorted(p for p in src.rglob("*") if p.is_file() and _is_source_file(p))
+    return sorted(p for p in _iter_files(src) if _is_source_file(p))
 
 
 def _src_dir(project_path: Path) -> Path | None:
@@ -182,7 +207,7 @@ class NodeTestPyramidRule(ProjectRule):
     @staticmethod
     def _colocated_tests(src: Path) -> list[Path]:
         """List ``*.test.ts``/``*.spec.ts`` files colocated in the source tree."""
-        return sorted(p for p in src.rglob("*") if p.is_file() and _is_test_file(p))
+        return sorted(p for p in _iter_files(src) if _is_test_file(p))
 
 
 # Tautological assertions: literal-truthy expectations and self-comparisons.
@@ -195,18 +220,12 @@ _TAUTOLOGY_PATTERNS = (
 
 
 def _all_test_files(project_path: Path) -> list[Path]:
-    """List every test/spec file in the project (colocated or under tests/)."""
-    roots = [project_path / "src", project_path / "tests", project_path]
-    seen: set[Path] = set()
-    out: list[Path] = []
-    for root in roots:
-        if not root.is_dir():
-            continue
-        for p in sorted(root.rglob("*")):
-            if p.is_file() and _is_test_file(p) and p not in seen:
-                seen.add(p)
-                out.append(p)
-    return out
+    """List every test/spec file in the project (colocated or under tests/).
+
+    Scans from the project root once, pruning ``node_modules`` and build dirs,
+    so third-party tests are never counted as the project's own.
+    """
+    return sorted(p for p in _iter_files(project_path) if _is_test_file(p))
 
 
 @register_rule("test_quality", framework=Framework.NODE)
