@@ -21,7 +21,7 @@ graph TD
     end
 
     subgraph "Leaves"
-        Scope["scope · load_scope (~/axm/echo.toml)"]
+        Scope["scope · load_scope (~/.axm/config.toml [echo])"]
         Structural["structural · jaccard_similarity (stdlib, no torch)"]
     end
 
@@ -44,7 +44,7 @@ graph TD
 | `embedding` | The two backends behind `embed()` — `tfidf` (scikit-learn, pure CPU) and `st` (MiniLM, neural). `neighbors()` does exact cosine top-k. |
 | `cluster` | Cross-package candidate pairs (`cross_pairs`), the v7 anti-signal split (`split_pairs`: dupes / parallel-API / boilerplate), and union-find clustering. |
 | `waiver` | The acknowledged-cluster mechanism: a stable `cluster_hash` and the `[[tool.axm-echo.acknowledged]]` waiver lifecycle (mark / stale). |
-| `scope` | Resolve the workspace roots to scan from `~/axm/echo.toml`, degrading to the current directory when absent. |
+| `scope` | Resolve the workspace roots to scan from the shared `~/.axm/config.toml` `[echo]` section (via axm-config, `env > file > default`), degrading to the current directory when absent. |
 | `structural` | 100%-structural similarity over `ast.FunctionDef` bodies (`statement_set` + `jaccard_similarity`); pure stdlib, never loads torch. The primitive `duplicate_tests` reuses. |
 
 ## Design decisions

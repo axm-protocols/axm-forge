@@ -13,7 +13,7 @@ from axm_echo.corpus import (
     extract_package,
 )
 from axm_echo.embedding import Backend, code_tokens, embed, neighbors
-from axm_echo.scope import config_path, load_scope
+from axm_echo.scope import load_scope
 from axm_echo.structural import (
     flatten_body,
     jaccard_similarity,
@@ -28,7 +28,6 @@ __all__ = [
     "Symbol",
     "SymbolDict",
     "code_tokens",
-    "config_path",
     "discover_package_roots",
     "embed",
     "extract_monorepo",

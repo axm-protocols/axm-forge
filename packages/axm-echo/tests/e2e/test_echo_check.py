@@ -50,10 +50,10 @@ def test_cli_echo_check(tmp_path: Path) -> None:
             return b""
         ''',
     )
-    config_dir = home / "axm"
+    config_dir = home / ".axm"
     config_dir.mkdir()
-    (config_dir / "echo.toml").write_text(
-        f'workspace_roots = ["{ws}"]\n', encoding="utf-8"
+    (config_dir / "config.toml").write_text(
+        f'[echo]\nworkspace_roots = ["{ws}"]\n', encoding="utf-8"
     )
 
     env = {**os.environ, "HOME": str(home)}

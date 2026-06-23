@@ -35,11 +35,11 @@ def _src_package(parent: Path, name: str, body: str) -> Path:
 
 
 def _point_scope_at(home: Path, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
-    """Make ``load_scope`` read a config whose only workspace root is ``root``."""
-    config_dir = home / "axm"
+    """Make ``load_scope`` read a shared config whose only root is ``root``."""
+    config_dir = home / ".axm"
     config_dir.mkdir()
-    (config_dir / "echo.toml").write_text(
-        f'workspace_roots = ["{root}"]\n', encoding="utf-8"
+    (config_dir / "config.toml").write_text(
+        f'[echo]\nworkspace_roots = ["{root}"]\n', encoding="utf-8"
     )
     monkeypatch.setenv("HOME", str(home))
 

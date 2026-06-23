@@ -65,7 +65,8 @@ third-party libraries installed inside a checked-in virtualenv never leak
 into the corpus.
 
 `extract_monorepo()` does the same across every package declared in
-`~/axm/echo.toml` (`workspace_roots`), degrading gracefully to the
+the shared `~/.axm/config.toml` `[echo]` section (`workspace_roots`, read
+via axm-config), degrading gracefully to the
 current directory when no config is present. Each listed root is treated
 as a workspace, so packages are discovered at `<root>/packages/<pkg>` (the
 monorepo convention) as well as in the flat `other/<pkg>` layout. A
