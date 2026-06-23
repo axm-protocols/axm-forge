@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -42,6 +43,10 @@ _LOGIN_CMDS: dict[str, str] = {
     "claude": "claude login",
     "codex": "codex login",
 }
+# macOS-only auth wiring. On Darwin the token lives in the login Keychain, not
+# in a credential file under ``~`` — the generic-password *service* name whose
+# existence (exit code, never value) signals logged-in.
+_KEYCHAIN_SERVICES: dict[str, str] = {"claude": "Claude Code-credentials"}
 
 
 class ToolStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
@@ -92,6 +97,8 @@ def detect_auth(tool: str) -> AuthStatus:
     login_cmd = _LOGIN_CMDS.get(tool)
     if tool == "gh":
         state = _detect_gh_auth()
+    elif sys.platform == "darwin" and tool in _KEYCHAIN_SERVICES:
+        state = _detect_keychain_auth(_KEYCHAIN_SERVICES[tool])
     elif tool in _CRED_FILES:
         cred = Path.home() / _CRED_FILES[tool]
         # A 0-byte credential file carries no token: existence alone is not a
@@ -147,6 +154,29 @@ def _detect_gh_auth() -> AuthState:
             ["gh", "auth", "status"],  # noqa: S607 - gh is a controlled, known binary
             capture_output=True,
             text=True,
+            timeout=_VERSION_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "logged_out"
+    return "logged_in" if proc.returncode == 0 else "logged_out"
+
+
+def _detect_keychain_auth(service: str) -> AuthState:
+    """Probe the macOS login Keychain for ``service`` without reading the token.
+
+    Mirrors :func:`_detect_gh_auth`: only the exit code of
+    ``security find-generic-password -s <service>`` is inspected
+    (``capture_output=True`` keeps any matched blob off the terminal), so the
+    secret value never transits. A missing ``security`` binary or any
+    OS/subprocess error degrades to ``logged_out`` rather than raising.
+    """
+    if shutil.which("security") is None:
+        return "logged_out"
+    try:
+        proc = subprocess.run(  # noqa: S603 - service is a hardcoded literal from _KEYCHAIN_SERVICES
+            ["security", "find-generic-password", "-s", service],  # noqa: S607 - security is a controlled, known system binary
+            capture_output=True,
             timeout=_VERSION_TIMEOUT_S,
             check=False,
         )

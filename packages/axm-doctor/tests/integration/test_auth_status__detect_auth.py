@@ -20,6 +20,9 @@ def test_detect_auth_logged_out_gives_login_cmd(
     tmp_path: Path,
 ) -> None:
     """AC3, AC4: missing credential file -> logged_out + login_cmd, no token field."""
+    # Pin off-darwin so claude resolves via the credential-file branch
+    # deterministically (on macOS it would consult the Keychain instead).
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "linux")
     monkeypatch.setattr(Path, "home", classmethod(lambda _cls: tmp_path))
 
     status = detect_auth("claude")

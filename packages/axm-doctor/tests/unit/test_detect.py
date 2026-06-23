@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from axm_doctor.detect import ToolStatus, detect_tool
+from axm_doctor.detect import ToolStatus, detect_auth, detect_tool
+
+
+class _Proc:
+    """Minimal stand-in for ``subprocess.CompletedProcess`` (exit code only)."""
+
+    def __init__(self, returncode: int) -> None:
+        self.returncode = returncode
+
+
+def _which_security(_name: str) -> str:
+    """Stub ``shutil.which`` resolving the ``security`` binary to a fixed path."""
+    return "/usr/bin/security"
 
 
 def test_detect_tool_present(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,3 +126,96 @@ def test_probe_version_banner_not_partial(
 
     assert status.state == "present"
     assert status.version == "2.1.0"
+
+
+def test_claude_darwin_keychain_present_is_logged_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: macOS Keychain entry present (exit 0) -> logged_in, no login hint."""
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(0))
+
+    status = detect_auth("claude")
+
+    assert status.state == "logged_in"
+    assert status.login_cmd is None
+
+
+def test_claude_darwin_keychain_absent_is_logged_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1, AC5: macOS Keychain entry absent (exit 1) -> logged_out + login hint."""
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(1))
+
+    status = detect_auth("claude")
+
+    assert status.state == "logged_out"
+    assert status.login_cmd == "claude login"
+
+
+def test_claude_darwin_security_missing_degrades_logged_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: a missing ``security`` binary degrades to logged_out without raising."""
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", lambda _name: None)
+
+    status = detect_auth("claude")
+
+    assert status.state == "logged_out"
+
+
+def test_claude_darwin_subprocess_error_degrades_logged_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: any OSError/SubprocessError from the probe degrades to logged_out."""
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+
+    def _boom(*_args: object, **_kwargs: object) -> _Proc:
+        raise OSError("no security")
+
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _boom)
+
+    status = detect_auth("claude")
+
+    assert status.state == "logged_out"
+
+
+def test_claude_non_darwin_uses_file_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """AC2: off macOS, claude keeps the credential-file branch (no keychain call)."""
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "linux")
+    cred = tmp_path / ".claude" / ".credentials.json"
+    cred.parent.mkdir(parents=True)
+    cred.write_text('{"token": "x"}')
+    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
+
+    def _fail(*_args: object, **_kwargs: object) -> _Proc:
+        raise AssertionError("keychain probe must not run off-darwin")
+
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _fail)
+
+    status = detect_auth("claude")
+
+    assert status.state == "logged_in"
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_codex_unchanged_file_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, platform: str
+) -> None:
+    """AC4: codex stays on the credential-file branch on both platforms."""
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", platform)
+    cred = tmp_path / ".codex" / "auth.json"
+    cred.parent.mkdir(parents=True)
+    cred.write_text('{"token": "y"}')
+    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
+
+    status = detect_auth("codex")
+
+    assert status.state == "logged_in"

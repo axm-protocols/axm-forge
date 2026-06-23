@@ -25,6 +25,9 @@ def test_empty_cred_file_not_logged_in(
     is present": an empty (0-byte) file carries no credentials, so the state
     must be ``logged_out`` (or any non-``logged_in`` state), never ``logged_in``.
     """
+    # Pin the platform off-darwin so the file branch is exercised
+    # deterministically: on macOS, claude resolves via the Keychain instead.
+    monkeypatch.setattr("axm_doctor.detect.sys.platform", "linux")
     home = Path(str(tmp_path))
     cred = home / ".claude" / ".credentials.json"
     cred.parent.mkdir(parents=True)
