@@ -15,14 +15,19 @@ from __future__ import annotations
 
 from axm.tools.base import ToolResult
 
-from axm_doctor.detect import detect_auth, detect_tool
+from axm_doctor.detect import (
+    detect_auth,
+    detect_gh_config,
+    detect_git_identity,
+    detect_tool,
+)
 from axm_doctor.orchestrate import missing_secrets
 
 __all__ = ["PROBED_TOOLS", "THIRD_PARTY_AUTH", "AuthStatusTool", "EnvDoctorTool"]
 
 # External binaries probed by the doctor. ``uv`` leads: it is the workspace's
 # package manager and the first thing bootstrap must guarantee.
-PROBED_TOOLS: tuple[str, ...] = ("uv", "gh", "node", "npm", "claude", "codex")
+PROBED_TOOLS: tuple[str, ...] = ("uv", "git", "gh", "node", "npm", "claude", "codex")
 
 # Third-party binaries with a login flow whose auth state the doctor reports.
 THIRD_PARTY_AUTH: tuple[str, ...] = ("gh", "claude", "codex")
@@ -34,6 +39,18 @@ def _auth_map() -> dict[str, dict[str, str | None]]:
         tool: {"state": status.state, "login_cmd": status.login_cmd}
         for tool in THIRD_PARTY_AUTH
         for status in (detect_auth(tool),)
+    }
+
+
+def _config_map() -> dict[str, dict[str, str]]:
+    """Build the value-free ``{git|gh: {state}}`` config report.
+
+    Reports whether a git committer identity is resolvable and whether ``gh``
+    carries a base config — neither value is ever read.
+    """
+    return {
+        "git": {"state": detect_git_identity().state},
+        "gh": {"state": detect_gh_config().state},
     }
 
 
@@ -65,7 +82,12 @@ class EnvDoctorTool:
             return ToolResult(success=False, error=str(exc))
         return ToolResult(
             success=True,
-            data={"tools": tools, "auth": _auth_map(), "secrets": secrets},
+            data={
+                "tools": tools,
+                "auth": _auth_map(),
+                "secrets": secrets,
+                "config": _config_map(),
+            },
         )
 
 

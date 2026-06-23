@@ -17,18 +17,22 @@ Env bootstrap + auth-status doctor (detect, propose, orchestrate)
 
 ## Features
 
-- ✅ **Pure-stdlib detection** — `detect_tool` / `detect_auth` answer "is `uv` installed?" / "is `gh` logged in?" with **zero AXM dependencies** (stdlib + pydantic only), so they run as the bootstrap layer before any AXM package is importable.
+- ✅ **Pure-stdlib detection** — `detect_tool` / `detect_auth` answer "is `uv` installed?" / "is `gh` logged in?" with stdlib + pydantic only, so they run as the bootstrap layer before any AXM package is importable.
+- ✅ **Config-resolvability checks** — `detect_git_identity` reports whether a git committer identity is resolvable (a truthy `[git].default` in the **axm-config** store, else the exit code of `git config --get user.email`) and `detect_gh_config` reports whether `gh` carries a base config (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent). Value-free like auth: only the store presence and exit codes are inspected, never the identity/config value. Both degrade to `unconfigured` on any error instead of raising. The `env_doctor` tool surfaces them under a `config` key (`{git: {state}, gh: {state}}`).
 - ✅ **Read-only auth** — auth state is inferred from an exit code (`gh auth status`; on macOS `claude` via the login Keychain entry `Claude Code-credentials`, exit code only) or the **presence of a non-empty** credential file (`~/.claude/.credentials.json` off macOS, `~/.codex/auth.json`); the file is stat'd, not opened and the Keychain value is never read, so the token value never transits (a 0-byte file is reported `logged_out`, not `logged_in`).
-- ✅ **Frozen result models** — `ToolStatus` and `AuthStatus` are immutable pydantic models; `AuthStatus` carries the recovery `login_cmd` but never a token.
+- ✅ **Frozen result models** — `ToolStatus`, `AuthStatus`, `GitIdentityStatus` and `GhConfigStatus` are immutable pydantic models; `AuthStatus` carries the recovery `login_cmd` but never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the *official* install command for a known tool (`uv`, `claude`, `codex`) without running anything; `run_install` is a **dry-run by default** (`confirm=False`) that only echoes the command it would run. It installs strictly when the caller opts in with `confirm=True`, then re-detects the tool via `detect_tool`.
 - ✅ **Orchestrates, never possesses** — `missing_secrets` reads the **axm-vault** catalog and value-free resolver provenance to list the credential specs that resolve to `missing` (carrying `group / name / package / setup_hint`, never a value). `provision_missing` is a **dry-run by default** (`confirm=False`) that returns the groups it *would* prompt for; on `confirm=True` it delegates to vault's `run_setup(only=…)`. The secret value never transits axm-doctor — every write goes through vault's API.
 
 ```python
 from axm_doctor import detect_tool, detect_auth
+from axm_doctor.detect import detect_git_identity, detect_gh_config
 
 detect_tool("uv")      # ToolStatus(name='uv', state='present', version='0.5.1', path=...)
 detect_auth("gh")      # AuthStatus(tool='gh', state='logged_in', login_cmd=None)
 detect_auth("claude")  # AuthStatus(tool='claude', state='logged_out', login_cmd='claude login')
+detect_git_identity()  # GitIdentityStatus(state='configured')  — store [git].default or `git config user.email`
+detect_gh_config()     # GhConfigStatus(state='configured')     — `gh config get git_protocol`
 ```
 
 ```python

@@ -1,10 +1,12 @@
 """Pure-stdlib detection of external tools and third-party auth state.
 
-Bootstrap layer: this module answers "is ``uv`` installed?" / "is ``gh``
-logged in?" BEFORE any AXM package is importable, so it deliberately depends
-on the standard library and pydantic ONLY — never on ``axm-config`` /
-``axm-vault``. Auth detection is strictly read-only: it inspects an exit code
-or the *existence* of a credential file, and never reads the token value.
+Detection layer answering "is ``uv`` installed?" / "is ``gh`` logged in?".
+Tool/auth probing depends on the standard library and pydantic only. The
+git-identity check additionally resolves the central ``axm-config`` store
+(``[git].default``) to know whether a committer identity exists — the value
+is never read, only its presence. All detection is strictly read-only: it
+inspects an exit code or the *existence* of a credential/store entry, and
+never reads the token or identity value.
 """
 
 from __future__ import annotations
@@ -16,19 +18,28 @@ import sys
 from pathlib import Path
 from typing import Literal
 
+import axm_config
 from pydantic import BaseModel
 
 __all__ = [
     "AuthState",
     "AuthStatus",
+    "GhConfigState",
+    "GhConfigStatus",
+    "GitIdentityState",
+    "GitIdentityStatus",
     "ToolState",
     "ToolStatus",
     "detect_auth",
+    "detect_gh_config",
+    "detect_git_identity",
     "detect_tool",
 ]
 
 type ToolState = Literal["present", "absent"]
 type AuthState = Literal["logged_in", "logged_out", "not_installed"]
+type GitIdentityState = Literal["configured", "unconfigured"]
+type GhConfigState = Literal["configured", "unconfigured", "not_installed"]
 
 _VERSION_TIMEOUT_S = 5
 
@@ -143,6 +154,79 @@ def _probe_version(name: str) -> str | None:
     if matches:
         return matches[-1]
     return raw.splitlines()[0].strip()
+
+
+class GitIdentityStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
+    """Frozen verdict on whether a git committer identity is resolvable.
+
+    ``state`` is decided from the *presence* of a ``[git].default`` store entry
+    or the exit code of ``git config --get user.email`` — the identity value
+    itself is never read.
+    """
+
+    state: GitIdentityState
+
+
+class GhConfigStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
+    """Frozen verdict on whether ``gh`` carries a base configuration.
+
+    ``configured`` when ``gh config get git_protocol`` exits 0, ``unconfigured``
+    otherwise, ``not_installed`` when the ``gh`` binary is absent. The config
+    value itself is never read.
+    """
+
+    state: GhConfigState
+
+
+def detect_git_identity() -> GitIdentityStatus:
+    """Report whether a git committer identity is resolvable, value-free.
+
+    Cheapest source first: a truthy ``[git].default`` in the ``axm-config``
+    store means an identity exists. Otherwise fall back to the exit code of
+    ``git config --get user.email`` (its stdout — the email — is captured and
+    discarded, never returned). Any missing binary / ``OSError`` /
+    ``SubprocessError`` degrades to ``unconfigured`` without raising.
+    """
+    if axm_config.get("git", "default", default=None):
+        return GitIdentityStatus(state="configured")
+    if shutil.which("git") is None:
+        return GitIdentityStatus(state="unconfigured")
+    try:
+        proc = subprocess.run(
+            ["git", "config", "--get", "user.email"],  # noqa: S607 - controlled binary
+            capture_output=True,
+            text=True,
+            timeout=_VERSION_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return GitIdentityStatus(state="unconfigured")
+    state: GitIdentityState = "configured" if proc.returncode == 0 else "unconfigured"
+    return GitIdentityStatus(state=state)
+
+
+def detect_gh_config() -> GhConfigStatus:
+    """Report whether ``gh`` carries a base config, value-free.
+
+    Probes the exit code of ``gh config get git_protocol`` (its stdout is
+    captured and discarded). ``gh`` absent → ``not_installed``; any
+    ``OSError`` / ``SubprocessError`` degrades to ``unconfigured``. This is
+    distinct from and additional to the ``gh auth status`` login check.
+    """
+    if shutil.which("gh") is None:
+        return GhConfigStatus(state="not_installed")
+    try:
+        proc = subprocess.run(
+            ["gh", "config", "get", "git_protocol"],  # noqa: S607 - controlled binary
+            capture_output=True,
+            text=True,
+            timeout=_VERSION_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return GhConfigStatus(state="unconfigured")
+    state: GhConfigState = "configured" if proc.returncode == 0 else "unconfigured"
+    return GhConfigStatus(state=state)
 
 
 def _detect_gh_auth() -> AuthState:

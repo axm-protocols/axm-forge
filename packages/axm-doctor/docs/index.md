@@ -71,9 +71,10 @@ provision_missing(confirm=True)  # delegates to vault's run_setup(only=...) — 
 
 ## Features
 
-- ✅ **Bootstrap layer** — `detect_tool` / `detect_auth` depend on stdlib + pydantic only, never on `axm-config` / `axm-vault`, so they run before any AXM package is installed.
+- ✅ **Bootstrap layer** — `detect_tool` / `detect_auth` depend on stdlib + pydantic only, so they run before any AXM package is installed.
+- ✅ **Config-resolvability checks** — `detect_git_identity` (a `[git].default` in the **axm-config** store, else `git config --get user.email` exit code) and `detect_gh_config` (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent) report whether a git committer identity and `gh` base config are resolvable — value-free (presence + exit code only, never the value), degrading to `unconfigured` on error. The `env_doctor` tool surfaces them under a `config` key.
 - ✅ **Read-only auth** — state comes from an exit code or a non-empty credential-file check (a 0-byte file is `logged_out`); on macOS, `claude` is probed via the login Keychain entry `Claude Code-credentials` (exit code only). The file is stat'd, not opened, and the Keychain value is never read, so the token value is never read.
-- ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus`; `AuthStatus` carries a `login_cmd` to recover from `logged_out`, never a token.
+- ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus` / `GitIdentityStatus` / `GhConfigStatus`; `AuthStatus` carries a `login_cmd` to recover from `logged_out`, never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the official command for a known tool; `run_install` is a dry-run by default (`confirm=False`) and installs only on explicit opt-in (`confirm=True`), then re-detects the tool.
 - ✅ **Orchestrates, never possesses** — `missing_secrets` lists the vault credential specs that resolve to `missing` (value-free, with a `setup_hint`); `provision_missing` is a dry-run by default and on `confirm=True` delegates to vault's `run_setup` — the secret never transits axm-doctor.
 

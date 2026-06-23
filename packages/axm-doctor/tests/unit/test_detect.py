@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from axm_doctor.detect import ToolStatus, detect_auth, detect_tool
+from axm_doctor.detect import (
+    ToolStatus,
+    detect_auth,
+    detect_gh_config,
+    detect_git_identity,
+    detect_tool,
+)
 
 
 class _Proc:
@@ -219,3 +225,80 @@ def test_codex_unchanged_file_branch(
     status = detect_auth("codex")
 
     assert status.state == "logged_in"
+
+
+def test_git_identity_configured_via_store(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC2: a truthy ``[git].default`` in the store -> configured, no subprocess."""
+    monkeypatch.setattr(
+        "axm_doctor.detect.axm_config.get",
+        lambda *_a, **_k: {"name": "Gabriel", "email": "g@example.com"},
+    )
+
+    def _no_subprocess(*_args: object, **_kwargs: object) -> _Proc:
+        raise AssertionError("store hit must short-circuit the git subprocess")
+
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _no_subprocess)
+
+    status = detect_git_identity()
+
+    assert status.state == "configured"
+
+
+def test_git_identity_configured_via_git_config_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: empty store but ``git config --get user.email`` exit 0 -> configured."""
+    monkeypatch.setattr("axm_doctor.detect.axm_config.get", lambda *_a, **_k: None)
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(0))
+
+    status = detect_git_identity()
+
+    assert status.state == "configured"
+
+
+def test_git_identity_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC2: empty store and ``git config`` exit 1 -> unconfigured."""
+    monkeypatch.setattr("axm_doctor.detect.axm_config.get", lambda *_a, **_k: None)
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(1))
+
+    status = detect_git_identity()
+
+    assert status.state == "unconfigured"
+
+
+def test_git_identity_subprocess_error_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: any OSError from the git probe degrades to unconfigured (no raise)."""
+    monkeypatch.setattr("axm_doctor.detect.axm_config.get", lambda *_a, **_k: None)
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+
+    def _boom(*_args: object, **_kwargs: object) -> _Proc:
+        raise OSError("no git")
+
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _boom)
+
+    status = detect_git_identity()
+
+    assert status.state == "unconfigured"
+
+
+def test_gh_config_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC3: ``gh config get git_protocol`` exit 0 -> configured."""
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
+    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(0))
+
+    status = detect_gh_config()
+
+    assert status.state == "configured"
+
+
+def test_gh_config_not_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC3: gh absent from PATH -> not_installed (never reads a value)."""
+    monkeypatch.setattr("axm_doctor.detect.shutil.which", lambda _name: None)
+
+    status = detect_gh_config()
+
+    assert status.state == "not_installed"
