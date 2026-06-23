@@ -64,6 +64,7 @@ class ScheduleRule(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseMod
 class Schedule(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
     """Schedule configuration with rules."""
 
+    enabled: bool = True
     rules: list[ScheduleRule] = []
 
 
@@ -265,9 +266,11 @@ def resolve_by_schedule(
 ) -> GitIdentity | None:
     """Resolve identity from schedule rules for AXM workspaces.
 
-    Returns ``None`` when the path is outside AXM workspaces or no
-    schedule rule matches.
+    Returns ``None`` when the schedule is disabled, the path is outside
+    AXM workspaces, or no schedule rule matches.
     """
+    if not config.schedule.enabled:
+        return None
     if not _is_axm_workspace(workspace_path, config.workspace_paths):
         return None
     for rule in config.schedule.rules:

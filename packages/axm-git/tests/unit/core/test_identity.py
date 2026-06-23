@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect as _inspect_axm1710
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,9 @@ import axm_git.core.identity as _ident_axm1710
 from axm_git.core.identity import (
     GitIdentity,
     GitProfileConfig,
+    Schedule,
     author_args,
+    resolve_by_schedule,
     resolve_identity,
 )
 
@@ -96,6 +99,61 @@ class TestIdentityModuleInvariants:
     def test_resolve_identity_default_timezone_is_europe_paris(self) -> None:
         config = _build_config_axm1710()
         assert config.timezone == "Europe/Paris"
+
+
+class TestScheduleEnabledToggle:
+    """AC1-AC3: the schedule.enabled on/off toggle gates resolve_by_schedule."""
+
+    # A Tuesday well inside any all-day window.
+    _NOW = datetime(2026, 6, 23, 10, 0, 0)
+
+    def _config(self, tmp_path: Path, *, enabled: bool | None) -> GitProfileConfig:
+        schedule: dict[str, object] = {
+            "rules": [
+                {
+                    "profile": "work",
+                    "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                    "start": "00:00",
+                    "end": "23:59",
+                }
+            ]
+        }
+        if enabled is not None:
+            schedule["enabled"] = enabled
+        return GitProfileConfig.model_validate(
+            {
+                "default": {"name": "Default", "email": "default@example.com"},
+                "profiles": {"work": {"name": "Work", "email": "work@example.com"}},
+                "workspace_paths": [str(tmp_path)],
+                "schedule": schedule,
+            }
+        )
+
+    def test_schedule_disabled_returns_none(self, tmp_path: Path) -> None:
+        """AC2: a matching rule is ignored when schedule.enabled is False."""
+        config = self._config(tmp_path, enabled=False)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        assert resolve_by_schedule(config, ws, self._NOW) is None
+
+    def test_schedule_enabled_default_unchanged(self, tmp_path: Path) -> None:
+        """AC1, AC3: enabled defaults to True; a matching rule still resolves."""
+        assert Schedule().enabled is True
+        config = self._config(tmp_path, enabled=None)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        resolved = resolve_by_schedule(config, ws, self._NOW)
+        assert resolved == config.profiles["work"]
+
+    def test_resolve_identity_falls_back_to_default_when_disabled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: resolve_identity returns the default identity when disabled."""
+        config = self._config(tmp_path, enabled=False)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        assert resolve_identity(ws, now=self._NOW) == config.default
 
 
 class TestUnknownProfileOverrideObservability:

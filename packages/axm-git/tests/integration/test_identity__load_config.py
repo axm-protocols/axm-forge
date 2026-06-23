@@ -88,3 +88,18 @@ def test_none_when_no_config_anywhere(axm_home: Path) -> None:
     """AC5: no [git] section and no legacy file -> None."""
     config = load_config()
     assert config is None
+
+
+def test_enabled_flag_round_trips_via_store(axm_home: Path) -> None:
+    """AC4: schedule.enabled persists through [git].schedule and is read back.
+
+    Persisting ``enabled=false`` via ``axm_config`` and reading the config
+    back through ``load_config`` yields ``schedule.enabled is False``.
+    """
+    axm_config.set_("git", "default", _DEFAULT)
+    axm_config.set_("git", "schedule", {"enabled": False, "rules": []})
+
+    config = load_config()
+
+    assert config is not None
+    assert config.schedule.enabled is False
