@@ -503,6 +503,7 @@ source = { editable = "packages/axm-echo" }
 dependencies = [
     { name = "axm" },
     { name = "axm-ast" },
+    { name = "axm-config" },
     { name = "numpy" },
     { name = "scikit-learn" },
     { name = "sentence-transformers" },
@@ -530,6 +531,7 @@ docs = [
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "axm-ast", editable = "packages/axm-ast" },
+    { name = "axm-config", editable = "packages/axm-config" },
     { name = "numpy", specifier = ">=2.5.0" },
     { name = "scikit-learn", specifier = ">=1.9.0" },
     { name = "sentence-transformers", specifier = ">=5.6.0" },
