@@ -4,7 +4,7 @@ The resolver layers three sources for a ``(namespace, key)`` pair:
 
 1. the process environment, under a deterministic name
    ``AXM_<NS upper, dots->underscores>_<KEY upper>``;
-2. the per-namespace TOML file ``~/.axm/<ns>.toml`` (via
+2. the ``[ns]`` section of the single ``~/.axm/config.toml`` (via
    :class:`axm_config.store.NamespaceStore`);
 3. an explicit ``default``.
 
@@ -136,7 +136,7 @@ def get(namespace: str, key: str, *, default: object = None) -> object:
 
 
 def set_(namespace: str, key: str, value: object) -> None:
-    """Persist ``key`` = ``value`` in ``~/.axm/<namespace>.toml``.
+    """Persist ``key`` = ``value`` in the ``[namespace]`` section of config.toml.
 
     ``namespace`` and ``key`` are validated against the safe-segment pattern
     first (path-traversal guard). A ``value`` of ``None`` is routed to
@@ -153,7 +153,7 @@ def set_(namespace: str, key: str, value: object) -> None:
 
 
 def delete(namespace: str, key: str) -> None:
-    """Remove ``key`` from ``~/.axm/<namespace>.toml`` (no-op if absent).
+    """Remove ``key`` from the ``[namespace]`` section of config.toml (no-op if absent).
 
     ``namespace`` and ``key`` are validated first. Deleting an absent key (or a
     namespace with no file) is a silent no-op — it never raises. After removal

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 import stat
+import tomllib
 from pathlib import Path
 
 import pytest
+import tomli_w
 
 from axm_config.store import NamespaceStore
 
@@ -22,18 +24,18 @@ def test_write_then_read_roundtrip(
 
 
 def test_written_file_is_0600(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC3: the written namespace file has mode ``0600``."""
+    """AC3: the single config.toml has mode ``0600``."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     store = NamespaceStore()
     store.write("app", "token", "secret")
-    ns_file = tmp_path / ".axm" / "app.toml"
-    assert stat.S_IMODE(ns_file.stat().st_mode) == 0o600
+    config = tmp_path / ".axm" / "config.toml"
+    assert stat.S_IMODE(config.stat().st_mode) == 0o600
 
 
 def test_write_preserves_other_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC2: read-modify-write keeps pre-existing keys."""
+    """AC2: read-modify-write keeps pre-existing keys in the same section."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     store = NamespaceStore()
     store.write("app", "first", "one")
@@ -44,7 +46,7 @@ def test_write_preserves_other_keys(
 def test_read_missing_namespace_returns_empty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC1: reading an absent namespace returns ``{}`` without raising."""
+    """AC4: reading an absent namespace returns ``{}`` without raising."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     store = NamespaceStore()
     assert store.read("nope") == {}
@@ -53,11 +55,11 @@ def test_read_missing_namespace_returns_empty(
 def test_read_corrupt_toml_returns_empty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC4: a corrupt/malformed TOML degrades gracefully to ``{}``."""
+    """AC4: a corrupt/malformed config.toml degrades gracefully to ``{}``."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     axm_dir = tmp_path / ".axm"
     axm_dir.mkdir(parents=True, exist_ok=True)
-    (axm_dir / "broken.toml").write_bytes(b"this is = not [ valid toml ===")
+    (axm_dir / "config.toml").write_bytes(b"this is = not [ valid toml ===")
     store = NamespaceStore()
     assert store.read("broken") == {}
 
@@ -73,7 +75,7 @@ def _axm_tmp_files(home: Path) -> list[Path]:
 def test_temp_file_cleaned_on_replace_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC5: write/delete unlink the temp file when ``os.replace`` raises.
+    """AC3: write/delete unlink the temp file when ``os.replace`` raises.
 
     The atomic write stages a same-dir ``NamedTemporaryFile`` and moves it in
     via ``os.replace``. If the move raises, the staged temp file must not leak
@@ -104,3 +106,51 @@ def test_temp_file_cleaned_on_replace_failure(
     with pytest.raises(OSError, match="replace failed"):
         store.delete("app", "token")
     assert _axm_tmp_files(tmp_path) == []
+
+
+def test_single_file_0600_atomic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3: every namespace lands in a single config.toml, mode 0600, atomic.
+
+    Two namespaces are written; the on-disk surface is exactly one
+    ``config.toml`` (no per-namespace file, no leftover temp) at mode 0600.
+    """
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+    store.write("echo", "threshold", 0.5)
+    store.write("linear", "team", "AXM")
+
+    axm_dir = tmp_path / ".axm"
+    config = axm_dir / "config.toml"
+    assert config.exists()
+    assert stat.S_IMODE(config.stat().st_mode) == 0o600
+    assert not (axm_dir / "echo.toml").exists()
+    assert not (axm_dir / "linear.toml").exists()
+    leftovers = [p for p in axm_dir.iterdir() if p.name != "config.toml"]
+    assert leftovers == []
+
+
+def test_legacy_per_ns_file_folded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC7: a legacy ~/.axm/<ns>.toml is folded into config.toml, value kept."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    axm_dir = tmp_path / ".axm"
+    axm_dir.mkdir(parents=True, exist_ok=True)
+    (axm_dir / "echo.toml").write_bytes(
+        tomli_w.dumps({"threshold": 0.9}).encode("utf-8")
+    )
+
+    store = NamespaceStore()
+    # The legacy value is visible through the unified read.
+    assert store.read("echo") == {"threshold": 0.9}
+
+    # On the next write the legacy section is folded into config.toml.
+    store.write("echo", "window", 10)
+
+    config = axm_dir / "config.toml"
+    with config.open("rb") as fh:
+        raw = tomllib.load(fh)
+    assert raw["echo"]["threshold"] == 0.9
+    assert raw["echo"]["window"] == 10

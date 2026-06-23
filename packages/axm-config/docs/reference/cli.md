@@ -10,8 +10,8 @@ and over MCP, so the behavior is identical across surfaces.
 | Command | Delegates to | Effect |
 | -- | -- | -- |
 | `axm-config get <ns> <key>` | `get` | Prints the resolved value (`env > file > default`). |
-| `axm-config set <ns> <key> <value>` | `set_` | Persists `key = value` in `~/.axm/<ns>.toml` (atomic, `0600`). |
-| `axm-config delete <ns> <key>` | `delete` | Removes `key` from `~/.axm/<ns>.toml` (silent no-op if absent). |
+| `axm-config set <ns> <key> <value>` | `set_` | Persists `key = value` in the `[ns]` section of `~/.axm/config.toml` (atomic, `0600`, other sections preserved). |
+| `axm-config delete <ns> <key>` | `delete` | Removes `key` from the `[ns]` section of `~/.axm/config.toml` (silent no-op if absent). |
 | `axm-config path` | `axm_home` | Prints the resolved `~/.axm` home (created `0700` if absent). |
 | `axm-config doctor [<ns>]` | `config_doctor_data` | Prints per-key provenance (`<ns>.<key>: <layer>`); all known namespaces if `<ns>` is omitted. |
 
@@ -28,8 +28,8 @@ axm-config doctor research.fred        # -> research.fred.api_key: file
 ### `config_doctor`
 
 Report config-key provenance for a namespace, read-only. For every visible
-key (the union of the namespace's `~/.axm/<ns>.toml` file keys and any
-`AXM_<NS>_*` environment variables) it reports which layer would win under
+key (the union of the namespace's `[ns]` section in `~/.axm/config.toml` and
+any `AXM_<NS>_*` environment variables) it reports which layer would win under
 the `env > file > default` precedence — it never reads a value into a
 consumer and never mutates any layer.
 
@@ -38,7 +38,8 @@ axm config_doctor --namespace research.fred
 ```
 
 The result is a mapping `{"<ns>.<key>": {"layer": env|file|default, "present": bool}}`.
-Omit `--namespace` to report every namespace with a `~/.axm/<ns>.toml` file.
+Omit `--namespace` to report every namespace present as a section of
+`~/.axm/config.toml` (plus any not-yet-folded legacy per-namespace file).
 
 Programmatic access shares the exact same central function:
 

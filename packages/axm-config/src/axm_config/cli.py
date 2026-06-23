@@ -55,7 +55,7 @@ def _set_cmd(
     key: Annotated[str, cyclopts.Parameter(help="Config key.")],
     value: Annotated[str, cyclopts.Parameter(help="Value to persist.")],
 ) -> None:
-    """Persist ``key`` = ``value`` in ``~/.axm/<namespace>.toml``."""
+    """Persist ``key`` = ``value`` in the ``[namespace]`` section of config.toml."""
     try:
         set_(namespace, key, value)
     except (OSError, ConfigError) as exc:
@@ -67,7 +67,7 @@ def _delete_cmd(
     namespace: Annotated[str, cyclopts.Parameter(help="Config namespace.")],
     key: Annotated[str, cyclopts.Parameter(help="Config key.")],
 ) -> None:
-    """Remove ``key`` from ``~/.axm/<namespace>.toml`` (no-op if absent)."""
+    """Remove ``key`` from the ``[namespace]`` section (no-op if absent)."""
     try:
         delete(namespace, key)
     except (OSError, ConfigError) as exc:

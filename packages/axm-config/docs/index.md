@@ -47,7 +47,7 @@ home = axm_home()
 print(home)  # e.g. /Users/you/.axm
 
 # Resolve runtime config with env > file > default precedence.
-set_("research.fred", "api_key", "abc123")  # writes ~/.axm/research.fred.toml
+set_("research.fred", "api_key", "abc123")  # writes [research.fred] in ~/.axm/config.toml
 key = get("research.fred", "api_key", default=None)  # "abc123"
 
 # Remove a key (no-op if absent); it then resolves to the default again.
@@ -94,11 +94,16 @@ axm-config doctor research.fred              # per-key provenance, read-only
   and no `-`, and a key joins lowercase-alphanumeric runs with **single** `_`
   (no leading/trailing/doubled `__`) — so a `__` can only come from a
   namespace dot, the lone single `_` separates the folded namespace from the
-  key, and no `-` ever leaks into the name. The on-disk store writes
-  `~/.axm/<ns>.toml` atomically (file `0600`, temp file cleaned up even if the
-  atomic move fails); a missing or corrupt namespace degrades gracefully to
-  `{}` instead of raising. `delete()` removes a key (no-op if absent);
-  `set_(ns, key, None)` routes to the same delete
+  key, and no `-` ever leaks into the name. The on-disk store keeps **one**
+  `~/.axm/config.toml` with a `[<namespace>]` table per namespace (a dotted
+  namespace → a nested table, e.g. `[storage.portfolio]`) and writes it
+  atomically (file `0600`, temp file cleaned up even if the atomic move
+  fails). A read-modify-write of the whole file preserves every other
+  namespace's section; a missing or corrupt file/section degrades gracefully
+  to `{}` instead of raising. Legacy per-namespace `~/.axm/<ns>.toml` files
+  (the previous layout) are read-through and folded into `config.toml` on the
+  next write — no silent data loss. `delete()` removes a key (no-op if
+  absent); `set_(ns, key, None)` routes to the same delete
 - ✅ **Path-traversal safe & unambiguous env names** — `namespace` and `key`
   are validated at the public boundary against safe-segment patterns (a
   namespace is lowercase-alphanumeric segments joined by dots,

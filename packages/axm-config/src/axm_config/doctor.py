@@ -6,16 +6,16 @@ every key visible in a namespace, following the resolver's own
 layers and reports the *winning* one per key, it never reads a value into a
 consumer and never mutates any layer.
 
-The set of reported keys is the union of the namespace's TOML file contents
-and any environment variables matching the resolver's ``AXM_<NS>_*`` naming.
-For an absent namespace both sources are empty, so the report is ``{}``.
+The set of reported keys is the union of the namespace's section in
+``~/.axm/config.toml`` and any environment variables matching the resolver's
+``AXM_<NS>_*`` naming. For an absent namespace both sources are empty, so the
+report is ``{}``.
 """
 
 from __future__ import annotations
 
 import os
 
-from axm_config.home import axm_home
 from axm_config.resolver import _env_name, _store
 
 __all__ = ["config_doctor_data"]
@@ -57,13 +57,14 @@ def _provenance(namespace: str, key: str) -> dict[str, object]:
 
 
 def _known_namespaces() -> list[str]:
-    """Return every namespace with a TOML file under ``~/.axm``.
+    """Return every namespace present in ``~/.axm/config.toml`` (or legacy).
 
     Used when no explicit namespace is requested. Env-only namespaces are not
-    enumerable (the prefix is unbounded), so the file layer is the source of
-    truth for "all known".
+    enumerable (the prefix is unbounded), so the file layer — the sections of
+    the single ``config.toml`` plus any not-yet-folded legacy per-namespace
+    files — is the source of truth for "all known".
     """
-    return sorted(path.stem for path in axm_home().glob("*.toml"))
+    return _store.namespaces()
 
 
 def config_doctor_data(
@@ -71,9 +72,10 @@ def config_doctor_data(
 ) -> dict[str, dict[str, object]]:
     """Report the resolution layer of every visible key, read-only.
 
-    For ``namespace``, the reported keys are the union of the namespace's file
-    keys and its ``AXM_<NS>_*`` environment keys. When ``namespace`` is
-    ``None``, every namespace with a ``~/.axm/<ns>.toml`` file is reported.
+    For ``namespace``, the reported keys are the union of the namespace's
+    ``config.toml`` section keys and its ``AXM_<NS>_*`` environment keys. When
+    ``namespace`` is ``None``, every namespace present in ``config.toml`` (or a
+    not-yet-folded legacy file) is reported.
     Keys are formatted ``"<ns>.<key>"``; each maps to
     ``{"layer": env|file|default, "present": bool}``. Nothing is mutated.
     """
