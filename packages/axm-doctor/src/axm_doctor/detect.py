@@ -1,0 +1,155 @@
+"""Pure-stdlib detection of external tools and third-party auth state.
+
+Bootstrap layer: this module answers "is ``uv`` installed?" / "is ``gh``
+logged in?" BEFORE any AXM package is importable, so it deliberately depends
+on the standard library and pydantic ONLY — never on ``axm-config`` /
+``axm-vault``. Auth detection is strictly read-only: it inspects an exit code
+or the *existence* of a credential file, and never reads the token value.
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Literal
+
+from pydantic import BaseModel
+
+__all__ = [
+    "AuthState",
+    "AuthStatus",
+    "ToolState",
+    "ToolStatus",
+    "detect_auth",
+    "detect_tool",
+]
+
+type ToolState = Literal["present", "absent"]
+type AuthState = Literal["logged_in", "logged_out", "not_installed"]
+
+_VERSION_TIMEOUT_S = 5
+
+# Per-tool auth wiring. ``cred`` is the credential file relative to ``~`` whose
+# *existence* (never content) signals logged-in for credential-file tools.
+_CRED_FILES: dict[str, str] = {
+    "claude": ".claude/.credentials.json",
+    "codex": ".codex/auth.json",
+}
+_LOGIN_CMDS: dict[str, str] = {
+    "gh": "gh auth login",
+    "claude": "claude login",
+    "codex": "codex login",
+}
+
+
+class ToolStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
+    """Frozen result of probing a single external tool on ``PATH``."""
+
+    name: str
+    state: ToolState
+    version: str | None = None
+    path: str | None = None
+
+
+class AuthStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
+    """Frozen read-only auth state for a third-party binary.
+
+    Carries the command to recover from ``logged_out`` (``login_cmd``) but
+    NEVER a token value — detection is existence/exit-code only.
+    """
+
+    tool: str
+    state: AuthState
+    login_cmd: str | None = None
+
+
+def detect_tool(name: str) -> ToolStatus:
+    """Probe ``name`` on ``PATH`` and parse ``<name> --version``.
+
+    Returns ``present`` with the parsed version string when found, ``absent``
+    otherwise. Never raises on a missing or misbehaving tool.
+    """
+    path = shutil.which(name)
+    if path is None:
+        return ToolStatus(name=name, state="absent")
+    return ToolStatus(
+        name=name,
+        state="present",
+        version=_probe_version(name),
+        path=path,
+    )
+
+
+def detect_auth(tool: str) -> AuthStatus:
+    """Report read-only auth state for a third-party binary.
+
+    ``gh`` is probed via the exit code of ``gh auth status``; credential-file
+    tools (``claude``, ``codex``) via the *existence* of their credential file
+    under ``~`` — the file is never opened, so no token is ever read.
+    """
+    login_cmd = _LOGIN_CMDS.get(tool)
+    if tool == "gh":
+        state = _detect_gh_auth()
+    elif tool in _CRED_FILES:
+        cred = Path.home() / _CRED_FILES[tool]
+        # A 0-byte credential file carries no token: existence alone is not a
+        # login. Require a non-empty file (still never opened) to claim
+        # logged_in. The file is stat'd, not read, so no secret transits.
+        has_creds = cred.is_file() and cred.stat().st_size > 0
+        state = "logged_in" if has_creds else "logged_out"
+    else:
+        # Unknown auth tool: when its binary IS on PATH, "not_installed" would
+        # be misleading — we simply cannot verify its login, so report
+        # logged_out (recovery hint follows if known). Only when the binary is
+        # absent is "not_installed" the honest state.
+        state = "logged_out" if shutil.which(tool) is not None else "not_installed"
+    return AuthStatus(
+        tool=tool,
+        state=state,
+        login_cmd=login_cmd if state == "logged_out" else None,
+    )
+
+
+def _probe_version(name: str) -> str | None:
+    """Return the first line of ``<name> --version`` output, or ``None``."""
+    try:
+        proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            [name, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=_VERSION_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    raw = proc.stdout.strip() or proc.stderr.strip()
+    if not raw:
+        return None
+    # Extract a dotted version (e.g. "1.2.3") from possibly-noisy output rather
+    # than leaking a whole banner. Use the LAST match, not the first: a banner
+    # like "Python 3.12 wrapper, tool 2.1.0" must yield the tool's own version
+    # (2.1.0), not the leading interpreter partial (3.12). Fall back to the
+    # first line if no dotted number is present.
+    matches: list[str] = re.findall(r"\d+\.\d+(?:\.\d+)?", raw)
+    if matches:
+        return matches[-1]
+    return raw.splitlines()[0].strip()
+
+
+def _detect_gh_auth() -> AuthState:
+    """Probe ``gh auth status`` exit code without reading any token."""
+    if shutil.which("gh") is None:
+        return "not_installed"
+    try:
+        proc = subprocess.run(
+            ["gh", "auth", "status"],  # noqa: S607 - gh is a controlled, known binary
+            capture_output=True,
+            text=True,
+            timeout=_VERSION_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "logged_out"
+    return "logged_in" if proc.returncode == 0 else "logged_out"

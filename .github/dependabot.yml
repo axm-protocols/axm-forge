@@ -106,6 +106,30 @@ updates:
       axm-echo:
         patterns:
           - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-config
+    schedule:
+      interval: weekly
+    groups:
+      axm-config:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-vault
+    schedule:
+      interval: weekly
+    groups:
+      axm-vault:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-doctor
+    schedule:
+      interval: weekly
+    groups:
+      axm-doctor:
+        patterns:
+          - "*"
 
   # ── GitHub Actions used by the workspace workflows ─────────────────────────
   - package-ecosystem: github-actions

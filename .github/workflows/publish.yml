@@ -14,6 +14,9 @@ on:
       - "smelt/v*"
       - "ingot/v*"
       - "echo/v*"
+      - "config/v*"
+      - "vault/v*"
+      - "doctor/v*"
 
 jobs:
   detect-package:
@@ -59,6 +62,15 @@ jobs:
           elif [[ "$TAG" == echo/* ]]; then
             echo "package=axm-echo" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-echo" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == config/* ]]; then
+            echo "package=axm-config" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-config" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == vault/* ]]; then
+            echo "package=axm-vault" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-vault" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == doctor/* ]]; then
+            echo "package=axm-doctor" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-doctor" >> "$GITHUB_OUTPUT"
           else
             echo "::error::Unknown tag prefix: $TAG"
             exit 1

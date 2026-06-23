@@ -60,6 +60,9 @@ nav:
     - axm-git: '!include ./packages/axm-git/mkdocs.yml'
     - axm-smelt: '!include ./packages/axm-smelt/mkdocs.yml'
     - axm-echo: '!include ./packages/axm-echo/mkdocs.yml'
+    - axm-config: '!include ./packages/axm-config/mkdocs.yml'
+    - axm-vault: '!include ./packages/axm-vault/mkdocs.yml'
+    - axm-doctor: '!include ./packages/axm-doctor/mkdocs.yml'
     - axm-ingot: '!include ./packages/axm-ingot/mkdocs.yml'
   - Contributing:
     - contributing.md

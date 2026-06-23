@@ -1,0 +1,86 @@
+"""Provenance reporting for resolved config keys (read-only).
+
+:func:`config_doctor_data` answers "where would this key resolve from?" for
+every key visible in a namespace, following the resolver's own
+``env > file > default`` precedence. It is a diagnostic surface: it probes the
+layers and reports the *winning* one per key, it never reads a value into a
+consumer and never mutates any layer.
+
+The set of reported keys is the union of the namespace's TOML file contents
+and any environment variables matching the resolver's ``AXM_<NS>_*`` naming.
+For an absent namespace both sources are empty, so the report is ``{}``.
+"""
+
+from __future__ import annotations
+
+import os
+
+from axm_config.home import axm_home
+from axm_config.resolver import _env_name, _store
+
+__all__ = ["config_doctor_data"]
+
+
+def _env_keys(namespace: str) -> set[str]:
+    """Return the keys of every ``AXM_<NS>_*`` env var set for ``namespace``.
+
+    The resolver maps ``(ns, key)`` to ``AXM_<NS upper, dots->__>_<KEY upper>``.
+    This reverses that map: for each environment variable sharing the
+    namespace prefix, the trailing segment is lower-cased back to a key.
+    Because a namespace carries no ``_`` of its own (lowercase-alphanumeric
+    segments joined by dots, dots folding to ``__``) and a key can never forge
+    a ``__`` (lowercase-alphanumeric segments joined by *single* ``_``, no
+    edge/doubled ``_``; see :func:`~axm_config.resolver.validate_segment`), the
+    ``AXM_<ns>_`` prefix is unambiguous and the trailing segment is always the
+    full recoverable key — the reverse map round-trips ``_env_name`` exactly.
+    """
+    prefix = f"AXM_{namespace.upper().replace('.', '__')}_"
+    return {
+        name[len(prefix) :].lower()
+        for name in os.environ
+        if name.startswith(prefix) and len(name) > len(prefix)
+    }
+
+
+def _provenance(namespace: str, key: str) -> dict[str, object]:
+    """Return ``{layer, present}`` for ``key`` per ``env > file > default``.
+
+    Mirrors the resolver's precedence without reading the value: an env var
+    wins over a file key, a file key over the implicit default. ``present`` is
+    ``False`` only for the ``default`` layer (no source supplies the key).
+    """
+    if _env_name(namespace, key) in os.environ:
+        return {"layer": "env", "present": True}
+    if key in _store.read(namespace):
+        return {"layer": "file", "present": True}
+    return {"layer": "default", "present": False}
+
+
+def _known_namespaces() -> list[str]:
+    """Return every namespace with a TOML file under ``~/.axm``.
+
+    Used when no explicit namespace is requested. Env-only namespaces are not
+    enumerable (the prefix is unbounded), so the file layer is the source of
+    truth for "all known".
+    """
+    return sorted(path.stem for path in axm_home().glob("*.toml"))
+
+
+def config_doctor_data(
+    namespace: str | None = None,
+) -> dict[str, dict[str, object]]:
+    """Report the resolution layer of every visible key, read-only.
+
+    For ``namespace``, the reported keys are the union of the namespace's file
+    keys and its ``AXM_<NS>_*`` environment keys. When ``namespace`` is
+    ``None``, every namespace with a ``~/.axm/<ns>.toml`` file is reported.
+    Keys are formatted ``"<ns>.<key>"``; each maps to
+    ``{"layer": env|file|default, "present": bool}``. Nothing is mutated.
+    """
+    namespaces = [namespace] if namespace is not None else _known_namespaces()
+    report: dict[str, dict[str, object]] = {}
+    for ns in namespaces:
+        keys = set(_store.read(ns)) | _env_keys(ns)
+        for key in sorted(keys):
+            report[f"{ns}.{key}"] = _provenance(ns, key)
+    return report

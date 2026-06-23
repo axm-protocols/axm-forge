@@ -54,13 +54,19 @@ jobs:
               - 'packages/axm-ingot/**'
             axm-echo:
               - 'packages/axm-echo/**'
+            axm-config:
+              - 'packages/axm-config/**'
+            axm-vault:
+              - 'packages/axm-vault/**'
+            axm-doctor:
+              - 'packages/axm-doctor/**'
       - name: Compute package matrix
         id: set
         env:
           SHARED: ${{ steps.filter.outputs.shared }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
-          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot","axm-echo"]'
+          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot","axm-echo","axm-config","axm-vault","axm-doctor"]'
           if [ "$SHARED" = "true" ]; then
             echo "Shared file changed -> full matrix"
             PACKAGES="$ALL"
@@ -123,6 +129,15 @@ jobs:
       - name: MyPy (axm-echo)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-echo')
         run: uv run --package axm-echo mypy --config-file packages/axm-echo/pyproject.toml packages/axm-echo/src/ packages/axm-echo/tests/
+      - name: MyPy (axm-config)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-config')
+        run: uv run --package axm-config mypy --config-file packages/axm-config/pyproject.toml packages/axm-config/src/ packages/axm-config/tests/
+      - name: MyPy (axm-vault)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-vault')
+        run: uv run --package axm-vault mypy --config-file packages/axm-vault/pyproject.toml packages/axm-vault/src/ packages/axm-vault/tests/
+      - name: MyPy (axm-doctor)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-doctor')
+        run: uv run --package axm-doctor mypy --config-file packages/axm-doctor/pyproject.toml packages/axm-doctor/src/ packages/axm-doctor/tests/
 
   security:
     name: Security Audit
