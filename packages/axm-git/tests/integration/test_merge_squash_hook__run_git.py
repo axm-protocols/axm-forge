@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
 from axm_git.core.runner import run_git
 from axm_git.hooks.merge_squash import MergeSquashHook
@@ -20,12 +19,26 @@ email = "squash@axm-protocol.io"
 
 
 def test_squash_commit_uses_resolved_profile(
-    tmp_git_repo_with_branch: Path, tmp_path: Path, mocker: MockerFixture
+    tmp_git_repo_with_branch: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AXM-1826 AC1: squash commit author equals the resolved profile."""
-    config = tmp_path / "git-profiles.toml"
-    config.write_text(_PROFILE_TOML)
-    mocker.patch("axm_git.core.identity._DEFAULT_CONFIG_PATH", config)
+    """AXM-1826 AC1: squash commit author equals the resolved profile.
+
+    AXM-2329 contract: ``load_config(config_path=None)`` now resolves from the
+    axm_config store first, falling back to the legacy ``~/axm/git-profiles.toml``
+    only when the ``[git]`` section is absent. HOME is redirected to an empty
+    tmp dir (no store ``[git]`` section) and the legacy file is planted at the
+    resolved ``~/axm/git-profiles.toml`` so the legacy-fallback path resolves
+    the profile.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("USERPROFILE", raising=False)
+    legacy_dir = home / "axm"
+    legacy_dir.mkdir()
+    (legacy_dir / "git-profiles.toml").write_text(_PROFILE_TOML)
 
     result = MergeSquashHook().execute(
         {

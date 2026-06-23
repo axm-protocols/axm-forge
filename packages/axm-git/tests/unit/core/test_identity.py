@@ -66,6 +66,25 @@ class TestAuthorArgs:
         assert result == []
 
 
+class TestExplicitConfigPath:
+    """AC4: the explicit-path form is unchanged (no store consulted)."""
+
+    def test_explicit_config_path_still_parses_file(self, tmp_path: Path) -> None:
+        """AC4: load_config(config_path=<file>) parses that exact TOML file.
+
+        No axm_config store monkeypatch is needed: the explicit-path branch
+        must never consult the store.
+        """
+        from axm_git.core.identity import load_config
+
+        cfg = tmp_path / "git-profiles.toml"
+        cfg.write_text('[default]\nname = "Explicit"\nemail = "explicit@example.com"\n')
+        result = load_config(config_path=cfg)
+        assert result is not None
+        assert result.default.name == "Explicit"
+        assert result.default.email == "explicit@example.com"
+
+
 class TestIdentityModuleInvariants:
     """Unit-scope invariants on the identity module (no I/O)."""
 

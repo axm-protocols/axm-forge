@@ -8,6 +8,7 @@ from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import axm_config
 from pydantic import BaseModel
 
 __all__ = [
@@ -21,6 +22,17 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path.home() / "axm" / "git-profiles.toml"
+
+
+def _legacy_config_path() -> Path:
+    """Resolve the legacy ``~/axm/git-profiles.toml`` path at call time.
+
+    Resolved lazily (not the module-level constant) so an overridden ``HOME``
+    is honoured — the constant is frozen at import. Kept for the transitional
+    AC3 fallback only.
+    """
+    return Path.home() / "axm" / "git-profiles.toml"
+
 
 _DAY_MAP: dict[str, int] = {
     "mon": 0,
@@ -65,16 +77,23 @@ class GitProfileConfig(BaseModel):  # type: ignore[explicit-any]  # pydantic Bas
     timezone: str = "Europe/Paris"
 
 
-def load_config(config_path: Path | None = None) -> GitProfileConfig | None:
-    """Load and validate a git-profiles TOML config file.
+def _warn_inert_schedule(config: GitProfileConfig, source: str) -> None:
+    """Warn when schedule rules are set but no workspace_paths can apply them."""
+    if config.schedule.rules and not config.workspace_paths:
+        logger.warning(
+            "git-profiles config at %s defines schedule.rules but "
+            "workspace_paths is empty — schedule is inert",
+            source,
+        )
+
+
+def _load_from_file(path: Path) -> GitProfileConfig | None:
+    """Parse and validate a git-profiles TOML file (explicit-path/legacy form).
 
     File-absent returns ``None`` silently. File-present-but-malformed
     returns ``None`` and emits a ``WARNING`` referencing *path* and the
-    exception class. After successful parse, also warns when
-    ``schedule.rules`` is non-empty but ``workspace_paths`` is empty
-    (governance config is configured but cannot apply).
+    exception class.
     """
-    path = config_path or _DEFAULT_CONFIG_PATH
     try:
         data = path.read_bytes()
     except FileNotFoundError:
@@ -94,13 +113,70 @@ def load_config(config_path: Path | None = None) -> GitProfileConfig | None:
             "Invalid git-profiles config at %s: %s", path, exc.__class__.__name__
         )
         return None
-    if config.schedule.rules and not config.workspace_paths:
-        logger.warning(
-            "git-profiles config at %s defines schedule.rules but "
-            "workspace_paths is empty — schedule is inert",
-            path,
-        )
+    _warn_inert_schedule(config, str(path))
     return config
+
+
+def _load_from_store() -> GitProfileConfig | None:
+    """Build ``GitProfileConfig`` from the ``[git]`` section of the single store.
+
+    ``workspace_paths`` is sourced from ``[echo].workspace_roots`` (single
+    source of followed roots), not from ``[git]``. Returns ``None`` when the
+    ``[git]`` section is absent — a present section requires at least
+    ``default`` to resolve. Malformed/invalid stored data degrades to ``None``
+    with a ``WARNING``.
+    """
+    try:
+        default = axm_config.get("git", "default")
+    except (ValueError, OSError) as exc:
+        logger.warning(
+            "Cannot read git config from store (%s) — falling back to legacy",
+            exc.__class__.__name__,
+        )
+        return None
+    if not default:
+        return None
+    payload: dict[str, object] = {
+        "default": default,
+        "profiles": axm_config.get("git", "profiles", default={}),
+        "schedule": axm_config.get("git", "schedule", default={}),
+        "workspace_paths": axm_config.get("echo", "workspace_roots", default=[]),
+    }
+    try:
+        config = GitProfileConfig.model_validate(payload)
+    except (ValueError, KeyError) as exc:
+        logger.warning(
+            "Invalid git-profiles config in store [git]: %s", exc.__class__.__name__
+        )
+        return None
+    _warn_inert_schedule(config, "store [git]")
+    return config
+
+
+def load_config(config_path: Path | None = None) -> GitProfileConfig | None:
+    """Load and validate git-profiles configuration.
+
+    With an explicit *config_path*, parse that exact TOML file (unchanged
+    legacy form). With ``config_path=None`` (the default), resolve from the
+    ``axm_config`` single store ``[git]`` section, falling back to the legacy
+    ``~/axm/git-profiles.toml`` (with a migration ``WARNING``) only while the
+    store has no ``[git]`` section. Returns ``None`` when no config is
+    resolvable anywhere.
+    """
+    if config_path is not None:
+        return _load_from_file(config_path)
+    from_store = _load_from_store()
+    if from_store is not None:
+        return from_store
+    legacy_path = _legacy_config_path()
+    legacy = _load_from_file(legacy_path)
+    if legacy is not None:
+        logger.warning(
+            "Loaded git-profiles from legacy %s — migrate to the axm_config "
+            "[git] section (see `axm-config`); the legacy file is transitional",
+            legacy_path,
+        )
+    return legacy
 
 
 def _matches_schedule(rule: ScheduleRule, now: datetime) -> bool:
