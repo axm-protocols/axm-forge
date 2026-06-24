@@ -28,12 +28,12 @@ workspace_paths = ["{AXM_WORKSPACE_ROOT}"]
 name = "Gabriel"
 email = "gabriel@example.com"
 
-[profiles.axiom]
-name = "Axiom"
-email = "axiom@axm-protocol.io"
+[profiles.secondary]
+name = "Secondary"
+email = "secondary@axm-protocol.io"
 
 [[schedule.rules]]
-profile = "axiom"
+profile = "secondary"
 days = ["mon", "tue", "wed", "thu", "fri"]
 start = "09:00"
 end = "18:00"
@@ -196,12 +196,12 @@ class TestResolveIdentity:
         return cfg_file
 
     def test_resolve_weekday_morning(self, config_path: Path) -> None:
-        """Monday 10:00 + axm workspace -> axiom identity."""
+        """Monday 10:00 + axm workspace -> secondary identity."""
         now = datetime(2026, 4, 6, 10, 0)  # Monday
         result = resolve_identity(AXM_WORKSPACE, now=now, config_path=config_path)
         assert result is not None
-        assert result.name == "Axiom"
-        assert result.email == "axiom@axm-protocol.io"
+        assert result.name == "Secondary"
+        assert result.email == "secondary@axm-protocol.io"
 
     def test_resolve_weekday_evening(self, config_path: Path) -> None:
         """Monday 20:00 -> default identity (outside schedule)."""
@@ -237,9 +237,9 @@ class TestResolveIdentity:
             ),
             pytest.param(
                 datetime(2026, 4, 11, 14, 0),
-                "axiom",
-                "Axiom",
-                id="override_axiom_on_weekend",
+                "secondary",
+                "Secondary",
+                id="override_secondary_on_weekend",
             ),
         ],
     )
@@ -290,16 +290,16 @@ workspace_paths = ["{AXM_WORKSPACE_ROOT}"]
 name = "Gabriel"
 email = "gabriel@example.com"
 
-[profiles.axiom]
-name = "Axiom"
-email = "axiom@axm-protocol.io"
+[profiles.secondary]
+name = "Secondary"
+email = "secondary@axm-protocol.io"
 
 [profiles.other]
 name = "Other"
 email = "other@example.com"
 
 [[schedule.rules]]
-profile = "axiom"
+profile = "secondary"
 days = ["mon"]
 start = "09:00"
 end = "18:00"
@@ -315,7 +315,7 @@ end = "18:00"
         now = datetime(2026, 4, 6, 10, 0)  # Monday
         result = resolve_identity(AXM_WORKSPACE, now=now, config_path=cfg_file)
         assert result is not None
-        assert result.name == "Axiom"
+        assert result.name == "Secondary"
 
     def test_resolve_unknown_profile_override(self, config_path: Path) -> None:
         """Override with nonexistent profile -> None."""
@@ -340,14 +340,14 @@ end = "18:00"
             result = resolve_identity(
                 AXM_WORKSPACE,
                 now=now,
-                profile_override="axioom",
+                profile_override="secondaty",
                 config_path=config_path,
             )
         assert result is None
         warnings = [
             r.getMessage() for r in caplog.records if r.levelno == logging.WARNING
         ]
-        assert any("axioom" in m and "axiom" in m for m in warnings)
+        assert any("secondaty" in m and "secondary" in m for m in warnings)
 
     def test_resolve_symlink_workspace(self, config_path: Path, tmp_path: Path) -> None:
         """Symlink resolving to $W/axm-* -> schedule applies."""
@@ -356,7 +356,7 @@ end = "18:00"
         now = datetime(2026, 4, 6, 10, 0)  # Monday
         result = resolve_identity(symlink, now=now, config_path=config_path)
         assert result is not None
-        assert result.name == "Axiom"
+        assert result.name == "Secondary"
 
 
 class TestScheduleBoundaries:
@@ -373,7 +373,7 @@ class TestScheduleBoundaries:
         now = datetime(2026, 4, 6, 9, 0)  # Monday 09:00
         result = resolve_identity(AXM_WORKSPACE, now=now, config_path=config_path)
         assert result is not None
-        assert result.name == "Axiom"
+        assert result.name == "Secondary"
 
     def test_matches_schedule_boundary_end(self, config_path: Path) -> None:
         """Monday 18:00 exactly -> does not match (exclusive)."""
@@ -397,7 +397,7 @@ class TestIsAxmWorkspace:
         now = datetime(2026, 4, 6, 10, 0)  # Monday
         result = resolve_identity(AXM_WORKSPACE, now=now, config_path=config_path)
         assert result is not None
-        assert result.name == "Axiom"
+        assert result.name == "Secondary"
 
     def test_is_axm_workspace_false(self, config_path: Path) -> None:
         """Path under /tmp/other -> schedule ignored."""

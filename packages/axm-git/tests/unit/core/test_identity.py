@@ -51,18 +51,18 @@ class TestGitIdentityModel:
     """Test GitIdentity pydantic model."""
 
     def test_git_identity_model(self) -> None:
-        identity = GitIdentity(name="Axiom", email="axiom@axm-protocol.io")
-        assert identity.name == "Axiom"
-        assert identity.email == "axiom@axm-protocol.io"
+        identity = GitIdentity(name="Secondary", email="secondary@axm-protocol.io")
+        assert identity.name == "Secondary"
+        assert identity.email == "secondary@axm-protocol.io"
 
 
 class TestAuthorArgs:
     """Test author_args helper."""
 
     def test_author_args_with_identity(self) -> None:
-        identity = GitIdentity(name="Axiom", email="axiom@axm-protocol.io")
+        identity = GitIdentity(name="Secondary", email="secondary@axm-protocol.io")
         result = author_args(identity)
-        assert result == ["--author", "Axiom <axiom@axm-protocol.io>"]
+        assert result == ["--author", "Secondary <secondary@axm-protocol.io>"]
 
     def test_author_args_none(self) -> None:
         result = author_args(None)

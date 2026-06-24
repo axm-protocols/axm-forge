@@ -87,9 +87,9 @@ class TestCommitToolNoSkip:
 def test_build_commit_cmd_with_author() -> None:
     """build_commit_cmd includes --author flag when author is provided."""
     cmd = build_commit_cmd(
-        "msg", None, skip_hooks=True, author="Axiom <axiom@axm-protocol.io>"
+        "msg", None, skip_hooks=True, author="Secondary <secondary@axm-protocol.io>"
     )
-    assert "--author=Axiom <axiom@axm-protocol.io>" in cmd
+    assert "--author=Secondary <secondary@axm-protocol.io>" in cmd
 
 
 def test_build_commit_cmd_no_author() -> None:
@@ -99,11 +99,11 @@ def test_build_commit_cmd_no_author() -> None:
 
 
 @pytest.fixture()
-def _identity_axiom() -> Any:
-    """Mock resolve_identity to return an Axiom identity."""
+def _identity_secondary() -> Any:
+    """Mock resolve_identity to return an Secondary identity."""
     identity = SimpleNamespace(
-        name="Axiom",
-        email="axiom@axm-protocol.io",
+        name="Secondary",
+        email="secondary@axm-protocol.io",
     )
     with (
         patch(
@@ -112,7 +112,7 @@ def _identity_axiom() -> Any:
         ) as mock_resolve,
         patch(
             "axm_git.hooks.commit_phase.author_args",
-            return_value="Axiom <axiom@axm-protocol.io>",
+            return_value="Secondary <secondary@axm-protocol.io>",
         ) as mock_author_args,
     ):
         yield mock_resolve, mock_author_args
@@ -180,7 +180,7 @@ class TestCommitLegacyIdentity:
 
     def test_commit_legacy_with_identity(
         self,
-        _identity_axiom: Any,
+        _identity_secondary: Any,
         _run_git_success: Any,
     ) -> None:
         """_commit_legacy passes --author when resolve_identity returns identity."""
@@ -195,7 +195,7 @@ class TestCommitLegacyIdentity:
         ]
         assert len(commit_calls) == 1
         commit_args = commit_calls[0][0][0]
-        assert "--author=Axiom <axiom@axm-protocol.io>" in commit_args
+        assert "--author=Secondary <secondary@axm-protocol.io>" in commit_args
 
     def test_commit_legacy_no_config(
         self,
@@ -222,7 +222,7 @@ class TestCommitFromOutputsIdentity:
 
     def test_commit_from_outputs_with_identity(
         self,
-        _identity_axiom: Any,
+        _identity_secondary: Any,
         _commit_from_outputs_deps: Any,
     ) -> None:
         """commit_from_outputs passes author when identity is resolved."""
@@ -240,7 +240,7 @@ class TestCommitFromOutputsIdentity:
         ]
         assert len(commit_calls) == 1
         commit_args = commit_calls[0][0][0]
-        assert "--author=Axiom <axiom@axm-protocol.io>" in commit_args
+        assert "--author=Secondary <secondary@axm-protocol.io>" in commit_args
 
     def test_commit_from_outputs_profile_override(
         self,
@@ -275,7 +275,7 @@ class TestHookResultIdentityMetadata:
 
     def test_hook_result_includes_identity(
         self,
-        _identity_axiom: Any,
+        _identity_secondary: Any,
         _run_git_success: Any,
     ) -> None:
         """HookResult metadata contains author_name and author_email."""
@@ -283,8 +283,8 @@ class TestHookResultIdentityMetadata:
         context = {"phase_name": "build"}
         result = hook._commit_legacy(context, Path("/fake/repo"))
 
-        assert result.metadata["author_name"] == "Axiom"
-        assert result.metadata["author_email"] == "axiom@axm-protocol.io"
+        assert result.metadata["author_name"] == "Secondary"
+        assert result.metadata["author_email"] == "secondary@axm-protocol.io"
 
 
 class TestIdentityEdgeCases:
@@ -292,7 +292,7 @@ class TestIdentityEdgeCases:
 
     def test_retry_after_autofix_preserves_author(
         self,
-        _identity_axiom: Any,
+        _identity_secondary: Any,
     ) -> None:
         """Retried commit after pre-commit autofix uses same --author flag."""
         first_attempt = SimpleNamespace(
@@ -349,14 +349,14 @@ class TestIdentityEdgeCases:
             ]
             assert len(commit_calls) == 2
             for call in commit_calls:
-                assert "--author=Axiom <axiom@axm-protocol.io>" in call[0][0]
+                assert "--author=Secondary <secondary@axm-protocol.io>" in call[0][0]
 
     def test_legacy_mode_with_profile_override(
         self,
         _run_git_success: Any,
     ) -> None:
         """_commit_legacy respects profile override from params."""
-        identity = SimpleNamespace(name="Axiom", email="axiom@axm-protocol.io")
+        identity = SimpleNamespace(name="Secondary", email="secondary@axm-protocol.io")
         with (
             patch(
                 "axm_git.hooks.commit_phase.resolve_identity",
@@ -364,16 +364,16 @@ class TestIdentityEdgeCases:
             ) as mock_resolve,
             patch(
                 "axm_git.hooks.commit_phase.author_args",
-                return_value="Axiom <axiom@axm-protocol.io>",
+                return_value="Secondary <secondary@axm-protocol.io>",
             ),
         ):
             hook = CommitPhaseHook()
             context = {"phase_name": "build"}
-            hook._commit_legacy(context, Path("/fake/repo"), profile="axiom")
+            hook._commit_legacy(context, Path("/fake/repo"), profile="secondary")
 
             mock_resolve.assert_called_once()
             call_kwargs = mock_resolve.call_args[1]
-            assert call_kwargs["profile_override"] == "axiom"
+            assert call_kwargs["profile_override"] == "secondary"
 
     def test_missing_config_no_author(
         self,

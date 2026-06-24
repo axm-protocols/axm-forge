@@ -29,12 +29,12 @@ workspace_paths = ["{AXM_WORKSPACE_ROOT}"]
 name = "Gabriel"
 email = "gabriel@example.com"
 
-[profiles.axiom]
-name = "Axiom"
-email = "axiom@axm-protocol.io"
+[profiles.secondary]
+name = "Secondary"
+email = "secondary@axm-protocol.io"
 
 [[schedule.rules]]
-profile = "axiom"
+profile = "secondary"
 days = ["mon", "tue", "wed", "thu", "fri"]
 start = "09:00"
 end = "18:00"
@@ -51,5 +51,5 @@ class TestLoadConfig:
         assert config is not None
         assert isinstance(config, GitProfileConfig)
         assert config.default.name == "Gabriel"
-        assert "axiom" in config.profiles
+        assert "secondary" in config.profiles
         assert len(config.schedule.rules) == 1

@@ -14,8 +14,8 @@ from pytest_mock import MockerFixture
 
 from axm_git.hooks.merge_squash import MergeSquashHook
 
-_IDENTITY = SimpleNamespace(name="Axiom", email="axiom@axm-protocol.io")
-_AUTHOR_FLAG = "--author=Axiom <axiom@axm-protocol.io>"
+_IDENTITY = SimpleNamespace(name="Secondary", email="secondary@axm-protocol.io")
+_AUTHOR_FLAG = "--author=Secondary <secondary@axm-protocol.io>"
 
 
 def _git_ok(stdout: str = "") -> SimpleNamespace:

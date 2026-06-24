@@ -14,8 +14,10 @@ from tests.integration._helpers import _git_result
 # Helpers
 # ---------------------------------------------------------------------------
 
-_AXIOM_IDENTITY = SimpleNamespace(name="Axiom", email="axiom@axm-protocol.io")
-_AUTHOR_FLAG = "--author=Axiom <axiom@axm-protocol.io>"
+_SECONDARY_IDENTITY = SimpleNamespace(
+    name="Secondary", email="secondary@axm-protocol.io"
+)
+_AUTHOR_FLAG = "--author=Secondary <secondary@axm-protocol.io>"
 
 
 def _make_run_git_ok(
@@ -74,10 +76,10 @@ def mock_run_git(mocker, tmp_path):
 
 
 @pytest.fixture()
-def mock_identity_axiom(mocker):
+def mock_identity_secondary(mocker):
     return mocker.patch(
         "axm_git.tools.commit.resolve_identity",
-        return_value=_AXIOM_IDENTITY,
+        return_value=_SECONDARY_IDENTITY,
     )
 
 
@@ -93,7 +95,7 @@ def mock_identity_none(mocker):
 def mock_author_args(mocker):
     return mocker.patch(
         "axm_git.tools.commit.author_args",
-        return_value=["--author=Axiom <axiom@axm-protocol.io>"],
+        return_value=["--author=Secondary <secondary@axm-protocol.io>"],
     )
 
 
@@ -114,7 +116,7 @@ class TestCommitWithIdentity:
     """Test that --author is injected when identity resolves."""
 
     def test_commit_with_identity(
-        self, tool, mock_run_git, mock_identity_axiom, mock_author_args, tmp_path
+        self, tool, mock_run_git, mock_identity_secondary, mock_author_args, tmp_path
     ):
         result = tool.execute(path=str(tmp_path), commits=_single_commit())
 
@@ -141,19 +143,19 @@ class TestCommitWithIdentity:
         assert all("--author" not in arg for arg in commit_args)
 
     def test_commit_profile_override(
-        self, tool, mock_run_git, mock_identity_axiom, mock_author_args, tmp_path
+        self, tool, mock_run_git, mock_identity_secondary, mock_author_args, tmp_path
     ):
         tool.execute(path=str(tmp_path), commits=_single_commit(), profile="default")
 
-        mock_identity_axiom.assert_called_once()
-        call_kwargs = mock_identity_axiom.call_args
+        mock_identity_secondary.assert_called_once()
+        call_kwargs = mock_identity_secondary.call_args
         # profile_override should be passed
         assert call_kwargs.kwargs.get("profile_override") == "default" or (
             len(call_kwargs.args) > 1 and call_kwargs.args[1] == "default"
         )
 
     def test_batch_commits_same_identity(
-        self, tool, mock_run_git, mock_identity_axiom, mock_author_args, tmp_path
+        self, tool, mock_run_git, mock_identity_secondary, mock_author_args, tmp_path
     ):
         result = tool.execute(path=str(tmp_path), commits=_two_commits())
 
@@ -166,22 +168,22 @@ class TestCommitWithIdentity:
             assert _AUTHOR_FLAG in cc[0][0]
 
         # resolve_identity called only once (not per commit)
-        mock_identity_axiom.assert_called_once()
+        mock_identity_secondary.assert_called_once()
 
 
 class TestResultIncludesAuthor:
     """Test that ToolResult.data contains author info."""
 
     def test_result_includes_author(
-        self, tool, mock_run_git, mock_identity_axiom, mock_author_args, tmp_path
+        self, tool, mock_run_git, mock_identity_secondary, mock_author_args, tmp_path
     ):
         result = tool.execute(path=str(tmp_path), commits=_single_commit())
 
         assert result.success is True
         assert "author" in result.data
         author = result.data["author"]
-        assert author["name"] == "Axiom"
-        assert author["email"] == "axiom@axm-protocol.io"
+        assert author["name"] == "Secondary"
+        assert author["email"] == "secondary@axm-protocol.io"
 
     def test_result_author_null_no_config(
         self, tool, mock_run_git, mock_identity_none, mock_author_args_empty, tmp_path
@@ -202,7 +204,7 @@ class TestIdentityEdgeCases:
     """Edge cases for identity injection."""
 
     def test_retry_preserves_author(
-        self, tool, mock_identity_axiom, mock_author_args, tmp_path, mocker
+        self, tool, mock_identity_secondary, mock_author_args, tmp_path, mocker
     ):
         """Pre-commit fix triggers retry — retried commit still has --author."""
         call_count = 0
@@ -251,21 +253,21 @@ class TestIdentityEdgeCases:
         # so AC6 is satisfied by design. We verify success + retried flag.
 
     def test_empty_batch_with_profile(
-        self, tool, mock_run_git, mock_identity_axiom, mock_author_args, tmp_path
+        self, tool, mock_run_git, mock_identity_secondary, mock_author_args, tmp_path
     ):
         """Empty commits list returns error; identity is never resolved."""
-        result = tool.execute(path=str(tmp_path), commits=[], profile="axiom")
+        result = tool.execute(path=str(tmp_path), commits=[], profile="secondary")
 
         assert result.success is False
         assert "No commits provided" in result.error
-        mock_identity_axiom.assert_not_called()
+        mock_identity_secondary.assert_not_called()
 
     def test_non_axm_repo_with_profile_override(
-        self, tool, mock_run_git, mock_identity_axiom, mock_author_args, tmp_path
+        self, tool, mock_run_git, mock_identity_secondary, mock_author_args, tmp_path
     ):
         """Profile override forces identity even on non-axm paths."""
         result = tool.execute(
-            path=str(tmp_path), commits=_single_commit(), profile="axiom"
+            path=str(tmp_path), commits=_single_commit(), profile="secondary"
         )
 
         assert result.success is True
@@ -276,4 +278,4 @@ class TestIdentityEdgeCases:
         assert _AUTHOR_FLAG in commit_calls[0][0][0]
 
         # resolve_identity was called with the profile override
-        mock_identity_axiom.assert_called_once()
+        mock_identity_secondary.assert_called_once()
