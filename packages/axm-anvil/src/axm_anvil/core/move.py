@@ -653,10 +653,48 @@ def _existing_guard_codes(target_tree: cst.Module) -> set[str]:
     }
 
 
+def _is_docstring_stmt(stmt: cst.BaseStatement) -> bool:
+    """Return ``True`` if ``stmt`` is a bare module/string-literal docstring line."""
+    if not isinstance(stmt, cst.SimpleStatementLine) or not stmt.body:
+        return False
+    first = stmt.body[0]
+    return isinstance(first, cst.Expr) and isinstance(
+        first.value, cst.SimpleString | cst.ConcatenatedString
+    )
+
+
+def _is_future_import_stmt(stmt: cst.BaseStatement) -> bool:
+    """Return ``True`` if ``stmt`` is a ``from __future__ import ...`` line."""
+    if not isinstance(stmt, cst.SimpleStatementLine):
+        return False
+    return any(
+        isinstance(small, cst.ImportFrom)
+        and small.module is not None
+        and _dotted_name_of(small.module) == "__future__"
+        for small in stmt.body
+    )
+
+
+def _module_preamble_offset(tree: cst.Module) -> int:
+    """Return the body index after the module docstring and ``__future__`` block.
+
+    Guard blocks (``try: import ... except ImportError``) must be spliced
+    *after* any leading module docstring — inserting at position 0 would demote
+    the docstring to an ordinary string statement, nulling ``module.__doc__``
+    and breaking E402. A ``from __future__ import`` line, when present, must
+    also stay first, so it is skipped too.
+    """
+    body = tree.body
+    offset = 1 if body and _is_docstring_stmt(body[0]) else 0
+    while offset < len(body) and _is_future_import_stmt(body[offset]):
+        offset += 1
+    return offset
+
+
 def _splice_guard_blocks(
     target_tree: cst.Module, guards: list[cst.BaseCompoundStatement]
 ) -> cst.Module:
-    """Prepend conditional guard blocks not already present in the target."""
+    """Splice conditional guard blocks after the target's docstring/preamble."""
     if not guards:
         return target_tree
     seen = _existing_guard_codes(target_tree)
@@ -670,7 +708,10 @@ def _splice_guard_blocks(
         to_add.append(block)
     if not to_add:
         return target_tree
-    return target_tree.with_changes(body=[*to_add, *target_tree.body])
+    offset = _module_preamble_offset(target_tree)
+    body = list(target_tree.body)
+    new_body = [*body[:offset], *to_add, *body[offset:]]
+    return target_tree.with_changes(body=new_body)
 
 
 def _apply_imports(
@@ -1005,6 +1046,22 @@ def _assert_target_free(target_tree: cst.Module, names: list[str]) -> None:
     for name in names:
         if name in target_existing:
             raise SymbolAlreadyExistsError(name)
+
+
+def _assert_rename_targets_free(
+    target_tree: cst.Module, rename_map: dict[str, str]
+) -> None:
+    """Reject a move whose *renamed* name already exists in the target.
+
+    ``_validate_and_expand`` only checks the pre-rename names against the
+    target; a ``rename={'foo': 'bar'}`` where ``bar`` is already defined in
+    the target would otherwise write a second ``def bar`` that silently
+    shadows the first at import. Guard against that renamed-target collision.
+    """
+    target_existing = _gather_target_existing(target_tree)
+    for new_name in rename_map.values():
+        if new_name in target_existing:
+            raise SymbolAlreadyExistsError(new_name)
 
 
 def _resolve_shared_map(
@@ -2172,6 +2229,7 @@ def move_symbols(  # noqa: PLR0913
     remove_targets, blocks = _extract_moved_blocks(source_tree, expanded_names)
     rename_map = _active_rename(rename, moved_names)
     if rename_map:
+        _assert_rename_targets_free(target_tree, rename_map)
         blocks = _apply_rename_to_blocks(blocks, rename_map)
 
     root = (

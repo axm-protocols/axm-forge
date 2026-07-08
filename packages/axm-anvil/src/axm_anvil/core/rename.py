@@ -38,7 +38,11 @@ from axm_anvil.core.callers import (
     _module_path_from_file,
 )
 from axm_anvil.core.move import batch_edit
-from axm_anvil.core.plan import MoveValidationError, SymbolNotFoundError
+from axm_anvil.core.plan import (
+    MoveValidationError,
+    SymbolAlreadyExistsError,
+    SymbolNotFoundError,
+)
 
 __all__ = ["RenamePlan", "rename_symbols"]
 
@@ -96,12 +100,17 @@ def _resolve_mapping(
     active: dict[str, str] = {}
     warnings: list[str] = []
     for old, new in mapping.items():
-        if old in present:
-            active[old] = new
-        elif strict:
-            raise SymbolNotFoundError(old)
-        else:
+        if old not in present:
+            if strict:
+                raise SymbolNotFoundError(old)
             warnings.append(f"symbol {old!r} not found in module; skipped")
+            continue
+        if new != old and new in present:
+            # Renaming onto an existing top-level name would produce two
+            # definitions of ``new`` in the same module (the second silently
+            # shadows the first at import). Refuse the collision.
+            raise SymbolAlreadyExistsError(new)
+        active[old] = new
     return active, warnings
 
 

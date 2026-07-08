@@ -114,3 +114,17 @@ def test_extract_dry_run_no_write(tmp_path: Path) -> None:
 
     assert "foo" in plan.moved_names
     assert not tgt.exists()
+
+
+def test_extract_dry_run_removes_created_parent_dirs(tmp_path: Path) -> None:
+    """P2-2: a dry run with a deep ``to_file`` leaves disk byte-identical —
+    the directories scaffolded by ``mkdir(parents=True)`` are also removed."""
+    src = tmp_path / "src.py"
+    src.write_text("def foo() -> int:\n    return 1\n")
+    tgt = tmp_path / "newsub" / "deep" / "b.py"
+
+    extract_symbols(src, tgt, ["foo"], dry_run=True, workspace_root=tmp_path)
+
+    assert not tgt.exists()
+    # The scaffolded parent chain must not linger on disk.
+    assert not (tmp_path / "newsub").exists()

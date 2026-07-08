@@ -43,12 +43,54 @@ def _dump_module(node: cst.BaseExpression | None) -> str:
     return ""
 
 
-def _module_path_from_file(file_path: Path, workspace_root: Path) -> str:
-    """Derive the dotted module path for ``file_path`` under ``workspace_root``.
+def _package_root_of(file_path: Path, workspace_root: Path) -> Path | None:
+    """Return the topmost ``__init__.py``-bearing ancestor under the workspace.
 
-    Strips a leading ``src/`` segment if present and drops the ``.py`` suffix.
+    This is the importable-package root: the highest directory that still
+    holds an ``__init__.py`` while remaining an ancestor of ``file_path`` and
+    under ``workspace_root``. For a ``packages/pkg/src/pkg/mod.py`` monorepo
+    layout it resolves to ``.../src/pkg`` (``src`` has no ``__init__.py``),
+    so the derived dotted path is the real import path ``pkg.mod`` rather
+    than the on-disk ``packages.pkg.src.pkg.mod``.
     """
-    rel = file_path.resolve().relative_to(workspace_root.resolve())
+    current = file_path.resolve().parent
+    root_resolved = workspace_root.resolve()
+    if root_resolved not in {current, *current.parents}:
+        return None
+    result: Path | None = None
+    while True:
+        if (current / "__init__.py").is_file():
+            result = current
+        if current == root_resolved:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return result
+
+
+def _module_path_from_file(file_path: Path, workspace_root: Path) -> str:
+    """Derive the dotted *import* path for ``file_path`` under ``workspace_root``.
+
+    Resolves the importable-package root (topmost ``__init__.py`` ancestor)
+    and derives the dotted path relative to that root's parent, so a monorepo
+    ``packages/pkg/src/pkg/mod.py`` layout yields ``pkg.mod`` — the path that
+    real callers actually ``import`` — not the on-disk
+    ``packages.pkg.src.pkg.mod`` that never matches an import statement.
+
+    Falls back to the workspace-relative path (stripping a leading ``src/``)
+    when no package root can be found (e.g. a top-level flat module).
+    """
+    resolved = file_path.resolve()
+    pkg_root = _package_root_of(resolved, workspace_root)
+    if pkg_root is not None:
+        rel = resolved.relative_to(pkg_root.parent)
+        parts = list(rel.with_suffix("").parts)
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        return ".".join(parts)
+    rel = resolved.relative_to(workspace_root.resolve())
     parts = list(rel.with_suffix("").parts)
     if parts and parts[0] == "src":
         parts = parts[1:]
@@ -271,7 +313,11 @@ def _rewrite_module_import_caller(
         rewritten = wrapper.visit(rewriter)
         if rewritten.code != current_tree.code:
             any_rewritten = True
-        if rewriter.kept_usages == 0 and rewritten.code != current_tree.code:
+        if (
+            rewriter.kept_usages == 0
+            and rewritten.code != current_tree.code
+            and not _alias_used_as_bare_name(rewritten, alias)
+        ):
             aliases_to_remove.add(alias)
         current_tree = rewritten
 
@@ -294,6 +340,51 @@ def _rewrite_module_import_caller(
         new=f"import {new_module}",
     )
     return current_tree.code, [rewrite]
+
+
+class _BareNameUsageCounter(cst.CSTVisitor):
+    """Count bare-``Name`` uses of ``target`` outside import statements.
+
+    A local alias bound by ``import pkg.old as om`` can survive attribute
+    rewriting as a *value* reference (``x = om``). Such a bare use is not an
+    ``alias.<attr>`` chain, so :class:`AttributeRewriter` never counts it —
+    dropping the import would then leave ``x = om`` dangling (``NameError``).
+    This visitor skips ``Import`` / ``ImportFrom`` bodies so only genuine
+    value references are counted.
+    """
+
+    def __init__(self, target: str) -> None:
+        super().__init__()
+        self._target = target
+        self.count = 0
+
+    def visit_Import(self, node: cst.Import) -> bool:  # noqa: N802
+        """Skip ``import`` statements: their names are not value references."""
+        return False
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> bool:  # noqa: N802
+        """Skip ``from`` imports: their names are not value references."""
+        return False
+
+    def visit_Attribute(self, node: cst.Attribute) -> bool:  # noqa: N802
+        """Skip attribute chains: only the leftmost root is a bare name here."""
+        return False
+
+    def visit_Name(self, node: cst.Name) -> None:  # noqa: N802
+        """Record a bare-``Name`` occurrence of the alias."""
+        if node.value == self._target:
+            self.count += 1
+
+
+def _alias_used_as_bare_name(tree: cst.Module, alias: str) -> bool:
+    """Return ``True`` if ``alias`` still appears as a bare name (non-import).
+
+    Guards against dropping ``import old as alias`` when a residual value
+    reference (e.g. ``x = alias``) would otherwise be left unbound.
+    """
+    counter = _BareNameUsageCounter(alias)
+    tree.visit(counter)
+    return counter.count > 0
 
 
 def _iter_workspace_py_files(

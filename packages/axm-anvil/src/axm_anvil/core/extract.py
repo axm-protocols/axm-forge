@@ -89,8 +89,9 @@ def extract_symbols(  # noqa: PLR0913
     _check_collision(target_path, symbol_names)
 
     created_scaffold = False
+    created_dirs: list[Path] = []
     if not target_path.exists():
-        target_path.parent.mkdir(parents=True, exist_ok=True)
+        created_dirs = _mkdir_tracking(target_path.parent)
         target_path.write_text("")
         created_scaffold = True
 
@@ -110,9 +111,41 @@ def extract_symbols(  # noqa: PLR0913
             side_effect_decorators=side_effect_decorators,
         )
     finally:
-        # A dry run must not leave the scaffold behind: drop the empty file
-        # (and a now-empty parent we created) so disk state is unchanged.
-        if dry_run and created_scaffold and target_path.exists():
-            target_path.unlink()
+        # A dry run must leave disk state byte-identical: drop the empty
+        # scaffold file *and* any parent directories we created for it.
+        if dry_run and created_scaffold:
+            _cleanup_scaffold(target_path, created_dirs)
 
     return plan
+
+
+def _mkdir_tracking(directory: Path) -> list[Path]:
+    """Create ``directory`` (and parents), returning the dirs we actually made.
+
+    The returned list is ordered leaf-last (deepest first) so a caller can
+    remove them in order without hitting a non-empty parent.
+    """
+    created: list[Path] = []
+    current = directory
+    to_create: list[Path] = []
+    while not current.exists():
+        to_create.append(current)
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    directory.mkdir(parents=True, exist_ok=True)
+    created.extend(to_create)
+    return created
+
+
+def _cleanup_scaffold(target_path: Path, created_dirs: list[Path]) -> None:
+    """Remove the dry-run scaffold file and any directories we created for it."""
+    if target_path.exists():
+        target_path.unlink()
+    for directory in created_dirs:
+        try:
+            directory.rmdir()
+        except OSError:
+            # Not empty (something else landed here): leave it in place.
+            break
