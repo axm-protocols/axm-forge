@@ -146,9 +146,9 @@ Add, remove, or list git worktrees.
 
 | Parameter | Default | Description |
 |---|---|---|
-| `path` | `.` | Project root directory |
 | `action` | *required* | `add`, `remove`, or `list` |
-| `worktree_path` | `None` | Path for the new or existing worktree |
+| `path` | `.` | Repository path (git-root resolution runs here, so a fresh sibling worktree works) |
+| `worktree_path` | `None` | Worktree location for `add`/`remove` (may not exist yet). When omitted, `path` doubles as the worktree location (legacy form) |
 | `branch` | `None` | Branch name for `add` |
 | `base` | `None` | Base ref for `add` (defaults to repo default) |
 | `force` | `False` | Force removal for the `remove` action |
