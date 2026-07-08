@@ -166,7 +166,10 @@ exempt_paths = ["tools.py"]
 # generated `__version__` string) surfaces as a reverse-direction orphan.
 # Whitelist that one cross-cutting test from the orphan check; it asserts a
 # real source symbol, it is just not 1:1-mirrorable onto an exempt module.
-exempt_tests = ["test_version.py"]
+# `test_tools_guards.py` guards the mirror-exempt `tools.py` surface (the
+# echo_code/echo_check input validation + the demoted-pair payload bound); it
+# asserts real behaviour of an exempt module, so it is not 1:1-mirrorable.
+exempt_tests = ["test_version.py", "test_tools_guards.py"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration

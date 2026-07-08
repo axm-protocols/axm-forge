@@ -78,7 +78,9 @@ _DEFAULT_TOP_N = 30
 # cosine ~1.0. Serializing them whole would blow the MCP transport chunk
 # budget (the ``ast_describe(detail='full')`` failure mode). Bound each bucket
 # in ``data`` to its strongest entries; the true count stays visible.
-_MAX_DEMOTED_PAIRS = 50
+# Module-internal-public (no leading underscore) so the guard test can assert
+# the bound without reaching through a private surface.
+MAX_DEMOTED_PAIRS = 50
 
 # echo_code identifies a cluster member by its (package, qualname). The waiver
 # hash is computed over this key schema (duplicate_tests uses (file, name)).
@@ -174,8 +176,8 @@ def _max_pair_score(members: list[int], pairs: list[Pair]) -> float:
     return max(scores) if scores else 0.0
 
 
-def _pair_entries(
-    pairs: list[Pair], symbols: list[SymbolDict], *, limit: int = _MAX_DEMOTED_PAIRS
+def pair_entries(
+    pairs: list[Pair], symbols: list[SymbolDict], *, limit: int = MAX_DEMOTED_PAIRS
 ) -> list[PairEntry]:
     """Serialize the ``limit`` strongest demoted pairs (bounded for MCP payload)."""
     ordered = sorted(pairs, key=lambda p: p[2], reverse=True)[:limit]
@@ -363,8 +365,8 @@ class EchoCodeTool(AXMTool):
 
         actionable = [c for c in clusters if not c.get("acknowledged")]
         shown = actionable[:top_n]
-        parallel_entries = _pair_entries(parallel, symbols)
-        boilerplate_entries = _pair_entries(boilerplate, symbols)
+        parallel_entries = pair_entries(parallel, symbols)
+        boilerplate_entries = pair_entries(boilerplate, symbols)
 
         data = {
             "corpus_size": len(symbols),
