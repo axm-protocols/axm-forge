@@ -31,8 +31,8 @@ graph TD
     EchoCode --> Waiver
     EchoCheck --> Corpus
     EchoCheck --> Embedding
-    Corpus --> Scope
-    Corpus -->|axm-ast| Embedding
+    EchoCheck --> Waiver
+    Corpus -->|axm-ast| Scope
 ```
 
 ## Modules

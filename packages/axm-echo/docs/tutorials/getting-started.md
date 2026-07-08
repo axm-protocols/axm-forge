@@ -78,13 +78,13 @@ directory only counts as a package when it carries a real marker — a
 
 ```bash
 # Run this package's tests (from anywhere in the workspace).
-uv run pytest --package axm-echo
+uv run --package axm-echo pytest
 
 # Or, from the workspace root, the full lint + type-check + tests gate:
 make check
 ```
 
-`uv run pytest --package axm-echo` runs the package test suite; `make check`
+`uv run --package axm-echo pytest` runs the package test suite; `make check`
 (a workspace-root target — there is no per-package Makefile) runs `lint`
 (ruff + mypy) plus the whole workspace test run.
 

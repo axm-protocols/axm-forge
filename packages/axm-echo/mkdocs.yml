@@ -7,6 +7,8 @@ nav:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
     - howto/index.md
+    - Configure the scope: howto/configure-scope.md
+    - Reuse check in planning: howto/reuse-check-in-planning.md
   - Reference:
     - CLI: reference/cli.md
     - Python API: reference/api/

@@ -85,7 +85,8 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
   base install (neural-by-default), but torch is imported only inside the
   `st` backend, so the `tfidf` path never loads it at runtime
 - ✅ **axm-ast corpus extractor** — public symbols with signature +
-  docstring, `embed_text` falling back to code when undocumented
+  docstring; an undocumented symbol's `embed_text` falls back to its
+  *signature* (bodies are not extracted)
 - ✅ **Scope loader** — shared `~/.axm/config.toml` `[echo]` (via axm-config),
   graceful degradation to the current workspace
 - ✅ **Modern Python** — 3.12+ with strict typing
