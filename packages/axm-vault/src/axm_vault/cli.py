@@ -60,7 +60,8 @@ def get(group: str, name: str, *, reveal: bool = False) -> None:
     Args:
         group: Credential group id.
         name: Credential name within the group.
-        reveal: Print the plaintext even for SECRET specs (audited reveal).
+        reveal: Print the plaintext even for SECRET specs (a deliberate
+            opt-in reveal; no audit trail is emitted).
     """
     try:
         grp = load_catalog().group(group)

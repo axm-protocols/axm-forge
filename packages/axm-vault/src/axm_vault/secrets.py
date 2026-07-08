@@ -3,7 +3,8 @@
 A secret must never surface in ``repr``, ``str``, ``f"{x}"`` or
 :meth:`pydantic.BaseModel.model_dump`. The plaintext is reachable only
 through an explicit :meth:`pydantic.SecretStr.get_secret_value` call,
-which is the single audited reveal surface.
+which is the single deliberate reveal surface (an explicit opt-in, not an
+audited/logged one — no audit trail is emitted).
 """
 
 from __future__ import annotations

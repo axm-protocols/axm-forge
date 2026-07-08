@@ -34,15 +34,23 @@ acme = "axm_acme.credentials:provide_groups"
 
 where `provide_groups` is a callable returning `list[CredentialGroup]`.
 
-!!! warning "`SECRET`/`CONFIG` spec names must be valid `axm-config` keys"
-    A `SECRET` spec persists a value-free presence sentinel keyed by
-    `<name>_set`, and a `CONFIG` spec persists its value keyed by `<name>`;
-    both go through `axm-config`, whose key charset is `^[A-Za-z0-9_]+$`
-    (no `.` or `-`). A spec name carrying `.`/`-` could never round-trip, so
-    building the `Catalog` (the path `load_catalog()` takes) **raises
-    `ValueError`** naming the offending spec — a structural error caught at
-    discovery rather than mid-`setup`. `NONSENSITIVE` specs are
-    environment-only and exempt from this rule.
+!!! warning "Group ids and `SECRET`/`CONFIG` spec names must be valid `axm-config` segments"
+    A `CONFIG` spec persists its value in `axm-config` keyed by `<name>` under
+    the namespace `group.id`, so both identifiers must round-trip through
+    `axm-config`. Validation delegates to the canonical
+    `axm_config.validate_segment`:
+
+    - **`group.id`** is a *namespace*: `^[a-z0-9]+(\.[a-z0-9]+)*$` — lowercase
+      alphanumeric segments joined by dots (no `_`, `-`, or upper-case).
+    - **`SECRET`/`CONFIG` spec `name`** is a *key*: `^[a-z0-9]+(_[a-z0-9]+)*$` —
+      lowercase alphanumeric segments joined by a single `_` (no leading /
+      trailing / doubled `_`, no `.`/`-`).
+
+    An identifier that could never round-trip makes building the `Catalog` (the
+    path `load_catalog()` takes) **raise `ValueError`** naming the offender — a
+    structural error caught at discovery rather than mid-`setup`.
+    `NONSENSITIVE` spec names are environment-only and exempt (the group id is
+    still checked).
 
 ## `Catalog`
 

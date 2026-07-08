@@ -56,8 +56,8 @@ and blocks on operator input, which is why it lives as a plain function
 - **is idempotent** — a blank answer keeps any existing value, so a re-run
   only fills in what is still missing (the prompt advertises `[keep]` when a
   value already exists);
-- routes `SECRET` -> keyring (with a value-free presence sentinel in
-  `axm-config`) and `CONFIG` -> `axm-config`.
+- routes `SECRET` -> keyring only (presence is derived by probing the keyring,
+  never recorded as a separate marker) and `CONFIG` -> `axm-config`.
 
 ## `axm.tools` (MCP)
 

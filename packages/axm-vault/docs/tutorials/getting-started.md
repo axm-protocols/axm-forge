@@ -22,7 +22,7 @@ pip install axm-vault
 ## Step 1: Verify Installation
 
 ```python
-from axm_vault import __version__
+from axm_vault._version import __version__
 
 print(f"axm-vault v{__version__}")
 ```
@@ -54,12 +54,18 @@ See the [Catalog Models reference](../reference/models.md) for every field.
 
 ## Step 3: Run the Tests
 
+The workspace `Makefile` lives at the `axm-forge` root, not inside the package:
+
 ```bash
-cd packages/axm-vault
-make check
+cd axm-forge
+make check          # lint + type check + security audit + tests, all packages
 ```
 
-This runs lint + type check + security audit + tests.
+To exercise just this package:
+
+```bash
+uv run --package axm-vault --directory packages/axm-vault pytest -x -q
+```
 
 ## Next Steps
 

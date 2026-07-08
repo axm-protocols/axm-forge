@@ -8,8 +8,8 @@ and for scrubbing secrets out of arbitrary text (e.g. logs).
     A `SecretStr` never exposes its plaintext in `repr()`, `str()`, an
     f-string, or `model_dump()` / `model_dump_json()` — it always renders
     as `**********`. The plaintext is reachable **only** through an
-    explicit `get_secret_value()` call, which is the single audited reveal
-    surface.
+    explicit `get_secret_value()` call, which is the single deliberate reveal
+    surface (an explicit opt-in — no audit trail is emitted).
 
 ## `as_secret`
 

@@ -7,6 +7,7 @@ nav:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
     - howto/index.md
+    - Declare credentials: howto/declare-credentials.md
   - Reference:
     - Catalog Models: reference/models.md
     - Secrets: reference/secrets.md
