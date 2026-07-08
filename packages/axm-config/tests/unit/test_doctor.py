@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from axm_config import ConfigError
-from axm_config.doctor import _env_keys, config_doctor_data
+from axm_config.doctor import config_doctor_data
 
 
 def test_provenance_env_layer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -49,27 +49,34 @@ class _StubStore:
         return sorted(self._data)
 
 
-def test_env_keys_drops_child_namespace_ghost(
+def test_doctor_drops_child_namespace_ghost(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """P0-1: a child namespace's env var must not leak as a key of the parent.
 
     ``AXM_A__B_C`` belongs to namespace ``a.b`` (key ``c``), but it shares the
-    ``AXM_A_`` prefix of namespace ``a``. The reverse map must reject the bogus
-    leading-underscore suffix ``_b_c`` (not a legal key) instead of reporting a
-    phantom ``a._b_c`` env key.
+    ``AXM_A_`` prefix of namespace ``a``. The doctor must not report a phantom
+    ``a._b_c`` (a bogus leading-underscore key) for namespace ``a``; the var is
+    a legitimate ``a.b.c`` env key for the *child* namespace instead. Exercised
+    through the public ``config_doctor_data`` surface.
     """
     monkeypatch.setenv("AXM_A__B_C", "1")
+    monkeypatch.setattr("axm_config.doctor._store", _StubStore({}))
 
-    assert _env_keys("a") == set()
-    assert _env_keys("a.b") == {"c"}
+    assert config_doctor_data(namespace="a") == {}
+    assert config_doctor_data(namespace="a.b") == {
+        "a.b.c": {"layer": "env", "present": True}
+    }
 
 
-def test_env_keys_keeps_legal_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A well-formed env var for the namespace is still recovered."""
+def test_doctor_keeps_legal_env_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A well-formed env var for the namespace is still reported as an env key."""
     monkeypatch.setenv("AXM_A_FRED_API_KEY", "1")
+    monkeypatch.setattr("axm_config.doctor._store", _StubStore({}))
 
-    assert _env_keys("a") == {"fred_api_key"}
+    assert config_doctor_data(namespace="a") == {
+        "a.fred_api_key": {"layer": "env", "present": True}
+    }
 
 
 def test_doctor_invalid_namespace_raises_config_error() -> None:

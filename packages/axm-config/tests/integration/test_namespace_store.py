@@ -150,6 +150,42 @@ def test_single_file_0600_atomic(
     assert leftovers == []
 
 
+def test_read_excludes_child_namespace_subtable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P0-2: a nested sub-table is a child namespace, not a key of the parent.
+
+    With ``[a]`` carrying ``x`` and a nested ``[a.b]``, ``read('a')`` must
+    return only ``a``'s own scalar keys (no ``b`` sub-table leaking as a value),
+    while ``read('a.b')`` returns the child section. Regression for the dict
+    leak that made ``get('a', 'b')`` return a whole sub-table.
+    """
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+    store.write("a", "x", 1)
+    store.write("a.b", "y", 2)
+
+    assert store.read("a") == {"x": 1}
+    assert store.read("a.b") == {"y": 2}
+
+
+def test_namespaces_enumerates_mixed_parent_and_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1-3: a node that is both a namespace and a prefix is fully enumerated.
+
+    ``[a]`` with a direct key ``x`` plus a nested ``[a.b]`` must list *both*
+    ``a`` and ``a.b`` -- the old leaf-only rule hid ``a.b`` whenever the parent
+    carried its own keys.
+    """
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+    store.write("a", "x", 1)
+    store.write("a.b", "y", 2)
+
+    assert store.namespaces() == ["a", "a.b"]
+
+
 def test_legacy_per_ns_file_folded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
