@@ -37,10 +37,12 @@ batch_edit(path="/project", operations=[
 ])
 ```
 
-Every `batch_edit` returns a `checkpoint` snapshot payload; pass it back to undo the whole batch:
+Every `batch_edit` returns a `checkpoint` snapshot payload — the full JSON
+snapshot string from `data["checkpoint"]`, not a short hash. Pass that exact
+value back to undo the whole batch:
 
 ```
-batch_rollback(path="/project", checkpoint="abc123def")
+batch_rollback(path="/project", checkpoint="<checkpoint payload from batch_edit>")
 ```
 
 Read-only inspection mirrors the editing tools:

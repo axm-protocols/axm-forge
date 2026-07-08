@@ -95,5 +95,5 @@ result = tool.execute(path="/my/project", checkpoint="<checkpoint-from-batch-edi
 ## Next steps
 
 - [How-To Guides](../howto/index.md) — Task-oriented recipes
-- [API Reference](../reference/) — Full module documentation
+- [API Reference](../reference/api/axm_edit/index.md) — Full module documentation
 - [Architecture](../explanation/architecture.md) — Design decisions and module layout

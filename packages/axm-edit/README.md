@@ -25,6 +25,7 @@ The agent spends 70% of its budget on mechanics.
 - 🔍 **`search_files`** — Grep-like search across project files (literal or regex)
 - 📂 **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
 - ✏️ **`write_file`** — Write or overwrite file content
+- 🖊️ **`edit_file`** — Find-and-replace (substring) in a single file
 - ▶️ **`run_command`** — Execute shell commands with timeout and output truncation
 - ⏪ **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
 - 🛡️ **Atomic** — All-or-nothing: validation runs before any file is touched
@@ -155,6 +156,34 @@ Execute shell commands with timeout and output truncation.
 | `cwd` | `str?` | Working directory, relative to root |
 | `timeout` | `int?` | Timeout in seconds (default 30) |
 
+### `write_file`
+
+Write (create or overwrite) a single file. `path` is the **absolute** path
+to the file (not a project root); parent directories are created as needed.
+
+| Param | Type | Description |
+|---|---|---|
+| `path` | `str` | Absolute path to the file to write |
+| `content` | `str` | Text content to write |
+
+### `edit_file`
+
+Find-and-replace in a single file. Unlike `batch_edit` (whole-line `old`),
+`edit_file` matches `old`/`new` as **substrings**. `path` is the **absolute**
+path to the file.
+
+| Param | Type | Description |
+|---|---|---|
+| `path` | `str` | Absolute path to the file to edit |
+| `old` | `str` | Text to find (exact substring match) |
+| `new` | `str` | Replacement text |
+| `count` | `int?` | Max replacements — `-1` for all, else a positive integer (default `1`) |
+
+> **Note** — `write_file` and `edit_file` take an **absolute file path** and are
+> not confined to a project root, unlike the root-relative tools (`read_file`,
+> `search_files`, `list_dir`, `run_command`, `batch_edit`). Like `run_command`,
+> they are not a sandbox: only point them at paths you intend to write.
+
 ### `batch_rollback`
 
 Restore the exact paths a batch touched from its snapshot.
@@ -162,7 +191,7 @@ Restore the exact paths a batch touched from its snapshot.
 | Param | Type | Description |
 |---|---|---|
 | `path` | `str` | Project root directory |
-| `checkpoint` | `str` | Snapshot payload from the `batch_edit` response |
+| `checkpoint` | `str` | Snapshot payload (JSON string) from the `batch_edit` response — pass it back verbatim, it is not a short hash |
 
 ## Development
 

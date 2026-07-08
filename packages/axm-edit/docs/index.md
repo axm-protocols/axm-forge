@@ -14,7 +14,7 @@
 
 ## What it does
 
-IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool calls — 70 % of the agent's budget goes to mechanics. `axm-edit` replaces all of that with **1 call**: a validated, atomic batch operation with git checkpoint rollback.
+IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool calls — 70 % of the agent's budget goes to mechanics. `axm-edit` replaces all of that with **1 call**: a validated, atomic batch operation with a targeted per-path checkpoint for rollback (no git involved).
 
 ## Features
 
@@ -33,19 +33,19 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 
 | Module | What it provides |
 |---|---|
-| [`axm_edit.core.engine`](reference/api/axm_edit/core/engine/) | `batch_apply` — validate-then-apply batch engine |
-| [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint/) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
-| [`axm_edit.models.operations`](reference/api/axm_edit/models/operations/) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`, `rollback_failed`), `RollbackResult` — Pydantic models |
-| [`axm_edit.services.lint`](reference/api/axm_edit/services/lint/) | `filter_ruff_lines` — keep real ruff diagnostic lines, dropping summary noise (the post-apply lint step) |
-| [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff/) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
-| [`axm_edit.tools`](reference/api/axm_edit/tools/) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool` |
+| [`axm_edit.core.engine`](reference/api/axm_edit/core/engine.md) | `batch_apply` — validate-then-apply batch engine |
+| [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint.md) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
+| [`axm_edit.models.operations`](reference/api/axm_edit/models/operations.md) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`, `rollback_failed`), `RollbackResult` — Pydantic models |
+| [`axm_edit.services.lint`](reference/api/axm_edit/services/lint.md) | `filter_ruff_lines` — keep real ruff diagnostic lines, dropping summary noise (the post-apply lint step) |
+| [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff.md) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
+| [`axm_edit.tools`](reference/api/axm_edit/tools/index.md) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool` |
 
 ## Learn More
 
 - [Getting Started](tutorials/getting-started.md) — Install and use all tools in 5 minutes
 - [How-To Guides](howto/index.md) — Task-oriented recipes
 - [MCP Tools Reference](reference/cli.md) — The eight tools at a glance
-- [API Reference](reference/) — Full module documentation
+- [API Reference](reference/api/axm_edit/index.md) — Full module documentation
 - [Architecture](explanation/architecture.md) — Design decisions and module layout
 
 ::: axm_edit

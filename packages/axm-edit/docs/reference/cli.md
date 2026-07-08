@@ -20,4 +20,4 @@ method is the single entry point.
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+Auto-generated API reference is available under [Python API](api/axm_edit/index.md).
