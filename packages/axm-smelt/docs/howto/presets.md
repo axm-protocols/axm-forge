@@ -6,7 +6,7 @@ Presets are named collections of strategies ordered for best results.
 
 | Preset | Strategies | Use when |
 |---|---|---|
-| `safe` | `minify`, `collapse_whitespace` | Output must be semantically identical |
+| `safe` | `minify`, `collapse_whitespace` | Keeps the parsed value identical (not byte/whitespace-lossless) |
 | `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Structural transforms are acceptable |
 | `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Maximum savings, float precision may change |
 
@@ -41,9 +41,15 @@ report = smelt(data, preset="aggressive")
 ## Choosing a Preset
 
 **Use `safe`** when:
-- The downstream consumer needs byte-identical semantics (e.g., signature verification)
+- The downstream consumer needs the parsed value preserved (structure and
+  scalars identical), while whitespace may change
 - The data contains floats that must not be rounded
 - You only want whitespace removed
+
+> `safe` keeps the *parsed value* identical, not the bytes. For YAML it will
+> not compact a document carrying `#` comments (comments are content a
+> parse+dump would silently drop), so commented YAML is returned unchanged
+> rather than stripped.
 
 **Use `moderate`** when:
 - Null/empty values are not meaningful and can be dropped

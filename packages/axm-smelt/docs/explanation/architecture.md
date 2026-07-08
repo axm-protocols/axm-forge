@@ -51,7 +51,7 @@ The **savings baseline** depends on how the input arrived. For the `text=` path 
 
 Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ctx) -> SmeltContext`). Strategies are registered in `_REGISTRY` and composed into presets via `_PRESETS`:
 
-**Serialization key ordering** — every JSON re-serialization site uses a single canonical policy: `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. The structural strategies (`minify`, `drop_nulls`, `round_numbers`, `flatten`, `dedup_values_with_refs`) emit object keys in sorted order, matching `SmeltContext.text`. This makes the serialized output independent of which code path produced it (a value round-tripped through a strategy has the same byte layout as the same value via `SmeltContext.text`), which is the stronger determinism guarantee.
+**Serialization key ordering** — the strategy and context serialization sites use a single canonical policy: `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. The structural strategies (`minify`, `drop_nulls`, `round_numbers`, `flatten`, `dedup_values_with_refs`) emit object keys in sorted order, matching `SmeltContext.text`, so a value round-tripped through a strategy has the same byte layout as the same value via `SmeltContext.text`. (`resolve_input` produces the pipeline's *working text* with compact separators but insertion order; the first `minify` in every preset re-canonicalizes it, so the reported output is stable.)
 
 | Preset | Strategies |
 |---|---|
@@ -90,11 +90,11 @@ sequenceDiagram
     participant Strategies
 
     User->>API: smelt(text, preset="moderate")
-    API->>Pipeline: _resolve_input(text, parsed)
+    API->>Pipeline: resolve_input(text, parsed)
     Pipeline-->>API: (text, parsed)
     API->>Pipeline: detect_format(text)
     API->>Pipeline: count(text) -> original_tokens
-    API->>Pipeline: _resolve_strategies(None, "moderate")
+    API->>Pipeline: resolve_strategies(None, "moderate")
     Pipeline-->>API: strats
     Pipeline->>Pipeline: SmeltContext(text, format)
     API->>Pipeline: _apply_strategies(ctx, strats, original_tokens)

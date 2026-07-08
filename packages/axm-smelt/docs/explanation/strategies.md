@@ -17,7 +17,7 @@ when they access `ctx.text`.
 **Category:** whitespace
 **Lossless:** yes
 
-Removes unnecessary whitespace from JSON by parsing and re-serializing with compact separators (`(",", ":")`). Non-JSON inputs are returned unchanged.
+Removes unnecessary whitespace from JSON by parsing and re-serializing with compact separators (`(",", ":")`). Also compacts YAML (flow style) and XML (inter-tag whitespace); YAML carrying `#` comments is returned unchanged so no content is lost. Formats other than JSON/YAML/XML are returned unchanged.
 
 **Example:**
 
