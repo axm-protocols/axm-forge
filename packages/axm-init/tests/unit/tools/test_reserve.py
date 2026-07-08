@@ -168,6 +168,26 @@ class TestReserveDryRun:
         )
 
 
+class TestReserveDryRunTypeGuard:
+    """A non-bool ``dry_run`` is a hard failure, never a silent ``False``.
+
+    Coercing ``dry_run="true"`` to ``False`` would turn a requested dry-run
+    into a real PyPI publish — the most dangerous failure direction.
+    """
+
+    def test_string_dry_run_rejected(self) -> None:
+        from axm_init.tools.reserve import InitReserveTool
+
+        result = InitReserveTool().execute(
+            name="some-pkg",
+            author="Real Author",
+            email="real@example.com",
+            dry_run="true",
+        )
+        assert result.success is False
+        assert "dry_run" in (result.error or "")
+
+
 class TestReserveNameProperty:
     """Cover line 38: name property."""
 

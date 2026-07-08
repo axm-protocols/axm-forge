@@ -13,6 +13,39 @@ from axm_init.tools.scaffold import InitScaffoldTool
 # --- merged from test_scaffold_coverage.py ---
 
 
+class TestScaffoldInputTypeGuards:
+    """Non-bool ``workspace`` and mutually exclusive flags are hard failures."""
+
+    def test_string_workspace_rejected(self) -> None:
+        """A non-bool ``workspace`` fails instead of silently coercing to False.
+
+        The guard fires during input validation, before any path is resolved
+        or touched — so no filesystem is needed (pure unit test).
+        """
+        result = InitScaffoldTool().execute(
+            path="/nonexistent",
+            org="Org",
+            author="Author",
+            email="a@b.com",
+            workspace="true",
+        )
+        assert result.success is False
+        assert "workspace" in (result.error or "")
+
+    def test_workspace_and_member_mutually_exclusive(self) -> None:
+        """``workspace`` + ``member`` together is rejected (parity with the CLI)."""
+        result = InitScaffoldTool().execute(
+            path="/nonexistent",
+            org="Org",
+            author="Author",
+            email="a@b.com",
+            workspace=True,
+            member="my-lib",
+        )
+        assert result.success is False
+        assert "mutually exclusive" in (result.error or "")
+
+
 class TestScaffoldTextRendering:
     """Compact text rendering for the LLM-facing ToolResult."""
 

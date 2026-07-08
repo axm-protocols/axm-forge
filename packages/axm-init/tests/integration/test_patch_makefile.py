@@ -29,3 +29,18 @@ class TestMakefileGetsMemberTargets:
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             patch_makefile(tmp_path, "my-lib")
+
+    def test_prefix_collision_does_not_skip(self, tmp_path: Path) -> None:
+        """A member whose target is a prefix of an existing one is still added.
+
+        Regression: ``"test-foo" in content`` (substring) skipped ``foo`` when
+        a ``test-foo-bar:`` target already existed. The anchored guard must
+        create ``test-foo``/``lint-foo`` regardless.
+        """
+        makefile = tmp_path / "Makefile"
+        makefile.write_text("test-foo-bar:\n\tuv run pytest --package foo-bar -q\n")
+        patch_makefile(tmp_path, "foo")
+        content = makefile.read_text()
+        assert "test-foo:" in content
+        assert "lint-foo:" in content
+        assert "test-foo-bar:" in content

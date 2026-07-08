@@ -97,6 +97,8 @@ def _print_reserve_result(
                 indent=2,
             )
         )
+        if not result.success:
+            raise SystemExit(1)
     elif result.success:
         print(f"\u2705 {result.message}")  # noqa: T201
         print(f"   View at: https://pypi.org/project/{name}/")  # noqa: T201
@@ -145,9 +147,12 @@ def _print_scaffold_result(
                 {
                     "success": result.success,
                     "files": [str(f) for f in result.files_created],
+                    "message": result.message,
                 }
             )
         )
+        if not result.success:
+            raise SystemExit(1)
     elif result.success:
         print(f"✅ Project '{project_name}' created at {target_path}")  # noqa: T201
         for f in result.files_created:

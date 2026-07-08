@@ -163,7 +163,11 @@ class TestReserveJsonOutput:
     def test_reserve_json_failure(
         self, mock_creds: MagicMock, mock_reserve: MagicMock, _mock_git: MagicMock
     ) -> None:
-        """--json with failed reserve outputs JSON with success=false."""
+        """--json with failed reserve outputs JSON with success=false.
+
+        The exit code must be non-zero even in JSON mode: a failure that
+        exits 0 poisons any CI/script routing on ``$?``.
+        """
         mock_creds.return_value.get_pypi_token.return_value = "tok"
         mock_reserve.return_value = ReserveResult(
             success=False,
@@ -172,7 +176,7 @@ class TestReserveJsonOutput:
             message="Package 'taken-pkg' is already taken on PyPI",
         )
         stdout, _, code = _run("reserve", "taken-pkg", "--dry-run", "--json")
-        assert code == 0
+        assert code == 1
         data = json.loads(stdout)
         assert data["success"] is False
 

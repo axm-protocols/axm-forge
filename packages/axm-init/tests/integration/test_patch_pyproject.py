@@ -40,3 +40,38 @@ def test_dep_already_in_sources_section_not_deps(tmp_path: Path) -> None:
     content = pyproject.read_text()
     assert '"new-lib"' in content
     assert "[tool.uv.sources.new-lib]" in content
+
+
+def test_single_line_deps_without_trailing_comma_stays_valid(tmp_path: Path) -> None:
+    """A single-line ``["axm-core"]`` (no trailing comma) must not corrupt TOML.
+
+    Regression: inserting the new member before ``]`` without a separating
+    comma produced ``["axm-core"    "my-lib",]`` — invalid TOML that broke
+    ``uv sync`` for the whole workspace.
+    """
+    import tomllib
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "ws"\nversion = "0.1.0"\ndependencies = ["axm-core"]\n'
+    )
+    patch_pyproject(tmp_path, "my-lib")
+    content = pyproject.read_text()
+
+    parsed = tomllib.loads(content)
+    deps = parsed["project"]["dependencies"]
+    assert "axm-core" in deps
+    assert "my-lib" in deps
+
+
+def test_empty_deps_array_stays_valid(tmp_path: Path) -> None:
+    """An empty ``dependencies = []`` must yield valid TOML with the member."""
+    import tomllib
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "ws"\nversion = "0.1.0"\ndependencies = []\n'
+    )
+    patch_pyproject(tmp_path, "my-lib")
+    parsed = tomllib.loads(pyproject.read_text())
+    assert parsed["project"]["dependencies"] == ["my-lib"]

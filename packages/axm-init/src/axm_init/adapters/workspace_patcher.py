@@ -43,7 +43,11 @@ def patch_makefile(root: Path, member_name: str) -> None:
     content = makefile.read_text()
 
     target = f"test-{member_name}"
-    if target in content:
+    # Token-exact guard: match the target the patcher inserts (``<target>:``
+    # at line start), not a bare substring — otherwise a prefix collision
+    # (member ``foo`` vs an existing ``test-foo-bar:`` target) would silently
+    # skip ``foo``. Mirrors the anchored guard in ``patch_ci``.
+    if any(line.startswith(f"{target}:") for line in content.splitlines()):
         logger.info("Makefile already contains target %s — skipping", target)
         return
 
@@ -127,7 +131,19 @@ def patch_pyproject(root: Path, member_name: str) -> None:
             # Find the closing bracket of dependencies
             start = match.end()
             bracket_pos = content.index("]", start)
-            new_dep = f'    "{member_name}",\n'
+            # Ensure the preceding element carries a trailing comma before
+            # inserting the new one — a single-line ``["axm-core"]`` (no
+            # trailing comma, perfectly legal TOML) would otherwise produce
+            # ``["axm-core"    "member",]`` and corrupt the whole workspace.
+            head = content[:bracket_pos].rstrip()
+            if head.endswith("["):
+                new_dep = f'\n    "{member_name}",\n'
+            elif head.endswith(","):
+                new_dep = f'    "{member_name}",\n'
+            else:
+                content = content[:bracket_pos] + ",\n" + content[bracket_pos:]
+                new_dep = f'    "{member_name}",\n'
+                bracket_pos += 2
             content = content[:bracket_pos] + new_dep + content[bracket_pos:]
             modified = True
             patched_deps = True

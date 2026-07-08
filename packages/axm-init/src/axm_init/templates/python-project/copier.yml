@@ -4,8 +4,17 @@
 _min_copier_version: "9.0.0"
 _templates_suffix: .jinja
 _exclude:
-  - "licences"
+  # Copier replaces (does not extend) its default exclude list, so the
+  # stock patterns must be re-declared or the template's own build cruft
+  # (``.mypy_cache``, ``__pycache__``, …) gets copied into every scaffold.
   - "copier.yml"
+  - "licences"
+  - "__pycache__"
+  - "*.py[co]"
+  - ".mypy_cache"
+  - ".ruff_cache"
+  - ".pytest_cache"
+  - ".DS_Store"
 
 # =============================================================================
 # Questions — ordered by decision priority

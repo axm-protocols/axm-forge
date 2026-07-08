@@ -108,15 +108,26 @@ class InitScaffoldTool:
         license_type: str = _str("license", "Apache-2.0")
         description: str = _str("description")
         workspace_raw = kwargs.get("workspace", False)
-        workspace: bool = (
-            bool(workspace_raw) if isinstance(workspace_raw, bool) else False
-        )
+        if not isinstance(workspace_raw, bool):
+            return ToolResult(
+                success=False,
+                error=(
+                    f"'workspace' must be a boolean, got {type(workspace_raw).__name__}"
+                ),
+            )
+        workspace: bool = workspace_raw
         member: str | None = _opt_str("member")
 
         if not org or not author or not email:
             return ToolResult(
                 success=False,
                 error="org, author, and email are required",
+            )
+
+        if workspace and member is not None:
+            return ToolResult(
+                success=False,
+                error="'workspace' and 'member' are mutually exclusive",
             )
 
         return (
