@@ -137,6 +137,8 @@ def _bootstrap_secrets() -> None:
     else:
         detail = f" ({result.reason})" if result.reason else ""
         print(f"  secrets NOT provisioned{detail}")
+        if result.still_missing:
+            print(f"  still missing: {', '.join(result.still_missing)}")
 
 
 def main() -> None:

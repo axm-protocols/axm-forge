@@ -195,6 +195,58 @@ def test_bootstrap_surfaces_provision_reason(
     assert reason in out
 
 
+def test_bootstrap_surfaces_still_missing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A partial provisioning must print the specs that remain unresolved.
+
+    Regression guard for the false green: when provision_missing reports
+    ``provisioned=False`` with a non-empty ``still_missing``, the CLI must name
+    the unresolved specs so the user is not told nothing happened.
+    """
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import AuthStatus, ToolStatus
+    from axm_doctor.orchestrate import MissingSecret, ProvisionResult
+
+    monkeypatch.setattr(
+        cli_mod, "detect_tool", lambda name: ToolStatus(name=name, state="present")
+    )
+    monkeypatch.setattr(
+        cli_mod, "detect_auth", lambda tool: AuthStatus(tool=tool, state="logged_in")
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "missing_secrets",
+        lambda: [
+            MissingSecret(
+                group="openai",
+                name="api_key",
+                package="axm-llm",
+                setup_hint="axm-vault set openai.api_key",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "provision_missing",
+        lambda **_k: ProvisionResult(
+            provisioned=False,
+            groups=["openai"],
+            still_missing=["openai.api_key"],
+            reason="some secrets remain unresolved after setup",
+        ),
+    )
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "y")
+
+    with pytest.raises(SystemExit) as exc_info:
+        app(["bootstrap"])
+
+    assert exc_info.value.code in (0, None)
+    out = capsys.readouterr().out
+    assert "still missing" in out
+    assert "openai.api_key" in out
+
+
 def test_bootstrap_tools_non_tty_skips_clean(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

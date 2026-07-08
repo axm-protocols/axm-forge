@@ -50,12 +50,17 @@ class ProvisionResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
 
     On a dry-run (``confirm=False``) ``provisioned`` is False and ``groups``
     lists the groups it WOULD prompt for. On a confirmed run ``provisioned``
-    is True (when any group was missing) and ``groups`` lists the groups
-    delegated to vault's setup driver.
+    is True ONLY when a post-setup re-scan confirms every previously-missing
+    spec now resolves — delegating to vault's setup driver is not proof the
+    user actually supplied the secrets (they may skip/empty the prompts).
+    ``still_missing`` lists the specs that remain unresolved after the run
+    (always empty on a dry-run), so a partial provisioning is reported truthfully
+    rather than as a false green.
     """
 
     provisioned: bool
     groups: list[str]
+    still_missing: list[str] = []
     reason: str | None = None
 
 
@@ -103,14 +108,25 @@ def provision_missing(*, confirm: bool = False) -> ProvisionResult:
             groups=groups,
             reason="non-interactive shell: cannot prompt for secrets",
         )
-    if confirm:
-        for group in groups:
-            try:
-                run_setup(only=group)
-            except SystemExit as exc:  # vault's setup driver aborts via SystemExit
-                return ProvisionResult(
-                    provisioned=False,
-                    groups=groups,
-                    reason=f"vault setup aborted for {group} (exit {exc.code})",
-                )
-    return ProvisionResult(provisioned=confirm and bool(groups), groups=groups)
+    if not confirm:
+        return ProvisionResult(provisioned=False, groups=groups)
+    for group in groups:
+        try:
+            run_setup(only=group)
+        except SystemExit as exc:  # vault's setup driver aborts via SystemExit
+            return ProvisionResult(
+                provisioned=False,
+                groups=groups,
+                reason=f"vault setup aborted for {group} (exit {exc.code})",
+            )
+    # Re-scan: delegating to run_setup is NOT proof a secret was supplied (the
+    # user may skip/empty a prompt). Truth comes from re-resolving the catalog.
+    still_missing = [f"{s.group}.{s.name}" for s in missing_secrets()]
+    provisioned = bool(groups) and not still_missing
+    reason = None if provisioned else "some secrets remain unresolved after setup"
+    return ProvisionResult(
+        provisioned=provisioned,
+        groups=groups,
+        still_missing=still_missing,
+        reason=reason if still_missing else None,
+    )

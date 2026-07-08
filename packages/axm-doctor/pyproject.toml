@@ -146,6 +146,16 @@ known_first_party = ["axm_doctor"]
 DEP004 = ["mkdocs_gen_files", "pytest"]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# axm-audit — mirror rule exemptions
+# ─────────────────────────────────────────────────────────────────────────────
+# ``__init__.py`` is the package façade (PEP 562 lazy ``__getattr__``); it has
+# no separately-mirrorable source module, so its smoke test is exempted from
+# the 1:1 mirror rule (canonical AXM idiom, cf. packages/axm).
+[tool.axm-audit.mirror]
+exempt_paths = ["**/__init__.py"]
+exempt_tests = ["test___init__.py"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]

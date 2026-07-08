@@ -22,7 +22,11 @@ def test_store_default_makes_identity_configured(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
-    axm_config.set_("git", "default", {"name": "Gabriel", "email": "g@example.com"})
+    # ``[git].default`` is a profile NAME (a scalar), per axm-git's identity
+    # store contract — not a nested table. axm-config stores a nested dict as a
+    # child namespace, so a dict value would be unreadable as a key; the real
+    # production shape is a truthy string.
+    axm_config.set_("git", "default", "gabriel")
 
     status = detect_git_identity()
 

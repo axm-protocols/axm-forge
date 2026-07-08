@@ -1,12 +1,15 @@
-"""Pure-stdlib detection of external tools and third-party auth state.
+"""Stdlib-only detection of external tools and third-party auth state.
 
-Detection layer answering "is ``uv`` installed?" / "is ``gh`` logged in?".
-Tool/auth probing depends on the standard library and pydantic only. The
-git-identity check additionally resolves the central ``axm-config`` store
-(``[git].default``) to know whether a committer identity exists — the value
-is never read, only its presence. All detection is strictly read-only: it
-inspects an exit code or the *existence* of a credential/store entry, and
-never reads the token or identity value.
+Tool/auth probing (:func:`detect_tool`, :func:`detect_auth`) depends on the
+standard library and pydantic only — no AXM package is imported at module
+load, so this layer runs as the bootstrap probe *before* the rest of AXM is
+installable. The git-identity check (:func:`detect_git_identity`) additionally
+resolves the central ``axm-config`` store (``[git].default``) to know whether a
+committer identity exists; that import is deferred to the function body so the
+module stays importable on a machine where ``axm-config`` is not yet present.
+The value is never read, only its presence. All detection is strictly
+read-only: it inspects an exit code or the *existence* of a credential/store
+entry, and never reads the token or identity value.
 """
 
 from __future__ import annotations
@@ -18,7 +21,6 @@ import sys
 from pathlib import Path
 from typing import Literal
 
-import axm_config
 from pydantic import BaseModel
 
 __all__ = [
@@ -108,15 +110,17 @@ def detect_auth(tool: str) -> AuthStatus:
     login_cmd = _LOGIN_CMDS.get(tool)
     if tool == "gh":
         state = _detect_gh_auth()
-    elif sys.platform == "darwin" and tool in _KEYCHAIN_SERVICES:
-        state = _detect_keychain_auth(_KEYCHAIN_SERVICES[tool])
     elif tool in _CRED_FILES:
-        cred = Path.home() / _CRED_FILES[tool]
-        # A 0-byte credential file carries no token: existence alone is not a
-        # login. Require a non-empty file (still never opened) to claim
-        # logged_in. The file is stat'd, not read, so no secret transits.
-        has_creds = cred.is_file() and cred.stat().st_size > 0
-        state = "logged_in" if has_creds else "logged_out"
+        # On darwin the token may live in the login Keychain; check it first,
+        # then fall back to the credential file. Either source present ->
+        # logged_in, so a file-backed session (container, CI, CLAUDE_CONFIG_DIR,
+        # a locked/absent Keychain) is never mis-reported as logged_out.
+        keychain_ok = (
+            sys.platform == "darwin"
+            and tool in _KEYCHAIN_SERVICES
+            and _detect_keychain_auth(_KEYCHAIN_SERVICES[tool]) == "logged_in"
+        )
+        state = "logged_in" if keychain_ok or _cred_file_present(tool) else "logged_out"
     else:
         # Unknown auth tool: when its binary IS on PATH, "not_installed" would
         # be misleading — we simply cannot verify its login, so report
@@ -128,6 +132,16 @@ def detect_auth(tool: str) -> AuthStatus:
         state=state,
         login_cmd=login_cmd if state == "logged_out" else None,
     )
+
+
+def _cred_file_present(tool: str) -> bool:
+    """True when ``tool``'s credential file exists and is non-empty.
+
+    A 0-byte credential file carries no token: existence alone is not a login.
+    The file is stat'd, never opened, so no secret transits.
+    """
+    cred = Path.home() / _CRED_FILES[tool]
+    return cred.is_file() and cred.stat().st_size > 0
 
 
 def _probe_version(name: str) -> str | None:
@@ -187,6 +201,8 @@ def detect_git_identity() -> GitIdentityStatus:
     discarded, never returned). Any missing binary / ``OSError`` /
     ``SubprocessError`` degrades to ``unconfigured`` without raising.
     """
+    import axm_config
+
     if axm_config.get("git", "default", default=None):
         return GitIdentityStatus(state="configured")
     if shutil.which("git") is None:

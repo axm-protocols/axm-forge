@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -191,47 +190,11 @@ def test_claude_darwin_subprocess_error_degrades_logged_out(
     assert status.state == "logged_out"
 
 
-def test_claude_non_darwin_uses_file_branch(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """AC2: off macOS, claude keeps the credential-file branch (no keychain call)."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "linux")
-    cred = tmp_path / ".claude" / ".credentials.json"
-    cred.parent.mkdir(parents=True)
-    cred.write_text('{"token": "x"}')
-    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
-
-    def _fail(*_args: object, **_kwargs: object) -> _Proc:
-        raise AssertionError("keychain probe must not run off-darwin")
-
-    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _fail)
-
-    status = detect_auth("claude")
-
-    assert status.state == "logged_in"
-
-
-@pytest.mark.parametrize("platform", ["darwin", "linux"])
-def test_codex_unchanged_file_branch(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, platform: str
-) -> None:
-    """AC4: codex stays on the credential-file branch on both platforms."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", platform)
-    cred = tmp_path / ".codex" / "auth.json"
-    cred.parent.mkdir(parents=True)
-    cred.write_text('{"token": "y"}')
-    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
-
-    status = detect_auth("codex")
-
-    assert status.state == "logged_in"
-
-
 def test_git_identity_configured_via_store(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC2: a truthy ``[git].default`` in the store -> configured, no subprocess."""
     monkeypatch.setattr(
-        "axm_doctor.detect.axm_config.get",
-        lambda *_a, **_k: {"name": "Gabriel", "email": "g@example.com"},
+        "axm_config.get",
+        lambda *_a, **_k: "gabriel",
     )
 
     def _no_subprocess(*_args: object, **_kwargs: object) -> _Proc:
@@ -248,7 +211,7 @@ def test_git_identity_configured_via_git_config_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC2: empty store but ``git config --get user.email`` exit 0 -> configured."""
-    monkeypatch.setattr("axm_doctor.detect.axm_config.get", lambda *_a, **_k: None)
+    monkeypatch.setattr("axm_config.get", lambda *_a, **_k: None)
     monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
     monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(0))
 
@@ -259,7 +222,7 @@ def test_git_identity_configured_via_git_config_fallback(
 
 def test_git_identity_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC2: empty store and ``git config`` exit 1 -> unconfigured."""
-    monkeypatch.setattr("axm_doctor.detect.axm_config.get", lambda *_a, **_k: None)
+    monkeypatch.setattr("axm_config.get", lambda *_a, **_k: None)
     monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
     monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(1))
 
@@ -272,7 +235,7 @@ def test_git_identity_subprocess_error_degrades(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC4: any OSError from the git probe degrades to unconfigured (no raise)."""
-    monkeypatch.setattr("axm_doctor.detect.axm_config.get", lambda *_a, **_k: None)
+    monkeypatch.setattr("axm_config.get", lambda *_a, **_k: None)
     monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
 
     def _boom(*_args: object, **_kwargs: object) -> _Proc:

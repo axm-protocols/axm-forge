@@ -85,17 +85,25 @@ def test_provision_dry_run_no_prompt(mocker: MockerFixture) -> None:
     assert "research.fred" in result.groups
 
 
-def test_provision_confirm_delegates_to_vault(
+def test_provision_confirm_resolved_is_provisioned(
     mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """AC3, AC4: confirm=True delegates to vault run_setup; doctor never writes."""
+    """AC3, AC4: confirm=True delegates to run_setup; provisioned only after re-scan.
+
+    The post-setup re-scan resolves the spec (its provenance flips off
+    ``missing``), so ``provisioned`` is True and ``still_missing`` is empty.
+    doctor never writes the secret itself (SRP).
+    """
     catalog = Catalog(groups=(_group(),))
     mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    # First scan (plan) -> missing; second scan (post-setup) -> resolved.
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+        side_effect=[
+            {"research.fred.api_key": {"layer": "missing", "present": False}},
+            {"research.fred.api_key": {"layer": "keyring", "present": True}},
+        ],
     )
-    # The delegation path is the interactive one (a TTY is present).
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     setup_spy = mocker.patch("axm_doctor.orchestrate.run_setup")
     # AC4 SRP invariant: doctor must NEVER store a secret itself.
@@ -106,7 +114,37 @@ def test_provision_confirm_delegates_to_vault(
     setup_spy.assert_called_once_with(only="research.fred")
     store_spy.assert_not_called()
     assert result.provisioned is True
+    assert result.still_missing == []
     assert "research.fred" in result.groups
+
+
+def test_provision_confirm_still_missing_is_not_provisioned(
+    mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: run_setup returning is NOT proof the secret was supplied.
+
+    If the user skips/empties the prompt, ``run_setup`` returns normally yet the
+    spec still resolves to ``missing`` on a re-scan. The old code inferred
+    ``provisioned=True`` from the bare fact that setup ran (a false green); the
+    re-check must report ``provisioned=False`` with the unresolved spec listed
+    in ``still_missing``.
+    """
+    catalog = Catalog(groups=(_group(),))
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    # Both scans (plan + post-setup) still report the spec missing.
+    mocker.patch(
+        "axm_doctor.orchestrate.doctor_data",
+        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+    )
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    setup_spy = mocker.patch("axm_doctor.orchestrate.run_setup")
+
+    result = provision_missing(confirm=True)
+
+    setup_spy.assert_called_once_with(only="research.fred")
+    assert result.provisioned is False
+    assert result.still_missing == ["research.fred.api_key"]
+    assert result.reason is not None
 
 
 def test_provision_non_tty_no_systemexit(
