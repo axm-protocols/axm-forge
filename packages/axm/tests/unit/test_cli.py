@@ -79,16 +79,21 @@ class _FailTool:
         return ToolResult(success=False, error="nope", text="error: nope")
 
 
-class _TextlessFailTool:
-    """Tool failing with an ``error`` but no ``text``/``data`` (surfaces on stderr)."""
+class _CanonicalFailTool:
+    """Fails the canonical MCP way: ``success=False`` + ``error``, default data.
+
+    ``data`` is left to its ``default_factory=dict`` (an empty ``{}``) — the exact
+    shape ``ToolResult(success=False, error=...)`` produces.  The empty dict must
+    not shadow the error (the false-green this guards).
+    """
 
     @property
     def name(self) -> str:
         return "boom"
 
     def execute(self, *, path: str = ".") -> ToolResult:
-        """Fails with only an ``error`` set (no ``text``, no ``data``)."""
-        return ToolResult(success=False, error="boom", text=None, data=None)
+        """Fail with only an ``error`` set (``data`` defaults to ``{}``)."""
+        return ToolResult(success=False, error="canonical MCP error")
 
 
 class _DispatchTool:
@@ -201,10 +206,24 @@ class TestBuildCommand:
         names = list(cmd.__signature__.parameters)
         assert names == ["path", "category"]
 
+    def test_signature_params_are_positional_or_keyword(self) -> None:
+        """Keyword-only tool params relax to POSITIONAL_OR_KEYWORD for ``axm t .``."""
+        cmd = build_command_for_tool("audit", _AuditTool())
+        kinds = {p.kind for p in cmd.__signature__.parameters.values()}
+        assert kinds == {inspect.Parameter.POSITIONAL_OR_KEYWORD}
+
     def test_runs_and_prints_text(self, capsys: pytest.CaptureFixture[str]) -> None:
         cmd = build_command_for_tool("audit", _AuditTool())
         cmd(path="/x", category=None)
         assert "audit /x: 90" in capsys.readouterr().out
+
+    def test_positional_args_bind_to_params(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Positional tokens map back onto param names (the ``axm audit .`` form)."""
+        cmd = build_command_for_tool("audit", _AuditTool())
+        cmd("/pos", "lint")
+        assert "audit /pos: 90" in capsys.readouterr().out
 
     def test_nonscalar_json_decoded(self, capsys: pytest.CaptureFixture[str]) -> None:
         cmd = build_command_for_tool("batch_edit", _BatchTool())
@@ -223,17 +242,23 @@ class TestBuildCommand:
             cmd(path=".")
         assert exc.value.code == _EXIT_TOOL_ERROR
 
-    def test_textless_failure_surfaces_error_on_stderr(
+    def test_canonical_failure_surfaces_error_on_stderr(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """AXM-2017: a text-less failure surfaces ``error`` on stderr, exits 1."""
-        cmd = build_command_for_tool("boom", _TextlessFailTool())
+        """Canonical ``ToolResult(success=False, error=...)`` surfaces on stderr.
+
+        The default ``data`` is an empty ``{}`` — it must NOT be printed to
+        stdout in place of the error (the false-green this guards). The error
+        reaches stderr and the command exits 1.
+        """
+        cmd = build_command_for_tool("boom", _CanonicalFailTool())
         with pytest.raises(SystemExit) as exc:
             cmd(path=".")
         assert exc.value.code == _EXIT_TOOL_ERROR
         captured = capsys.readouterr()
-        assert "boom" in captured.err
-        assert "_TextlessFailTool" not in captured.out
+        assert "canonical MCP error" in captured.err
+        assert captured.out.strip() != "{}"
+        assert "canonical MCP error" not in captured.out
 
     def test_failure_with_text_prints_text(
         self, capsys: pytest.CaptureFixture[str]
@@ -378,6 +403,55 @@ class TestMainDispatch:
         with patch(_EP, _fn), patch("sys.argv", ["axm", "audit", "--path", "/fb"]):
             _run_main_ok()
         assert "audit /fb: 90" in capsys.readouterr().out
+
+    def test_broken_tool_load_exits_1_without_traceback(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A tool entry point that fails to import exits 1 with a clean message.
+
+        The lazy dispatch path must surface a readable error on stderr, not a raw
+        ``ModuleNotFoundError`` traceback (``axm echo_code`` without its dep).
+        """
+
+        def _fn(*, group: str | None = None, **_: Any) -> list[Any]:
+            if group == _TOOLS_GROUP:
+                ep = _FakeEP("echo_code", None)
+                ep.load = _raising_import  # type: ignore[method-assign]
+                return [ep]
+            return []
+
+        with (
+            patch(_EP, _fn),
+            patch("sys.argv", ["axm", "echo_code", "--path", "."]),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main()
+        assert exc.value.code == _EXIT_TOOL_ERROR
+        captured = capsys.readouterr()
+        assert "echo_code" in captured.err
+        assert "failed to load" in captured.err.lower()
+        assert "Traceback (most recent call last)" not in captured.err
+
+
+def _raising_import() -> Any:
+    """A loader that fails like a missing optional dependency."""
+    raise ModuleNotFoundError("No module named 'torch'")
+
+
+# ── positional / keyword dispatch through main() ──────────────────────────────
+
+
+class TestPositionalDispatch:
+    def test_positional_path_dispatches_through_main(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The documented ergonomic form ``axm audit .`` dispatches end-to-end."""
+        with (
+            patch(_EP, _eps(tools={"audit": _AuditTool})),
+            patch("sys.argv", ["axm", "audit", "/pos"]),
+        ):
+            _run_main_ok()
+        assert "audit /pos: 90" in capsys.readouterr().out
 
 
 # ── constants ─────────────────────────────────────────────────────────────────

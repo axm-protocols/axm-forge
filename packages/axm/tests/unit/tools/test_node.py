@@ -99,6 +99,26 @@ class TestFailFast:
             with pytest.raises(ToolNodeError, match="No tool registered under 'ghost'"):
                 node({})
 
+    def test_bad_payload_key_raises_tool_node_error(self) -> None:
+        """A payload key with no matching strict ``execute`` param → ToolNodeError.
+
+        The adapter documents ``Raises: ToolNodeError`` — a raw ``TypeError`` from
+        ``execute(**kwargs)`` must be wrapped, not leaked.
+        """
+
+        class _StrictTool:
+            @property
+            def name(self) -> str:
+                return "strict"
+
+            def execute(self, *, path: str = ".") -> ToolResult:
+                return ToolResult(success=True, text="ok")
+
+        node = tool_node("strict", returns={"r": "text"})
+        with _with_tool(_StrictTool(), name="strict"):
+            with pytest.raises(ToolNodeError, match="bad payload for execute"):
+                node({"path": ".", "unexpected_key": 1})
+
 
 class TestClassEntryPoint:
     def test_class_entry_point_is_instantiated(self) -> None:

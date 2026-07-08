@@ -16,7 +16,11 @@ JSON rendering of ``data`` when there is no text.  Non-scalar parameters
 decoded before the call — the one convention that keeps tool-signature ==
 CLI-signature without CLI-only flags.
 
-Exit codes: ``0`` success, ``1`` tool error, ``2`` bad args (cyclopts).
+Exit codes: ``0`` success, ``1`` tool error / cyclopts arg-parsing error,
+``2`` bad usage raised by *this* wrapper (invalid JSON for a non-scalar
+parameter, unknown command).  Note cyclopts itself exits ``1`` on its own
+parsing failures (unknown option, unused token), so ``2`` is reserved for the
+wrapper's own guards, not for every argument error.
 """
 
 from __future__ import annotations
@@ -123,15 +127,23 @@ def public_params(fn: Any) -> list[inspect.Parameter]:
 def cli_param(p: inspect.Parameter) -> inspect.Parameter:
     """Map a tool param to its CLI form.
 
-    Non-scalar params become a JSON string (``str`` when required, ``str | None``
-    when optional so cyclopts accepts the ``None`` default without a strict
-    string validation error).
+    Tool ``execute`` params are keyword-only by convention; the CLI relaxes them
+    to ``POSITIONAL_OR_KEYWORD`` so the documented ergonomic form ``axm audit .``
+    works alongside ``axm audit --path .`` (both still bind by name into
+    ``execute(**kwargs)``).  Non-scalar params additionally become a JSON string
+    (``str`` when required, ``str | None`` when optional so cyclopts accepts the
+    ``None`` default without a strict string validation error).
     """
+    kind = (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD
+        if p.kind is inspect.Parameter.KEYWORD_ONLY
+        else p.kind
+    )
     if not is_nonscalar(p.annotation):
-        return p
+        return p.replace(kind=kind)
     if p.default is inspect.Parameter.empty:
-        return p.replace(annotation=str)
-    return p.replace(annotation=str | None, default=p.default)
+        return p.replace(kind=kind, annotation=str)
+    return p.replace(kind=kind, annotation=str | None, default=p.default)
 
 
 def _nonscalar_names(params: list[inspect.Parameter]) -> frozenset[str]:
@@ -140,23 +152,33 @@ def _nonscalar_names(params: list[inspect.Parameter]) -> frozenset[str]:
 
 
 def _emit(result: Any) -> None:
-    """Render a ToolResult-like: text to stdout first, else JSON of data.
+    """Render a ToolResult-like without ever swallowing a failure's ``error``.
 
-    A text-less failure (``success is False`` with a non-empty ``error``)
-    writes the error to stderr instead of falling through to the ``repr``.
+    Order of concerns:
+
+    1. A failure (``success is False``) always writes its ``error`` to stderr
+       when one is set — *before* any data rendering.  This is the canonical
+       MCP failure shape ``ToolResult(success=False, error=...)`` whose ``data``
+       defaults to an empty ``{}``; rendering that ``{}`` first would silently
+       hide the real message (a lying success path).
+    2. ``text`` (the token-optimised rendering) goes to stdout when present.
+    3. Otherwise a non-empty ``data`` dict is JSON-rendered to stdout.
+    4. Last resort: ``repr`` to stdout.
     """
+    success = getattr(result, "success", True)
+    error = getattr(result, "error", None)
+    if success is False and isinstance(error, str) and error:
+        sys.stderr.write(error + "\n")
     text = getattr(result, "text", None)
     if isinstance(text, str):
         sys.stdout.write(text + "\n")
         return
     data = getattr(result, "data", None)
-    if isinstance(data, dict):
+    if isinstance(data, dict) and data:
         sys.stdout.write(json.dumps(data, indent=2, default=str) + "\n")
         return
-    error = getattr(result, "error", None)
-    if getattr(result, "success", True) is False and isinstance(error, str) and error:
-        sys.stderr.write(error + "\n")
-        return
+    if success is False and isinstance(error, str) and error:
+        return  # error already surfaced on stderr; nothing to add on stdout
     sys.stdout.write(str(result) + "\n")
 
 
@@ -177,8 +199,15 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
     exec_fn = _exec_callable(tool_obj)
     params = public_params(exec_fn)
     json_params = _nonscalar_names(params)
+    cli_params = [cli_param(p) for p in params]
+    ordered_names = [p.name for p in cli_params]
 
-    def _command(**kwargs: Any) -> None:
+    def _command(*args: Any, **kwargs: Any) -> None:
+        # cyclopts binds tokens per ``__signature__``; positional tokens (the
+        # ``axm audit .`` ergonomic form) arrive in *args and are mapped back to
+        # their param names here so ``execute(**kwargs)`` stays keyword-only.
+        for name, value in zip(ordered_names, args, strict=False):
+            kwargs[name] = value
         for key in json_params & kwargs.keys():
             value = kwargs[key]
             if isinstance(value, str):
@@ -196,7 +225,6 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
         if getattr(result, "success", True) is False:
             raise SystemExit(1)
 
-    cli_params = [cli_param(p) for p in params]
     _command.__name__ = tool_name
     _command.__doc__ = exec_fn.__doc__ or f"Run the {tool_name} tool."
     _command.__signature__ = inspect.Signature(cli_params)  # type: ignore[attr-defined]
@@ -236,21 +264,36 @@ def create_app() -> cyclopts.App:
     commands = _entry_points(_COMMANDS_GROUP)
     tools = _entry_points(_TOOLS_GROUP)
 
-    for name, ep in commands.items():
-        try:
-            app.command(_load(ep), name=name)
-        except Exception:  # noqa: BLE001 — a broken package must not sink the CLI
-            logger.warning("Failed to load command '%s'", name, exc_info=True)
+    mounted = {
+        name for name in commands if _try_mount_command(app, name, commands[name])
+    }
 
     for name, ep in tools.items():
-        if name in commands:
-            continue
+        if name in mounted:
+            continue  # an explicit command already claims this name
         try:
             app.command(build_command_for_tool(name, _load(ep)), name=name)
         except Exception:  # noqa: BLE001
             logger.warning("Failed to auto-register tool '%s'", name, exc_info=True)
 
     return app
+
+
+def _try_mount_command(
+    app: cyclopts.App, name: str, ep: importlib.metadata.EntryPoint
+) -> bool:
+    """Mount an explicit ``axm.commands`` entry; return whether it succeeded.
+
+    A command that fails to mount does *not* claim its name, so a healthy
+    same-named tool can still be auto-registered — the eager catalog then
+    matches the lazy dispatch of :func:`_build_single_app`.
+    """
+    try:
+        app.command(_load(ep), name=name)
+        return True
+    except Exception:  # noqa: BLE001 — a broken package must not sink the CLI
+        logger.warning("Failed to load command '%s'", name, exc_info=True)
+        return False
 
 
 def _print_catalog(commands: dict[str, Any], tools: dict[str, Any]) -> None:
@@ -336,7 +379,12 @@ def _build_single_app(
                 exc,
             )
     app = _new_app()
-    app.command(build_command_for_tool(cmd, _load(tools[cmd])), name=cmd)
+    try:
+        app.command(build_command_for_tool(cmd, _load(tools[cmd])), name=cmd)
+    except Exception as exc:
+        logger.warning("Failed to load tool '%s'", cmd, exc_info=True)
+        sys.stderr.write(f"Command '{cmd}' failed to load: {exc}\n")
+        raise SystemExit(1) from exc
     return app
 
 

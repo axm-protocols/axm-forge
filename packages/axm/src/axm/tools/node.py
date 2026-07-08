@@ -86,7 +86,14 @@ def tool_node(
     def _run(payload: Mapping[str, object]) -> dict[str, object]:
         tool = _load_tool(name)
         kwargs = _kwargs_from_payload(payload, rename)
-        result = tool.execute(**kwargs)
+        try:
+            result = tool.execute(**kwargs)
+        except TypeError as exc:
+            # A payload key with no matching ``execute`` parameter (strict
+            # signature, no ``**kwargs``) must surface as the documented
+            # ToolNodeError, not a raw TypeError.
+            msg = f"tool {name!r}: bad payload for execute(): {exc}"
+            raise ToolNodeError(msg) from exc
         if not result.success:
             msg = f"tool {name!r} failed: {result.error or '<no error message>'}"
             raise ToolNodeError(msg)
