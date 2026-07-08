@@ -144,7 +144,7 @@ addopts = [
     "--cov=src/axm_ingot",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=89",
 ]
 filterwarnings = ["error"]
 markers = [

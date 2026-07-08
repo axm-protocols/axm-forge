@@ -161,7 +161,7 @@ addopts = [
     "--cov=src/axm_doctor",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=82",
 ]
 filterwarnings = ["error"]
 markers = [

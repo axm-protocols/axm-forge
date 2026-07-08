@@ -173,7 +173,7 @@ addopts = [
     "--cov=src/axm_init",
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
-    "--cov-fail-under=0",
+    "--cov-fail-under=93",
     "-m",
     "not slow",
 ]
