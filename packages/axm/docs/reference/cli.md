@@ -39,7 +39,12 @@ axm batch_edit --path . --operations '[{"op": "replace", "file": "x.py"}]'
 ```
 
 This keeps the tool signature and the CLI signature identical without
-CLI-only flags. Invalid JSON exits with code `2`.
+CLI-only flags. Invalid JSON exits with code `2` (a guard raised by the wrapper
+itself).
+
+Tool `execute` parameters are keyword-only by convention, but the CLI relaxes
+them so **both** the positional form `axm audit .` and the keyword form
+`axm audit --path .` work.
 
 ## Python API
 
@@ -55,8 +60,10 @@ CLI-only flags. Invalid JSON exits with code `2`.
 
 !!! tip "Agent hints"
     Tools can set an `agent_hint` class attribute (one-liner string) to provide
-    LLM-optimized descriptions that propagate to MCP tool listings. When empty
-    (default), the `execute()` docstring is used instead.
+    LLM-optimized descriptions that propagate to MCP tool listings. It is a
+    best-effort discovery attribute (read via `tool_metadata` / `getattr`), not
+    a protocol member — when absent, nothing is substituted (there is no
+    guaranteed docstring fallback).
 
 ## Hook Interface
 

@@ -31,7 +31,8 @@ def my_function(path: Path = Path(".")) -> None:
     print(f"Running on {path}")
 ```
 
-After installing your package, `axm mycommand` will be available automatically.
+After installing your package, `axm mypackage_mycommand` will be available
+automatically — the command name is the entry-point key (`{domain}_{action}`).
 
 ## Install Specific Plugins
 

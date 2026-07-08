@@ -29,13 +29,22 @@ graph TD
 
 ## Autodiscovery Pattern
 
-At startup, `axm` scans the `axm.commands` entry-point group:
+Dispatch is **lazy**: `axm` resolves the requested command from `sys.argv` and
+imports only that one entry point (no tool module is imported at startup). It
+lists the catalog from entry-point *metadata* alone and dispatches on two groups
+— explicit `axm.commands` (priority) and auto-generated `axm.tools` commands:
 
 ```python
-for ep in importlib.metadata.entry_points(group="axm.commands"):
-    command_fn = ep.load()
-    app.command(command_fn, name=ep.name)
+# axm.cli.main (simplified)
+cmd = _resolve_command(sys.argv[1:])          # first non-flag token
+commands = entry_points_for("axm.commands")   # metadata only
+tools = entry_points_for("axm.tools")         # metadata only
+app = _build_single_app(cmd, commands, tools) # imports ONLY cmd's entry point
+app(sys.argv[1:])
 ```
+
+`create_app()` (eager, all entry points loaded) exists for tests and
+introspection but is **not** the path `main` uses.
 
 Each AXM package declares its commands in `pyproject.toml`:
 
