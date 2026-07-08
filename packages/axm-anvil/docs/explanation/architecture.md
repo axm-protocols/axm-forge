@@ -286,7 +286,7 @@ only has to assemble the edit set:
 | `detect_new_cycle` | Copy the current graph, apply `GraphEdits`, and return the first *newly introduced* cycle (ignoring pre-existing cycles) |
 | `_TarjanState` | Dataclass holding Tarjan's mutable bookkeeping (indices, lowlinks, stacks, emitted SCCs) so step helpers can share it without long parameter lists |
 | `_tarjan_sccs` | Iterative Tarjan SCC driver (no recursion, safe on large packages); delegates per-frame work to `_tarjan_step_descend` and `_tarjan_step_finalize` |
-| `_cycles` | Filter SCCs to size > 1 plus genuine self-loops |
+| `cycles` | Filter SCCs to size > 1 plus genuine self-loops |
 | `_order_cycle` | Order nodes along a directed walk for readable `A → B → C → A` output |
 
 The same anti-recursion discipline applies to constant ordering in

@@ -25,7 +25,7 @@ axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--strict] 
 | `--rename` | JSON object string mapping old symbol names to new ones (e.g. `'{"OldName": "NewName"}'`). Renames moved definitions and rewrites all caller references to the new name. Incompatible with `--reexport` |
 | `--insert-after` | Name of an existing top-level symbol in the target module; moved blocks are spliced immediately after it. Omitted (default) appends the blocks at the end of the target; naming an absent symbol appends at the end and records a warning on `MovePlan.warnings`. Imports and constants keep their usual end-of-file placement regardless |
 | `--include-helpers` / `--no-include-helpers` | Whether to copy transitively-referenced local helpers and constants into the target. `--include-helpers` (default) copies private helper symbols alongside the moved symbol. `--no-include-helpers` leaves the moved code referencing those helpers without copying them, short-circuits the `--shared-helpers` classification, and records a `include_helpers=False: not copied into target: <names>` warning on `MovePlan.warnings`. Imports required by the moved code are always copied regardless |
-| `--side-effect-decorators` | Comma-separated extra side-effect decorator dotted-names (e.g. `'mylib.register'`) that **extend** the built-in [`SIDE_EFFECT_DECORATORS`](#side_effect_decorators) whitelist. When a moved symbol carries a matching decorator, a non-blocking warning is recorded on `MovePlan.warnings`; the move always proceeds |
+| `--side-effect-decorators` | Comma-separated extra side-effect decorator dotted-names (e.g. `'mylib.register'`) that **extend** the built-in `SIDE_EFFECT_DECORATORS` whitelist (see [Python API](#python-api)). When a moved symbol carries a matching decorator, a non-blocking warning is recorded on `MovePlan.warnings`; the move always proceeds |
 
 ## MCP Tools
 
@@ -73,101 +73,49 @@ exposed (incompatible with rename). The returned `ToolResult` carries
 
 ## Python API
 
-### `move_symbols`
+The full Python API — every public function, model, and exception with its
+signature and docstring — is rendered from source under
+**[Python API](api/)**. This section captures only the cross-cutting
+semantics that span several symbols.
 
-::: axm_anvil.core.move.move_symbols
+**`extract_symbols`** — thin adapter over `move_symbols` for the *extract*
+case: the target module is **created** rather than amended. When
+`target_path` does not exist it is scaffolded as an empty module so the move
+pipeline can fill it; a pre-existing target already defining a requested
+symbol raises `SymbolAlreadyExistsError` (no silent overwrite). A
+`dry_run=True` call removes any scaffolded target — and any directories it
+created — before returning, leaving disk state byte-identical. All other
+parameters mirror `move_symbols` and are forwarded verbatim; `reexport` and
+`check` are not exposed.
 
-### `extract_symbols`
-
-::: axm_anvil.core.extract.extract_symbols
-
-Thin adapter over [`move_symbols`](#move_symbols) for the *extract* case:
-the target module is **created** rather than amended. When `target_path`
-does not exist it is scaffolded as an empty module so the move pipeline can
-fill it; a pre-existing target already defining a requested symbol raises
-[`SymbolAlreadyExistsError`](#symbolnotfounderror) (no silent overwrite). A
-`dry_run=True` call removes any scaffolded target before returning, leaving
-disk state byte-identical. All other parameters mirror `move_symbols` and
-are forwarded verbatim; `reexport` and `check` are not exposed. Returns a
-[`MovePlan`](#moveplan).
-
-### `MovePlan`
-
-::: axm_anvil.core.plan.MovePlan
-
-### `rename_symbols`
-
-::: axm_anvil.core.rename.rename_symbols
-
-Renames the top-level symbols in `mapping` in place in `file` and rewrites
-every cross-file caller discovered under the workspace root. Caller
+**`rename_symbols`** — renames the top-level symbols in `mapping` in place
+in `file` and rewrites every cross-file caller discovered under the
+workspace root. A rename onto a name that already exists in the module is
+refused with `SymbolAlreadyExistsError` (no duplicate definition). Caller
 rewriting is pattern-based on the import statement; shadowing, alias chains,
 and re-exports/star imports are deferred to a later tier (see the function
-and module docstrings). Returns a `RenamePlan`.
+and module docstrings).
 
-### `RenamePlan`
+**`SIDE_EFFECT_DECORATORS`** — the default whitelist of decorator
+dotted-names whose primary purpose is to register the decorated symbol with
+an external registry as an import-time side effect (e.g. `app.route`,
+`pytest.fixture` / bare `fixture`, `celery.task`, `click.command`). When a
+moved `FunctionDef`/`ClassDef` carries a matching decorator — in bare
+(`@fixture`), dotted (`@pytest.fixture`), or call (`@app.route("/x")`) form
+— `move_symbols` records a non-blocking warning on `MovePlan.warnings`. The
+move is never blocked. Callers extend the whitelist via the
+`side_effect_decorators` parameter of `move_symbols` (or
+`--side-effect-decorators` on the CLI).
 
-::: axm_anvil.core.rename.RenamePlan
-
-### `SIDE_EFFECT_DECORATORS`
-
-::: axm_anvil.core.move.SIDE_EFFECT_DECORATORS
-
-The default whitelist of decorator dotted-names whose primary purpose is to
-register the decorated symbol with an external registry as an import-time
-side effect (e.g. `app.route`, `pytest.fixture` / bare `fixture`,
-`celery.task`, `click.command`). When a moved `FunctionDef`/`ClassDef`
-carries a matching decorator — in bare (`@fixture`), dotted
-(`@pytest.fixture`), or call (`@app.route("/x")`) form — `move_symbols`
-records a non-blocking warning on `MovePlan.warnings` noting that
-registration may not run in the new module. The move is never blocked.
-Callers extend the whitelist via the `side_effect_decorators` parameter of
-[`move_symbols`](#move_symbols) (or `--side-effect-decorators` on the CLI);
-supplied entries are unioned with these defaults.
-
-### `CallerRewrite`
-
-::: axm_anvil.core.callers.CallerRewrite
-
-One entry per caller import line rewritten by `move_symbols`. Populated
-into `MovePlan.callers_updated` so downstream tooling (CLI output, MCP
-response) can report every `from old_module import …` line that was
-redirected to the new module.
-
-### `SharedHelpersError`
-
-::: axm_anvil.core.plan.SharedHelpersError
-
-Raised by [`move_symbols`](#move_symbols) when `shared_helpers="error"`
-and at least one helper is transitively referenced by both a moved block
-and a remaining source symbol. The exception's `shared_helpers` attribute
-lists the offending helper names.
-
-### `ImportCycleError`
-
-::: axm_anvil.core.plan.ImportCycleError
-
-Raised by [`move_symbols`](#move_symbols) when the requested move (or the
-associated caller rewrites) would introduce a *new* import cycle into the
-containing package. Pre-existing cycles are ignored. The exception is
-raised when `check=True` or during a normal (non-dry-run) write. Pure
-`dry_run=True` calls skip the raise to preserve the existing preview
-contract.
-
-### `SymbolNotFoundError`
-
-::: axm_anvil.core.plan.SymbolNotFoundError
-
-A requested name that is absent from the source module's **top-level**
-symbols (for example a `test_basic` method declared inside a `Test*`
-class, or a name that simply does not exist) is **skipped** by default:
-[`move_symbols`](#move_symbols) drops it from the move and records a
-`skipped '<name>': not a top-level symbol in source` entry on
+**`SymbolNotFoundError`** — a requested name absent from the source module's
+**top-level** symbols is **skipped** by default: `move_symbols` drops it and
+records a `skipped '<name>': not a top-level symbol in source` entry on
 `MovePlan.warnings`. The CLI and the `anvil_move` MCP tool surface that
-warning and still exit successfully. Pass `strict=True`
-([`move_symbols`](#move_symbols) / `MoveTool.execute`) or `--strict` on the
-CLI to raise `SymbolNotFoundError` on the first absent name (surfaced as a
-`ToolResult` error / non-zero CLI exit). Names that *are* present move as
-usual.
+warning and still exit successfully. Pass `strict=True` (or `--strict`) to
+raise on the first absent name instead.
 
-Auto-generated API reference is available under [Python API](api/).
+**`ImportCycleError`** — raised by `move_symbols` when the requested move
+(or its caller rewrites) would introduce a *new* import cycle. Pre-existing
+cycles are ignored. Raised when `check=True` or during a normal
+(non-dry-run) write; a pure `dry_run=True` call skips the raise to preserve
+the preview contract.

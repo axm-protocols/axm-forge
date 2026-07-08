@@ -1,7 +1,7 @@
 [project]
 name = "axm-anvil"
 dynamic = ["version"]
-description = "Deterministic CST-based refactoring toolkit for Python — move, rename, split, merge symbols atomically across files."
+description = "Deterministic CST-based refactoring toolkit for Python — move, rename, and extract symbols atomically across files (split & merge on the roadmap)."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
