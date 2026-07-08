@@ -14,8 +14,7 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.core.engine import _resolve_safe
-from axm_edit.utils import is_binary
+from axm_edit.utils import is_binary, resolve_safe
 
 __all__ = ["SearchFilesTool"]
 
@@ -103,7 +102,7 @@ def _iter_matching_files(
         if include and not _matches_include(filename, include):
             continue
         file_path = Path(dirpath) / filename
-        if _resolve_safe(root, str(file_path.relative_to(root))) is None:
+        if resolve_safe(root, str(file_path.relative_to(root))) is None:
             continue
         if is_binary(file_path):
             continue

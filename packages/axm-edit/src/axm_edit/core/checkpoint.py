@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import base64
 import json
-import subprocess  # noqa: F401  # retained so callers/tests can spy; never invoked here
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from axm_edit.models.operations import RollbackResult
+from axm_edit.utils import resolve_safe
 
 if TYPE_CHECKING:
     from axm_edit.models.operations import Operation
@@ -32,15 +32,15 @@ _SNAPSHOT_VERSION = 1
 
 
 def _resolve_within(root: Path, relative: str) -> Path | None:
-    """Resolve *relative* under *root*, rejecting paths that escape it."""
-    if ".." in relative.split("/"):
-        return None
-    resolved = (root / relative).resolve()
-    try:
-        resolved.relative_to(root.resolve())
-    except ValueError:
-        return None
-    return resolved
+    """Resolve *relative* under *root*, rejecting paths that escape it.
+
+    Delegates to the canonical :func:`axm_edit.utils.resolve_safe` so the
+    checkpoint accepts **exactly** the paths the engine applies (including
+    ``..`` segments that resolve back inside *root*). A stricter filter here
+    would let the engine mutate a file the snapshot never captured, silently
+    breaking rollback.
+    """
+    return resolve_safe(root, relative)
 
 
 def create_checkpoint(root: Path, operations: Sequence[Operation]) -> str:

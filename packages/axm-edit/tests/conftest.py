@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -39,34 +38,3 @@ def tmp_project(tmp_path: Path) -> Path:
     (tmp_path / "README.md").write_text("# Test Project\n")
 
     return tmp_path
-
-
-@pytest.fixture
-def git_project(tmp_project: Path) -> Path:
-    """Create a temporary git-initialized project."""
-    subprocess.run(
-        ["git", "init"],
-        cwd=tmp_project,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "add", "."],
-        cwd=tmp_project,
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "init"],
-        cwd=tmp_project,
-        capture_output=True,
-        check=True,
-        env={
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "test@test.com",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "test@test.com",
-            "PATH": "/usr/bin:/usr/local/bin:/opt/homebrew/bin",
-        },
-    )
-    return tmp_project

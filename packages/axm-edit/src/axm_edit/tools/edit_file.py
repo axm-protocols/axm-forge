@@ -54,15 +54,17 @@ class EditFileTool:
 
     @staticmethod
     def _validate_args(
-        path: str | None, old: str | None, new: str | None
+        path: str | None, old: str | None, new: str | None, count: int
     ) -> str | None:
-        """Return an error message if required args are missing, else None."""
+        """Return an error message if required args are invalid, else None."""
         if not path:
             return "Missing required argument: path"
         if old is None:
             return "Missing required argument: old"
         if new is None:
             return "Missing required argument: new"
+        if count != -1 and count < 1:
+            return "count must be -1 (all) or a positive integer"
         return None
 
     @staticmethod
@@ -99,7 +101,7 @@ class EditFileTool:
         """
         file_path = path
 
-        validation_error = self._validate_args(file_path, old, new)
+        validation_error = self._validate_args(file_path, old, new, count)
         if validation_error:
             return ToolResult(success=False, error=validation_error)
 

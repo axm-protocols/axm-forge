@@ -185,3 +185,48 @@ class TestReadFileSkipsBinary:
         result = ReadFileTool().execute(path=str(tmp_project), file="src/data.bin")
         assert result.success is False
         assert "Binary file" in (result.error or "")
+
+
+class TestReadFileCap:
+    """Regression (P1-3): unbounded reads are capped to protect the transport.
+
+    Asserts through the public contract (``truncated`` flag, the ``showing``
+    count, the truncation marker in ``content``) rather than the private
+    ``_DEFAULT_MAX_LINES`` constant, so the cap is verified by observable
+    behaviour. ``_BIG`` is comfortably above any reasonable default cap.
+    """
+
+    _BIG = 5000
+
+    def test_large_file_capped(self, tmp_project: Path) -> None:
+        from axm_edit.tools.read_file import ReadFileTool
+
+        big = tmp_project / "src" / "big.txt"
+        big.write_text("".join(f"line {i}\n" for i in range(self._BIG)))
+
+        result = ReadFileTool().execute(path=str(tmp_project), file="src/big.txt")
+        assert result.success is True
+        assert result.data is not None
+        assert result.data["truncated"] is True
+        assert result.data["total_lines"] == self._BIG
+        # The cap returns strictly fewer lines than the file holds.
+        assert result.data["showing"]["count"] < self._BIG
+        assert "truncated" in result.data["content"]
+
+    def test_explicit_range_not_capped(self, tmp_project: Path) -> None:
+        from axm_edit.tools.read_file import ReadFileTool
+
+        big = tmp_project / "src" / "big.txt"
+        big.write_text("".join(f"line {i}\n" for i in range(self._BIG)))
+
+        # An explicit full-file range bypasses the default cap entirely.
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="src/big.txt",
+            start_line=1,
+            end_line=self._BIG,
+        )
+        assert result.success is True
+        assert result.data is not None
+        assert result.data["truncated"] is False
+        assert result.data["showing"]["count"] == self._BIG

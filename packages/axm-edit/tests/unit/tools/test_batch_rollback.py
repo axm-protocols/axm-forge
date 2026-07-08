@@ -34,15 +34,18 @@ class TestRenderText:
             files=["a.py", "b.py"],
             error=None,
         )
-        assert text.startswith("batch_rollback | ✓ | 2 files restored from 536af2b")
+        assert text.startswith("batch_rollback | ✓ | 2 files restored")
+        # The opaque checkpoint payload is never summarised as a fake hash.
+        assert "536af2b" not in text
         assert "a.py" in text
         assert "b.py" in text
 
     def test_success_singular_no_files(self) -> None:
         text = render_text(success=True, checkpoint="deadbeef", files=[], error=None)
-        assert "0 files restored from deadbee" in text
+        assert "0 files restored" in text
+        assert "deadbee" not in text
 
-    def test_failure_surfaces_error_and_checkpoint(self) -> None:
+    def test_failure_surfaces_error(self) -> None:
         text = render_text(
             success=False,
             checkpoint="deadbeef",
@@ -50,4 +53,5 @@ class TestRenderText:
             error="Rollback failed",
         )
         assert text.startswith("batch_rollback | ✗ | Rollback failed")
-        assert "(checkpoint deadbee)" in text
+        # No fake checkpoint hash leaks into the failure header.
+        assert "deadbee" not in text

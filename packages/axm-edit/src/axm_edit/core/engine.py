@@ -27,9 +27,14 @@ from axm_edit.models.operations import (
     ReplaceOp,
     ValidationError,
 )
-from axm_edit.utils import is_binary
+from axm_edit.utils import is_binary, resolve_safe
 
 logger = logging.getLogger(__name__)
+
+# Canonical resolver, re-exported under the historical internal name so the
+# many in-module callers keep working. New code should import
+# ``axm_edit.utils.resolve_safe`` directly.
+_resolve_safe = resolve_safe
 
 _MIN_AMBIGUOUS_HITS = 2
 
@@ -47,24 +52,6 @@ class ResolvedEdit:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
-
-
-def _resolve_safe(root: Path, relative: str) -> Path | None:
-    """Resolve a relative path safely within *root*.
-
-    Returns ``None`` if the path escapes the project root.
-
-    Containment is enforced solely by resolving the path (which follows
-    ``..`` segments, symlinks, and absolute paths to their real target) and
-    checking it stays under ``root``. No string-level pre-filter is needed:
-    ``resolve()`` + ``relative_to`` is the single, OS-faithful barrier.
-    """
-    resolved = (root / relative).resolve()
-    try:
-        resolved.relative_to(root.resolve())
-    except ValueError:
-        return None
-    return resolved
 
 
 def _old_line_count(old: str) -> int:
@@ -594,9 +581,14 @@ def _apply_replace(
         # Re-indent if match was indent-normalized
         if edit.indent:
             new_content = _reindent(new_content, edit.indent)
-        if not new_content.endswith("\n"):
-            new_content += "\n"
-        new_lines = new_content.splitlines(keepends=True)
+        if new_content == "":
+            # An empty replacement is a *pure deletion* of the matched block:
+            # emit no lines rather than a residual blank line.
+            new_lines: list[str] = []
+        else:
+            if not new_content.endswith("\n"):
+                new_content += "\n"
+            new_lines = new_content.splitlines(keepends=True)
         lines[start - 1 : end] = new_lines
 
     target.write_text("".join(lines), encoding="utf-8", newline=eol)
@@ -612,7 +604,14 @@ def _validate_create(root: Path, op: CreateOp) -> list[ValidationError]:
             ValidationError(file=op.file, error="Path traversal not allowed"),
         )
         return errors
-    if target.exists() and not op.overwrite:
+    if target.exists() and not target.is_file():
+        errors.append(
+            ValidationError(
+                file=op.file,
+                error="Target exists and is not a file (is a directory?)",
+            ),
+        )
+    elif target.exists() and not op.overwrite:
         errors.append(
             ValidationError(
                 file=op.file,
@@ -635,6 +634,10 @@ def _validate_delete(root: Path, op: DeleteOp) -> list[ValidationError]:
         errors.append(
             ValidationError(file=op.file, error="File not found"),
         )
+    elif not target.is_file():
+        errors.append(
+            ValidationError(file=op.file, error="Not a file (is a directory?)"),
+        )
     return errors
 
 
@@ -647,14 +650,29 @@ class _GroupedOps:
     deletes: list[DeleteOp]
 
 
-def _group_operations(operations: Sequence[Operation]) -> _GroupedOps:
-    """Separate operations by type."""
+def _canonical_key(root: Path, file_rel: str) -> str:
+    """Canonical dedup key for *file_rel*: its resolved-within relative path.
+
+    Two spellings of the same file (``"a.py"`` and ``"./a.py"``, or
+    ``"sub/../a.py"``) collapse to one key so overlap detection cannot be
+    bypassed by aliasing. Paths that escape *root* keep their raw spelling
+    and are caught later by per-op validation.
+    """
+    resolved = resolve_safe(root, file_rel)
+    if resolved is None:
+        return file_rel
+    return resolved.relative_to(root.resolve()).as_posix()
+
+
+def _group_operations(root: Path, operations: Sequence[Operation]) -> _GroupedOps:
+    """Separate operations by type, keying replaces on the canonical path."""
     replace_by_file: dict[str, list[Edit]] = {}
     creates: list[CreateOp] = []
     deletes: list[DeleteOp] = []
     for op in operations:
         if isinstance(op, ReplaceOp):
-            replace_by_file.setdefault(op.file, []).extend(op.edits)
+            key = _canonical_key(root, op.file)
+            replace_by_file.setdefault(key, []).extend(op.edits)
         elif isinstance(op, CreateOp):
             creates.append(op)
         elif isinstance(op, DeleteOp):
@@ -734,7 +752,7 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
         (``checkpoint``) for rollback, and a summary.
     """
     root = root.resolve()
-    grouped = _group_operations(operations)
+    grouped = _group_operations(root, operations)
     resolved_by_file, errors = _validate_all(root, grouped)
 
     if errors:

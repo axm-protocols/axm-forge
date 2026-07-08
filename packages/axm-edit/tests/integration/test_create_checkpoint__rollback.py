@@ -6,11 +6,11 @@ asserts no subprocess (git checkout/clean/stash) is invoked (AXM-1844).
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from axm_edit.core import checkpoint as checkpoint_mod
 from axm_edit.core.checkpoint import create_checkpoint, rollback
 from axm_edit.models.operations import Edit, ReplaceOp
 
@@ -27,7 +27,10 @@ def test_no_git_global_commands_used(
         calls.append(list(cmd))
         raise AssertionError(f"subprocess invoked: {cmd}")
 
-    monkeypatch.setattr(checkpoint_mod.subprocess, "run", _spy)
+    # Patch the real subprocess.run: any subprocess use anywhere in the
+    # checkpoint/rollback path is caught, a stronger guarantee than spying
+    # on a module-local alias.
+    monkeypatch.setattr(subprocess, "run", _spy)
 
     target = tmp_path / "f.txt"
     target.write_text("v1")

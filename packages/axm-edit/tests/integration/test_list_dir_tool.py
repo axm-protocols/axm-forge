@@ -173,3 +173,20 @@ class TestListDirTool:
         """An empty directory yields a single compact header line."""
         result = ListDirTool().execute(path=str(tmp_path))
         assert result.text == "list_dir | 0 entries"
+
+    def test_missing_directory_fails(self, tmp_path: Path) -> None:
+        """A path that is not a directory fails with a readable error."""
+        missing = tmp_path / "does-not-exist"
+        result = ListDirTool().execute(path=str(missing))
+        assert result.success is False
+        assert result.error is not None
+        assert "directory" in result.error.lower()
+
+    def test_file_path_fails(self, tmp_path: Path) -> None:
+        """Pointing list_dir at a file (not a dir) fails with a readable error."""
+        target = tmp_path / "a.txt"
+        target.write_text("x")
+        result = ListDirTool().execute(path=str(target))
+        assert result.success is False
+        assert result.error is not None
+        assert "directory" in result.error.lower()

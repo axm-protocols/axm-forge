@@ -122,3 +122,26 @@ class TestRunCommandToolIO:
         assert "exit 0" in result.text
         # No-loss: data stdout present verbatim in text.
         assert str(result.data["stdout"]).rstrip("\n") in result.text
+
+    def test_timeout_partial_output_decoded(self, tmp_path: Path) -> None:
+        """Regression (P2-1): partial output on timeout is decoded text, not b'...'.
+
+        CPython attaches raw bytes to ``TimeoutExpired`` even under
+        ``text=True``; the tool must decode them so the agent sees the real
+        partial output, never the ``b'...'`` repr.
+        """
+        result = RunCommandTool().execute(
+            path=str(tmp_path),
+            command=(
+                "python3 -c "
+                "\"import sys,time; sys.stdout.write('partial-out'); "
+                'sys.stdout.flush(); time.sleep(10)"'
+            ),
+            timeout=1,
+        )
+        assert result.success is True
+        assert result.data is not None
+        assert result.data["timed_out"] is True
+        assert result.data["stdout"] == "partial-out"
+        # The b'...' repr must never leak through.
+        assert not result.data["stdout"].startswith("b'")

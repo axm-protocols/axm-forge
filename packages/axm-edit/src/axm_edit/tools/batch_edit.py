@@ -395,7 +395,9 @@ class BatchEditTool:
             lint_diff_max_ratio: Fallback threshold (diff / file size).
 
         Returns:
-            ToolResult with applied counts and checkpoint SHA.
+            ToolResult with applied counts and the ``checkpoint`` snapshot
+            payload (a JSON string, not a SHA) to pass back to
+            ``batch_rollback``.
         """
         raw_operations: list[dict[str, object]] = operations or []
 

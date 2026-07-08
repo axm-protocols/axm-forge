@@ -9,7 +9,7 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.core.engine import _resolve_safe
+from axm_edit.utils import resolve_safe
 
 __all__ = ["ListDirTool"]
 
@@ -42,7 +42,7 @@ def _is_included(root: Path, child: Path) -> bool:
     if _should_skip(child.name):
         return False
     # Sandboxing: ensure symlinks don't escape the root
-    return _resolve_safe(root, str(child.relative_to(root))) is not None
+    return resolve_safe(root, str(child.relative_to(root))) is not None
 
 
 def _entry_for(root: Path, child: Path) -> dict[str, object]:

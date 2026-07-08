@@ -81,3 +81,13 @@ class TestEditFileTool:
         assert result.success is True
         assert "return 1" in target.read_text()
         assert result.data["first_line"] == 1
+
+    def test_negative_count_rejected(self, tool: EditFileTool, tmp_path: Path) -> None:
+        """Regression (P2-9): count=-2 fails instead of silently replacing all."""
+        target = tmp_path / "code.py"
+        target.write_text("a a a\n")
+        result = tool.execute(path=str(target), old="a", new="b", count=-2)
+        assert result.success is False
+        assert result.error is not None and "count" in result.error.lower()
+        # File left untouched — the invalid count did not apply anything.
+        assert target.read_text() == "a a a\n"
