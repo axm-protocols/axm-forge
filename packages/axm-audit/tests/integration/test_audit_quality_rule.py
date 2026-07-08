@@ -88,3 +88,65 @@ def test_all_failures_excluded_returns_success(tmp_path: Path) -> None:
 
     assert result.passed is True
     assert result.metadata["audit"]["failed"] == []
+
+
+# --- False-green guard: a valid category outside the old witness whitelist
+#     must actually be AUDITED (not silently swallowed to success) ---
+
+
+def test_formerly_swallowed_category_actually_audits(tmp_path: Path) -> None:
+    """``architecture`` is valid to the auditor but was absent from the old
+    witness 5-category whitelist, so it used to be filtered to an empty set
+    and short-circuit to ``WitnessResult.success()`` — a gate passing green
+    having audited nothing. It must now run the category for real: the
+    resulting metadata carries the auditor's output.
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "__init__.py").write_text('"""Pkg."""\n')
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "p"\nversion = "0.0.0"\nrequires-python = ">=3.12"\n'
+    )
+    rule = AuditQualityRule(
+        categories=["architecture"],
+        working_dir=str(tmp_path),
+    )
+
+    result = rule.validate("")
+
+    assert result.metadata is not None
+    assert "audit" in result.metadata, "witness swallowed the category (false-green)"
+
+
+# --- False-green guard: unknown / empty categories are a hard RED config
+#     error (the witness used to silently swallow them and pass green) ---
+
+
+def test_truly_unknown_category_fails_loud(tmp_path: Path) -> None:
+    """A category the auditor does not know returns failure, not success.
+
+    Touches the real filesystem (``is_dir`` on ``tmp_path``), hence
+    integration; the config-error branch itself runs no audit.
+    """
+    rule = AuditQualityRule(
+        categories=["bogus_category"],
+        working_dir=str(tmp_path),
+    )
+    result = rule.validate("")
+
+    assert result.passed is False
+    assert result.feedback is not None
+    assert "Unknown audit category" in result.feedback.what
+    assert "bogus_category" in result.feedback.what
+
+
+def test_empty_categories_fails_loud(tmp_path: Path) -> None:
+    """No categories configured is a config error — RED, not green."""
+    rule = AuditQualityRule(
+        categories=[],
+        working_dir=str(tmp_path),
+    )
+    result = rule.validate("")
+
+    assert result.passed is False
+    assert result.feedback is not None
+    assert "No audit categories" in result.feedback.what

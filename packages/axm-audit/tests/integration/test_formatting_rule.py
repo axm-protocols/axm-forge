@@ -189,6 +189,51 @@ class TestFormattingRule:
         assert result.details["unformatted_files"] == ["src/bad.py"]
 
 
+class TestFormattingRuleEnvFailure:
+    """False-green guard: an env-failure (timeout rc=124 / config-error rc=2)
+    printed zero unformatted files, which the old code scored as a green 100.
+    Now it must route through ``interpret_process`` and fail loud.
+    """
+
+    @pytest.mark.parametrize("returncode", [124, 2])
+    def test_env_failure_scores_red_not_green(
+        self, tmp_path: Path, returncode: int
+    ) -> None:
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        (tmp_path / "src").mkdir()
+        # Env-failure: non-zero returncode in the env-failure set, empty stdout
+        # (the process did not actually run the check).
+        env_fail = subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout="", stderr="timed out / config"
+        )
+        with patch(_PATCH, return_value=env_fail):
+            result = FormattingRule().check(tmp_path)
+
+        assert result.passed is False
+        assert result.score == 0
+        assert result.severity.name == "ERROR"
+        assert result.details is not None
+        assert result.details["env_incomplete"] is True
+
+    def test_expected_nonzero_still_parses_findings(self, tmp_path: Path) -> None:
+        """rc=1 (ruff's expected 'files would be reformatted' exit) is NOT an
+        env-failure: findings must still be parsed, not blocked.
+        """
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        (tmp_path / "src").mkdir()
+        issues = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="src/a.py\nsrc/b.py\n", stderr=""
+        )
+        with patch(_PATCH, return_value=issues):
+            result = FormattingRule().check(tmp_path)
+
+        assert result.details is not None
+        assert result.details.get("env_incomplete") is not True
+        assert result.details["unformatted_count"] == 2
+
+
 def test_formatting_injects_ruff(tmp_path: Path) -> None:
     """FormattingRule passes with_packages=["ruff"]."""
     from axm_audit.core.rules.quality_rules import FormattingRule

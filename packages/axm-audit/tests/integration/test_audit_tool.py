@@ -90,6 +90,29 @@ def test_execute_not_a_directory(tmp_path: Path) -> None:
     assert "Not a directory" in result.error
 
 
+def test_execute_internal_exception_returns_error_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nominal failure path: a crash inside audit_project becomes
+    ``ToolResult(success=False, error=...)`` with a readable message,
+    never an unhandled raise (a gate calling this tool must see RED,
+    not a swallowed green).
+    """
+
+    def _boom(*_a: object, **_kw: object) -> object:
+        raise RuntimeError("auditor exploded")
+
+    # The tool imports ``audit_project`` lazily from the auditor module inside
+    # ``execute``; patching the source binding is what takes effect.
+    monkeypatch.setattr("axm_audit.core.auditor.audit_project", _boom, raising=False)
+
+    result = AuditTool().execute(path=str(tmp_path))
+
+    assert result.success is False
+    assert result.error is not None
+    assert "auditor exploded" in result.error
+
+
 def test_execute_with_category_filter(tmp_path: Path) -> None:
     """AuditTool with category filter runs only that category."""
     from axm_audit.tools.audit import AuditTool

@@ -7,7 +7,10 @@ between the classified level and the folder the test lives in are
 reported as findings.
 
 R4 (conftest fixture-IO resolution) and R5 (mock neutralisation) are
-stubbed here as identities — ticket #4b replaces the two placeholders.
+fully implemented below: R5 recognises a fully-mocked SUT (see
+``_apply_mock_neutralization`` / ``extract_mock_targets`` /
+``_NATIVE_AUDIO_IO_TOKENS``) so a unit test whose only residual I/O signal
+is mocked scaffolding is not force-promoted to integration.
 """
 
 from __future__ import annotations

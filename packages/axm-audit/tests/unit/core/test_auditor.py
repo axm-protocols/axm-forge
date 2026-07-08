@@ -303,6 +303,53 @@ class TestMergeCheckExistingSemanticsUnchanged:
         assert merged.details["y"] == 99
         assert merged.details["z"] == 3
 
+    def test_base_check_merge_has_no_phantom_findings_field(self) -> None:
+        """A base ``CheckResult`` (``extra='forbid'``, no ``findings`` field)
+        must NOT gain a phantom ``findings`` attribute from the merge.
+
+        Regression: ``model_copy(update={'findings': ...})`` bypasses
+        validation and used to store a phantom attribute — readable via
+        ``getattr`` in-process but silently absent from ``model_dump()``,
+        so it vanished across the MCP JSON round-trip.
+        """
+        from axm_audit.core.auditor import merge_check
+
+        existing = CheckResult(rule_id="QUALITY_LINT", passed=True, message="m")
+        incoming = CheckResult(rule_id="QUALITY_LINT", passed=True, message="m")
+
+        merged = merge_check(existing, incoming, "b")
+
+        assert "findings" not in merged.model_dump()
+        assert "findings" not in type(merged).model_fields
+
+    def test_list_valued_details_are_concatenated_across_packages(self) -> None:
+        """List-valued details (``issues``/``errors``/``mismatches``) from every
+        merged package survive; a shallow update kept only the last package's.
+        """
+        from axm_audit.core.auditor import merge_check
+
+        existing = CheckResult(
+            rule_id="QUALITY_LINT",
+            passed=False,
+            message="m",
+            details={"issues": [{"file": "a.py"}], "issue_count": 1},
+        )
+        incoming = CheckResult(
+            rule_id="QUALITY_LINT",
+            passed=False,
+            message="m",
+            details={"issues": [{"file": "b.py"}], "issue_count": 1},
+        )
+
+        merged = merge_check(existing, incoming, "b")
+
+        assert merged.details is not None
+        issues = merged.details["issues"]
+        assert isinstance(issues, list)
+        assert len(issues) == 2
+        files = {i["file"] for i in issues}
+        assert files == {"a.py", "b.py"}
+
 
 # ---------------------------------------------------------------------------
 # Merged from tests/unit/core/rules/test_rules.py

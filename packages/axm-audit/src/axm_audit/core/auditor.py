@@ -277,20 +277,26 @@ def merge_check(
     aggregation preserves per-package diagnostics instead of dropping them.
     """
     incoming_prefixed = _prefix_check(incoming, pkg_name)
-    existing_findings = list(getattr(existing, "findings", []) or [])
-    incoming_findings = list(getattr(incoming_prefixed, "findings", []) or [])
-    return existing.model_copy(
-        update={
-            "passed": existing.passed and incoming_prefixed.passed,
-            "text": _merge_text(existing.text, incoming_prefixed.text),
-            "details": _merge_details(existing.details, incoming_prefixed.details),
-            "severity": _max_severity(existing.severity, incoming_prefixed.severity),
-            "message": existing.message,
-            "score": _merge_score(existing.score, incoming_prefixed.score),
-            "metadata": merge_metadata(existing.metadata, incoming_prefixed.metadata),
-            "findings": existing_findings + incoming_findings,
-        }
-    )
+    update: dict[str, object] = {
+        "passed": existing.passed and incoming_prefixed.passed,
+        "text": _merge_text(existing.text, incoming_prefixed.text),
+        "details": _merge_details(existing.details, incoming_prefixed.details),
+        "severity": _max_severity(existing.severity, incoming_prefixed.severity),
+        "message": existing.message,
+        "score": _merge_score(existing.score, incoming_prefixed.score),
+        "metadata": merge_metadata(existing.metadata, incoming_prefixed.metadata),
+    }
+    # Only merge ``findings`` when the concrete model actually declares the
+    # field (e.g. ``PyramidCheckResult``). The base ``CheckResult`` is
+    # ``extra="forbid"`` and has no such field: ``model_copy(update=...)``
+    # bypasses validation and would write a PHANTOM attribute — readable via
+    # ``getattr`` in-process but silently absent from ``model_dump()``/JSON,
+    # so it vanishes across the MCP round-trip. Guard on the real field set.
+    if "findings" in type(existing).model_fields:
+        existing_findings = list(getattr(existing, "findings", []) or [])
+        incoming_findings = list(getattr(incoming_prefixed, "findings", []) or [])
+        update["findings"] = existing_findings + incoming_findings
+    return existing.model_copy(update=update)
 
 
 def _combine_metadata_values(a_val: object, b_val: object) -> object:
@@ -344,12 +350,26 @@ def _merge_text(a: str | None, b: str | None) -> str | None:
 def _merge_details(
     a: dict[str, object] | None, b: dict[str, object] | None
 ) -> dict[str, object] | None:
-    """Shallow merge; incoming overrides existing. None if empty."""
-    merged: dict[str, object] = {}
-    if a:
-        merged.update(a)
-    if b:
-        merged.update(b)
+    """Merge two ``details`` dicts, concatenating list-valued keys.
+
+    A shallow ``dict.update`` let the LAST package win for every key, so an
+    agent reading a workspace audit's ``details`` saw only one package out of
+    N: the per-package diagnostic lists (``issues`` for lint, ``errors`` for
+    type, ``mismatches`` for pyramid, …) of the N-1 earlier packages were
+    overwritten. List-valued keys are CONCATENATED so every package's
+    findings survive; scalar keys keep the incoming (later) value.
+    """
+    if not a:
+        return dict(b) if b else None
+    if not b:
+        return dict(a) if a else None
+    merged: dict[str, object] = dict(a)
+    for key, value in b.items():
+        prior = merged.get(key)
+        if isinstance(prior, list) and isinstance(value, list):
+            merged[key] = [*prior, *value]
+        else:
+            merged[key] = value
     return merged or None
 
 

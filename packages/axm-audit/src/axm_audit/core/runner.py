@@ -103,9 +103,15 @@ def find_venv(project_path: Path) -> Path | None:
     for directory in itertools.islice(
         (current, *current.parents), _MAX_VENV_SEARCH_DEPTH
     ):
-        venv_python = directory / ".venv" / "bin" / "python"
-        if venv_python.exists():
-            return directory / ".venv"
+        venv = directory / ".venv"
+        # POSIX layout (.venv/bin/python) or Windows layout
+        # (.venv/Scripts/python.exe). Without the Windows arm every audit
+        # on Windows silently fell through to the no-venv PATH fallback,
+        # despite the runner otherwise handling Windows process groups.
+        if (venv / "bin" / "python").exists() or (
+            venv / "Scripts" / "python.exe"
+        ).exists():
+            return venv
     return None
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,37 @@ def test_apply_rolls_back_on_failure(
         run(project, apply=True)
 
     assert _tree_hash(project / "tests") == before
+
+
+def test_apply_failure_does_not_leak_backup_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ``axm_fix_backup_*`` tmpdir must be discarded on EVERY path.
+
+    Regression: ``_discard_snapshot`` used to run only in the success
+    ``else`` branch, so each failed/rolled-back apply leaked a full copy of
+    ``tests/`` in the system temp. The discard now lives in a ``finally``.
+    """
+    project = tmp_path / "proj"
+    project.mkdir()
+    _make_corpus(project)
+    _git_init(project)
+
+    # The pipeline snapshots ``tests/`` into ``tempfile.mkdtemp(prefix=
+    # "axm_fix_backup_")``; assert no such tmpdir survives a failed apply.
+    temp_root = Path(tempfile.gettempdir())
+    before = set(temp_root.glob("axm_fix_backup_*"))
+
+    def _boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("forced stage failure")
+
+    monkeypatch.setattr(pipeline, "_run_iterations", _boom)
+
+    with pytest.raises(Exception):  # noqa: B017
+        run(project, apply=True)
+
+    leaked = set(temp_root.glob("axm_fix_backup_*")) - before
+    assert not leaked, f"backup snapshot leaked on failure: {leaked}"
 
 
 def test_apply_rejects_uncollectable_result(

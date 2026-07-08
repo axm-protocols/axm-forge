@@ -235,11 +235,17 @@ class TestFeedbackFormatAgentFriendly:
         assert result.metadata["audit"]["failed"]
 
 
-class TestUnknownCategoryIgnored:
-    """Edge case: unknown category is silently skipped."""
+class TestUnknownCategoryIsRed:
+    """A config with an unknown category MUST fail loud, never pass green.
+
+    Regression: the witness used to silently skip categories outside its
+    private 5-category whitelist and, when the survivor set emptied, return
+    ``WitnessResult.success()`` — a quality gate passing green having
+    audited nothing. An unknown category is now a hard RED config error.
+    """
 
     @patch("axm_audit.witnesses.audit_quality.audit_project")
-    def test_unknown_category_ignored(
+    def test_unknown_category_fails_loud_before_auditing(
         self, mock_audit: MagicMock, tmp_path: Path
     ) -> None:
         mock_audit.return_value = AuditResult(
@@ -254,11 +260,13 @@ class TestUnknownCategoryIgnored:
         )
         result = rule.validate("")
 
-        assert result.passed is True
-        # Only lint was called, unknown was skipped
-        mock_audit.assert_called_once()
-        call_args = mock_audit.call_args
-        assert call_args[1]["category"] == "lint" or call_args[0][1] == "lint"
+        assert result.passed is False
+        assert result.feedback is not None
+        assert "Unknown audit category" in result.feedback.what
+        assert "unknown" in result.feedback.what
+        # Fail-loud happens BEFORE any audit runs: nothing is executed when
+        # the config itself is invalid.
+        mock_audit.assert_not_called()
 
 
 class TestWorkingDirFromKwargs:
