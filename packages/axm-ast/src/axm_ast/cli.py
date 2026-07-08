@@ -788,7 +788,7 @@ def impact(
         raise SystemExit(1)
 
     if compact:
-        print(tool_result.data["compact"])
+        print(tool_result.text)
     elif json_output:
         print(json.dumps(tool_result.data, indent=2))
     else:
