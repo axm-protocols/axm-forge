@@ -364,6 +364,46 @@ def _resolve_absolute_import(
     return None
 
 
+def _resolve_relative_target(
+    imp: ImportInfo, src_name: str, root_name: str
+) -> str | None:
+    """Resolve a relative import to a fully-qualified internal module name.
+
+    Resolves ``imp.level`` (leading dots) and ``imp.module`` relative to the
+    importer's dotted name so that ``from .helpers import x`` inside
+    ``sub.mod`` yields ``sub.helpers`` (not the bare ``helpers``). The bare
+    module name would only match a root-level module by coincidence and
+    silently mis-attribute homonyms across sub-packages.
+
+    When the resolution lands on the package root itself (e.g.
+    ``from . import X`` from a top-level module), the root ``__init__`` is
+    represented in the module graph by ``root_name``.
+
+    Args:
+        imp: The relative import statement (``is_relative`` is True).
+        src_name: Dotted name of the module containing the import.
+        root_name: Dotted name of the package root ``__init__`` — the value
+            ``module_dotted_name`` yields for the root package.
+
+    Returns:
+        Fully-qualified dotted module name, or ``None`` when the level walks
+        above the package root.
+    """
+    # The importer's own package is its dotted name minus the module segment.
+    base_parts = src_name.split(".")[:-1]
+    # level=1 -> current package; each extra dot climbs one package up.
+    climb = imp.level - 1
+    if climb > len(base_parts):
+        return None
+    target_parts = base_parts[: len(base_parts) - climb] if climb else base_parts
+    if imp.module:
+        target_parts = [*target_parts, *imp.module.split(".")]
+    if target_parts:
+        return ".".join(target_parts)
+    # Empty parts -> the package root ``__init__`` (``from . import X``).
+    return root_name if not imp.module else None
+
+
 def _resolve_import_target(
     imp: ImportInfo,
     mod: ModuleInfo,
@@ -382,13 +422,9 @@ def _resolve_import_target(
             )
         return None
 
-    if imp.module:
-        return imp.module if imp.module in known_names else None
-
-    # from . import X — importing from parent package
-    parent_name = module_dotted_name(mod.path.parent / "__init__.py", root)
-    if parent_name in known_names and parent_name != src_name:
-        return parent_name
+    resolved = _resolve_relative_target(imp, src_name, root.name)
+    if resolved is not None and resolved in known_names and resolved != src_name:
+        return resolved
     return None
 
 

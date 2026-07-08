@@ -61,3 +61,17 @@ class TestMapTests:
         (pkg / "__init__.py").write_text('"""Pkg."""\n')
         test_files = map_tests("helper", tmp_path)
         assert test_files == []
+
+    def test_finds_tests_in_pyramid_subdirs(self, tmp_path: Path) -> None:
+        """AXM pyramid layout (tests/unit/…) is scanned recursively.
+
+        Regression guard: a flat ``glob`` misses ``tests/unit|integration``
+        entirely, so ``map_tests`` returned ``[]`` on every AXM package.
+        """
+        tests = tmp_path / "tests" / "unit" / "core"
+        tests.mkdir(parents=True)
+        (tests / "test_helper.py").write_text(
+            "def test_helper() -> None:\n    helper(1)\n"
+        )
+        test_files = map_tests("helper", tmp_path)
+        assert [t.name for t in test_files] == ["test_helper.py"]

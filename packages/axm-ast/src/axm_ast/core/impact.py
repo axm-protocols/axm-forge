@@ -330,8 +330,9 @@ def _is_reexported_via_import(mod: ModuleInfo, symbol: str) -> bool:
 def map_tests(symbol: str, project_root: Path) -> list[Path]:
     """Find test files that reference a given symbol.
 
-    Scans ``tests/`` directory for test_*.py files containing
-    the symbol name.
+    Recursively scans the ``tests/`` directory (including the AXM pyramid
+    sub-dirs ``tests/unit|integration|e2e/``) for ``test_*.py`` files
+    containing the symbol name.
 
     Args:
         symbol: Name to search for in test files.
@@ -345,7 +346,7 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
         return []
 
     matching: list[Path] = []
-    for test_file in sorted(tests_dir.glob("test_*.py")):
+    for test_file in sorted(tests_dir.rglob("test_*.py")):
         try:
             content = test_file.read_text(encoding="utf-8")
             if symbol in content:
@@ -368,8 +369,9 @@ def _find_test_files_by_import(
     in is often imported by test files even when the symbol name itself
     does not appear.
 
-    Only ``tests/`` is scanned (bounded scope).  Non-test files are
-    excluded.
+    Only ``tests/`` is scanned (bounded scope), recursively so that the
+    AXM pyramid sub-dirs (``tests/unit|integration|e2e/``) are covered.
+    Non-test files are excluded.
 
     Args:
         module_name: Bare module name (e.g. ``"models"``, not
@@ -394,7 +396,7 @@ def _find_test_files_by_import(
     )
 
     matching: list[Path] = []
-    for test_file in sorted(tests_dir.glob("test_*.py")):
+    for test_file in sorted(tests_dir.rglob("test_*.py")):
         try:
             content = test_file.read_text(encoding="utf-8")
             if pattern.search(content):

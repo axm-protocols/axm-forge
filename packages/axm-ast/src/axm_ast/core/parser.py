@@ -34,6 +34,9 @@ from axm_ast.models.nodes import (
 
 logger = logging.getLogger(__name__)
 
+# Longest legal Python string prefix is 2 chars (e.g. ``rb``, ``fr``).
+_MAX_STRING_PREFIX_LEN = 2
+
 __all__ = [
     "clear_parse_cache",
     "extract_module_info",
@@ -179,10 +182,25 @@ def _node_text(node: Node | None) -> str | None:
 
 
 def _unquote(text: str) -> str:
-    """Remove surrounding quotes from a string literal."""
-    for prefix in ('"""', "'''", '"', "'"):
-        if text.startswith(prefix) and text.endswith(prefix):
-            return text[len(prefix) : -len(prefix)]
+    """Remove a string-prefix and surrounding quotes from a string literal.
+
+    Strips any leading string prefix (``r``, ``b``, ``f``, ``u`` and their
+    combinations/cases) before the quotes so that ``r\"\"\"doc.\"\"\"`` yields
+    ``doc.`` rather than leaking the ``r\"\"\"`` markers into extracted
+    docstrings (common for LaTeX/regex docstrings, numpy/scipy style).
+    """
+    body = text
+    idx = 0
+    while idx < len(body) and idx < _MAX_STRING_PREFIX_LEN and body[idx] in "rbfuRBFU":
+        idx += 1
+    body = body[idx:]
+    for quote in ('"""', "'''", '"', "'"):
+        if (
+            body.startswith(quote)
+            and body.endswith(quote)
+            and len(body) >= 2 * len(quote)
+        ):
+            return body[len(quote) : -len(quote)]
     return text
 
 
@@ -590,15 +608,22 @@ def _extract_all_exports(node: Node) -> list[str] | None:
     )
 
 
-def _parse_all_list(node: Node) -> list[str]:
-    """Parse a list literal for __all__."""
+def _parse_all_list(node: Node) -> list[str] | None:
+    """Parse a ``__all__`` sequence literal (list or tuple).
+
+    Handles both ``__all__ = ["a", "b"]`` and the ``RUF022``-compatible tuple
+    style ``__all__ = ("a", "b")``. Returns ``None`` when the right-hand side
+    is not a parsable sequence literal (e.g. ``__all__ = mod.__all__``) so
+    callers can distinguish "unknown" from "explicitly empty".
+    """
+    if node.type not in ("list", "tuple"):
+        return None
     names: list[str] = []
-    if node.type == "list":
-        for child in node.children:
-            if child.type == "string":
-                text = _node_text(child)
-                if text:
-                    names.append(_unquote(text))
+    for child in node.children:
+        if child.type == "string":
+            text = _node_text(child)
+            if text:
+                names.append(_unquote(text))
     return names
 
 

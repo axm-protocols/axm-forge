@@ -363,7 +363,7 @@ def _count_test_files(root: Path) -> int:
     tests_dir = root / "tests"
     if not tests_dir.is_dir():
         return 0
-    return len(list(tests_dir.glob("test_*.py")))
+    return len(list(tests_dir.rglob("test_*.py")))
 
 
 # ─── Context building ───────────────────────────────────────────────────────

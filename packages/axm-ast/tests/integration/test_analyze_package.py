@@ -161,6 +161,46 @@ def test_build_edges_src_layout(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.integration
+def test_relative_subpackage_edges_are_qualified(tmp_path: Path) -> None:
+    """``from .helpers`` inside ``sub.mod`` resolves to ``sub.helpers``.
+
+    Regression guard for the socle-de-résolution bug: the intra-subpackage
+    relative edge was dropped, and ``imp.level`` was ignored so a nude
+    module name could be mis-attributed to a homonym in another package.
+    """
+    pkg_dir = tmp_path / "pkg"
+    (pkg_dir / "sub").mkdir(parents=True)
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "core.py").write_text("def y() -> int:\n    return 1\n")
+    (pkg_dir / "sub" / "__init__.py").write_text("")
+    (pkg_dir / "sub" / "helpers.py").write_text("def x() -> int:\n    return 2\n")
+    (pkg_dir / "sub" / "mod.py").write_text(
+        "from .helpers import x\nfrom ..core import y\n"
+        "def use() -> int:\n    return x() + y()\n"
+    )
+
+    pkg = analyze_package(pkg_dir)
+    edges = set(pkg.dependency_edges)
+
+    # The previously-dropped intra-subpackage edge.
+    assert ("sub.mod", "sub.helpers") in edges
+    # The parent-package edge, now resolved via level (not coincidence).
+    assert ("sub.mod", "core") in edges
+
+
+@pytest.mark.integration
+def test_relative_dot_import_targets_root_package(tmp_path: Path) -> None:
+    """``from . import X`` from a top-level module targets the package root."""
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("class Base:\n    pass\n")
+    (pkg_dir / "utils.py").write_text("from . import Base\n")
+
+    pkg = analyze_package(pkg_dir)
+    assert ("utils", "pkg") in set(pkg.dependency_edges)
+
+
 @pytest.mark.functional
 class TestAnalyzePackageIntegration:
     """Tests for analyze_package() (real filesystem I/O scenarios)."""
