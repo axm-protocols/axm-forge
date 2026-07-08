@@ -17,7 +17,12 @@ class Member:
     """A single uv-workspace member.
 
     Attributes:
-        name: Directory name of the member.
+        name: Basename of the member *directory* -- not the ``[project].name``
+            declared in the member's ``pyproject.toml``. Two globs resolving to
+            same-named directories (e.g. ``packages/core`` and ``libs/core``)
+            therefore yield two members with equal ``name``; callers indexing by
+            ``name`` must account for the collision. Read the package name from
+            the member's ``pyproject.toml`` (``path`` locates it) when needed.
         path: Absolute, resolved path to the member directory.
     """
 

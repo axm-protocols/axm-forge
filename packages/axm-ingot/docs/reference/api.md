@@ -77,12 +77,20 @@ A resolved uv workspace: its absolute `root` and the members sorted by name.
 ```python
 @dataclass(frozen=True)
 class Member:
-    name: str   # directory name
+    name: str   # directory basename (NOT [project].name)
     path: Path  # absolute, resolved path
 ```
 
 A single workspace member. Callers project trivially: `[m.path for m in ...]`
 (paths) or `[m.name for m in ...]` (names).
+
+!!! note "`name` is the directory basename, not the package name"
+    `Member.name` is the **basename of the member directory**, not the
+    `[project].name` declared in the member's own `pyproject.toml`. Two globs
+    resolving to same-named directories (e.g. `packages/core` and `libs/core`)
+    therefore produce two `Member`s with the same `name`. Callers that index by
+    `name` must account for this; when you need the *package* name, read it from
+    the member's `pyproject.toml` (its `path` points at the directory).
 
 ## Python API (auto-generated)
 

@@ -66,5 +66,5 @@ make check  # lint + type-check + tests, across every workspace package
 
 ## Next Steps
 
-- [API Reference](../reference/cli.md) — Full public API documentation
+- [API Reference](../reference/api.md) — Full public API documentation
 - [Architecture](../explanation/architecture.md) — How the project is structured

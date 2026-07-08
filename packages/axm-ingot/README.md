@@ -55,13 +55,15 @@ value depends on staying **light**: every consumer that imports it for one small
 helper inherits *all* of its dependencies. A fat leaf is no longer a leaf.
 
 **Hard rule — a helper may be promoted into `axm-ingot` only if its dependencies
-are stdlib + the universal base (`pydantic`)** — i.e. it adds **no dependency the
-consumer doesn't already have**. `dependencies` here stays effectively empty.
+are stdlib-only** — it adds **no dependency at all**. `dependencies` here stays
+empty. Even Pydantic — a near-universal AXM dependency — does **not** belong:
+it is still a dependency, and adding it breaks the leaf invariant. Value objects
+here are frozen `@dataclass`, not `BaseModel`.
 
 | Belongs in ingot ✅ | Does **not** belong ❌ |
 |---|---|
 | stdlib-only (`pathlib`, `tomllib`, `re`, `dataclasses`, `json`…) | pulls `httpx`, `pandas`, `torch`, a DB driver, an SDK… |
-| `pydantic` models (already a universal AXM dep) | anything adding a new external dependency |
+| frozen `@dataclass` value objects | `pydantic` models (Pydantic is a dependency — a fat leaf is no longer a leaf) |
 | e.g. `resolve_workspace` (tomllib + pathlib) | e.g. `request_with_retry` (needs `httpx`) |
 
 A reusable-but-heavy helper does **not** come here even when it has several
@@ -82,8 +84,10 @@ for promotion but **not sufficient**; the dependency gate is the second lock.
   unexpanded member strings from pyproject text, with no filesystem access.
 - **Typed value objects** — frozen `ResolvedWorkspace` and `Member` dataclasses
   describe the resolved result.
-- **Defensive by design** — malformed TOML or a missing `[tool.uv.workspace]`
-  table yields empty/`None` results rather than raising.
+- **Defensive by design** — a missing, malformed, non-UTF-8, or otherwise
+  unreadable `pyproject.toml`, and hostile member globs (absolute paths,
+  patterns `Path.glob` rejects), all degrade to empty/`None` results rather than
+  raising.
 - **Modern Python** — 3.12+ with strict typing, zero runtime dependencies
   beyond the standard library.
 

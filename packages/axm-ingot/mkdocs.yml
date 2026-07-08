@@ -6,9 +6,10 @@ nav:
   - Tutorials:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
-    - howto/index.md
+    - Overview: howto/index.md
+    - Promote a helper: howto/promote-a-helper.md
   - Reference:
-    - Public API: reference/cli.md
+    - Public API: reference/api.md
     - Python API: reference/
   - Explanation:
     - Architecture: explanation/architecture.md
