@@ -8,11 +8,11 @@ state when no package has registered any.
 
 from __future__ import annotations
 
-import re
 from functools import cache
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
+import axm_config
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from axm_vault.models import CredentialGroup, Sensitivity
@@ -24,13 +24,15 @@ __all__ = ["Catalog", "load_catalog"]
 
 CREDENTIALS_GROUP = "axm.credentials"
 
-# A spec name that reaches axm_config (the SECRET presence sentinel keyed by
-# ``<name>_set``, or a CONFIG value keyed by ``<name>``) must be a valid
-# axm-config key. axm-config's key charset is ``^[A-Za-z0-9_]+$`` (private
-# there); it is mirrored here so the catalog can reject un-round-trippable
-# names at load time rather than failing later inside run_setup. NONSENSITIVE
-# specs are env-only and never written to axm_config, so they are exempt.
-_CONFIG_KEY_RE = re.compile(r"^[A-Za-z0-9_]+$")
+# A group id is used verbatim as an axm-config *namespace* (the CONFIG value is
+# keyed ``set_(group.id, name, ...)``), and a SECRET/CONFIG spec name is used as
+# an axm-config *key*. Both charsets are owned by axm-config; rather than mirror
+# them here (the manual mirror has already diverged once), validation delegates
+# to ``axm_config.validate_segment`` — the single canonical rule — so the
+# catalog can reject un-round-trippable identifiers at load time rather than
+# failing later inside ``run_setup``. NONSENSITIVE specs are env-only and never
+# reach axm_config, so their names are exempt (their group id is still checked,
+# since it namespaces the whole group).
 _STORABLE: frozenset[Sensitivity] = frozenset({Sensitivity.SECRET, Sensitivity.CONFIG})
 
 
@@ -47,29 +49,31 @@ class Catalog(BaseModel):  # type: ignore[explicit-any]
         super().__init__(groups_=tuple(groups), **data)
 
     @model_validator(mode="after")
-    def _validate_spec_names(self) -> Catalog:
-        """Reject SECRET/CONFIG spec names that no axm-config key can hold.
+    def _validate_names(self) -> Catalog:
+        """Reject group ids / spec names that no axm-config segment can hold.
 
-        A SECRET spec writes a presence sentinel keyed by ``<name>_set`` and a
-        CONFIG spec writes its value keyed by ``<name>``; both go through
-        ``axm_config.set_``, whose key charset is ``^[A-Za-z0-9_]+$``. A name
-        carrying ``.``/``-`` could never round-trip, so it is a structural
-        error caught here (the same path :func:`load_catalog` takes) instead
-        of surfacing as a ``ConfigError`` mid-``run_setup``. NONSENSITIVE
-        specs are env-only and exempt.
+        Every ``group.id`` namespaces the group's axm-config writes
+        (``set_(group.id, ...)``) and every SECRET/CONFIG spec name is used as
+        an axm-config key; both must round-trip through ``axm_config.set_``.
+        The charsets are axm-config's (namespace ``^[a-z0-9]+(\\.[a-z0-9]+)*$``,
+        key ``^[a-z0-9]+(_[a-z0-9]+)*$``) so validation delegates to the
+        canonical :func:`axm_config.validate_segment` rather than mirroring the
+        patterns (the mirror had already diverged). An id/name that could never
+        round-trip is a structural error caught here (the same path
+        :func:`load_catalog` takes) instead of surfacing as a ``ConfigError``
+        mid-``run_setup``. NONSENSITIVE spec names are env-only and exempt; the
+        group id is checked regardless. axm-config's ``ConfigError`` is
+        normalised to ``ValueError`` so the failure arrives as pydantic's
+        ``ValidationError`` like any other model-validation error.
         """
-        for group in self.groups_:
-            for spec in group.specs:
-                if spec.sensitivity in _STORABLE and not _CONFIG_KEY_RE.match(
-                    spec.name
-                ):
-                    msg = (
-                        f"invalid credential spec name {spec.name!r} in group "
-                        f"{group.id!r}: a {spec.sensitivity.value.upper()} name "
-                        f"must match {_CONFIG_KEY_RE.pattern} to be a valid "
-                        "axm-config key"
-                    )
-                    raise ValueError(msg)
+        try:
+            for group in self.groups_:
+                axm_config.validate_segment(group.id, kind="namespace")
+                for spec in group.specs:
+                    if spec.sensitivity in _STORABLE:
+                        axm_config.validate_segment(spec.name, kind="key")
+        except axm_config.ConfigError as exc:
+            raise ValueError(str(exc)) from exc
         return self
 
     def group(self, gid: str) -> CredentialGroup:

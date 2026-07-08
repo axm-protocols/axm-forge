@@ -234,13 +234,17 @@ def get(group: str, name: str, instance: str | None = None) -> str:
     return resolver.resolve(grp, name, instance).value
 
 
-def bind(model: type[BaseModel], group: str, instance: str | None = None) -> BaseModel:
+def bind[ModelT: BaseModel](
+    model: type[ModelT], group: str, instance: str | None = None
+) -> ModelT:
     """Build ``model`` from the resolved values of every spec in ``group``.
 
     Each field is keyed by ``spec.name``; SECRET specs are wrapped with
     :func:`~axm_vault.secrets.as_secret` so the consumer model holds
     ``SecretStr``. A missing *required* spec propagates
-    :class:`MissingCredentialError`.
+    :class:`MissingCredentialError`. The return type is the concrete ``model``
+    type (generic over ``type[_ModelT]``), so a caller need not cast the
+    result back to its model.
     """
     grp = load_catalog().group(group)
     data: dict[str, object] = {}

@@ -92,6 +92,13 @@ def set(group: str, name: str, value: str) -> None:  # CLI verb
 def rotate(group: str, name: str, value: str, instance: str | None = None) -> None:
     """Rotate a SECRET to ``value``, retaining the previous one for one cycle.
 
+    The spec is resolved through the catalog first and MUST be
+    :data:`~axm_vault.models.Sensitivity.SECRET`: only SECRET specs live in the
+    keyring, so rotating a CONFIG/NONSENSITIVE spec (or an unknown name) would
+    write an orphan into the keyring that ``get`` never reads — a silent no-op
+    reported as success. Routing through the catalog turns that into an
+    up-front error, mirroring ``set``'s sensitivity check.
+
     Args:
         group: Credential group id.
         name: Credential name within the group.
@@ -99,6 +106,13 @@ def rotate(group: str, name: str, value: str, instance: str | None = None) -> No
         instance: Optional multi-instance segment.
     """
     try:
+        spec = load_catalog().group(group).spec(name)
+        if spec.sensitivity is not Sensitivity.SECRET:
+            msg = (
+                f"cannot rotate {group}.{name}: only SECRET credentials live "
+                f"in the keyring (this spec is {spec.sensitivity.value.upper()})"
+            )
+            raise ValueError(msg)
         rotate_secret(group, name, value, instance)
     except Exception as exc:  # noqa: BLE001 # CLI boundary: any error -> exit 1
         _die(exc)

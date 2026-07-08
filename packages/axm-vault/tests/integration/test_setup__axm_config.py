@@ -8,7 +8,10 @@ in-memory backend installed by autouse ``_isolated_keyring``. The TTY guard and
 
 This is the regression guard for AXM-2268: before the fix the SECRET branch
 wrote a dotted sentinel key (``<name>.set``) that ``axm_config``'s ``_KEY_RE``
-rejected with a ``ConfigError``.
+rejected with a ``ConfigError``. The write-only presence sentinel has since
+been removed (it had zero readers and polluted ``config.toml``); the guard now
+asserts the SECRET branch completes cleanly and writes *nothing* to
+``axm_config`` — the secret goes to the keyring alone.
 """
 
 from __future__ import annotations
@@ -43,9 +46,9 @@ def _secret_group() -> CredentialGroup:
 def test_setup_secret_branch_real_config(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC1, AC4: the SECRET branch completes against the real axm_config.
 
-    No ``ConfigError`` is raised when writing the presence sentinel, the
-    secret value lands in the keyring, and the sentinel is stored and
-    readable from ``axm_config`` afterwards (a value-free boolean marker).
+    No ``ConfigError`` is raised, the secret value lands in the keyring, and
+    ``axm_config`` receives *nothing* — neither the raw secret nor a presence
+    marker (the write-only sentinel was removed).
     """
     import axm_vault.setup as setup_mod
 
@@ -58,10 +61,9 @@ def test_setup_secret_branch_real_config(monkeypatch: pytest.MonkeyPatch) -> Non
 
     run_setup()
 
-    # The secret value itself goes only to the keyring, never to axm_config.
+    # The secret value goes only to the keyring, never to axm_config.
     assert KeyringStore().get("broker", "api_key") == "s3cr3t-value"
-    # The presence sentinel round-trips through the real axm_config store.
-    sentinel = axm_config.get("broker", "api_key_set")
-    assert sentinel in (True, "true", "True")
-    # The raw secret never leaks into the config store under any key.
+    # No sentinel is written any more, and the raw secret never leaks either:
+    # the SECRET branch touches axm_config not at all.
+    assert axm_config.get("broker", "api_key_set") is None
     assert axm_config.get("broker", "api_key") is None

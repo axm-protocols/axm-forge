@@ -2,10 +2,11 @@
 
 :func:`run_setup` walks the discovered credential catalog and, for every
 spec, prompts the operator for a value and routes it to its store by
-sensitivity: SECRET values go to the OS keyring (with a value-free
-presence sentinel in :mod:`axm_config`), CONFIG values go to ``axm-config``.
-NONSENSITIVE credentials are environment-only and are never prompted nor
-stored — storing them would create a second, stale source of truth.
+sensitivity: SECRET values go to the OS keyring (presence is derived by
+probing the keyring, never recorded as a separate marker), CONFIG values go
+to ``axm-config``. NONSENSITIVE credentials are environment-only and are never
+prompted nor stored — storing them would create a second, stale source of
+truth.
 
 The driver is a genuine *process-lifecycle* command (it reads from a TTY and
 blocks on operator input), which is why it lives as a plain function behind
@@ -32,14 +33,6 @@ if TYPE_CHECKING:
     from axm_vault.models import CredentialGroup, CredentialSpec
 
 __all__ = ["run_setup"]
-
-_SENTINEL_SUFFIX = "_set"
-"""Config key suffix marking a SECRET as present without storing its value.
-
-Underscore-joined (not dotted) so the derived sentinel key ``<name>_set``
-stays within axm-config's key charset (``^[A-Za-z0-9_]+$``); a dotted suffix
-would be rejected by ``axm_config.set_`` and break the SECRET branch.
-"""
 
 # Layers a setup probe consults for an existing value. ``default``/``prompt``
 # are excluded: a spec default is not a stored value, and prompting here would
@@ -80,7 +73,10 @@ def _setup_spec(
     """Prompt for one spec and route the answer to its store by sensitivity.
 
     NONSENSITIVE specs are skipped outright (env-only). A blank answer is a
-    no-op, preserving any value already present (idempotence, AC2).
+    no-op, preserving any value already present (idempotence, AC2). A SECRET
+    goes to the keyring only — presence is derived by probing the keyring
+    (see :func:`_is_present` / the *doctor*), never by a separate marker in
+    ``config.toml`` — while a CONFIG value goes to ``axm_config``.
     """
     if spec.sensitivity is Sensitivity.NONSENSITIVE:
         return
@@ -90,7 +86,6 @@ def _setup_spec(
         return
     if spec.sensitivity is Sensitivity.SECRET:
         keyring.set(group.id, spec.name, answer)
-        axm_config.set_(group.id, spec.name + _SENTINEL_SUFFIX, True)
     else:
         axm_config.set_(group.id, spec.name, answer)
 
