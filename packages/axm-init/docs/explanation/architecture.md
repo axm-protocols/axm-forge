@@ -110,7 +110,6 @@ Each adapter wraps a single external dependency:
 | `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding (`CopierConfig` is the Pydantic input model) |
 | `PyPIAdapter` / `AvailabilityStatus` | PyPI JSON API | Package name availability check |
 | `CredentialManager` | `PYPI_API_TOKEN` / `~/.pypirc` | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
-
 | `patch_all()` | `pyproject.toml`, `Makefile`, CI workflows | Workspace root file patching after member scaffold |
 
 ### 5. Models (`models/`)

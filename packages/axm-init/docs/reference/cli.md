@@ -37,6 +37,15 @@ axm-init scaffold [OPTIONS] [PATH]
 - `--check-pypi` with taken name → exit code 1
 - `--member` outside a workspace → exit code 1
 
+**Exit codes:**
+
+- `0` — scaffold succeeded
+- `1` — scaffold failed (validation, copier error, taken name, …)
+
+The exit code is authoritative in **both** text and `--json` mode: a failure
+always exits `1`, and the `--json` payload carries `success` plus a `message`
+field describing the cause. Scripts may route on `$?`.
+
 **Example:**
 
 ```bash
@@ -104,6 +113,15 @@ code 1 and a descriptive error message (text or JSON depending on `--json`).
 2. `~/.pypirc` `[pypi]` password field
 3. Interactive prompt (if TTY)
 
+**Exit codes:**
+
+- `0` — reservation succeeded (or dry-run completed)
+- `1` — reservation failed (missing identity/token, name taken, …)
+
+As with `scaffold`, the exit code is authoritative in both text and `--json`
+mode — a failed reservation exits `1` and the JSON payload carries `success`
+and `message`.
+
 **Example:**
 
 ```bash
@@ -148,8 +166,8 @@ axm-init check
 📋 AXM Check — my-project
    Path: /path/to/my-project
 
-  pyproject (27/27)
-    ✅ pyproject.exists                 4/4  pyproject.toml found
+  pyproject (29/29)
+    ✅ pyproject.pyproject_exists        4/4  pyproject.toml found
     ...
 
   Score: 97/100 — Grade A 🏆
@@ -173,8 +191,8 @@ axm-init check
    Path: /path/to/my-workspace
    Context: WORKSPACE
 
-  pyproject (27/27)
-    ✅ pyproject.exists                 4/4  pyproject.toml found
+  pyproject (29/29)
+    ✅ pyproject.pyproject_exists        4/4  pyproject.toml found
     ...
 
   Score: 100/100 — Grade A 🏆

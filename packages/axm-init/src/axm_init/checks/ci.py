@@ -1,4 +1,4 @@
-"""Audit checks for CI workflows (7 checks, 18 pts)."""
+"""Audit checks for CI workflows (6 checks, 16 pts)."""
 
 from __future__ import annotations
 
