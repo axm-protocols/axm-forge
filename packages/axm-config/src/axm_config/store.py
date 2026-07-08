@@ -28,6 +28,25 @@ from axm_config.home import axm_home, resolve_safe
 
 __all__ = ["CONFIG_FILENAME", "NAMESPACE_FILE_MODE", "NamespaceStore"]
 
+
+def _safe_home() -> Path:
+    """Return ``resolve_safe(axm_home())``, re-typing its refusal as ConfigError.
+
+    :func:`~axm_config.home.resolve_safe` raises a bare :class:`ValueError`
+    when ``~/.axm`` resolves inside a git checkout (a misconfigured ``HOME``).
+    The store re-raises that as :class:`~axm_config.resolver.UnsafeHomeError`
+    (a :class:`ConfigError`) so a consumer of ``get``/``load``/the CLI gets the
+    documented ``ConfigError`` contract instead of a raw ``ValueError``. The
+    import is deferred to break the ``resolver -> store -> resolver`` cycle.
+    """
+    from axm_config.resolver import UnsafeHomeError
+
+    try:
+        return resolve_safe(axm_home())
+    except ValueError as exc:
+        raise UnsafeHomeError(str(exc)) from exc
+
+
 NAMESPACE_FILE_MODE = 0o600
 CONFIG_FILENAME = "config.toml"
 
@@ -52,7 +71,7 @@ class NamespaceStore:
         checkout (a misconfigured ``HOME`` pointing into a repo). A path that
         would escape the home raises :class:`ValueError`.
         """
-        home = resolve_safe(axm_home())
+        home = _safe_home()
         path = (home / CONFIG_FILENAME).resolve()
         if home not in path.parents:
             msg = f"refusing out-of-home store path {path}: escapes {home}"
@@ -66,7 +85,7 @@ class NamespaceStore:
         previous storage layout; it is read-through and folded into
         ``config.toml`` on the next write.
         """
-        home = resolve_safe(axm_home())
+        home = _safe_home()
         path = (home / f"{ns}.toml").resolve()
         if home not in path.parents:
             msg = f"refusing out-of-home store path {path}: escapes {home}"
@@ -102,11 +121,15 @@ class NamespaceStore:
     def read(self, ns: str) -> dict[str, object]:
         """Return the section for ``ns``, or ``{}`` if absent/corrupt.
 
-        The ``[ns]`` section of ``config.toml`` (a nested table for a dotted
-        namespace) is returned. If the section is absent but a legacy
+        The ``[ns]`` section of ``config.toml`` is returned as a flat mapping
+        of that namespace's *own* keys: a dotted namespace maps to a nested
+        table, and any nested sub-table is a **child namespace**, not a key, so
+        it is excluded from the result. If the section is absent but a legacy
         ``~/.axm/<ns>.toml`` exists, the legacy contents are returned so the
         value stays visible before the fold. A missing file or a malformed
-        TOML payload both degrade to ``{}``.
+        TOML payload both degrade to ``{}``. Raises
+        :class:`~axm_config.resolver.UnsafeHomeError` (a :class:`ConfigError`)
+        only when ``~/.axm`` cannot be used safely (HOME inside a git repo).
         """
         section = _section(self._load_config(), ns)
         if section:
@@ -163,7 +186,7 @@ class NamespaceStore:
         enumerate "all known" namespaces when none is requested.
         """
         found = set(_leaf_paths(self._load_config()))
-        home = resolve_safe(axm_home())
+        home = _safe_home()
         for legacy in home.glob("*.toml"):
             if legacy.name != CONFIG_FILENAME:
                 found.add(legacy.stem)
@@ -212,11 +235,14 @@ class NamespaceStore:
 
 
 def _section(config: dict[str, object], ns: str) -> dict[str, object]:
-    """Return a *copy* of the ``ns`` section of ``config``, or ``{}``.
+    """Return a *copy* of the ``ns`` section's own keys, or ``{}``.
 
     A dotted ``ns`` walks nested tables (``storage.portfolio`` ->
     ``config["storage"]["portfolio"]``). A missing or non-table node yields
-    ``{}``. The returned dict is a shallow copy so callers can mutate freely.
+    ``{}``. Nested sub-tables are **child namespaces**, not keys of ``ns`` (a
+    node can be both a leaf and a prefix, e.g. ``[a]`` with ``x`` plus
+    ``[a.b]``), so they are dropped: the returned dict holds only ``ns``'s own
+    scalar/array keys. The result is a shallow copy so callers can mutate it.
     """
     node: object = config
     for segment in ns.split("."):
@@ -225,7 +251,7 @@ def _section(config: dict[str, object], ns: str) -> dict[str, object]:
         node = node[segment]
     if not isinstance(node, dict):
         return {}
-    return dict(node)
+    return {k: v for k, v in node.items() if not isinstance(v, dict)}
 
 
 def _set_section(
@@ -274,20 +300,24 @@ def _drop_section(config: dict[str, object], ns: str) -> None:
 
 
 def _leaf_paths(config: dict[str, object], prefix: str = "") -> list[str]:
-    """Return the dotted paths of every leaf (non-nested) table in ``config``.
+    """Return the dotted paths of every namespace section in ``config``.
 
-    A table whose values are all non-table is a namespace section; its dotted
-    path is yielded. A table that nests further tables is descended into. An
-    empty table is treated as a leaf namespace.
+    A node can be **both** a namespace (it carries its own scalar/array keys)
+    **and** a prefix (it nests further tables) -- e.g. ``[a]`` with ``x`` plus
+    ``[a.b]``. Such a node yields *both* its own path and the paths of its
+    children, so a mixed parent no longer hides its nested namespaces. A table
+    with at least one non-table value yields ``path``; every sub-table is
+    recursed into. An empty table is treated as a leaf namespace.
     """
     paths: list[str] = []
     for name, value in config.items():
         if not isinstance(value, dict):
             continue
         path = f"{prefix}{name}"
-        nested = {k: v for k, v in value.items() if isinstance(v, dict)}
-        if nested and len(nested) == len(value):
-            paths.extend(_leaf_paths(value, prefix=f"{path}."))
-        else:
+        sub_tables = {k: v for k, v in value.items() if isinstance(v, dict)}
+        has_own_keys = len(sub_tables) < len(value)
+        if has_own_keys or not value:
             paths.append(path)
+        for child in sub_tables:
+            paths.extend(_leaf_paths({child: value[child]}, prefix=f"{path}."))
     return paths

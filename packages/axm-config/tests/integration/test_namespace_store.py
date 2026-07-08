@@ -8,9 +8,28 @@ from pathlib import Path
 import pytest
 import tomli_w
 
+from axm_config import UnsafeHomeError
 from axm_config.store import NamespaceStore
 
 pytestmark = pytest.mark.integration
+
+
+def test_read_raises_unsafe_home_error_when_home_in_git_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P0-3: a HOME resolving inside a git checkout raises UnsafeHomeError.
+
+    ``resolve_safe`` refuses an ``~/.axm`` inside a git repo with a raw
+    ``ValueError``; the store must re-type that as ``UnsafeHomeError`` (a
+    ``ConfigError``) so a consumer of ``read``/``get`` gets the documented
+    error contract rather than an unhandled ``ValueError``.
+    """
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+
+    with pytest.raises(UnsafeHomeError):
+        store.read("demo")
 
 
 def test_write_then_read_roundtrip(

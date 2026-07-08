@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from axm_config import ConfigError, load, set_
+from axm_config import ConfigError, UnsafeHomeError, load, set_
 from axm_config.resolver import get
 
 
@@ -21,6 +21,17 @@ class _FakeStore:
 
     def delete(self, ns: str, key: str) -> None:
         self._data.get(ns, {}).pop(key, None)
+
+
+def test_unsafe_home_error_is_config_error() -> None:
+    """P0-3: ``UnsafeHomeError`` is a ``ConfigError`` so consumers catch it.
+
+    A HOME resolving inside a git repo surfaces as ``UnsafeHomeError`` from the
+    store; being a ``ConfigError`` subclass lets the CLI and :func:`load`
+    degrade cleanly (their ``except ConfigError`` already covers it) instead of
+    leaking the raw ``ValueError`` from ``resolve_safe``.
+    """
+    assert issubclass(UnsafeHomeError, ConfigError)
 
 
 def test_env_wins_over_file_and_default(monkeypatch: pytest.MonkeyPatch) -> None:

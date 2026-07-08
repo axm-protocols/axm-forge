@@ -57,3 +57,30 @@ def test_doctor_prints_provenance(tmp_path: Path) -> None:
     result = _run(["doctor", "demo"], tmp_path)
     assert result.returncode == 0, result.stderr
     assert "file" in result.stdout
+
+
+@pytest.mark.e2e
+def test_get_home_in_git_repo_exits_clean(tmp_path: Path) -> None:
+    """P0-3: a HOME inside a git repo exits 1 with a clean error, no traceback.
+
+    ``~/.axm`` resolving inside a git checkout is refused; the CLI must surface
+    it as a one-line stderr error and exit ``1`` (the maison convention) rather
+    than crash with a raw ``ValueError`` traceback.
+    """
+    (tmp_path / ".git").mkdir()
+
+    result = _run(["get", "demo", "key"], tmp_path)
+
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert result.stderr.startswith("error:")
+
+
+@pytest.mark.e2e
+def test_doctor_invalid_namespace_exits_clean(tmp_path: Path) -> None:
+    """P1-1: ``doctor <traversal>`` exits 1 with a clean error, no traceback."""
+    result = _run(["doctor", "../x"], tmp_path)
+
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert result.stderr.startswith("error:")

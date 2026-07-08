@@ -28,20 +28,32 @@ from axm_config.store import NamespaceStore
 if TYPE_CHECKING:
     from pydantic import BaseModel
 
-__all__ = ["ConfigError", "delete", "get", "load", "set_", "validate_segment"]
+__all__ = [
+    "ConfigError",
+    "UnsafeHomeError",
+    "delete",
+    "get",
+    "load",
+    "set_",
+    "validate_segment",
+]
 
 _store = NamespaceStore()
 
 _MISSING = object()
 
-#: A safe ``namespace``/``key`` segment: starts with an alphanumeric or
-#: underscore, then any of alphanumerics, dot, dash, underscore. Rejects path
-#: separators (``/``, ``\``), traversal (``..``), the empty string, and NUL.
-# A *namespace* may carry dotted/dashed structure (e.g. ``research.fred``);
-# dots are folded to ``_`` when deriving the env name. A *key* is the trailing
-# env-name segment and must stay free of dots/dashes so the env name is always
-# POSIX-valid and the ns/key boundary is recoverable (no key can reintroduce a
-# separator that ``_env_name`` already used for the namespace).
+#: A safe ``namespace``/``key`` segment. Both patterns are **lowercase-only**
+#: (no upper-case, so ``"Demo"`` and ``"demo"`` cannot fold to the same
+#: ``AXM_DEMO_*`` prefix) and reject path separators (``/``, ``\``), traversal
+#: (``..``), the empty string, and NUL.
+# A *namespace* (:data:`_NAMESPACE_RE`) is lowercase-alphanumeric segments
+# joined by dots -- no ``_`` and no ``-``; dots fold to ``__`` when deriving the
+# env name. A *key* (:data:`_KEY_RE`) is lowercase-alphanumeric segments joined
+# by a **single** ``_`` (no ``.``/``-``, no leading/trailing/doubled ``_``) so
+# the derived env name stays POSIX-valid and the ns/key boundary is
+# recoverable: only the namespace's dot-fold yields ``__``, a key can never
+# forge one, and the lone single ``_`` separates the folded namespace from the
+# key.
 _NAMESPACE_RE = re.compile(r"^[a-z0-9]+(\.[a-z0-9]+)*$")
 _KEY_RE = re.compile(r"^[a-z0-9]+(_[a-z0-9]+)*$")
 _SEGMENT_PATTERNS = {"namespace": _NAMESPACE_RE, "key": _KEY_RE}
@@ -49,6 +61,17 @@ _SEGMENT_PATTERNS = {"namespace": _NAMESPACE_RE, "key": _KEY_RE}
 
 class ConfigError(RuntimeError):
     """Raised when a required config value cannot be resolved."""
+
+
+class UnsafeHomeError(ConfigError):
+    """Raised when ``~/.axm`` cannot be used safely (e.g. a HOME in a git repo).
+
+    A :class:`ConfigError` subclass so every consumer surface that already
+    catches :class:`ConfigError` (the CLI, :func:`load`) degrades cleanly
+    instead of leaking the raw ``ValueError`` from
+    :func:`axm_config.home.resolve_safe`. The security refusal itself is
+    intentional; only its *type* is narrowed here so callers can handle it.
+    """
 
 
 def validate_segment(value: str, *, kind: str = "segment") -> str:
