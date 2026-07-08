@@ -97,27 +97,26 @@ def smelt(
 ) -> SmeltReport:
     """Run the compaction pipeline and return a report.
 
-    Baseline for ``savings_pct``:
+    Baseline for ``savings_pct``: the pipeline's **working text** — the
+    compact serialization the strategies actually operate on. On the
+    ``text=`` path this is the provided raw string; on the ``parsed=`` path
+    it is the compact dump ``json.dumps(parsed, separators=(",", ":"))``
+    (identical to ``report.original``).
 
-    - ``text=`` path: the baseline is the provided raw string, unchanged.
-    - ``parsed=`` path: the baseline is the *pretty* serialization
-      ``json.dumps(parsed, indent=2, ensure_ascii=False)``, not the compact
-      dump. A parsed object has no canonical textual form, so measuring
-      savings against an already-minified compact baseline would
-      structurally under-report the reduction. The pretty baseline reflects
-      the indented form a user would otherwise have read, so ``savings_pct``
-      matches the perceived reduction. ``report.original`` still holds the
-      compact serialization (the pipeline's working text).
+    Reporting savings against the working text keeps ``savings_pct`` honest:
+    it measures *only what the strategies achieved*, never the
+    pretty-vs-compact gap of :func:`resolve_input` (which no strategy
+    performed). A ``parsed=`` input on which no strategy applies therefore
+    reports ``0`` — not a phantom reduction. This single honest baseline
+    also seeds the keep-if-reduced guard, so a strategy whose output is
+    heavier than the working text can never be accepted.
     """
     text, parsed = resolve_input(text, parsed)
 
     fmt, detected_parsed = detect_format_parsed(text)
     if parsed is not None:
         detected_parsed = parsed
-        baseline = json.dumps(parsed, indent=2, ensure_ascii=False)
-    else:
-        baseline = text
-    original_tokens, b1 = count_with_backend(baseline)
+    original_tokens, b1 = count_with_backend(text)
 
     strats = resolve_strategies(strategies, preset)
 

@@ -317,21 +317,31 @@ class TestSmeltEdgeCases:
 # --- merged from test_parsed_input.py ---
 
 
-def test_smelt_parsed_baseline_is_faithful() -> None:
-    """AC1: parsed-path savings measured against the pretty baseline.
+def test_smelt_parsed_baseline_is_the_working_text() -> None:
+    """AC1: parsed-path savings are measured against the compact working text.
 
-    For a multi-key object the pretty (indent=2) baseline has more tokens
-    than the compact dump, so savings_pct must be strictly positive and
-    exceed what the already-minified compact baseline would yield (0).
+    The baseline is ``report.original`` (the compact serialization the
+    strategies operate on), NOT the pretty form. Savings therefore reflect
+    only what strategies achieved, never the pretty-vs-compact gap of
+    ``resolve_input`` (which no strategy performed).
     """
     parsed = {"a": 1, "b": [1, 2, 3], "c": {"d": 4}}
     report = smelt(parsed=parsed)
 
-    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
-    pretty_tokens = count(pretty)
+    assert report.original_tokens == count(report.original)
 
-    assert report.savings_pct > 0
-    assert report.original_tokens == pretty_tokens
+
+def test_smelt_parsed_no_op_reports_zero_savings() -> None:
+    """A parsed input on which no strategy applies must NOT report phantom savings.
+
+    Regression for the pretty-baseline false-green: ``smelt`` used to seed the
+    baseline from the pretty dump, so a no-op parsed input reported a positive
+    ``savings_pct`` while ``strategies_applied`` was empty.
+    """
+    report = smelt(parsed={"a": 1}, strategies=["tabular"])
+
+    assert report.strategies_applied == []
+    assert report.savings_pct == 0.0
 
 
 def test_smelt_text_path_baseline_unchanged() -> None:

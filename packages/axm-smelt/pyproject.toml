@@ -141,8 +141,16 @@ hash = "28c783a5b834"
 reason = "check_tool_error and count_tool_error exercise the None-input failure path on two distinct tool SUTs (SmeltCheckTool vs SmeltCountTool) — each test pins its tool's error contract; cross-file fold would relocate tool-local checks away from their entry-point module"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "6af3c08c7b6f"
-reason = "16-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments) — each test pins a separate detector branch; parametrization would erase the per-format intent"
+hash = "d084bccd99fa"
+reason = "20-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments, single-heading, try_json/try_markdown probes) — each test pins a separate detector branch; parametrization would erase the per-format intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9f782e0b98e8"
+reason = "two counter tests pin distinct tiktoken contracts (empty-string zero-count vs non-empty count monotonicity) with different inputs and assertion shapes — parametrization would conflate two independent counter invariants"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1accfb95b015"
+reason = "strip_quotes format-guard pair asserts the JSON-only guard on two distinct non-JSON formats (TEXT prose vs MARKDOWN) with different literal inputs — each pins that a separate format is left untouched, the whole point being that the guard is not JSON-specific to one format"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "a921573c8fe1"

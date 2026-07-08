@@ -13,6 +13,10 @@ from axm_smelt.strategies.base import SmeltStrategy
 
 __all__ = ["MinifyStrategy"]
 
+# A ``#`` starting a line (outside a quoted scalar) is a YAML comment that
+# parse+dump would silently drop.
+_YAML_COMMENT_RE = re.compile(r"(?m)^\s*#")
+
 
 class MinifyStrategy(SmeltStrategy):
     """Remove unnecessary whitespace."""
@@ -73,7 +77,15 @@ class MinifyStrategy(SmeltStrategy):
 
     @staticmethod
     def _minify_yaml(text: str) -> str:
-        """Compact YAML via parse+dump with flow style."""
+        """Compact YAML via parse+dump with flow style.
+
+        ``yaml.safe_load`` + ``yaml.dump`` silently drops all comments, so a
+        source carrying a ``#`` comment line would lose content — often the
+        most useful part to a reader. When a comment is present the input is
+        returned unchanged: the ``safe`` preset must never delete content.
+        """
+        if _YAML_COMMENT_RE.search(text):
+            return text
         try:
             data = yaml.safe_load(text)
             if not isinstance(data, (dict, list)):

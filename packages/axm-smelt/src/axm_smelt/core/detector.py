@@ -19,6 +19,8 @@ _YAML_INDICATORS = re.compile(r"(^---|^\w[\w\s]*:.*$|^\s*-\s+\S)", re.MULTILINE)
 
 def try_json(stripped: str) -> Format | None:
     """Return ``Format.JSON`` if *stripped* is valid JSON, else ``None``."""
+    if not stripped:
+        return None
     if stripped[0] in ("{", "["):
         try:
             json.loads(stripped)
@@ -197,9 +199,6 @@ def try_csv(stripped: str) -> Format | None:
     if any(len(row) != width for row in rows):
         return None
     return Format.CSV
-
-
-_PROBES = [try_json, try_xml, try_yaml, try_markdown, try_toml, try_csv]
 
 
 def detect_format(text: str) -> Format:

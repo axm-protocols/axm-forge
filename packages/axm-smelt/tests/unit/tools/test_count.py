@@ -35,8 +35,11 @@ def test_count_tool_model(tool: SmeltCountTool) -> None:
 
 
 def test_count_tool_error(tool: SmeltCountTool) -> None:
+    """Nominal failure path: data=None -> success=False + readable error."""
     result = tool.execute(data=None)
     assert result.success is False
+    assert result.error
+    assert "data" in result.error.lower()
 
 
 def test_count_tool_agent_hint() -> None:

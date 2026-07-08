@@ -52,6 +52,18 @@ def test_minify_yaml_basic() -> None:
     assert parsed == {"key": "value", "list": ["item1", "item2"]}
 
 
+def test_minify_yaml_with_comment_is_preserved() -> None:
+    """parse+dump drops comments, so commented YAML is returned unchanged.
+
+    Regression: the ``safe`` preset (minify) must never delete content; a
+    ``#`` comment line is content the flow-style dump would silently lose.
+    """
+    text = "# important context for the reader\nhost: localhost\nport: 8080"
+    result = MinifyStrategy().apply(SmeltContext(text=text, format=Format.YAML)).text
+    assert result == text
+    assert "# important context" in result
+
+
 def test_minify_yaml_irregular_ws() -> None:
     text = "key:   value  \n\n\nlist:\n    - item1\n    - item2  \n"
     result = MinifyStrategy().apply(SmeltContext(text=text)).text

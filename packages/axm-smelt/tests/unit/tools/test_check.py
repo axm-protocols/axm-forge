@@ -42,8 +42,11 @@ def test_check_tool_estimates(tool: SmeltCheckTool, json_text: str) -> None:
 
 
 def test_check_tool_error(tool: SmeltCheckTool) -> None:
+    """Nominal failure path: data=None -> success=False + readable error."""
     result = tool.execute(data=None)
     assert result.success is False
+    assert result.error
+    assert "data" in result.error.lower()
 
 
 def test_check_tool_agent_hint() -> None:
