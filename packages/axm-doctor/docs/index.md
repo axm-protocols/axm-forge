@@ -11,17 +11,17 @@ hide:
 </p>
 
 <p align="center">
-  <a href="https://github.com/axm-systems/axm-draft-workspace/actions/workflows/ci.yml">
-    <img src="https://github.com/axm-systems/axm-draft-workspace/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  <a href="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/ci.yml">
+    <img src="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
-  <a href="https://github.com/axm-systems/axm-draft-workspace/actions/workflows/axm-quality.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-systems/axm-draft-workspace/gh-pages/badges/axm-doctor/axm-init.json" alt="axm-init" />
+  <a href="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/axm-quality.yml">
+    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/axm-init.json" alt="axm-init" />
   </a>
-  <a href="https://github.com/axm-systems/axm-draft-workspace/actions/workflows/axm-quality.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-systems/axm-draft-workspace/gh-pages/badges/axm-doctor/axm-audit.json" alt="axm-audit" />
+  <a href="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/axm-quality.yml">
+    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/axm-audit.json" alt="axm-audit" />
   </a>
-  <a href="https://github.com/axm-systems/axm-draft-workspace/actions/workflows/axm-quality.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-systems/axm-draft-workspace/gh-pages/badges/axm-doctor/coverage.json" alt="Coverage" />
+  <a href="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/axm-quality.yml">
+    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/coverage.json" alt="Coverage" />
   </a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
 </p>
@@ -39,8 +39,8 @@ uv add axm-doctor
 ```python
 from axm_doctor import detect_tool, detect_auth
 
-# Is a tool on PATH? (pure stdlib, no AXM dependency)
-print(detect_tool("uv"))      # ToolStatus(state='present', version='uv 0.5.1', ...)
+# Is a tool on PATH? (stdlib + pydantic only, no AXM dependency imported)
+print(detect_tool("uv"))      # ToolStatus(state='present', version='0.5.1', ...)
 
 # Is a third-party CLI logged in? (read-only: exit code / credential-file existence)
 print(detect_auth("gh"))      # AuthStatus(state='logged_in', login_cmd=None)
@@ -71,7 +71,7 @@ provision_missing(confirm=True)  # delegates to vault's run_setup(only=...) — 
 
 ## Features
 
-- ✅ **Bootstrap layer** — `detect_tool` / `detect_auth` depend on stdlib + pydantic only, so they run before any AXM package is installed.
+- ✅ **Bootstrap layer** — `detect_tool` / `detect_auth` depend on stdlib + pydantic only; importing them pulls no AXM package (deferred `axm-config` import + PEP 562 lazy re-exports), so they run before the rest of AXM is installed.
 - ✅ **Config-resolvability checks** — `detect_git_identity` (a `[git].default` in the **axm-config** store, else `git config --get user.email` exit code) and `detect_gh_config` (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent) report whether a git committer identity and `gh` base config are resolvable — value-free (presence + exit code only, never the value), degrading to `unconfigured` on error. The `env_doctor` tool surfaces them under a `config` key.
 - ✅ **Read-only auth** — state comes from an exit code or a non-empty credential-file check (a 0-byte file is `logged_out`); on macOS, `claude` is probed via the login Keychain entry `Claude Code-credentials` (exit code only). The file is stat'd, not opened, and the Keychain value is never read, so the token value is never read.
 - ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus` / `GitIdentityStatus` / `GhConfigStatus`; `AuthStatus` carries a `login_cmd` to recover from `logged_out`, never a token.

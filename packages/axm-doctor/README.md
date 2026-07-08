@@ -3,9 +3,9 @@
 Env bootstrap + auth-status doctor (detect, propose, orchestrate)
 
 <p align="center">
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-systems/axm-draft-workspace/gh-pages/badges/axm-doctor/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-systems/axm-draft-workspace/gh-pages/badges/axm-doctor/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-systems/axm-draft-workspace/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-systems/axm-draft-workspace/gh-pages/badges/axm-doctor/coverage.json" alt="Coverage"></a>
+  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/coverage.json" alt="Coverage"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
 </p>
 
@@ -17,7 +17,7 @@ Env bootstrap + auth-status doctor (detect, propose, orchestrate)
 
 ## Features
 
-- ✅ **Pure-stdlib detection** — `detect_tool` / `detect_auth` answer "is `uv` installed?" / "is `gh` logged in?" with stdlib + pydantic only, so they run as the bootstrap layer before any AXM package is importable.
+- ✅ **Bootstrap-safe detection** — `detect_tool` / `detect_auth` answer "is `uv` installed?" / "is `gh` logged in?" with stdlib + pydantic only. Importing `axm_doctor` (or `axm_doctor.detect`) pulls **no** AXM package: `detect.py` defers its `axm-config` import and the package re-exports lazily (PEP 562), so the detect surface runs as the bootstrap layer before the rest of AXM is installable. (The `orchestrate` and `tools` surfaces do depend on `axm-vault` / `axm.tools`; they are imported only when first used.)
 - ✅ **Config-resolvability checks** — `detect_git_identity` reports whether a git committer identity is resolvable (a truthy `[git].default` in the **axm-config** store, else the exit code of `git config --get user.email`) and `detect_gh_config` reports whether `gh` carries a base config (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent). Value-free like auth: only the store presence and exit codes are inspected, never the identity/config value. Both degrade to `unconfigured` on any error instead of raising. The `env_doctor` tool surfaces them under a `config` key (`{git: {state}, gh: {state}}`).
 - ✅ **Read-only auth** — auth state is inferred from an exit code (`gh auth status`; on macOS `claude` via the login Keychain entry `Claude Code-credentials`, exit code only) or the **presence of a non-empty** credential file (`~/.claude/.credentials.json` off macOS, `~/.codex/auth.json`); the file is stat'd, not opened and the Keychain value is never read, so the token value never transits (a 0-byte file is reported `logged_out`, not `logged_in`).
 - ✅ **Frozen result models** — `ToolStatus`, `AuthStatus`, `GitIdentityStatus` and `GhConfigStatus` are immutable pydantic models; `AuthStatus` carries the recovery `login_cmd` but never a token.
@@ -87,14 +87,14 @@ axm-doctor = { workspace = true }
 
 ## Development
 
-This package is part of the **axm-draft-workspace** uv workspace.
+This package is part of the **axm-forge** uv workspace.
 
 ```bash
-# Run tests for this package
-uv run pytest --package axm-doctor
+# Run this package's tests (from the workspace root)
+uv run --package axm-doctor pytest packages/axm-doctor
 
-# From workspace root
-make test-axm-doctor
+# Lint + type-check + tests for the whole workspace
+make check
 ```
 
 ## License

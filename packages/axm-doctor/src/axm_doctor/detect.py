@@ -145,7 +145,13 @@ def _cred_file_present(tool: str) -> bool:
 
 
 def _probe_version(name: str) -> str | None:
-    """Return the first line of ``<name> --version`` output, or ``None``."""
+    """Return a dotted version parsed from ``<name> --version``, or ``None``.
+
+    Extracts the LAST dotted number in the output (so a banner like
+    ``Python 3.12 wrapper, tool 2.1.0`` yields ``2.1.0``, not the interpreter
+    partial); falls back to the first line only when no dotted number is
+    present. ``None`` when the tool cannot be run.
+    """
     try:
         proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
             [name, "--version"],

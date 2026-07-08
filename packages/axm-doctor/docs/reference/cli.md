@@ -14,8 +14,8 @@ and the `axm-vault` setup hint.
 
 ```console
 $ axm-doctor check
-tool	uv	present	uv 0.9.18
-tool	gh	present	gh version 2.87.3
+tool	uv	present	0.9.18
+tool	gh	present	2.87.3
 tool	codex	absent	-
 auth	gh	logged_in	-
 auth	claude	logged_out	claude login
@@ -23,7 +23,10 @@ secret	research.fred.api_key	axm-vault set research.fred.api_key
 ```
 
 `check` **installs nothing and prompts for nothing** — it is safe to run in CI
-or a hook.
+or a hook. Note it always exits `0` (a report, not a gate) and it prints only
+the `tools` / `auth` / `secrets` rows; the git-identity and `gh` config states
+are **not** in the CLI report — they are exposed by the `env_doctor` MCP tool
+under its `config` key.
 
 ## `axm-doctor bootstrap`
 
@@ -75,7 +78,7 @@ The same read-only surface is available as two `axm.tools` entry points (MCP +
 
 | Tool | Returns |
 | -- | -- |
-| `env_doctor` | `{tools, auth, secrets}` — tool presence/version, third-party auth state, and value-free missing secrets. Read-only. |
+| `env_doctor` | `{tools, auth, secrets, config}` — tool presence/version, third-party auth state, value-free missing secrets, and the git-identity / `gh` config states (`config = {git: {state}, gh: {state}}`). Read-only. |
 | `auth_status` | `{auth: {tool: {state, login_cmd}}}` for the third-party binaries. The token value is **never** serialized. |
 
 ## Python API
