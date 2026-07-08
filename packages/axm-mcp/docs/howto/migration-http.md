@@ -12,9 +12,29 @@ This guide walks through migrating your axm-mcp setup from the default stdio tra
 | Protocol sessions | Per-conversation only | Persistent |
 | CPU usage | Risk of zombie processes | Single managed process |
 
+## Concurrency model (what "shared" really means)
+
+The HTTP server serves **many conversations from one process**, so it is
+explicitly designed not to let one slow call stall the others:
+
+- **Sync tools run off the event loop.** In HTTP mode every tool's synchronous
+  body is offloaded to a worker thread (`asyncio.to_thread`), so a multi-minute
+  `verify` cannot freeze `/health`, keep-alives, or other conversations.
+- **Per-key serialization.** Calls that mutate the same resource *are*
+  serialized on purpose: `git_*` tools by (normalized) repo path, `protocol_*`
+  tools by `session_id`. Two conversations committing to the same repo take
+  turns; unrelated repos run in parallel.
+- **Lock timeout is graceful.** If a lock cannot be acquired within its timeout
+  (30 s), the call returns a structured `{success: false, error: "… busy, retry"}`
+  rather than a raw protocol error.
+
+This holds whether a tool is called directly or through `axm_call` — both go
+through the same execution path.
+
 ## Prerequisites
 
-- axm-mcp >= 0.11.0
+- A recent `axm-mcp` with the `serve`/`status`/`stop` subcommands (run
+  `axm-mcp --help` to confirm they are present)
 - macOS (launchd integration) or any OS (manual `serve`)
 
 ## Step 1 — Start the server

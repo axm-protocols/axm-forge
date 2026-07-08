@@ -106,6 +106,12 @@ the always-on built-ins (`verify`, `web_fetch`, `list_tools`). Every other
 discovered tool stays reachable through `axm_call`. Set `AXM_MCP_FACADE=0` to fall
 back to the legacy behaviour (register every discovered tool directly).
 
+To trim a shared server's surface, set `AXM_DISABLE_TOOLS` to a comma-separated
+list of tool names or glob patterns to exclude at discovery time
+(e.g. `AXM_DISABLE_TOOLS=bib_*,ticket_*,ast_dead_code`). See the
+[CLI reference](docs/reference/cli.md#environment-variables) for the full
+environment-variable table.
+
 | Facade meta-tool | Description |
 |---|---|
 | `axm_search` | Search the tool catalog by keyword/tag → name + summary + domain + tags |

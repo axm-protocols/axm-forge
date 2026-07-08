@@ -18,6 +18,12 @@ Run a one-shot quality check on any Python project.
 
 ## Output Structure
 
+`verify` is a dual-format tool: it returns a `ToolResult` whose **`data`** is the
+structured dict below (what hooks and gates read) and whose **`text`** is a
+compact rendered summary (what the MCP agent sees, e.g.
+`verify | audit A 97.0 (30/31) · governance A 100 (35/35)`). The `text` view is
+rendered by `format_verify_text`; the `data` view is:
+
 ```json
 {
   "audit": {
@@ -31,8 +37,10 @@ Run a one-shot quality check on any Python project.
         "fix_hint": "Add type hints",
         "context": {
           "affected_modules": ["foo.bar"],
-          "callers": ["cli.py:58"],
-          "impact_score": 0.7
+          "callers": [{"symbol": "cli.main", "location": "cli.py:58"}],
+          "test_files": ["tests/unit/test_foo.py"],
+          "impact_score": "HIGH",
+          "symbols_analyzed": 2
         }
       }
     ]
@@ -45,6 +53,15 @@ Run a one-shot quality check on any Python project.
   }
 }
 ```
+
+The `context` block (added by AST enrichment, `enrich_failure`) reports:
+
+- **`impact_score`** — an **ordinal** string (`"LOW"` < `"MEDIUM"` < `"HIGH"`),
+  the maximum across all analyzed symbols — **not** a numeric ratio.
+- **`callers`** — a list of **dicts** (expanded from `ast_impact`'s callers), not
+  bare location strings; truncated past a cap with a trailing `note` entry.
+- **`test_files`** — de-duplicated test files touching the affected symbols.
+- **`symbols_analyzed`** — how many symbols were successfully analyzed.
 
 ## Graceful Degradation
 

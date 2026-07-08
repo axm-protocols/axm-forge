@@ -17,6 +17,53 @@ Starts the FastMCP server, auto-discovers all installed `axm.tools` entry points
 
 The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "tools_count": N}`.
 
+### Subcommands
+
+| Command | Flags | Description |
+|---|---|---|
+| `axm-mcp` (no subcommand) | — | Run in **stdio** mode (backward-compatible default) |
+| `axm-mcp serve` | `--host` (default `127.0.0.1`), `--port` (default `9427`) | Start the **Streamable HTTP** server |
+| `axm-mcp status` | `--host`, `--port` | Query the running server's `/health` endpoint |
+| `axm-mcp stop` | — | Send `SIGTERM` to the running server (identity-verified) |
+| `axm-mcp install` | `--port`, `--binary <path>` | Install as a launchd service (macOS) |
+| `axm-mcp uninstall` | — | Remove the launchd service |
+
+#### `serve`
+
+Writes a **transactional** PID file (`~/.axm/mcp-server.pid`): it refuses to
+start when a live `axm-mcp` server already owns the file, and on exit only
+removes the file when it still holds this process's PID — so a failed start
+(e.g. a bind conflict) never deletes a healthy server's PID file.
+
+#### `status`
+
+Prints `Server running on HOST:PORT (N tools)` on a healthy `/health`, or
+`Server not running` on any transport error (connect refused, read timeout,
+malformed body). Exits non-zero when the server is unreachable or replies with
+a non-200.
+
+#### `stop`
+
+Reads the PID file, verifies the target process's command line carries the
+`axm-mcp` marker (guarding against OS PID reuse), then sends `SIGTERM`. If the
+PID is stale or has been reused by an unrelated process, no signal is sent and
+the stale PID file is cleaned up.
+
+### Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
+
+### Environment Variables
+
+| Variable | Default | Effect |
+|---|---|---|
+| `AXM_MCP_FACADE` | `1` | `1` (or unset) exposes the compact facade; `0`/`false`/`no` registers every discovered tool directly (legacy) |
+| `AXM_MCP_PORT` | `9427` | HTTP bind port when `--port` is not passed to `serve` |
+| `AXM_DISABLE_TOOLS` | *(empty)* | Comma-separated list of tool **names or glob patterns** excluded at discovery time — e.g. `bib_*,ticket_*,ast_dead_code`. Useful to trim a shared server's surface. Applied in `discover_tools()`; a disabled tool is neither registered nor indexed by the facade |
+
 ### Service Management
 
 | Command | Description |
