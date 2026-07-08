@@ -29,7 +29,8 @@ nav:
     - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
-    - API: reference/api.md
+    - API Guide: reference/api.md
+    - Python API: reference/api/
     - Describe Text: reference/describe-text.md
     - Inspect Detail: reference/inspect-detail.md
     - Inspect Resolve: reference/inspect-resolve.md

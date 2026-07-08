@@ -867,8 +867,11 @@ def trace_flow(  # noqa: PLR0913
         pkg: Analyzed package info.
         entry: Name of the entry point function to trace from.
         max_depth: Maximum BFS depth (default 5).
-        cross_module: If True, resolve imports and continue BFS
-            into external modules on-demand.
+        cross_module: If True, resolve imported symbols across
+            package boundaries and record each as a single-hop leaf
+            (``resolved_module`` populated). Cross-module callees are
+            surfaced but not further expanded — the BFS does not
+            continue into the external module's own callees.
         detail: Level of detail — ``"trace"`` (default) returns
             names and positions only; ``"source"`` enriches each
             step with the function's source code; ``"compact"``

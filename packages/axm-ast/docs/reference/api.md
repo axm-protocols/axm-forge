@@ -73,7 +73,7 @@ A JSON-serializable dict with the following top-level keys:
 | `stack` | `dict` | Detected technology stack |
 | `patterns` | `dict` | Module/function/class counts and layout |
 | `top_modules` | `list[dict]` | Modules included at the requested depth |
-| `graph` | `dict` | Dependency graph (depth `None` only) |
+| `dependency_graph` | `dict` | Dependency graph (depth `None` only) |
 
 ---
 
@@ -479,7 +479,7 @@ Run impact analysis on one or more symbols. When `symbol` contains newline chara
 | Field | Detail=full | Detail=compact |
 |---|---|---|
 | `metadata["impact"]` | Enriched report dict with `test_paths`, `packages` | Pre-formatted compact string |
-| `metadata["packages"]` | Space-separated cross-package paths | *absent* |
+| `metadata["packages"]` | Space-separated cross-package **directory names** (not full paths) | *absent* |
 | `text` | Human-readable render via `render_impact_text` (single) or `render_impact_batch_text` (multi) | `None` |
 
 Returns `HookResult.fail(...)` when analysis raises an exception.
