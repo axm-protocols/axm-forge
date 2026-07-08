@@ -46,14 +46,26 @@ underscore (so `research.fred` → `RESEARCH__FRED`):
 AXM_RESEARCH__FRED_API_KEY=from-env axm-config get research.fred api_key  # -> from-env
 ```
 
-## Step 3: Run the Tests
+## Step 3: Handle a misconfigured `HOME`
+
+`axm-config` refuses a `~/.axm` that resolves inside a git checkout (a `HOME`
+pointing into a repo, e.g. dotfiles managed under a `~/.git`). The refusal is a
+typed `ConfigError` (`UnsafeHomeError`), so the CLI exits `1` with a one-line
+error rather than a raw traceback, and `get`/`load` propagate a catchable
+exception:
 
 ```bash
-cd packages/axm-config
-make check
+axm-config get demo key
+# error: refusing in-repo path .../.axm: resolves inside the git checkout at ...
 ```
 
-This runs lint + type check + security audit + tests.
+## Step 4: Run the Tests
+
+The package has no local `Makefile`; run its suite from the workspace with `uv`:
+
+```bash
+uv run --package axm-config --directory packages/axm-config pytest -x -q
+```
 
 ## Next Steps
 

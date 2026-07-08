@@ -71,8 +71,11 @@ segments make the upper-casing a bijection (so `Demo` cannot collide with
 `demo`), a namespace carries no `_` of its own and no `-`, and a key can
 never forge a `__` (single-`_`-joined, no edge/doubled `_`) — so a `__` only
 ever comes from a namespace dot and the lone single `_` marks the
-namespace/key boundary. So `doctor`'s reverse enumeration round-trips it
-exactly.
+namespace/key boundary. `doctor`'s reverse enumeration recovers a namespace's
+keys from the environment by the same rule; because the `AXM_A_` prefix is also
+a prefix of a **child** namespace's variables (`AXM_A__B_C` belongs to `a.b`),
+each recovered suffix is validated against the key pattern so a child's
+variable is never surfaced as a phantom key of the parent.
 
 ## Python API
 
