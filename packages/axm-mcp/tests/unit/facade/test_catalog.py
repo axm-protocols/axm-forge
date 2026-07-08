@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 from axm.tools.base import ToolResult
@@ -201,6 +203,84 @@ class TestCallFailureContract:
         assert "success: False" in out
         assert "data_success: shadow" in out
         assert "error: real error" in out
+
+
+class TestSingleExecutionPath:
+    """The facade path (``call``/``acall``) runs through the SAME wrapper as the
+    direct MCP path — so tracing, exception flattening and locking are invariant
+    regardless of how a tool is reached. Each test here fails on the pre-fix code
+    that executed ``_exec_fn(tool)(**args)`` directly, bypassing the wrapper.
+    """
+
+    def test_call_emits_a_trace(self) -> None:
+        """AXM invariant '1 call = 1 trace': the facade path traces too.
+
+        The old direct-exec path emitted NO trace (it never touched the
+        wrapper). Delegating to the sync wrapper restores it.
+        """
+        cat = _catalog(audit=_AuditTool())
+        with patch("axm_mcp.wrapping.log_external_step") as mock_log:
+            cat.call("audit", {"path": "."})
+        mock_log.assert_called_once()
+        assert mock_log.call_args[0][0] == "audit"
+
+    def test_call_flattens_a_raised_exception(self) -> None:
+        """A tool raising ValueError is flattened, not propagated.
+
+        The old direct-exec path let a ``ValueError`` escape to the caller
+        (a raw MCP protocol error); the wrapper turns it into the AXM error
+        envelope — the identical contract the direct path already had.
+        """
+
+        class _Boom:
+            def execute(self, **_kwargs: Any) -> ToolResult:
+                raise ValueError("kaboom")
+
+        out = _catalog(boom=_Boom()).call("boom")
+        assert "success: False" in out
+        assert "ValueError" in out
+        assert "kaboom" in out
+
+    @pytest.mark.asyncio
+    async def test_acall_matches_call_contract(self) -> None:
+        """``acall`` (HTTP entry) renders identically to ``call`` in stdio."""
+        cat = _catalog(audit=_AuditTool())
+        args = {"path": "."}
+        assert await cat.acall("audit", args) == cat.call("audit", args)
+
+    @pytest.mark.asyncio
+    async def test_acall_holds_lock_for_git_tool(self) -> None:
+        """AXM lock invariant via the facade: two concurrent ``acall`` on the
+        same git repo path serialize (proving the lock is HELD on this path).
+
+        The old direct-exec path never acquired ``_git_lock`` — the two calls
+        would interleave. Delegating to the async wrapper serializes them.
+        """
+        import axm_mcp.wrapping as _wrapping
+
+        order: list[str] = []
+
+        class _SlowGit:
+            def execute(self, *, path: str = "", **_kwargs: Any) -> ToolResult:
+                import time
+
+                order.append("start")
+                time.sleep(0.05)
+                order.append("end")
+                return ToolResult(success=True, data={"path": path}, text="ok")
+
+        cat = _catalog(git_commit=_SlowGit())
+        original = _wrapping._HTTP_MODE
+        try:
+            _wrapping._HTTP_MODE = True
+            await asyncio.gather(
+                cat.acall("git_commit", {"path": "/repo"}),
+                cat.acall("git_commit", {"path": "/repo"}),
+            )
+        finally:
+            _wrapping._HTTP_MODE = original
+        # Serialized: first call ends before the second starts.
+        assert order == ["start", "end", "start", "end"]
 
 
 class TestParamHint:

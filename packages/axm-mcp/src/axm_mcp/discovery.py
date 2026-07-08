@@ -11,12 +11,7 @@ from axm_mcp.schema import (
     IntrospectableFn,
     apply_signature,
 )
-from axm_mcp.wrapping import (
-    _build_plain_wrapper,
-    _build_tool_wrapper,
-    _wrap_with_lock,
-    _WrapperCtx,
-)
+from axm_mcp.wrapping import build_wrappers
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -182,15 +177,8 @@ def register_one(  # type: ignore[explicit-any]
         if is_plain
         else cast(IntrospectableFn, cast(ToolLike, tool).execute)
     )
-    # Protocol tools already trace via orchestrator.run_tool()
-    ctx = _WrapperCtx(name=name, should_trace=not name.startswith("protocol_"))
-
-    sync_wrapper = (
-        _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
-    )
-    sync_wrapper.__doc__ = exec_fn.__doc__ or f"Execute {name} tool."
-
-    wrapper = _wrap_with_lock(sync_wrapper, name)
+    # Single construction seam — the same wrappers the facade path reuses.
+    _sync_wrapper, wrapper = build_wrappers(name, tool)
     apply_signature(wrapper, exec_fn, override_module)
 
     # Register AFTER setting the signature so FastMCP sees it.

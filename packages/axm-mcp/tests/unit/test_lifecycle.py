@@ -119,14 +119,21 @@ class TestInstall:
 
             mock_plist_path.write_text.assert_called_once()
             mock_log_dir.mkdir.assert_called_once_with(parents=True, exist_ok=True)
-            mock_run.assert_called_once()
-            args = mock_run.call_args[0][0]
-            assert args[0].endswith("launchctl")
-            assert args[1] == "bootstrap"
-            assert "gui/501" in args[2]
+            # Idempotent: a best-effort bootout precedes the bootstrap.
+            assert mock_run.call_count == 2
+            bootout_args = mock_run.call_args_list[0][0][0]
+            assert bootout_args[1] == "bootout"
+            bootstrap_args = mock_run.call_args_list[1][0][0]
+            assert bootstrap_args[0].endswith("launchctl")
+            assert bootstrap_args[1] == "bootstrap"
+            assert "gui/501" in bootstrap_args[2]
 
     def test_install_fails_on_launchctl_error(self) -> None:
-        """install() exits 1 when launchctl bootstrap fails."""
+        """install() exits 1 when launchctl bootstrap fails.
+
+        Only the ``bootstrap`` (second) call fails; the best-effort ``bootout``
+        (first) succeeds, so the failure is genuinely the load step.
+        """
         with (
             patch(
                 "axm_mcp.lifecycle.shutil.which",
@@ -136,9 +143,12 @@ class TestInstall:
             patch("axm_mcp.lifecycle.LOG_DIR"),
             patch(
                 "axm_mcp.lifecycle.subprocess.run",
-                side_effect=subprocess.CalledProcessError(
-                    1, "launchctl", stderr="already loaded"
-                ),
+                side_effect=[
+                    MagicMock(),  # bootout (best-effort) succeeds
+                    subprocess.CalledProcessError(
+                        1, "launchctl", stderr="already loaded"
+                    ),  # bootstrap fails
+                ],
             ),
             patch("axm_mcp.lifecycle.os.getuid", return_value=501),
         ):

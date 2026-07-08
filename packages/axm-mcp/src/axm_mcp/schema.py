@@ -30,16 +30,38 @@ class _SignatureTarget(Protocol):
 
 def _find_actions_dict(
     module: ModuleType | None,
+    fn_name: str | None = None,
 ) -> dict[str, IntrospectableFn] | None:
-    """Find a ``_*_ACTIONS`` dict on *module*."""
+    """Find a ``_*_ACTIONS`` dict on *module*.
+
+    When *fn_name* is given, a name-matched ``_{fn_name}_ACTIONS`` is preferred
+    over the first alphabetical match — so a module hosting two dispatchers
+    (``_FOO_ACTIONS`` + ``_BAR_ACTIONS``) resolves each to its own dict instead
+    of both taking ``dir(module)``'s first (alphabetical) hit.
+    """
     if module is None:
         return None
+
+    def _as_dict(name: str) -> dict[str, IntrospectableFn] | None:
+        candidate = getattr(module, name, None)
+        # Runtime guarantee: ``_*_ACTIONS`` always maps str → callable.
+        return (
+            cast("dict[str, IntrospectableFn]", candidate)
+            if (isinstance(candidate, dict))
+            else None
+        )
+
+    if fn_name:
+        preferred = _as_dict(f"_{fn_name.upper()}_ACTIONS") or _as_dict(
+            f"_{fn_name}_ACTIONS"
+        )
+        if preferred is not None:
+            return preferred
     for attr_name in dir(module):
         if attr_name.endswith("_ACTIONS"):
-            candidate = getattr(module, attr_name, None)
-            if isinstance(candidate, dict):
-                # Runtime guarantee: ``_*_ACTIONS`` always maps str → callable.
-                return cast("dict[str, IntrospectableFn]", candidate)
+            found = _as_dict(attr_name)
+            if found is not None:
+                return found
     return None
 
 
@@ -292,9 +314,9 @@ def collect_dispatcher_params(
     if not (has_action and has_varkw):
         return None
 
-    # Find the _ACTIONS dict by convention
+    # Find the _ACTIONS dict by convention, preferring a name-matched dict.
     module = override_module or inspect.getmodule(fn)
-    actions_dict = _find_actions_dict(module)
+    actions_dict = _find_actions_dict(module, getattr(fn, "__name__", None))
     if not actions_dict:
         return None
 

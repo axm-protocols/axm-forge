@@ -160,3 +160,18 @@ def test_facade_payload_smaller_than_legacy(
     # Legacy exposes every discovered tool; facade collapses the cold ones.
     assert len(facade) < len(legacy) + 4  # facade adds 4 meta-tools
     assert "cold_one" in legacy and "cold_one" not in facade
+
+
+def test_builtins_are_in_catalog(
+    monkeypatch: pytest.MonkeyPatch, _restore_app: None
+) -> None:
+    """P2-3: the built-ins (verify/web_fetch) are indexed by the catalog, so
+    ``axm_describe('verify')`` resolves instead of returning 'Unknown tool'.
+    """
+    monkeypatch.setenv("AXM_MCP_FACADE", "1")
+    with patch(_DISCOVER, _fake_entry_points):
+        app = _reload_app()
+    assert "verify" in app.catalog.names()
+    assert "web_fetch" in app.catalog.names()
+    described = app.catalog.describe("verify")
+    assert described["name"] == "verify"

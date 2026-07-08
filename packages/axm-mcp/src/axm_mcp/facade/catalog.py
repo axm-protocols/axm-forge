@@ -20,16 +20,16 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
 
 from axm_mcp.schema import IntrospectableFn, signature_params
-from axm_mcp.wrapping import flatten_result
+from axm_mcp.wrapping import build_wrappers
 
 if TYPE_CHECKING:
-    from axm_mcp.discovery import ToolEntry, ToolResultLike
+    from axm_mcp.discovery import ToolEntry
+    from axm_mcp.wrapping import _AnyWrapper, _SyncWrapper
 
 __all__ = ["ToolCatalog", "UnknownToolError"]
 
@@ -89,6 +89,13 @@ class ToolCatalog:
 
     def __init__(self, tools: dict[str, ToolEntry]) -> None:
         self._entries = tools
+        # Build the SAME wrapper pair the direct MCP path uses, so
+        # ``axm_call`` runs through the identical lock/trace/flatten contract
+        # (there is a single execution path). Built lazily-eager here so
+        # discovery cost is paid once, at catalog construction.
+        self._wrappers: dict[str, tuple[_SyncWrapper, _AnyWrapper]] = {
+            name: build_wrappers(name, tool) for name, tool in tools.items()
+        }
 
     # ── introspection ────────────────────────────────────────────────────
 
@@ -174,14 +181,19 @@ class ToolCatalog:
         }
 
     def call(self, name: str, arguments: dict[str, object] | None = None) -> str:
-        """Execute *name* with *arguments* and return its text output.
+        """Execute *name* synchronously and return its text output.
 
-        Mirrors the wrapping hot-path contract
-        (:func:`axm_mcp.wrapping.flatten_result`): the ``text`` short-circuit
-        only applies to a *successful* result, so a failing tool never loses
-        its ``success=False``/``error`` signal. A missing ``success`` attribute
-        is treated as failure (never defaulted to ``True``), and a ``data`` key
-        colliding with a reserved envelope key is relocated, not clobbered.
+        Delegates to the *same* sync wrapper the direct MCP path registers
+        (built by :func:`axm_mcp.wrapping.build_wrappers`), so ``axm_call``
+        inherits its full contract: kwarg unwrapping, implicit-path warning,
+        tracing, exception flattening (a raised ``ValueError``/``OSError``
+        becomes ``{success: False, error: ...}`` — never a raw MCP protocol
+        error), and the success-only ``text`` short-circuit. This is the
+        single execution path.
+
+        The per-key concurrency lock (``git_*``/``protocol_*`` in HTTP mode)
+        is only held via :meth:`acall`; ``call`` is the sync entry used in
+        stdio mode and by tests.
 
         Args:
             name: Tool name.
@@ -194,23 +206,59 @@ class ToolCatalog:
         Raises:
             UnknownToolError: If *name* is not in the catalog.
         """
-        tool = self._get(name)
-        result = _exec_fn(tool)(**(arguments or {}))
-        success = getattr(result, "success", False)
-        text = getattr(result, "text", None)
-        if success and isinstance(text, str):
-            return text
-        data = getattr(result, "data", None)
-        if not isinstance(data, dict):
-            return str(result)
-        like = SimpleNamespace(
-            success=success,
-            data=data,
-            error=getattr(result, "error", None),
-            hint=getattr(result, "hint", None),
-        )
-        flat = flatten_result(cast("ToolResultLike", like))
-        return "\n".join(f"{k}: {v}" for k, v in flat.items())
+        tool = self._get(name)  # validate name → UnknownToolError
+        self._bind_check(tool, arguments)
+        sync_wrapper, _ = self._wrappers[name]
+        return self._render(sync_wrapper(**(arguments or {})))
+
+    async def acall(self, name: str, arguments: dict[str, object] | None = None) -> str:
+        """Execute *name* through the lock-aware async wrapper.
+
+        The HTTP-mode entry point: it awaits the async wrapper, so the
+        per-key lock (``git_*`` by repo path, ``protocol_*`` by session) is
+        held and the sync tool body runs on a worker thread via
+        ``asyncio.to_thread`` — the event loop of the shared server is never
+        blocked. In stdio mode the async wrapper simply runs the tool inline.
+
+        Args:
+            name: Tool name.
+            arguments: Keyword arguments for the tool.
+
+        Returns:
+            The rendered text output (same contract as :meth:`call`).
+
+        Raises:
+            UnknownToolError: If *name* is not in the catalog.
+        """
+        tool = self._get(name)  # validate name → UnknownToolError
+        self._bind_check(tool, arguments)
+        _, async_wrapper = self._wrappers[name]
+        result = await async_wrapper(**(arguments or {}))
+        return self._render(result)
+
+    @staticmethod
+    def _bind_check(tool: ToolEntry, arguments: dict[str, object] | None) -> None:
+        """Bind *arguments* to the tool's signature, raising ``TypeError`` early.
+
+        Separates a genuine **argument mismatch** (missing required / unexpected
+        keyword — the loss of client-side schema validation that ``axm_call``
+        must compensate with a param hint) from a ``TypeError`` raised *inside*
+        the tool body (which the wrapper catches and flattens). Only the former
+        propagates here as a ``TypeError``; a dispatcher's ``**kwargs`` makes
+        the bind permissive, so those tools never false-positive.
+        """
+        try:
+            sig = inspect.signature(_exec_fn(tool))
+        except (ValueError, TypeError):
+            return  # un-introspectable signature — let the wrapper handle it
+        sig.bind(**(arguments or {}))
+
+    @staticmethod
+    def _render(result: dict[str, object] | str) -> str:
+        """Render a wrapper result (already flattened) to facade text."""
+        if isinstance(result, str):
+            return result
+        return "\n".join(f"{k}: {v}" for k, v in result.items())
 
     def param_hint(self, name: str) -> str:
         """Human-readable list of accepted params for *name* (for error text)."""

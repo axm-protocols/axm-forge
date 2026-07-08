@@ -29,6 +29,15 @@ def _restore_http_mode() -> Iterator[None]:
 # ──────────────────────── Unit tests ──────────────────────────
 
 
+def test_default_port_single_source() -> None:
+    """P2-6: ``server.DEFAULT_PORT`` is the SAME object as ``cli.DEFAULT_PORT``
+    — one source of truth, so plist and server can never drift apart.
+    """
+    from axm_mcp import cli
+
+    assert server.DEFAULT_PORT is cli.DEFAULT_PORT
+
+
 class TestServeCallsMcpRun:
     """AC1: serve() starts a Streamable HTTP server."""
 

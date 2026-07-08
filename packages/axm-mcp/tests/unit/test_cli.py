@@ -85,6 +85,36 @@ class TestStatusCommand:
         ):
             app(["status"], exit_on_error=False)
 
+    def test_cli_status_read_timeout_not_running(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """P3: a ReadTimeout (any httpx.HTTPError) reports 'not running', no
+        raw traceback.
+        """
+        with (
+            patch(
+                "axm_mcp.cli.httpx.get",
+                side_effect=httpx.ReadTimeout("slow"),
+            ),
+            pytest.raises(SystemExit, match="1"),
+        ):
+            app(["status"], exit_on_error=False)
+        assert "not running" in capsys.readouterr().err.lower()
+
+    def test_cli_status_malformed_json_tolerated(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """P3: a 200 with a non-JSON body still reports running (tools '?')."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.side_effect = ValueError("no json")
+
+        with patch("axm_mcp.cli.httpx.get", return_value=mock_resp):
+            _run_cli(["status"])
+        out = capsys.readouterr().out
+        assert "running" in out.lower()
+        assert "?" in out
+
 
 class TestDefaultStdio:
     """AC5: no subcommand runs stdio mode."""
@@ -122,12 +152,67 @@ class TestCliServeEnablesHttp:
         wrapping._HTTP_MODE = False
         with (
             patch("axm_mcp.server.mcp") as mock_mcp,
+            patch("axm_mcp.cli.read_pid", return_value=None),
             patch("axm_mcp.cli.write_pid"),
             patch("axm_mcp.cli.remove_pid_file"),
         ):
             cli.serve()
         mock_mcp.run.assert_called_once_with(transport="streamable-http")
         assert wrapping._HTTP_MODE is True
+
+
+class TestServePidTransactional:
+    """P0-1: the PID file is transactional (refuse double serve; conditional
+    removal so a failed start never deletes a live server's PID file).
+    """
+
+    def test_refuses_when_live_server_owns_pid(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A second ``serve`` refuses to start (and never touches the PID file)
+        when a live axm-mcp server already owns it.
+        """
+        with (
+            patch("axm_mcp.cli.read_pid", return_value=4321),
+            patch("axm_mcp.cli.is_process_alive", return_value=True),
+            patch("axm_mcp.cli.is_axm_mcp_process", return_value=True),
+            patch("axm_mcp.cli.write_pid") as mock_write,
+            patch("axm_mcp.server.mcp") as mock_mcp,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                cli.serve()
+        assert exc.value.code == 1
+        mock_write.assert_not_called()
+        mock_mcp.run.assert_not_called()
+        assert "already running" in capsys.readouterr().err
+
+    def test_failed_start_keeps_foreign_pid_file(self) -> None:
+        """When ``serve`` fails after another PID took over the file, the
+        ``finally`` does NOT remove it (only removes it if it is still ours).
+        """
+        own = os.getpid()
+        with (
+            patch("axm_mcp.cli.read_pid", side_effect=[None, own + 1]),
+            patch("axm_mcp.cli.write_pid"),
+            patch("axm_mcp.cli.remove_pid_file") as mock_remove,
+            patch("axm_mcp.server.mcp") as mock_mcp,
+        ):
+            mock_mcp.run.side_effect = RuntimeError("bind failed")
+            with pytest.raises(RuntimeError, match="bind failed"):
+                cli.serve()
+        mock_remove.assert_not_called()
+
+    def test_clean_start_removes_own_pid_file(self) -> None:
+        """A normal serve removes its own PID file on exit."""
+        own = os.getpid()
+        with (
+            patch("axm_mcp.cli.read_pid", side_effect=[None, own]),
+            patch("axm_mcp.cli.write_pid"),
+            patch("axm_mcp.cli.remove_pid_file") as mock_remove,
+            patch("axm_mcp.server.mcp"),
+        ):
+            cli.serve()
+        mock_remove.assert_called_once()
 
 
 # ──────────────────────── PID helpers ──────────────────────────

@@ -742,16 +742,18 @@ class FakeTool:
 class TestRegisterOne:
     """Cover register_one wrapper (discovery.py:91-97)."""
 
-    def test_wrapper_returns_success(self) -> None:
-        """Registered wrapper returns tool result as dict."""
+    @pytest.mark.asyncio
+    async def test_wrapper_returns_success(self) -> None:
+        """Registered (async) wrapper returns tool result as dict."""
         fake_mcp = FakeMCP()
         tool = FakeTool(result=FakeToolResult(success=True, data={"answer": 42}))
         register_one(fake_mcp, "my_tool", tool)
 
-        result = fake_mcp.tools["my_tool"]()
+        result = await fake_mcp.tools["my_tool"]()
         assert result == {"success": True, "answer": 42}
 
-    def test_wrapper_includes_error(self) -> None:
+    @pytest.mark.asyncio
+    async def test_wrapper_includes_error(self) -> None:
         """Wrapper includes error field when tool reports one."""
         fake_mcp = FakeMCP()
         tool = FakeTool(
@@ -759,17 +761,18 @@ class TestRegisterOne:
         )
         register_one(fake_mcp, "err_tool", tool)
 
-        result = fake_mcp.tools["err_tool"]()
+        result = await fake_mcp.tools["err_tool"]()
         assert result["success"] is False
         assert result["error"] == "something broke"
 
-    def test_wrapper_unwraps_nested_kwargs(self) -> None:
+    @pytest.mark.asyncio
+    async def test_wrapper_unwraps_nested_kwargs(self) -> None:
         """Wrapper unwraps kwargs={...} pattern from MCP."""
         fake_mcp = FakeMCP()
         tool = FakeTool(result=FakeToolResult(success=True, data={"ok": True}))
         register_one(fake_mcp, "unwrap_tool", tool)
 
-        result = fake_mcp.tools["unwrap_tool"](kwargs={"path": "/tmp"})
+        result = await fake_mcp.tools["unwrap_tool"](kwargs={"path": "/tmp"})
         assert result["success"] is True
 
 

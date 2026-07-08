@@ -2,22 +2,31 @@
 
 Merged from four aspect-split source files, all dominantly covering
 ``axm_mcp.wrapping`` (tracing, result-hash, text flattening, implicit-path
-warning). Several aspects drive registration through
-``axm_mcp.discovery.register_one`` as a test harness; the subject under test
-remains the wrapping behavior.
+warning). The synchronous wrapper (kwarg-unwrap, implicit-path warning,
+tracing, exception flattening, text short-circuit) is the direct subject
+under test — obtained via :func:`axm_mcp.wrapping.build_wrappers`, the single
+construction seam. The async wrapper (HTTP ``to_thread`` offload + per-key
+lock) is exercised separately with ``await``.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from axm.tools.base import ToolResult
+
+from axm_mcp.wrapping import build_wrappers
+
+
+def _sync_wrapper(name: str, tool: Any) -> Any:
+    """Return the synchronous wrapper for *tool* (the trace/flatten seam)."""
+    return build_wrappers(name, tool)[0]
+
 
 # ---------------------------------------------------------------------------
 # --- external step tracing ---
@@ -29,16 +38,10 @@ class TestRegisterOneTracing:
 
     def test_non_protocol_tool_calls_trace(self) -> None:
         """AXMTool wrapper calls log_external_step for non-protocol tools."""
-        from axm_mcp.discovery import register_one
-
-        mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={"result": "ok"})
 
-        register_one(mock_mcp, "bib_search", mock_tool)
-
-        # Get the registered wrapper
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        wrapper = _sync_wrapper("bib_search", mock_tool)
 
         with patch("axm_mcp.wrapping.log_external_step") as mock_log:
             wrapper(query="test")
@@ -48,17 +51,11 @@ class TestRegisterOneTracing:
 
     def test_protocol_tool_skips_trace(self) -> None:
         """Protocol tools (protocol_*) do NOT call log_external_step."""
-        from axm_mcp.discovery import register_one
-
-        mock_mcp = MagicMock()
 
         def _protocol_fn(**kwargs):
             return {"status": "ok"}
 
-        register_one(mock_mcp, "protocol_init", _protocol_fn)
-
-        # Get the registered wrapper
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        wrapper = _sync_wrapper("protocol_init", _protocol_fn)
 
         with patch("axm_mcp.wrapping.log_external_step") as mock_log:
             wrapper()
@@ -66,16 +63,11 @@ class TestRegisterOneTracing:
 
     def test_plain_fn_calls_trace(self) -> None:
         """Plain function wrapper calls log_external_step."""
-        from axm_mcp.discovery import register_one
-
-        mock_mcp = MagicMock()
 
         def _my_tool(**kwargs):
             return {"data": "value"}
 
-        register_one(mock_mcp, "ast_context", _my_tool)
-
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        wrapper = _sync_wrapper("ast_context", _my_tool)
 
         with patch("axm_mcp.wrapping.log_external_step") as mock_log:
             wrapper(path="/tmp")
@@ -83,17 +75,12 @@ class TestRegisterOneTracing:
 
     def test_tool_error_still_traces(self) -> None:
         """Tool execution error: tracing still called, tool error propagated."""
-        from axm_mcp.discovery import register_one
-
-        mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(
             success=False, error="something broke", data={}
         )
 
-        register_one(mock_mcp, "bib_resolve", mock_tool)
-
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        wrapper = _sync_wrapper("bib_resolve", mock_tool)
 
         with patch("axm_mcp.wrapping.log_external_step") as mock_log:
             result = wrapper(doi="10.1234/test")
@@ -104,15 +91,10 @@ class TestRegisterOneTracing:
 
     def test_tracing_failure_doesnt_break_tool(self) -> None:
         """If log_external_step raises, tool still returns normally."""
-        from axm_mcp.discovery import register_one
-
-        mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={"result": "ok"})
 
-        register_one(mock_mcp, "bib_search", mock_tool)
-
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        wrapper = _sync_wrapper("bib_search", mock_tool)
 
         with patch(
             "axm_mcp.wrapping.log_external_step",
@@ -150,27 +132,9 @@ class FakeTool:
         return self._result
 
 
-def _capture_wrapper(
-    name: str,
-    tool: Any,
-    **register_kwargs: Any,
-) -> Any:
-    """Register *tool* via ``register_one`` and return the captured wrapper."""
-    from axm_mcp.discovery import register_one
-
-    captured: dict[str, Any] = {}
-
-    class _FakeMCP:
-        def tool(self, *, name: str) -> Callable[[Any], Any]:
-            def _decorator(fn: Any) -> Any:
-                captured["wrapper"] = fn
-                return fn
-
-            return _decorator
-
-    mcp = _FakeMCP()
-    register_one(mcp, name, tool, **register_kwargs)
-    return captured["wrapper"]
+def _capture_wrapper(name: str, tool: Any) -> Any:
+    """Return the synchronous wrapper for *tool* (trace/flatten/short-circuit)."""
+    return build_wrappers(name, tool)[0]
 
 
 @pytest.mark.parametrize(
@@ -280,7 +244,7 @@ def test_async_lock_path_with_text(mock_log: MagicMock) -> None:
     result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")
     tool = FakeTool(result)
     # protocol_ prefix triggers the async lock wrapper
-    wrapper = _capture_wrapper("protocol_test", tool)
+    _, wrapper = build_wrappers("protocol_test", tool)
 
     async def _run() -> Any:
         return await wrapper(session_id="sess-1")
@@ -312,14 +276,11 @@ def test_implicit_path_warning(
 ) -> None:
     """Implicit-path warning fires iff HTTP mode is on and path is '.' (or empty)."""
     from axm_mcp import wrapping
-    from axm_mcp.discovery import register_one
 
-    mock_mcp = MagicMock()
     mock_tool = MagicMock()
     mock_tool.execute.return_value = ToolResult(success=True, data={})
 
-    register_one(mock_mcp, "audit", mock_tool)
-    wrapper = mock_mcp.tool.return_value.call_args[0][0]
+    wrapper = _sync_wrapper("audit", mock_tool)
 
     original = wrapping._HTTP_MODE
     try:
@@ -341,15 +302,11 @@ class TestPathWarningPlainFunction:
     def test_plain_fn_warns_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """Plain function wrapper also warns on path='.'."""
         from axm_mcp import wrapping
-        from axm_mcp.discovery import register_one
-
-        mock_mcp = MagicMock()
 
         def _my_tool(**kwargs):
             return {"ok": True}
 
-        register_one(mock_mcp, "ast_context", _my_tool)
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        wrapper = _sync_wrapper("ast_context", _my_tool)
 
         original = wrapping._HTTP_MODE
         try:
@@ -566,25 +523,112 @@ class TestSharedFlatten:
 class TestExistingToolsStillWork:
     """Ensure the warning doesn't break normal tool execution."""
 
-    def test_tool_executes_normally_with_explicit_path(self) -> None:
-        """Tool with explicit path runs and returns normally."""
+    @pytest.mark.asyncio
+    async def test_tool_executes_normally_with_explicit_path(self) -> None:
+        """A non-locked tool runs via to_thread in HTTP mode and returns normally."""
         from axm_mcp import wrapping
-        from axm_mcp.discovery import register_one
 
-        mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={"result": "ok"})
 
-        register_one(mock_mcp, "audit", mock_tool)
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+        # audit has no git_/protocol_ prefix → no lock, but HTTP mode still
+        # offloads the sync body to a worker thread (P1-2): the event loop is
+        # never blocked by a sync tool.
+        _, wrapper = build_wrappers("audit", mock_tool)
 
         original = wrapping._HTTP_MODE
         try:
             wrapping._HTTP_MODE = True
             with patch("axm_mcp.wrapping.log_external_step"):
-                result = wrapper(path="/real/project")
+                result = await wrapper(path="/real/project")
         finally:
             wrapping._HTTP_MODE = original
 
         assert result["success"] is True
         assert result["result"] == "ok"
+
+
+class TestHttpLockBehavior:
+    """P1-2/P1-3/P2-2 — HTTP-mode locking on the async wrapper."""
+
+    @pytest.mark.asyncio
+    async def test_lock_timeout_is_flattened(self) -> None:
+        """P1-3: a lock-acquire timeout becomes the AXM error envelope, not a
+        raw ``TimeoutError`` propagated to FastMCP.
+        """
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        from axm_mcp import wrapping
+
+        tool = FakeTool(FakeToolResult(success=True, data={"ok": 1}, text="ok"))
+
+        @asynccontextmanager
+        async def _always_times_out(_key: str) -> AsyncIterator[None]:
+            raise TimeoutError
+            yield  # pragma: no cover
+
+        original = wrapping._HTTP_MODE
+        try:
+            wrapping._HTTP_MODE = True
+            # Patch BEFORE building: the wrapper captures the lock at build time.
+            with patch.object(wrapping, "_git_lock", _always_times_out):
+                _, wrapper = build_wrappers("git_commit", tool)
+                out = await wrapper(path="/repo")
+        finally:
+            wrapping._HTTP_MODE = original
+
+        assert isinstance(out, dict)
+        assert out["success"] is False
+        assert "busy" in str(out["error"])
+
+    @pytest.mark.asyncio
+    async def test_equivalent_paths_share_one_lock(self) -> None:
+        """P2-2: '/repo' and '/repo/' normalise to the same lock key, so two
+        concurrent calls on the equivalent paths serialize.
+        """
+        from axm_mcp import wrapping
+
+        order: list[str] = []
+
+        class _Slow:
+            def execute(self, *, path: str = "", **_kwargs: Any) -> Any:
+                import time
+
+                order.append("start")
+                time.sleep(0.05)
+                order.append("end")
+                return ToolResult(success=True, data={}, text="ok")
+
+        _, wrapper = build_wrappers("git_commit", _Slow())
+        original = wrapping._HTTP_MODE
+        try:
+            wrapping._HTTP_MODE = True
+            with patch("axm_mcp.wrapping.log_external_step"):
+                await asyncio.gather(
+                    wrapper(path="/repo"),
+                    wrapper(path="/repo/"),
+                )
+        finally:
+            wrapping._HTTP_MODE = original
+
+        # Serialized despite the trailing-slash difference.
+        assert order == ["start", "end", "start", "end"]
+
+    @pytest.mark.asyncio
+    async def test_non_string_key_does_not_crash(self) -> None:
+        """P3: a non-string ``path`` skips the lock rather than raising
+        ``AssertionError`` — the tool still runs.
+        """
+        from axm_mcp import wrapping
+
+        tool = FakeTool(FakeToolResult(success=True, data={"ok": 1}, text="ok"))
+        _, wrapper = build_wrappers("git_commit", tool)
+        original = wrapping._HTTP_MODE
+        try:
+            wrapping._HTTP_MODE = True
+            with patch("axm_mcp.wrapping.log_external_step"):
+                out = await wrapper(path=12345)
+        finally:
+            wrapping._HTTP_MODE = original
+        assert out == "ok"

@@ -13,11 +13,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 import axm_mcp.wrapping as _wrapping
+from axm_mcp.cli import DEFAULT_PORT
 from axm_mcp.mcp_app import mcp
 
 __all__ = ["DEFAULT_PORT", "health_check", "serve"]
 
-DEFAULT_PORT = 9427
 _MIN_PORT = 1
 _MAX_PORT = 65535
 

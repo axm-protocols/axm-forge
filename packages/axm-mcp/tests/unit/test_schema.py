@@ -160,6 +160,37 @@ class TestCollectDispatcherParams:
         assert params is not None
         assert len(params) >= 2  # at least action + path
 
+    def test_prefers_name_matched_actions_dict(self) -> None:
+        """P2-1: a module hosting two ``*_ACTIONS`` dicts resolves each
+        dispatcher to its OWN name-matched dict, not the first alphabetical one.
+        """
+
+        def sub_a(*, a: str) -> dict[str, Any]:
+            return {"a": a}
+
+        def sub_b(*, b: str) -> dict[str, Any]:
+            return {"b": b}
+
+        mod = types.ModuleType("two_dispatchers")
+        # Alphabetically ``_BAR_ACTIONS`` sorts before ``_FOO_ACTIONS`` — the
+        # old first-match logic would give both dispatchers bar's schema.
+        mod._BAR_ACTIONS = {"go": sub_b}
+        mod._FOO_ACTIONS = {"go": sub_a}
+
+        # Dispatcher name stems match their ACTIONS dict by convention.
+        def foo(*, action: str, **kwargs: Any) -> dict[str, Any]:
+            return {}
+
+        def bar(*, action: str, **kwargs: Any) -> dict[str, Any]:
+            return {}
+
+        foo_params = collect_dispatcher_params(foo, override_module=mod)
+        bar_params = collect_dispatcher_params(bar, override_module=mod)
+        assert foo_params is not None
+        assert bar_params is not None
+        assert {p.name for p in foo_params} == {"action", "a"}
+        assert {p.name for p in bar_params} == {"action", "b"}
+
 
 # ─────────────── Registration + forwarding tests ────────────────────
 
@@ -182,24 +213,26 @@ class TestDispatcherRegistration:
         assert "path" in param_names
         assert "session_id" in param_names
 
-    def test_wrapper_forwards_kwargs_to_subfn(self) -> None:
+    @pytest.mark.asyncio
+    async def test_wrapper_forwards_kwargs_to_subfn(self) -> None:
         """Calling wrapper(action='open', path='/x') reaches sub_open."""
         dispatcher, _actions, mod = _make_dispatcher_module()
         fake_mcp = FakeMCP()
 
         register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
 
-        result = fake_mcp.tools["test_dispatch"](action="open", path="/tmp/test")
+        result = await fake_mcp.tools["test_dispatch"](action="open", path="/tmp/test")
         assert result == {"path": "/tmp/test"}
 
-    def test_wrapper_handles_no_kwargs_action(self) -> None:
+    @pytest.mark.asyncio
+    async def test_wrapper_handles_no_kwargs_action(self) -> None:
         """Calling wrapper(action='list') works with sub-fn that has no params."""
         dispatcher, _actions, mod = _make_dispatcher_module()
         fake_mcp = FakeMCP()
 
         register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
 
-        result = fake_mcp.tools["test_dispatch"](action="list")
+        result = await fake_mcp.tools["test_dispatch"](action="list")
         assert result == {"items": []}
 
 

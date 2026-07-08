@@ -20,9 +20,10 @@ import logging
 import time
 from collections.abc import Awaitable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
-from axm_mcp.concurrency import KeyedLock
+from axm_mcp.concurrency import _DEFAULT_TIMEOUT, KeyedLock
 
 if TYPE_CHECKING:
     from axm_mcp.discovery import (
@@ -40,6 +41,7 @@ __all__ = [
     "_git_lock",
     "_session_lock",
     "_wrap_with_lock",
+    "build_wrappers",
     "flatten_result",
     "log_external_step",
 ]
@@ -68,14 +70,22 @@ class _SyncWrapper(Protocol):
     def __call__(self, **kwargs: object) -> _WrapperResult: ...
 
 
-class _AnyWrapper(Protocol):
-    """Sync or async tool wrapper handed to ``mcp.tool()``."""
+class _AsyncWrapper(Protocol):
+    """Async tool wrapper handed to ``mcp.tool()``.
+
+    Always a coroutine function: in HTTP mode it offloads the sync body to a
+    worker thread (and holds the per-key lock when applicable); in stdio mode
+    it simply runs the body inline. Being ``async`` regardless keeps a single
+    calling convention for both the direct MCP path and ``ToolCatalog.acall``.
+    """
 
     __doc__: str | None
 
-    def __call__(
-        self, **kwargs: object
-    ) -> _WrapperResult | Awaitable[_WrapperResult]: ...
+    def __call__(self, **kwargs: object) -> Awaitable[_WrapperResult]: ...
+
+
+#: Backwards-compatible alias — the wrapper handed to ``mcp.tool()``.
+_AnyWrapper = _AsyncWrapper
 
 
 def log_external_step(
@@ -153,7 +163,7 @@ def flatten_result(result: ToolResultLike) -> dict[str, object]:
     warning) so the envelope is never clobbered and the data value is never
     silently lost.
     """
-    output: dict[str, object] = dict(result.data)
+    output: dict[str, object] = dict(getattr(result, "data", None) or {})
     for key in _RESERVED_KEYS:
         if key in output:
             namespaced = f"data_{key}"
@@ -163,8 +173,9 @@ def flatten_result(result: ToolResultLike) -> dict[str, object]:
                 namespaced,
             )
             output[namespaced] = output.pop(key)
-    output["success"] = result.success
-    if result.error:
+    # ``success`` missing → False (never silently promoted to a passing result).
+    output["success"] = bool(getattr(result, "success", False))
+    if getattr(result, "error", None):
         output["error"] = result.error
     hint = getattr(result, "hint", None)
     if hint:
@@ -212,12 +223,15 @@ def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
             error = _flatten_exception(ctx.name, exc)
             _trace_step(ctx, kwargs, False, str(error), start_ns)
             return error
+        # A missing ``success`` attribute is treated as failure (never defaulted
+        # to True): a malformed ToolResult-like never silently passes as success.
+        success = bool(getattr(result, "success", False))
         text = getattr(result, "text", None)
-        if result.success and isinstance(text, str):
-            _trace_step(ctx, kwargs, result.success, text, start_ns)
+        if success and isinstance(text, str):
+            _trace_step(ctx, kwargs, success, text, start_ns)
             return text
         output = flatten_result(result)
-        _trace_step(ctx, kwargs, result.success, str(output), start_ns)
+        _trace_step(ctx, kwargs, success, str(output), start_ns)
         return output
 
     return _wrapper
@@ -232,22 +246,82 @@ def _select_lock(name: str) -> tuple[KeyedLock, str] | None:
     return None
 
 
+def _normalize_lock_key(key: object) -> str | None:
+    """Normalise a lock key so equivalent paths share one lock.
+
+    ``/repo``, ``/repo/`` and a relative equivalent must serialise on the
+    *same* key or the per-repo lock is illusory. Non-string keys yield
+    ``None`` (skip the lock rather than raise): a client passing a malformed
+    ``path`` must not crash the wrapper with an ``AssertionError`` in prod.
+    """
+    if not isinstance(key, str):
+        return None
+    try:
+        return str(Path(key).resolve())
+    except (OSError, ValueError):
+        return key
+
+
 def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
-    """Wrap *wrapper* with a per-key concurrency lock when applicable."""
+    """Wrap *wrapper* with a per-key concurrency lock when applicable.
+
+    In HTTP mode the tool always runs on a worker thread via
+    ``asyncio.to_thread`` — sync tool bodies must never execute inline on the
+    event loop of the shared server, or one slow call (a 3-minute ``verify``)
+    freezes ``/health``, keep-alives and every other conversation. A lock is
+    additionally held when the tool opts into per-key serialisation
+    (``git_*``/``protocol_*``) *and* the keying argument is present. The lock
+    timeout (:data:`concurrency._DEFAULT_TIMEOUT`) is flattened into the AXM
+    error envelope instead of propagating to FastMCP as a raw protocol error.
+    """
     selected = _select_lock(name)
-    if selected is None:
-        return wrapper
-    _lk, _kp = selected
 
     async def _async_wrapper(**kwargs: object) -> dict[str, object] | str:
         if not _HTTP_MODE:
             return wrapper(**kwargs)
-        key = kwargs.get(_kp)
-        if key is None:
-            return wrapper(**kwargs)
-        assert isinstance(key, str)
-        async with _lk(key):
+        key = _normalize_lock_key(kwargs.get(selected[1])) if selected else None
+        if selected is None or key is None:
             return await asyncio.to_thread(wrapper, **kwargs)
+        lock = selected[0]
+        try:
+            async with lock(key):
+                return await asyncio.to_thread(wrapper, **kwargs)
+        except TimeoutError as exc:
+            logger.warning("Tool %r timed out acquiring lock %r: %s", name, key, exc)
+            return {
+                "success": False,
+                "error": (
+                    f"{name}: resource {key!r} busy "
+                    f"(lock timeout after {_DEFAULT_TIMEOUT}s); retry shortly"
+                ),
+            }
 
     _async_wrapper.__doc__ = wrapper.__doc__
     return _async_wrapper
+
+
+def build_wrappers(name: str, tool: ToolEntry) -> tuple[_SyncWrapper, _AnyWrapper]:
+    """Build the ``(sync, async)`` wrapper pair for one tool.
+
+    The single construction seam shared by the direct MCP registration path
+    (:func:`axm_mcp.discovery.register_one`) and the facade path
+    (:class:`axm_mcp.facade.catalog.ToolCatalog`). Both invoke the *same*
+    wrappers, so kwarg-unwrapping, implicit-path warnings, tracing, exception
+    flattening and per-key locking are invariant regardless of whether a tool
+    is reached directly or via ``axm_call`` — there is one execution path.
+
+    Returns:
+        ``(sync_wrapper, async_wrapper)`` where the sync wrapper carries the
+        trace/flatten/exception contract and the async wrapper adds the HTTP
+        ``to_thread`` offload plus the optional per-key lock.
+    """
+    is_plain = callable(tool) and not hasattr(tool, "execute")
+    # Protocol tools already trace via orchestrator.run_tool()
+    ctx = _WrapperCtx(name=name, should_trace=not name.startswith("protocol_"))
+    sync_wrapper = (
+        _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
+    )
+    exec_doc = getattr(getattr(tool, "execute", tool), "__doc__", None)
+    sync_wrapper.__doc__ = exec_doc or f"Execute {name} tool."
+    async_wrapper = _wrap_with_lock(sync_wrapper, name)
+    return sync_wrapper, async_wrapper
