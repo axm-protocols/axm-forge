@@ -15,6 +15,7 @@ from axm_git.core.runner import (
     detect_package_name,
     gh_available,
     not_a_repo_error,
+    resolve_default_branch,
     run_gh,
     run_git,
 )
@@ -79,7 +80,7 @@ def check_ci(path: Path) -> str:
                 "run",
                 "list",
                 "--branch",
-                "main",
+                resolve_default_branch(path),
                 "--limit",
                 "3",
                 "--json",
@@ -256,10 +257,13 @@ def resolve_version(
             else f"v{version_override}"
         )
         override_tuple = parse_tag(v)
-        if current_tag and override_tuple <= parse_tag(current_tag):
+        current_bare = current_tag
+        if current_bare and tag_prefix and current_bare.startswith(tag_prefix):
+            current_bare = current_bare[len(tag_prefix) :]
+        if current_bare and override_tuple <= parse_tag(current_bare):
             msg = (
                 f"Version override {v!r} is not strictly greater than "
-                f"the current tag {current_tag!r}"
+                f"the current tag {current_bare!r}"
             )
             raise ValueError(msg)
         return v, "override", False
@@ -352,15 +356,31 @@ class GitTagTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return _timeout_error_result(exc)
 
+        pushed = push.returncode == 0
         data: dict[str, object] = {
             "tag": next_version,
             "full_tag": full_tag,
             "bump": bump_type,
             "breaking": breaking,
             "resolved_version": resolved_version,
-            "pushed": push.returncode == 0,
+            "pushed": pushed,
             "ci_check": ci_check,
             "commits_included": len(commits),
             "current_tag": current_tag or "none",
         }
+        if not pushed:
+            # False-green guard: the annotated tag is created locally but the
+            # remote push failed — the Publish CI will never fire. Report the
+            # failure (local tag preserved in ``data``) so the warden/agent
+            # does not believe the release shipped.
+            error = (
+                f"Tag {full_tag} created locally but push to origin failed: "
+                f"{push.stderr.strip()}"
+            )
+            return ToolResult(
+                success=False,
+                error=error,
+                data=data,
+                text=render_failure_text(error=error, data=data),
+            )
         return ToolResult(success=True, data=data, text=render_text(data))

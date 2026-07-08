@@ -93,3 +93,18 @@ class TestBranchFlow:
         )
         assert result.success
         assert result.data["branch"] == "feat/existing"
+
+    def test_branch_on_non_git_dir_fails(self, tmp_path: Path) -> None:
+        """Failure path: creating a branch outside a repo is a readable error."""
+        result = GitBranchTool().execute(name="feat/x", path=str(tmp_path))
+        assert not result.success
+        assert result.error
+
+    def test_checkout_missing_branch_fails(self, tmp_path: Path) -> None:
+        """Failure path: checking out a nonexistent branch surfaces git's error."""
+        _init_repo(tmp_path)
+        result = GitBranchTool().execute(
+            name="does/not/exist", checkout_only=True, path=str(tmp_path)
+        )
+        assert not result.success
+        assert result.error

@@ -167,3 +167,47 @@ def test_load_config_empty_file(tmp_path: Path) -> None:
     cfg_file.write_text("")
     result = load_config(cfg_file)
     assert result is None
+
+
+def test_load_config_degrades_on_bad_schedule_day(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A full-word day (``monday``) degrades to None + WARNING, never KeyError.
+
+    Regression for P1-2: a schedule-rule typo used to raise a raw
+    ``KeyError`` deep in ``_matches_schedule`` and crash every downstream
+    ``git_commit``. The pydantic validator now rejects it at load time and
+    ``_load_from_file`` degrades gracefully.
+    """
+    cfg = tmp_path / "cfg.toml"
+    _write_toml_axm1710(
+        cfg,
+        workspace_paths=[tmp_path],
+        profiles=_WORK_PROFILE,
+        schedule_rules=[
+            {"days": ["monday"], "start": "09:00", "end": "18:00", "profile": "work"}
+        ],
+    )
+    with caplog.at_level(_logging_axm1710.WARNING, logger="axm_git.core.identity"):
+        result = load_config(cfg)
+    assert result is None
+    assert any(str(cfg) in rec.getMessage() for rec in caplog.records)
+
+
+def test_load_config_degrades_on_bad_schedule_time(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unparsable time (``9h00``) degrades to None + WARNING, never ValueError."""
+    cfg = tmp_path / "cfg.toml"
+    _write_toml_axm1710(
+        cfg,
+        workspace_paths=[tmp_path],
+        profiles=_WORK_PROFILE,
+        schedule_rules=[
+            {"days": ["mon"], "start": "9h00", "end": "18:00", "profile": "work"}
+        ],
+    )
+    with caplog.at_level(_logging_axm1710.WARNING, logger="axm_git.core.identity"):
+        result = load_config(cfg)
+    assert result is None
+    assert len(caplog.records) >= 1

@@ -309,13 +309,20 @@ class TestGitTagTool:
     @patch("axm_git.tools.tag.run_git")
     @patch("axm_git.tools.tag.gh_available", return_value=False)
     @patch("axm_git.tools.tag.detect_package_name", return_value=None)
-    def test_push_failure_still_reports(
+    def test_push_failure_reports_false_green(
         self,
         _pkg: MagicMock,
         _gh: MagicMock,
         mock_git: MagicMock,
     ) -> None:
-        """Tag succeeds even when push fails — pushed=False."""
+        """Push failure is a hard failure — success=False, pushed=False.
+
+        False-green guard: the annotated tag is created locally but the
+        remote push failed, so the Publish CI will never fire. The tool
+        must NOT report success (an agent/warden that trusts ``success``
+        would believe the release shipped). The local tag is preserved in
+        ``data`` for recovery.
+        """
 
         def _side_effect(
             args: list[str], cwd: Any, **kw: Any
@@ -334,8 +341,11 @@ class TestGitTagTool:
 
         mock_git.side_effect = _side_effect
         result = GitTagTool().execute(path="/tmp/test")
-        assert result.success
+        assert not result.success
         assert result.data["pushed"] is False
+        assert result.data["full_tag"] == "v0.1.1"
+        assert "push to origin failed" in (result.error or "")
+        assert "rejected" in (result.error or "")
 
 
 class TestTagPrefixExecution:
@@ -412,3 +422,43 @@ class TestTagPrefixExecution:
         assert result.success
         assert created_tags == ["v0.8.0"]
         assert result.data["tag"] == "v0.8.0"
+
+    @patch("axm_git.tools.tag.run_git")
+    @patch("axm_git.tools.tag.gh_available", return_value=False)
+    @patch("axm_git.tools.tag.detect_package_name", return_value=None)
+    @patch("axm_git.tools.tag.get_tag_prefix", return_value="git/")
+    def test_override_with_prefixed_current_tag(
+        self,
+        _prefix: MagicMock,
+        _pkg: MagicMock,
+        _gh: MagicMock,
+        mock_git: MagicMock,
+    ) -> None:
+        """A version override succeeds when a *prefixed* tag already exists.
+
+        Regression for P0-2: ``resolve_version`` must strip ``tag_prefix``
+        from the current tag before ``parse_tag`` — otherwise
+        ``parse_tag("git/v0.4.0")`` raised "Invalid semver tag" and every
+        follow-up release was blocked.
+        """
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "status":
+                return _mock_completed("")
+            if args[0] == "tag" and "--sort=-v:refname" in args:
+                return _mock_completed("git/v0.4.0")
+            if args[0] == "log":
+                return _mock_completed("abc feat: x")
+            if args[0] == "tag" and "-a" in args:
+                return _mock_completed("")
+            if args[0] == "push":
+                return _mock_completed("")
+            return _mock_completed("")
+
+        mock_git.side_effect = _side_effect
+        result = GitTagTool().execute(path="/tmp/test", version="0.5.0")
+        assert result.success
+        assert result.data["full_tag"] == "git/v0.5.0"
+        assert result.data["tag"] == "v0.5.0"

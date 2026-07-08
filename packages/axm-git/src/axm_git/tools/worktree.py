@@ -101,11 +101,12 @@ class GitWorktreeTool(AXMTool):
         """Tool name used for MCP registration."""
         return "git_worktree"
 
-    def execute(  # type: ignore[override]
+    def execute(  # type: ignore[override]  # noqa: PLR0913
         self,
         *,
         action: str,
         path: str = ".",
+        worktree_path: str | None = None,
         branch: str | None = None,
         base: str | None = None,
         force: bool = False,
@@ -115,8 +116,15 @@ class GitWorktreeTool(AXMTool):
 
         Args:
             action: One of ``add``, ``remove``, ``list``.
-            path: For ``add``/``remove``: worktree path.
-                  For ``list``: repository path.
+            path: Repository path. Git-root resolution and
+                  ``resolve_default_branch`` run here — so a fresh
+                  worktree (a sibling directory that does not exist yet)
+                  is created correctly.
+            worktree_path: For ``add``/``remove``: the worktree location
+                  (the future or existing worktree dir). When omitted,
+                  *path* doubles as the worktree location (legacy form,
+                  which only works when that dir already lives inside a
+                  repo).
             branch: Branch name for ``add`` action.
             base: Base ref for ``add`` (default: the repo's resolved
                   default branch).
@@ -126,18 +134,28 @@ class GitWorktreeTool(AXMTool):
             ToolResult with worktree data on success.
         """
         resolved = Path(path).resolve()
+        # When worktree_path is given, *path* is the repo (an existing
+        # dir) and *worktree_path* is the target. Otherwise legacy: the
+        # sole path is both repo-locator and worktree target.
+        wt_target = Path(worktree_path).resolve() if worktree_path else resolved
+        repo_locator = resolved if worktree_path else wt_target
 
         match action:
             case "list":
                 return self._list(resolved)
             case "add":
+                try:
+                    effective_base = base or resolve_default_branch(repo_locator)
+                except FileNotFoundError:
+                    return _not_a_repo_result(repo_locator)
                 return self._add(
-                    resolved,
+                    repo_locator,
+                    wt_target,
                     branch=branch,
-                    base=base or resolve_default_branch(resolved),
+                    base=effective_base,
                 )
             case "remove":
-                return self._remove(resolved, force=force)
+                return self._remove(repo_locator, wt_target, force=force)
             case _:
                 error = f"Invalid action {action!r}. Use 'add', 'remove', or 'list'."
                 return ToolResult(
@@ -165,20 +183,21 @@ class GitWorktreeTool(AXMTool):
 
     def _add(
         self,
-        path: Path,
+        repo: Path,
+        wt_target: Path,
         *,
         branch: str | None,
         base: str,
     ) -> ToolResult:
-        """Add a new worktree."""
-        git_root = find_git_root(path)
+        """Add a new worktree at *wt_target*, resolving git from *repo*."""
+        git_root = find_git_root(repo)
         if git_root is None:
-            return _not_a_repo_result(path)
+            return _not_a_repo_result(repo)
 
         cmd: list[str] = ["worktree", "add"]
         if branch:
             cmd.extend(["-b", branch])
-        cmd.append(str(path))
+        cmd.append(str(wt_target))
         cmd.append(base)
 
         try:
@@ -189,19 +208,19 @@ class GitWorktreeTool(AXMTool):
             return _git_error_result(result)
 
         data: dict[str, object] = {
-            "path": str(path),
+            "path": str(wt_target),
             "branch": branch or base,
             "base": base,
         }
         return ToolResult(success=True, data=data, text=render_add_text(data))
 
-    def _remove(self, path: Path, *, force: bool) -> ToolResult:
-        """Remove an existing worktree."""
-        git_root = find_git_root(path)
+    def _remove(self, repo: Path, wt_target: Path, *, force: bool) -> ToolResult:
+        """Remove worktree *wt_target*, resolving git from *repo*."""
+        git_root = find_git_root(repo)
         if git_root is None:
-            return _not_a_repo_result(path)
+            return _not_a_repo_result(repo)
 
-        cmd: list[str] = ["worktree", "remove", str(path)]
+        cmd: list[str] = ["worktree", "remove", str(wt_target)]
         if force:
             cmd.append("--force")
 
@@ -212,5 +231,5 @@ class GitWorktreeTool(AXMTool):
         if result.returncode != 0:
             return _git_error_result(result)
 
-        data: dict[str, object] = {"removed": str(path)}
+        data: dict[str, object] = {"removed": str(wt_target)}
         return ToolResult(success=True, data=data, text=render_remove_text(data))

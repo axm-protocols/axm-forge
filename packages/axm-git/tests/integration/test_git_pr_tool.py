@@ -49,3 +49,10 @@ def test_git_pr_explicit_base_wins(
     create_args = captured["args"]
     assert "--base" in create_args
     assert create_args[create_args.index("--base") + 1] == "develop"
+
+
+def test_git_pr_on_non_git_dir_fails(tmp_path: Path) -> None:
+    """Failure path: creating a PR outside a repo returns a readable error."""
+    result = GitPRTool().execute(title="t", path=str(tmp_path))
+    assert not result.success
+    assert result.error

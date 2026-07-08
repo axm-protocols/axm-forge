@@ -54,3 +54,9 @@ class TestPreflightFlow:
         assert not result.data["clean"]
         paths = [f["path"] for f in result.data["files"]]
         assert "README.md" in paths
+
+    def test_preflight_on_non_git_dir_fails(self, tmp_path: Path) -> None:
+        """Failure path: preflight outside a repo returns a readable error."""
+        result = GitPreflightTool().execute(path=str(tmp_path))
+        assert not result.success
+        assert result.error

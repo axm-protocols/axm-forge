@@ -76,3 +76,16 @@ def test_first_release_full_history(tmp_path: Path) -> None:
     assert data["current_tag"] is None
     assert data["suggested_next"] == "0.1.0"
     assert data["commits_since"]
+
+
+def test_non_git_dir_fails_not_a_false_first_release(tmp_path: Path) -> None:
+    """Failure path: a non-git directory is a hard error, not a fake 0.1.0.
+
+    Regression for the P1-1 false-green: without a repo, every read-only git
+    call returns empty, which used to masquerade as a clean "first release ->
+    0.1.0". The tool must report ``success=False`` instead.
+    """
+    result = GitReleaseDiffTool().execute(path=str(tmp_path))
+    assert not result.success
+    assert result.error
+    assert result.data is None or result.data.get("suggested_next") != "0.1.0"

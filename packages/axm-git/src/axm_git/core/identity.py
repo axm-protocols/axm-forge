@@ -9,7 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import axm_config
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 __all__ = [
     "GitIdentity",
@@ -20,8 +20,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_CONFIG_PATH = Path.home() / "axm" / "git-profiles.toml"
 
 
 def _legacy_config_path() -> Path:
@@ -53,12 +51,42 @@ class GitIdentity(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseMode
 
 
 class ScheduleRule(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
-    """A time-based rule mapping to a profile."""
+    """A time-based rule mapping to a profile.
+
+    ``days``/``start``/``end`` are validated at construction so a config
+    typo (``"monday"`` instead of ``"mon"``, ``"9h00"`` instead of
+    ``"09:00"``) is caught by ``model_validate`` — which ``_load_from_file``
+    already degrades to ``None`` + WARNING — rather than raising a raw
+    ``KeyError``/``ValueError`` deep inside ``_matches_schedule`` and
+    crashing every downstream ``git_commit``.
+    """
 
     profile: str
     days: list[str]
     start: str
     end: str
+
+    @field_validator("days")
+    @classmethod
+    def _check_days(cls, value: list[str]) -> list[str]:
+        """Reject any day token not in the ``mon``…``sun`` vocabulary."""
+        unknown = [d for d in value if d not in _DAY_MAP]
+        if unknown:
+            valid = ", ".join(_DAY_MAP)
+            msg = f"Invalid schedule day(s) {unknown!r}; use one of: {valid}"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("start", "end")
+    @classmethod
+    def _check_time(cls, value: str) -> str:
+        """Reject a ``start``/``end`` that ``time.fromisoformat`` can't parse."""
+        try:
+            time.fromisoformat(value)
+        except ValueError as exc:
+            msg = f"Invalid schedule time {value!r} (expected HH:MM): {exc}"
+            raise ValueError(msg) from exc
+        return value
 
 
 class Schedule(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
