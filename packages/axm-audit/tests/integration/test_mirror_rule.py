@@ -42,6 +42,62 @@ def test_flat_layout_falls_back_to_basename_match(tmp_path: Path) -> None:
     assert result.details["exempt"] == []
 
 
+def _assert_no_identity_suggestion(hint: str) -> None:
+    """AC2 invariant (AXM-8): no suggestion may point back at its own source."""
+    for part in hint.split("; "):
+        if "→ rename to " not in part:
+            continue
+        source, _, rest = part.partition(" → rename to ")
+        target = rest.split(" or merge into ")[0].strip()
+        merge = rest.partition(" or merge into ")[2].strip()
+        assert target != Path(source).name, part
+        if merge:
+            assert merge != source, part
+
+
+def test_private_module_orphan_hint_targets_real_module_name(
+    tmp_path: Path,
+) -> None:
+    """AC1/AC2 (AXM-8) — an orphan shadowing a private subpackage module is
+    pointed at ``test__helpers.py`` (the real mirror name), never at itself.
+
+    Real-world repro (axm-n8n): ``pkg/tools/_helpers.py`` with a flat
+    ``tests/unit/test_helpers.py`` — the path mirror fails, and the fuzzy
+    suggestion used to strip the underscore and propose the orphan itself."""
+    _write(tmp_path / "src" / "pkg" / "tools" / "_helpers.py", "x = 1\n")
+    _write(
+        tmp_path / "tests" / "unit" / "test_helpers.py",
+        "def test_x():\n    assert 1\n",
+    )
+
+    result = MirrorRule().check(tmp_path)
+
+    assert result.fix_hint is not None
+    assert "test__helpers.py" in result.fix_hint
+    _assert_no_identity_suggestion(result.fix_hint)
+
+
+def test_orphan_hints_are_never_self_referential(tmp_path: Path) -> None:
+    """AC2/AC3 (AXM-8) — mixed legitimate orphans keep actionable, non-identity
+    suggestions (fuzzy rename target stays distinct from the orphan)."""
+    _write(tmp_path / "src" / "pkg" / "_helpers.py", "x = 1\n")
+    _write(tmp_path / "src" / "pkg" / "handler.py", "y = 2\n")
+    _write(tmp_path / "tests" / "unit" / "test_handler.py", "import pkg\n")
+    _write(
+        tmp_path / "tests" / "unit" / "test_handlers.py",
+        "def test_h():\n    assert 2\n",
+    )
+    _write(
+        tmp_path / "tests" / "unit" / "test_helpers.py",
+        "def test_x():\n    assert 1\n",
+    )
+
+    result = MirrorRule().check(tmp_path)
+
+    assert result.fix_hint is not None
+    _assert_no_identity_suggestion(result.fix_hint)
+
+
 def test_empty_src_returns_empty_lists(tmp_path: Path) -> None:
     (tmp_path / "src" / "pkg").mkdir(parents=True)
     (tmp_path / "tests").mkdir()

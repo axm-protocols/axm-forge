@@ -179,6 +179,20 @@ def test_e2e_single_binary_emission(tmp_path: Path) -> None:
     assert mismatches[0]["proposed_name"] == "test_do.py"
 
 
+def test_already_canonical_file_emits_no_mismatch(tmp_path: Path) -> None:
+    """AC1 (AXM-8) — a file already at its canonical name yields no
+    NAME_MISMATCH finding (the rule is idempotent on a conforming tree)."""
+    project = tmp_path / "proj"
+    _seed_pkg(project)
+    (project / "tests" / "integration").mkdir(parents=True)
+    (project / "tests" / "integration" / "test_rule.py").write_text(
+        "from mypkg import Rule\n\ndef test_x():\n    Rule()\n"
+    )
+
+    findings = _findings(project)
+    assert [f for f in findings if f["verdict"] == "NAME_MISMATCH"] == []
+
+
 def test_score_arithmetic(tmp_path: Path) -> None:
     """AC9 — score = 100 - 1 * n_info - 3 * n_warning."""
     project = tmp_path / "proj"

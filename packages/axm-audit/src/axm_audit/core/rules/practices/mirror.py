@@ -285,27 +285,40 @@ class MirrorRule(ProjectRule):
             parts.append(f"Create test files: {files}")
         if orphan:
             source_stems = sorted(
-                {
-                    Path(n).stem.lstrip("_")
-                    for n in cls._collect_source_modules(src_path)
-                }
+                {Path(n).stem for n in cls._collect_source_modules(src_path)}
             )
-            for orphan_path in orphan[:5]:
-                stem = Path(orphan_path).stem[len("test_") :]
-                close = difflib.get_close_matches(stem, source_stems, n=1, cutoff=0.6)
-                if close:
-                    suggested = f"test_{close[0]}.py"
-                    parts.append(
-                        f"{orphan_path} → rename to {suggested} or merge into "
-                        f"tests/unit/{suggested}"
-                    )
-                else:
-                    parts.append(
-                        f"{orphan_path} → delete or rename to a real source module"
-                    )
+            parts.extend(
+                cls._orphan_suggestion(orphan_path, source_stems)
+                for orphan_path in orphan[:5]
+            )
             if len(orphan) > 5:  # noqa: PLR2004
                 parts.append(f"(+{len(orphan) - 5} more orphans)")
         return "; ".join(parts) if parts else None
+
+    @staticmethod
+    def _orphan_suggestion(orphan_path: str, source_stems: list[str]) -> str:
+        """One actionable hint for an orphan test file — never self-referential.
+
+        The candidate stems keep their real module basenames (a private
+        ``_helpers.py`` stays ``_helpers``): stripping the leading underscore
+        minted identity hints (``test_helpers.py → rename to test_helpers.py
+        or merge into tests/unit/test_helpers.py``) whose target was the
+        orphan itself.
+        """
+        stem = Path(orphan_path).stem[len("test_") :]
+        close = difflib.get_close_matches(stem, source_stems, n=1, cutoff=0.6)
+        if not close:
+            return f"{orphan_path} → delete or rename to a real source module"
+        suggested = f"test_{close[0]}.py"
+        merge_target = f"tests/unit/{suggested}"
+        if orphan_path == merge_target:
+            return (
+                f"{orphan_path} → no mirrored source module; delete it "
+                f"or exempt via [tool.axm-audit.mirror].exempt_paths"
+            )
+        if Path(orphan_path).name == suggested:
+            return f"{orphan_path} → move to {merge_target}"
+        return f"{orphan_path} → rename to {suggested} or merge into {merge_target}"
 
     @staticmethod
     def _collect_source_modules(src_path: Path) -> list[str]:
