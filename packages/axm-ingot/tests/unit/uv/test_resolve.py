@@ -23,9 +23,15 @@ from axm_ingot.uv import parse_workspace_members
             [],
             id="empty-on-malformed-toml",
         ),
+        pytest.param(
+            '[tool.uv.workspace]\nmembers = [1, 2, "packages/*"]\n',
+            ["packages/*"],
+            id="non-string-members-skipped",
+        ),
     ],
 )
 def test_parse_workspace_members(text: str, expected: list[str]) -> None:
     """AC1: members under [tool.uv.workspace] are returned raw; a missing table
-    or malformed TOML both yield [] without raising."""
+    or malformed TOML both yield [] without raising. Non-string members (e.g.
+    integers) are skipped, matching resolve_workspace rather than str-coercing."""
     assert parse_workspace_members(text) == expected

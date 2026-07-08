@@ -3,13 +3,13 @@ name = "axm-ingot"
 dynamic = ["version"]
 description = "Canonical shared helpers factored out of duplicated AXM code."
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.12"
 authors = [{ name = "AXM Protocols", email = "gabriel@axm-protocols.io" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",

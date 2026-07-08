@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_ingot.uv import resolve_workspace
+from axm_ingot.uv import find_workspace_root, resolve_workspace
 
 pytestmark = pytest.mark.integration
 
@@ -85,3 +85,35 @@ def test_returns_none_when_not_a_workspace(tmp_path: Path, pyproject_text: str) 
     _write(tmp_path / "pyproject.toml", pyproject_text)
 
     assert resolve_workspace(tmp_path) is None
+
+
+def test_absolute_member_glob_degrades_to_none(tmp_path: Path) -> None:
+    """P0-1: an absolute member glob (which Path.glob rejects with
+    NotImplementedError) must degrade to an empty workspace, never crash."""
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.uv.workspace]\nmembers = ["/abs/*"]\n',
+    )
+
+    resolved = resolve_workspace(tmp_path)
+
+    assert resolved is not None
+    assert resolved.members == ()
+
+
+def test_non_utf8_pyproject_degrades_to_none(tmp_path: Path) -> None:
+    """P0-2: a non-UTF-8 pyproject.toml (UnicodeDecodeError, a ValueError but not
+    a TOMLDecodeError) must yield None rather than propagate the decode error."""
+    (tmp_path / "pyproject.toml").write_bytes(b"\xff\xfe invalid")
+
+    assert resolve_workspace(tmp_path) is None
+
+
+def test_find_workspace_root_skips_non_utf8_ancestor(tmp_path: Path) -> None:
+    """P0-2: find_workspace_root parses every ancestor's pyproject.toml; a junk
+    non-UTF-8 pyproject.toml in an ancestor must not crash the walk."""
+    (tmp_path / "pyproject.toml").write_bytes(b"\xff\xfe invalid")
+    nested = tmp_path / "a" / "b"
+    nested.mkdir(parents=True)
+
+    assert find_workspace_root(nested) is None
