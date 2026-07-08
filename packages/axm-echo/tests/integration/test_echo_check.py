@@ -275,3 +275,45 @@ def test_novel_intent_no_candidate(
     assert not any(
         "reuse" in str(c.get("verdict", "")) for c in result.data["candidates"]
     )
+
+
+def test_terse_accessor_helper_is_retrievable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1-2: echo_check keeps terse-accessor helpers that echo_code filters.
+
+    ``echo_code`` (dedup) drops trivial accessors as calibrated noise. But
+    ``echo_check`` (retrieval) must still surface a terse but genuinely
+    reusable helper (``Return the slugified string.``); filtering it here
+    used to make the helper invisible, yielding a false ``likely novel``
+    verdict and minting the very duplicate the tool exists to prevent.
+    """
+    from axm_echo.tools import EchoCheckTool
+
+    ws = tmp_path / "ws"
+    home = tmp_path / "home"
+    home.mkdir()
+    _write_package(
+        ws,
+        "axm-ingot",
+        "text",
+        '''
+        def slugify(value: str) -> str:
+            """Return the slugified string."""
+            return value
+        ''',
+    )
+    _point_scope_at(home, monkeypatch, ws)
+
+    # Use the helper's own promise as the intention so the tfidf match is
+    # unambiguous; the point under test is that the accessor filter no longer
+    # removes the symbol from echo_check's corpus.
+    result = EchoCheckTool().execute(
+        intention="Return the slugified string.", backend="tfidf"
+    )
+
+    assert result.success, result.error
+    # The terse-accessor-shaped helper survives in the retrieval corpus...
+    assert result.data["corpus_size"] == 1
+    # ...and is retrieved, not silently filtered as it would be by echo_code.
+    assert "slugify" in _candidate_names(result.data["candidates"])

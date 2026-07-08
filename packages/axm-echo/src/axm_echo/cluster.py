@@ -54,6 +54,7 @@ __all__ = [
     "is_parallel_api",
     "is_trivial_accessor",
     "split_pairs",
+    "workspace_tokens",
 ]
 
 # Connected components larger than this are union-find over-merges, not echoes:
@@ -80,61 +81,24 @@ type Pair = tuple[int, int, float]
 # The three buckets a raw cross-package pair is split into.
 type SplitPairs = tuple[list[Pair], list[Pair], list[Pair]]
 
-# Workspace tokens: a symbol whose name starts with its own package token is a
-# parallel API surface, not a duplicate (AS2a). Mirrors v7 AS2 at the pair level.
-_WS_TOKENS = frozenset(
-    {
-        "excel",
-        "ppt",
-        "word",
-        "office",
-        "mail",
-        "n8n",
-        "scheduler",
-        "bench",
-        "runner",
-        "ast",
-        "init",
-        "audit",
-        "git",
-        "smelt",
-        "bib",
-        "market",
-        "screener",
-        "sentiment",
-        "backtest",
-        "broker",
-        "portfolio",
-        "anvil",
-        "commons",
-        "edit",
-        "formal",
-        "cloudflare",
-        "mlx",
-        "imessage",
-        "quizz",
-        "vscode",
-        "ticket",
-        "weather",
-        "route",
-        "discover",
-        "echo",
-        "warden",
-        "harness",
-        "llm",
-        "train",
-        "dag",
-        "engine",
-        "loom",
-        "nexus",
-        "protocols",
-        "latex",
-        "fig",
-        "stealthwright",
-        "travel",
-        "kdeeb",
-    }
-)
+
+def workspace_tokens(symbols: list[SymbolDict]) -> frozenset[str]:
+    """Derive the set of package tokens present in the corpus (AS2a scope).
+
+    A *token* is a package name with its ``axm-`` prefix stripped
+    (``axm-excel`` -> ``excel``). Deriving the set from the live corpus
+    instead of a frozen constant removes an entire class of silent drift:
+    every new monorepo package is in scope the moment it has a symbol, so
+    :func:`is_parallel_api` never mis-classifies a fresh package's
+    parallel-API pair as a duplicate. Mirrors the data-driven package
+    discovery in :func:`axm_echo.corpus.discover_package_roots`.
+    """
+    return frozenset(
+        str(sym.get("package", "")).removeprefix("axm-")
+        for sym in symbols
+        if str(sym.get("package", ""))
+    )
+
 
 # A docstring promise that is a bare attribute accessor: "Return the name.",
 # "Get the value", "Set the path." -- boilerplate intent every model shares.
@@ -168,17 +132,21 @@ def is_trivial_accessor(sym: SymbolDict) -> bool:
     return name in _ACCESSOR_NAMES and len(first) < MIN_DOC_CHARS * 2
 
 
-def is_parallel_api(a: SymbolDict, b: SymbolDict) -> bool:
+def is_parallel_api(a: SymbolDict, b: SymbolDict, tokens: frozenset[str]) -> bool:
     """Whether the pair is a parallel API surface, not a duplicate (AS2a/AS2b).
 
     A symbol whose name starts with its own package token (``excel_export``
     in ``axm-excel``, ``word_export`` in ``axm-word``) is parallel-by-design.
     If either side of the pair matches its package token, demote the pair.
+
+    ``tokens`` is the corpus-derived set of package tokens (see
+    :func:`workspace_tokens`); a token absent from the live corpus cannot be a
+    parallel-API surface, so the check is scoped to what actually exists.
     """
     for sym in (a, b):
         short = str(sym.get("package", "")).removeprefix("axm-")
         toks = str(sym.get("name", "")).lstrip("_").split("_")
-        if short in _WS_TOKENS and toks and toks[0] == short:
+        if short in tokens and toks and toks[0] == short:
             return True
     return False
 
@@ -243,6 +211,7 @@ def split_pairs(
     (generic first-line or trivially short doc) is boilerplate; a name-parallel
     pair is parallel API; everything else is a genuine duplicate candidate.
     """
+    tokens = workspace_tokens(symbols)
     dupes: list[Pair] = []
     parallel: list[Pair] = []
     boilerplate: list[Pair] = []
@@ -250,7 +219,7 @@ def split_pairs(
         a, b = symbols[gi], symbols[gj]
         if _both_boilerplate(a, b, generic):
             boilerplate.append((gi, gj, score))
-        elif is_parallel_api(a, b):
+        elif is_parallel_api(a, b, tokens):
             parallel.append((gi, gj, score))
         else:
             dupes.append((gi, gj, score))

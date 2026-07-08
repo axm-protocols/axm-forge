@@ -18,6 +18,7 @@ from axm_echo.cluster import (
     is_parallel_api,
     is_trivial_accessor,
     split_pairs,
+    workspace_tokens,
 )
 
 
@@ -64,14 +65,39 @@ def test_is_parallel_api_on_package_token_prefix() -> None:
     """A pair named after its own package token is parallel API (AS2a)."""
     a = _sym(package="axm-excel", name="excel_export")
     b = _sym(package="axm-word", name="word_export")
-    assert is_parallel_api(a, b)
+    assert is_parallel_api(a, b, frozenset({"excel", "word"}))
 
 
 def test_is_parallel_api_false_for_same_named_cross_package() -> None:
     """A genuine same-named cross-package symbol is not parallel API."""
     a = _sym(package="axm-commons", name="RateLimitError")
     b = _sym(package="axm-bib", name="RateLimitError")
-    assert not is_parallel_api(a, b)
+    assert not is_parallel_api(a, b, frozenset({"commons", "bib"}))
+
+
+def test_workspace_tokens_derives_from_corpus() -> None:
+    """Package tokens are derived from the live corpus, not a frozen list."""
+    # A brand-new package (``axm-vault``) absent from any hardcoded list.
+    symbols: list[dict[str, str | int | bool]] = [
+        _sym(package="axm-vault", name="vault_resolve"),  # type: ignore[list-item]
+        _sym(package="axm-config", name="config_resolve"),  # type: ignore[list-item]
+    ]
+    tokens = workspace_tokens(symbols)
+    assert tokens == frozenset({"vault", "config"})
+
+
+def test_is_parallel_api_demotes_fresh_package_via_derived_tokens() -> None:
+    """AS2a holds for a fresh package once its token is derived from the corpus.
+
+    Regression for the frozen ``_WS_TOKENS`` drift: ``vault``/``config`` were
+    never in the old hardcoded set, so a ``vault_resolve``/``config_resolve``
+    parallel pair used to fall through to the duplicate clusters.
+    """
+    a = _sym(package="axm-vault", name="vault_resolve")
+    b = _sym(package="axm-config", name="config_resolve")
+    corpus: list[dict[str, str | int | bool]] = [a, b]  # type: ignore[list-item]
+    tokens = workspace_tokens(corpus)
+    assert is_parallel_api(a, b, tokens)
 
 
 def test_generic_docs_flags_recurring_first_lines() -> None:
@@ -140,6 +166,17 @@ def test_split_pairs_routes_each_bucket() -> None:
     assert dupes == [(4, 5, 0.97)]
     assert parallel == [(0, 1, 0.9)]
     assert boilerplate == [(2, 3, 0.99)]
+
+
+def test_split_pairs_derives_tokens_for_non_frozen_packages() -> None:
+    """split_pairs demotes a parallel pair from packages absent from any frozen list."""
+    symbols = [
+        _sym(package="axm-vault", name="vault_open"),
+        _sym(package="axm-doctor", name="doctor_open"),
+    ]
+    dupes, parallel, _boilerplate = split_pairs([(0, 1, 0.95)], symbols, set())
+    assert parallel == [(0, 1, 0.95)]
+    assert dupes == []
 
 
 def test_cluster_pairs_merges_transitive_into_one_component() -> None:

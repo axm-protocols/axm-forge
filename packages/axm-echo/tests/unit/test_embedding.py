@@ -66,6 +66,32 @@ def test_neighbors_threshold_drops_low_scores() -> None:
     assert results[0][0] == 0
 
 
+def test_neighbors_k_zero_returns_empty() -> None:
+    """``k <= 0`` yields an empty list (contract: length <= k)."""
+    matrix = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float64)
+    query = np.array([1.0, 0.0], dtype=np.float64)
+
+    assert neighbors(query, matrix, k=0) == []
+    assert neighbors(query, matrix, k=-3) == []
+
+
+def test_code_tokens_keyword_weight_ignores_substring_matches() -> None:
+    """Structural keywords are counted as whole tokens, not substrings.
+
+    ``format`` contains ``for``, ``shift`` contains ``if`` -- the old
+    ``src.count(kw)`` substring count inflated the keyword weight. With no
+    real control-flow keyword present, none should be appended.
+    """
+    tokens = code_tokens("def format_shift(before):\n    return before")
+
+    # 'for' only appears inside 'format'; 'if' only inside 'shift'. Neither is
+    # a real keyword occurrence, so neither is weighted in.
+    assert "for" not in tokens
+    assert "if" not in tokens
+    # 'return' IS a real keyword token here, so it is weighted.
+    assert "return" in tokens
+
+
 def test_neighbors_topk_cosine() -> None:
     """AC1: neighbors returns cosine top-k in decreasing order."""
     matrix = np.array(
