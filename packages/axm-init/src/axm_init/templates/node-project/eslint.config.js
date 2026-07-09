@@ -7,10 +7,14 @@ import sonarjs from "eslint-plugin-sonarjs";
 import n from "eslint-plugin-n";
 import jsdoc from "eslint-plugin-jsdoc";
 import importX from "eslint-plugin-import-x";
+import tseslint from "typescript-eslint";
 
 export default [
   {
     files: ["src/**/*.ts", "tests/**/*.ts"],
+    // TypeScript needs its own parser — espree (the ESLint default) cannot
+    // read type annotations and errors out on the first `: string`.
+    languageOptions: { parser: tseslint.parser },
     plugins: { sonarjs, n, jsdoc, "import-x": importX },
     rules: {
       // Core hygiene (ruff E/F equivalents).

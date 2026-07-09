@@ -5,12 +5,23 @@
 // are handled by svelte-check, not here.
 import svelte from "eslint-plugin-svelte";
 import sonarjs from "eslint-plugin-sonarjs";
+import tseslint from "typescript-eslint";
 import n from "eslint-plugin-n";
 import jsdoc from "eslint-plugin-jsdoc";
 import importX from "eslint-plugin-import-x";
 
 export default [
-  ...svelte.configs["flat/recommended"],
+  ...svelte.configs.recommended,
+  // TypeScript needs its own parser (espree can't read type annotations);
+  // inside .svelte files the svelte parser delegates <script lang="ts"> to it.
+  {
+    files: ["src/**/*.ts"],
+    languageOptions: { parser: tseslint.parser },
+  },
+  {
+    files: ["src/**/*.svelte"],
+    languageOptions: { parserOptions: { parser: tseslint.parser } },
+  },
   {
     files: ["src/**/*.ts", "src/**/*.svelte"],
     plugins: { sonarjs, n, jsdoc, "import-x": importX },

@@ -18,6 +18,9 @@
     "url": "git+https://github.com/{{ org }}/{{ package_name }}.git"
   },
   "author": "{{ author_name }} <{{ author_email }}>",
+  "overrides": {
+    "minimatch": "^10.2.5"
+  },
   "scripts": {
     "lint": "eslint .",
     "format": "prettier --check .",
@@ -25,6 +28,7 @@
     "test": "vitest run",
     "deadcode": "knip",
     "cycles": "madge --circular src",
+    "duplication": "jscpd src",
     "docs": "typedoc",
     "prepare": "husky"
   },
@@ -32,17 +36,20 @@
     "@changesets/cli": "^2",
     "@commitlint/cli": "^19",
     "@commitlint/config-conventional": "^19",
+    "@vitest/coverage-v8": "^4",
     "eslint": "^9",
     "eslint-plugin-import-x": "^4",
     "eslint-plugin-jsdoc": "^50",
     "eslint-plugin-n": "^17",
     "eslint-plugin-sonarjs": "^3",
     "husky": "^9",
+    "jscpd": "^5",
     "knip": "^5",
     "madge": "^8",
     "prettier": "^3",
-    "typedoc": "^0.27",
+    "typedoc": "^0.28",
     "typescript": "^5",
-    "vitest": "^2"
+    "typescript-eslint": "^8",
+    "vitest": "^4"
   }
 }
