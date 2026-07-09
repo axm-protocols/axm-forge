@@ -149,6 +149,11 @@ def _render_failed_commit(
     auto_fixed = _as_str_list(failed.get("auto_fixed_files"))
     if auto_fixed:
         lines.append(f"auto-fixed: {', '.join(auto_fixed)}")
+    if failed.get("index_restored"):
+        restored = _as_str_list(failed.get("restored_paths"))
+        lines.append(
+            f"index restored: {', '.join(restored)}" if restored else "index restored"
+        )
     output = _as_str(failed.get("precommit_output")).rstrip()
     if output:
         lines.append("hook output:")

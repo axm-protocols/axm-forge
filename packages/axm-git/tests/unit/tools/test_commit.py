@@ -325,6 +325,122 @@ class TestGitCommitTool:
         assert "a.py" in result.data["failed_commit"]["auto_fixed_files"]
 
 
+class TestScopedIndexRestore:
+    """AC1/AC2/AC3/AC4: scoped index restoration on a definitive hook refusal."""
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    @patch("axm_git.tools.commit.reset_paths")
+    @patch("axm_git.tools.commit._snapshot_staged")
+    @patch("axm_git.tools.commit.run_git")
+    def test_definitive_failure_scoped_resets_only_op_paths(
+        self,
+        mock_git: MagicMock,
+        mock_snapshot: MagicMock,
+        mock_reset: MagicMock,
+        _mock_stage: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """AC1/AC2/AC4: reset unstages exactly the op-staged delta.
+
+        ``third.py`` was staged by a third party before the call — it is in the
+        pre-snapshot, so it is excluded from the recorded delta and never reset.
+        """
+        # before staging → after staging: op introduced only ``a.py``.
+        mock_snapshot.side_effect = [{"third.py"}, {"third.py", "a.py"}]
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "commit":
+                return _fail(stderr="mypy error")  # definitive refusal, no autofix
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert not result.success
+        mock_reset.assert_called_once_with(["a.py"], Path("/tmp/test"))
+        assert "index restored" in (result.error or "")
+        failed = result.data["failed_commit"]
+        assert failed["index_restored"] is True
+        assert failed["restored_paths"] == ["a.py"]
+        assert "index restored" in (result.text or "")
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    @patch("axm_git.tools.commit.reset_paths")
+    @patch("axm_git.tools.commit._snapshot_staged")
+    @patch("axm_git.tools.commit.run_git")
+    def test_nominal_success_never_restores(
+        self,
+        mock_git: MagicMock,
+        mock_snapshot: MagicMock,
+        mock_reset: MagicMock,
+        _mock_stage: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """AC3: the green path stages, commits, and never touches the index."""
+        mock_snapshot.side_effect = [set(), {"a.py"}]
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert result.success
+        mock_reset.assert_not_called()
+        assert "index restored" not in (result.text or "")
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    @patch("axm_git.tools.commit.reset_paths")
+    def test_autofix_retry_success_never_restores(
+        self,
+        mock_reset: MagicMock,
+        _mock_stage: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
+        """AC3: the auto-fix-then-green retry path must NOT trigger a restore."""
+
+        commit_count = 0
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            nonlocal commit_count
+            if args[0] == "commit":
+                commit_count += 1
+                if commit_count == 1:
+                    return _fail(stdout="files were modified by this hook")
+                return _ok()  # retry succeeds
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git = MagicMock(side_effect=_side_effect)
+        with (
+            patch("axm_git.tools.commit.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.stage_spec_files", return_value=None),
+        ):
+            result = GitCommitTool().execute(
+                path="/tmp/test",
+                commits=[{"files": ["a.py"], "message": "fix: a"}],
+            )
+        assert result.success
+        mock_reset.assert_not_called()
+
+
 class TestConventionalCommitValidation:
     """Conventional Commit format validation in the commit path."""
 

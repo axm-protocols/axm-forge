@@ -21,8 +21,10 @@ from axm_git.core.identity import author_args, resolve_identity
 from axm_git.core.runner import (
     find_git_root,
     not_a_repo_error,
+    reset_paths,
     run_git,
     stage_spec_files,
+    staged_delta,
     timeout_error_result,
 )
 from axm_git.tools.commit_text import render_failure_text, render_text
@@ -30,6 +32,18 @@ from axm_git.tools.commit_text import render_failure_text, render_text
 __all__ = ["GitCommitTool"]
 
 logger = logging.getLogger(__name__)
+
+
+def _snapshot_staged(git_root: Path) -> set[str]:
+    """Return the set of staged paths (``git diff --cached --name-only``).
+
+    Snapshots the index so the delta a staging operation introduces can be
+    computed (:func:`axm_git.core.runner.staged_delta`) and, on a definitive
+    hook refusal, scoped-reset without touching third-party staged paths.
+    Runs through this module's ``run_git`` so callers stay git-root-relative.
+    """
+    result = run_git(["diff", "--cached", "--name-only"], git_root)
+    return {line for line in result.stdout.splitlines() if line.strip()}
 
 
 def _attempt_commit(
@@ -134,12 +148,18 @@ def _build_failure_data(  # noqa: PLR0913
     retried: bool,
     auto_fixed: list[str],
     total: int,
+    index_restored: bool = False,
+    restored_paths: list[str] | None = None,
 ) -> dict[str, object]:
     """Build failure data dict for a failed commit.
 
     *auto_fixed* is the list of files captured by ``_attempt_commit``
     before re-staging — we no longer recompute it here because the
     subsequent ``git add`` would have emptied the diff.
+
+    *index_restored* / *restored_paths* record whether the operation's
+    staging delta was scoped-reset after a definitive hook refusal (audit
+    traceability for AC4).
     """
     return {
         "results": results,
@@ -151,6 +171,8 @@ def _build_failure_data(  # noqa: PLR0913
             "precommit_output": output.strip(),
             "auto_fixed_files": auto_fixed,
             "retried": retried,
+            "index_restored": index_restored,
+            "restored_paths": restored_paths or [],
         },
     }
 
@@ -189,6 +211,10 @@ def _process_single_commit(  # noqa: PLR0913
             total=total,
         )
 
+    # Snapshot the index BEFORE staging so we can compute the exact delta this
+    # operation introduces (third-party staged paths are excluded from it).
+    staged_before = _snapshot_staged(git_root)
+
     # Stage files via the subdir-aware resolver (git-root-relative paths work
     # even when *path* is a package subdir; deletions and gitignored files are
     # handled the same way the commit-phase hook handles them).
@@ -199,6 +225,10 @@ def _process_single_commit(  # noqa: PLR0913
             results=results,
             total=total,
         )
+
+    # The paths this operation staged (delta vs the pre-call index) — the only
+    # paths a definitive-failure restore is allowed to unstage (AC1/AC2).
+    recorded = staged_delta(staged_before, _snapshot_staged(git_root))
 
     # Build commit command
     commit_args = ["commit", "-m", message]
@@ -212,7 +242,14 @@ def _process_single_commit(  # noqa: PLR0913
     )
 
     if not ok:
-        error = f"Commit {index}: hook check failed"
+        # Definitive refusal (post auto-fix retry): scoped-reset only the paths
+        # this operation staged, leaving the index otherwise as it was (AC1/AC2).
+        restored = bool(recorded)
+        if restored:
+            reset_paths(recorded, git_root)
+        error = "Commit {i}: hook check failed{r}".format(
+            i=index, r=" (index restored)" if restored else ""
+        )
         data = _build_failure_data(
             results,
             index=index,
@@ -221,6 +258,8 @@ def _process_single_commit(  # noqa: PLR0913
             retried=retried,
             auto_fixed=auto_fixed,
             total=total,
+            index_restored=restored,
+            restored_paths=recorded,
         )
         return ToolResult(
             success=False,

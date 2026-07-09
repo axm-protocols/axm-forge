@@ -139,3 +139,40 @@ class TestRunnerTimeouts:
         self, _which: MagicMock, _mock_run: MagicMock
     ) -> None:
         assert gh_available() is False
+
+
+class TestStagedDelta:
+    """Unit tests for staged_delta (pure)."""
+
+    def test_returns_only_newly_staged_paths(self) -> None:
+        """The delta excludes third-party paths staged before the call."""
+        before = {"third_party.py"}
+        after = {"third_party.py", "op_a.py", "op_b.py"}
+        assert runner.staged_delta(before, after) == ["op_a.py", "op_b.py"]
+
+    def test_empty_when_nothing_new_staged(self) -> None:
+        shared = {"already.py"}
+        assert runner.staged_delta(shared, shared) == []
+
+    def test_output_is_sorted(self) -> None:
+        assert runner.staged_delta(set(), {"z.py", "a.py", "m.py"}) == [
+            "a.py",
+            "m.py",
+            "z.py",
+        ]
+
+
+class TestResetPaths:
+    """Unit tests for reset_paths (scoped git reset)."""
+
+    @patch("axm_git.core.runner.run_git")
+    def test_scoped_reset_of_given_paths(self, mock_run_git: MagicMock) -> None:
+        runner.reset_paths(["a.py", "b.py"], Path("/repo"))
+        args, _ = mock_run_git.call_args
+        assert args[0] == ["reset", "--quiet", "--", "a.py", "b.py"]
+
+    @patch("axm_git.core.runner.run_git")
+    def test_empty_paths_is_a_noop(self, mock_run_git: MagicMock) -> None:
+        """A bare ``git reset`` (whole index) is never issued for empty paths."""
+        runner.reset_paths([], Path("/repo"))
+        mock_run_git.assert_not_called()

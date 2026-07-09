@@ -19,16 +19,41 @@ __all__ = [
     "gh_available",
     "not_a_repo_error",
     "parse_porcelain_z",
+    "reset_paths",
     "resolve_default_branch",
     "run_gh",
     "run_git",
     "stage_spec_files",
+    "staged_delta",
     "suggest_git_repos",
     "timeout_error_result",
 ]
 
 # Minimum length of a porcelain record: 2-char XY status + space + 1-char path.
 _MIN_PORCELAIN_RECORD_LEN = 4
+
+
+def staged_delta(before: set[str], after: set[str]) -> list[str]:
+    """Return the sorted paths staged between two index snapshots.
+
+    The delta is ``after - before`` — exactly the paths a staging operation
+    introduced, excluding anything a third party had already staged before
+    the call. Sorted for deterministic output.
+    """
+    return sorted(after - before)
+
+
+def reset_paths(paths: list[str], git_root: Path) -> None:
+    """Unstage exactly *paths* via a scoped ``git reset -- <paths>``.
+
+    Restoration is strictly scoped to *paths*: it never runs a bare
+    ``git reset`` (which would unstage the whole index, including third-party
+    staged files) and never touches the worktree (no checkout/clean). A
+    no-op when *paths* is empty.
+    """
+    if not paths:
+        return
+    run_git(["reset", "--quiet", "--", *paths], git_root)
 
 
 def stage_spec_files(
