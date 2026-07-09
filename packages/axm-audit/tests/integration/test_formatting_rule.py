@@ -111,6 +111,7 @@ class TestFormattingRule:
 
         src = tmp_path / "src"
         src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
         tests = tmp_path / "tests"
         tests.mkdir()
 
@@ -130,6 +131,7 @@ class TestFormattingRule:
 
         src = tmp_path / "src"
         src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
 
         # Generate 30 unformatted files in output
         files = "\n".join(f"src/file_{i}.py" for i in range(30))
@@ -150,6 +152,7 @@ class TestFormattingRule:
 
         src = tmp_path / "src"
         src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
 
         # rc=0 but stdout has noise (e.g. info messages)
         mock_result = subprocess.CompletedProcess(
@@ -173,6 +176,7 @@ class TestFormattingRule:
 
         src = tmp_path / "src"
         src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
 
         mock_result = subprocess.CompletedProcess(
             args=[],
@@ -202,6 +206,7 @@ class TestFormattingRuleEnvFailure:
         from axm_audit.core.rules.quality_rules import FormattingRule
 
         (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "mod.py").write_text("x = 1\n")
         # Env-failure: non-zero returncode in the env-failure set, empty stdout
         # (the process did not actually run the check).
         env_fail = subprocess.CompletedProcess(
@@ -223,6 +228,7 @@ class TestFormattingRuleEnvFailure:
         from axm_audit.core.rules.quality_rules import FormattingRule
 
         (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "mod.py").write_text("x = 1\n")
         issues = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="src/a.py\nsrc/b.py\n", stderr=""
         )
@@ -239,6 +245,7 @@ def test_formatting_injects_ruff(tmp_path: Path) -> None:
     from axm_audit.core.rules.quality_rules import FormattingRule
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
 
     with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="", stderr="", returncode=0)

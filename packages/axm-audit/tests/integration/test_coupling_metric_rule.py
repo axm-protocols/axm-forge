@@ -402,6 +402,7 @@ def _patch_coupling(
 @pytest.fixture()
 def _src_dir(tmp_path: Path) -> Path:
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
     return tmp_path
 
 

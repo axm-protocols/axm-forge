@@ -33,6 +33,7 @@ def test_top_issues_reported(
     """Should report top 5 security issues."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     _patch_bandit(
         monkeypatch,
@@ -81,6 +82,7 @@ def test_fix_hint_provided(
     """Should provide fix hint when issues found."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     _patch_bandit(
         monkeypatch,
@@ -112,6 +114,7 @@ def test_json_decode_error_handling(
     """Should handle invalid JSON gracefully."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     _patch_bandit(monkeypatch, stdout="invalid json", returncode=1)
 
@@ -131,6 +134,7 @@ def test_bandit_issues_rc1_still_reported(
     """Bandit rc=1 with valid JSON still reports issues normally."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     _patch_bandit(
         monkeypatch,
@@ -157,6 +161,7 @@ def test_bandit_uses_run_in_project(tmp_path: Path) -> None:
     from axm_audit.core.rules.security import SecurityRule
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
 
     with patch("axm_audit.core.rules.security.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="{}", stderr="", returncode=0)
@@ -170,6 +175,7 @@ def test_security_injects_bandit(tmp_path: Path) -> None:
     from axm_audit.core.rules.security import SecurityRule
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
 
     with patch("axm_audit.core.rules.security.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="{}", stderr="", returncode=0)

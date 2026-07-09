@@ -23,17 +23,31 @@ __all__ = [
 ]
 
 
+def _has_python_sources(src_dir: Path) -> bool:
+    """Return ``True`` if *src_dir* holds at least one Python source file.
+
+    A ``.py`` or ``.pyi`` anywhere under *src_dir* qualifies it as a Python
+    source root. A ``src/`` tree with none — e.g. a TypeScript/Svelte-only
+    package — is **not** a mypy root: handing it to mypy makes the run abort
+    with *"There are no .py[i] files"* (a false ``env_incomplete``). Such a
+    tree must be early-passed by the caller, so it is excluded here.
+    """
+    return any(src_dir.rglob("*.py")) or any(src_dir.rglob("*.pyi"))
+
+
 def iter_src_dirs(project_path: Path) -> list[Path]:
     """Discover ``src/`` directories under *project_path*.
 
     Layout detection (in order):
 
-    * **Single-package** — ``<project_path>/src/`` exists → returns
-      ``[<project_path>/src]``. This branch wins even if a sibling
-      ``packages/`` directory also exists (defensive precedence).
+    * **Single-package** — ``<project_path>/src/`` exists *and contains at
+      least one ``.py``/``.pyi``* → returns ``[<project_path>/src]``. This
+      branch wins even if a sibling ``packages/`` directory also exists
+      (defensive precedence). A ``src/`` with no Python sources is skipped —
+      it is not a mypy root.
     * **Multi-package workspace** — ``<project_path>/packages/<pkg>/src/``
-      matches one or more ``<pkg>`` → returns the matched src dirs
-      sorted lexicographically by ``<pkg>``.
+      matches one or more ``<pkg>`` *whose ``src/`` holds Python sources* →
+      returns the matched src dirs sorted lexicographically by ``<pkg>``.
     * Otherwise — returns ``[]``.
 
     Note: this is unrelated to the older
@@ -42,14 +56,14 @@ def iter_src_dirs(project_path: Path) -> list[Path]:
     """
     src_dir = project_path / "src"
     if src_dir.is_dir():
-        return [src_dir]
+        return [src_dir] if _has_python_sources(src_dir) else []
     packages_dir = project_path / "packages"
     if not packages_dir.is_dir():
         return []
     matches = [
         pkg / "src"
         for pkg in sorted(packages_dir.iterdir())
-        if pkg.is_dir() and (pkg / "src").is_dir()
+        if pkg.is_dir() and (pkg / "src").is_dir() and _has_python_sources(pkg / "src")
     ]
     return matches
 

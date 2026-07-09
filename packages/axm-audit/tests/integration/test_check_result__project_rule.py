@@ -19,6 +19,7 @@ class TestProjectRuleSrcCheck:
         from axm_audit.core.rules.base import ProjectRule
 
         (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "mod.py").write_text("x = 1\n")
 
         class _ConcreteRule(ProjectRule):
             _registered_category = "testing"

@@ -49,6 +49,7 @@ def test_no_issues_perfect_score(
     """Should return 100/100 if no security issues."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     _patch_bandit(
         monkeypatch,
@@ -85,6 +86,7 @@ def test_high_severity_issues_scoring(
     """Should penalize high severity issues heavily (15 points each)."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     # Mock 2 HIGH, 1 MEDIUM issue
     _patch_bandit(
@@ -126,6 +128,7 @@ def test_bandit_not_found_graceful(
     """Should return graceful failure when bandit binary is unavailable."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     monkeypatch.setattr(
         subprocess,
@@ -152,6 +155,7 @@ def test_bandit_crash_not_false_positive(
     """Bandit crash (rc>=2, empty stdout) must NOT produce false positive."""
     src_path = tmp_path / "src"
     src_path.mkdir()
+    (src_path / "mod.py").write_text("x = 1\n")
 
     _patch_bandit(
         monkeypatch,

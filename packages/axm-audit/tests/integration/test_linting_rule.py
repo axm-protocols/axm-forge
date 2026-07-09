@@ -170,6 +170,7 @@ def test_linting_uses_run_in_project(tmp_path: Path) -> None:
     """LintingRule should call run_in_project."""
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
 
     with patch(_PATCH) as mock:
         mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)
@@ -182,6 +183,7 @@ def test_linting_injects_ruff(tmp_path: Path) -> None:
     """LintingRule passes with_packages=["ruff"]."""
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
 
     with patch(_PATCH) as mock:
         mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)

@@ -431,6 +431,7 @@ def test_typecheck_uses_run_in_project(tmp_path: Path) -> None:
     from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x: int = 1\n")
 
     with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
@@ -452,11 +453,32 @@ class TestNoSysExecutable:
             )
 
 
+def test_typecheck_ts_only_src_early_passes(tmp_path: Path) -> None:
+    """AC1: a src/ with no .py (TypeScript/Svelte only) => QUALITY_TYPE passes
+    with no env_incomplete finding, and mypy is never invoked."""
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.ts").write_text("export const x = 1;\n")
+    (src / "Component.svelte").write_text("<div>hi</div>\n")
+
+    with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
+        result = TypeCheckRule().check(tmp_path)
+
+    mock.assert_not_called()
+    assert result.passed is True
+    haystack = (result.message + (result.fix_hint or "")).lower()
+    assert "incomplete" not in haystack
+    assert "environment" not in haystack
+
+
 def test_typecheck_uses_project_mypy(tmp_path: Path) -> None:
     """TypeCheckRule does NOT inject mypy — uses the project venv's copy."""
     from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x: int = 1\n")
 
     with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="", stderr="", returncode=0)

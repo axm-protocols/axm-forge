@@ -99,14 +99,14 @@ def test_orphan_hints_are_never_self_referential(tmp_path: Path) -> None:
 
 
 def test_empty_src_returns_empty_lists(tmp_path: Path) -> None:
+    """A python-less src/ is early-passed by the mirror rule: no Python
+    modules to mirror means a clean pass with no missing-test findings."""
     (tmp_path / "src" / "pkg").mkdir(parents=True)
     (tmp_path / "tests").mkdir()
 
     result = MirrorRule().check(tmp_path)
-    assert result.details is not None
-
-    assert result.details["missing"] == []
-    assert result.details["exempt"] == []
+    assert result.passed is True
+    assert result.details is None
 
 
 def _write__from_practices(path: Path, content: str = "") -> None:
