@@ -90,6 +90,38 @@ class AutofixRetry:
     auto_fixed: list[str]
 
 
+def _head_sha(git_root: Path) -> str:
+    """Return the current HEAD commit sha, or ``""`` when HEAD is unborn."""
+    head = run_git(["rev-parse", "HEAD"], git_root)
+    return head.stdout.strip() if head.returncode == 0 else ""
+
+
+def _reconcile_with_repo_state(
+    result: _GitResultLike,
+    git_root: Path,
+    head_before: str,
+) -> _GitResultLike:
+    """Trust the repository state over a non-zero commit exit code.
+
+    A commit hook can land a commit — it auto-committed, or the runner exits
+    non-zero after a successful re-stage + retry — while ``git commit`` still
+    returns a non-zero code (the AXM-22 false red: commit created, tree clean,
+    yet the tool would report failure). When HEAD advanced past *head_before*
+    the commit is real, so return a success-shaped result carrying the original
+    output. Otherwise return *result* unchanged so genuine failures (hook
+    reject, git error/conflict, nothing-to-commit) keep their non-zero code.
+    """
+    if result.returncode == 0:
+        return result
+    head_after = _head_sha(git_root)
+    if head_after and head_after != head_before:
+        return cast(
+            "_GitResultLike",
+            SimpleNamespace(returncode=0, stdout=result.stdout, stderr=result.stderr),
+        )
+    return result
+
+
 def attempt_commit_with_autofix_retry(
     cmd: list[str],
     files: list[str],
@@ -125,8 +157,10 @@ def attempt_commit_with_autofix_retry(
         )
         return AutofixRetry(result=failed, retried=True, auto_fixed=auto_fixed)
 
+    head_before = _head_sha(git_root)
     retried = run_git(cmd, git_root)
-    return AutofixRetry(result=retried, retried=True, auto_fixed=auto_fixed)
+    reconciled = _reconcile_with_repo_state(retried, git_root, head_before)
+    return AutofixRetry(result=reconciled, retried=True, auto_fixed=auto_fixed)
 
 
 def retry_commit_on_autofix(
