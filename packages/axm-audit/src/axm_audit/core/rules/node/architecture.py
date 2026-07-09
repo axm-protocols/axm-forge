@@ -11,11 +11,19 @@ template emits a ``.madgerc`` pointing at ``tsconfig.json`` so aliases resolve.
 
 from __future__ import annotations
 
+import json
+import tempfile
 from pathlib import Path
 
 from axm_audit.core.framework import Framework
 from axm_audit.core.rules.base import PASS_THRESHOLD, register_rule
 from axm_audit.core.rules.node._base import NodeToolRule
+from axm_audit.core.rules.node._runner import (
+    ProcessVerdict,
+    interpret_process,
+    node_tool_available,
+    run_node_tool,
+)
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["NodeCircularImportRule", "NodeDuplicationRule"]
@@ -94,8 +102,50 @@ class NodeDuplicationRule(NodeToolRule):
 
     @property
     def args(self) -> list[str]:
-        """Scan src for duplication, emitting the JSON report to stdout."""
+        """Placeholder — :meth:`check` builds the argv with a real output dir."""
         return ["--reporters", "json", "--silent", "src"]
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Run jscpd, reading the percentage from its JSON *report file*.
+
+        jscpd's ``json`` reporter writes ``jscpd-report.json`` to an output
+        directory; **nothing structured lands on stdout** (only a one-line human
+        summary). The base :class:`NodeToolRule.parse` JSON-decodes stdout, which
+        for jscpd always yields ``[]`` → pct 0 → a permanent false-green. So this
+        rule reads the report file instead of stdout.
+        """
+        if not (project_path / "package.json").is_file():
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="No package.json — jscpd skipped",
+                severity=Severity.INFO,
+                score=100,
+            )
+        if not node_tool_available(project_path, self.binary):
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message=f"{self.binary} not available "
+                f"(not on node_modules/.bin/{self.binary})",
+                severity=Severity.ERROR,
+                fix_hint=self.install_hint,
+            )
+        with tempfile.TemporaryDirectory() as report_dir:
+            result = run_node_tool(
+                self.binary,
+                ["--reporters", "json", "--output", report_dir, "--silent", "src"],
+                project_path,
+                on_path=False,
+            )
+            if interpret_process(result) is ProcessVerdict.ENV_FAILURE:
+                return self.env_failure_result(result.returncode)
+            report = Path(report_dir) / "jscpd-report.json"
+            try:
+                parsed = json.loads(report.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                parsed = {}
+        return self.score_output(parsed, project_path)
 
     def score_output(self, parsed: object, project_path: Path) -> CheckResult:
         """Score inversely to the duplicated-token percentage."""
