@@ -188,8 +188,9 @@ class TestCheckEmptyDir:
         stdout, _stderr, _code = _run("check", str(tmp_path), "--json")
         data = json.loads(stdout)
         assert data["grade"] == "F"
-        # changelog.no_manual passes on empty dirs (2 pts)
-        assert data["score"] <= 5
+        # changelog.no_manual + docs.standalone_api_ref + precommit_installed
+        # each pass trivially on empty dirs (2 pts each, absence of a violation)
+        assert data["score"] <= 6
 
 
 class TestCheckCategoryFilter:
@@ -245,7 +246,7 @@ class TestCheckAgentCompact:
         data = json.loads(stdout)
         assert "passed_count" in data
         assert isinstance(data["passed_count"], int)
-        assert data["passed_count"] == 40
+        assert data["passed_count"] == 41
 
     def test_agent_no_passed_list(self, gold_project: Path) -> None:
         stdout, _stderr, _code = _run("check", str(gold_project), "--agent")

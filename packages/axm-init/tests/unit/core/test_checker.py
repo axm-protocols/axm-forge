@@ -24,9 +24,9 @@ class TestCheckDiscovery:
     """Tests for auto-discovery of check modules."""
 
     def test_check_discovery_finds_all(self) -> None:
-        """Auto-discovery finds 49 checks across 8 categories."""
+        """Auto-discovery finds 50 checks across 8 categories."""
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 49
+        assert total == 50
         assert len(ALL_CHECKS) == 8
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:

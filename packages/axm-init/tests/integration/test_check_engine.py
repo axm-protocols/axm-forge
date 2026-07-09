@@ -168,7 +168,7 @@ class TestEngineExclusion:
         engine = CheckEngine(gold_project__from_check_engine_run_and_format)
         result = engine.run()
         assert result.score == 100
-        assert len(result.checks) == 40
+        assert len(result.checks) == 41
 
 
 def test_standalone_skips_workspace(tmp_path: Path) -> None:

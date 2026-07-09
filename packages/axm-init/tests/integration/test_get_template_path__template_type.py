@@ -148,11 +148,22 @@ class TestMemberTemplateStructure:
         content = (member_template / "pyproject.toml.jinja").read_text()
         assert needle in content
 
-    def test_mkdocs_is_nav_only(self, member_template: Path) -> None:
+    def test_mkdocs_is_standalone_buildable(self, member_template: Path) -> None:
+        """Member mkdocs ships theme + plugins so `--strict` builds standalone.
+
+        AXM-19: the member config was previously nav-only (no plugins), which
+        made `mkdocs build --strict` abort standalone on the `reference/api/`
+        nav entry (green only under the monorepo-root `!include` aggregation).
+        The member now carries its own material theme + gen-files/literate-nav/
+        mkdocstrings plugins, and a `docs/gen_ref_pages.py.jinja` generator.
+        """
         content = (member_template / "mkdocs.yml.jinja").read_text()
         assert "nav:" in content
-        # Should NOT have theme/plugins — it's a nav-only config for !include
-        assert "plugins:" not in content
+        assert "theme:" in content
+        assert "plugins:" in content
+        for plugin in ("gen-files", "literate-nav", "mkdocstrings"):
+            assert plugin in content, f"member mkdocs must declare {plugin}"
+        assert (member_template / "docs" / "gen_ref_pages.py.jinja").is_file()
 
 
 class TestPrekMigration:
