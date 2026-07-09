@@ -299,6 +299,82 @@ def test_check_text_is_none_when_passing(tmp_path: Path) -> None:
     assert result.text is None
 
 
+def _no_identity_finding(findings: list[dict[str, object]]) -> None:
+    """Assert no finding proposes the file it already names (proposed==current)."""
+    for f in findings:
+        current = f.get("current_name")
+        proposed = f.get("proposed_name")
+        if current:  # COLLIDE uses an empty current_name by design
+            assert proposed != current, (
+                f"self-referential {f.get('verdict')} finding: "
+                f"{current!r} -> {proposed!r}"
+            )
+
+
+@pytest.mark.parametrize(
+    "verdict_kind",
+    ["NAME_MISMATCH", "SPLIT", "COLLIDE"],
+    ids=["mismatch_info", "split_warning", "collide_warning"],
+)
+def test_no_finding_is_self_referential(tmp_path: Path, verdict_kind: str) -> None:
+    """AC2 (AXM-18) — no emitted finding (INFO or WARNING; mismatch/split/
+    collide) ever has proposed_name == current_name.
+
+    Each branch seeds a tree exercising that verdict's identity path. The SPLIT
+    branch reproduces the real axm-doctor / axm-mlx structure: a file already
+    at its aggregate canonical name whose individual tests cover distinct
+    tuples (before the fix this leaked a self-referential SPLIT WARNING).
+    """
+    project = tmp_path / "proj"
+    _seed_pkg(project)
+    (project / "tests" / "integration").mkdir(parents=True)
+    integ = project / "tests" / "integration"
+    if verdict_kind == "NAME_MISMATCH":
+        integ.joinpath("test_foo.py").write_text(
+            "from mypkg import Rule\n\ndef test_x():\n    Rule()\n"
+        )
+    elif verdict_kind == "SPLIT":
+        # File is ALREADY at its aggregate canonical (top-K {Engine, Rule} ->
+        # test_engine__rule.py) yet its tests split into {Rule, Engine} and
+        # {Rule}. The old code emitted SPLIT with proposed == current here.
+        integ.joinpath("test_engine__rule.py").write_text(
+            "from mypkg import Rule, Engine\n\n"
+            "def test_one():\n    Rule()\n    Engine()\n\n"
+            "def test_two():\n    Rule()\n"
+        )
+    else:  # COLLIDE
+        integ.joinpath("test_a.py").write_text(
+            "from mypkg import Rule\n\ndef test_x():\n    Rule()\n"
+        )
+        integ.joinpath("test_b.py").write_text(
+            "from mypkg import Rule\n\ndef test_y():\n    Rule()\n"
+        )
+
+    findings = _findings(project)
+    assert (
+        any(f["verdict"] == verdict_kind for f in findings) or verdict_kind != "COLLIDE"
+    )
+    _no_identity_finding(findings)
+
+
+def test_split_suppressed_when_file_at_aggregate_canonical(tmp_path: Path) -> None:
+    """AC1 (AXM-18) — a file already named as its aggregate canonical emits no
+    SPLIT, even when individual tests cover distinct tuples (the doctor/mlx
+    identity path). Contrast test_split_emits_warning where current != canonical.
+    """
+    project = tmp_path / "proj"
+    _seed_pkg(project)
+    (project / "tests" / "integration").mkdir(parents=True)
+    (project / "tests" / "integration" / "test_engine__rule.py").write_text(
+        "from mypkg import Rule, Engine\n\n"
+        "def test_one():\n    Rule()\n    Engine()\n\n"
+        "def test_two():\n    Rule()\n"
+    )
+
+    findings = _findings(project)
+    assert [f for f in findings if f["verdict"] == "SPLIT"] == []
+
+
 def test_unit_tier_is_skipped(tmp_path: Path) -> None:
     """AC8 — unit tier files are never flagged by the file-naming rule."""
     project = tmp_path / "proj"

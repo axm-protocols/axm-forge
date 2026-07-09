@@ -237,6 +237,14 @@ def _split_finding(
 ) -> Finding | None:
     if verdict_data.file_marked:
         return None
+    # Identity guard (mirrors _mismatch_finding): when the file already sits at
+    # its aggregate canonical name, ``proposed_name`` (= canonical) would equal
+    # ``current_name``. A SPLIT whose proposal is the file itself is a
+    # self-referential no-op (the real doctor/mlx WARNINGs); short-circuit it at
+    # the source. Distinct per-test tuples alone do not warrant a rename when the
+    # top-K aggregate already produced the current name.
+    if verdict_data.current_name == verdict_data.canonical:
+        return None
     distinct = verdict_data.distinct_non_empty_tuples
     if len(distinct) <= 1:
         return None
