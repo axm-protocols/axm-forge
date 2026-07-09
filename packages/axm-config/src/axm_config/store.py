@@ -59,7 +59,11 @@ class NamespaceStore:
     file/section return ``{}`` rather than raising, so a consumer can rely on
     the store at import time without a pre-existing ``~/.axm`` directory.
     Writes are atomic, preserve every other section, and leave the file
-    ``0600``. Legacy ``~/.axm/<ns>.toml`` files are folded in on first write.
+    ``0600``. A namespace node may be **both** a leaf (its own scalar/array
+    keys) **and** a prefix (nested **child** namespaces such as ``[git.default]``
+    under ``[git]``): those child sub-tables are re-attached on every write, so
+    setting a key under the parent never erases them. Legacy
+    ``~/.axm/<ns>.toml`` files are folded in on first write.
     """
 
     def _config_path(self) -> Path:
@@ -148,7 +152,7 @@ class NamespaceStore:
         config = self._load_config()
         section = self._fold_legacy(config, ns)
         section[key] = value
-        _set_section(config, ns, section)
+        _set_section(config, ns, _with_child_tables(config, ns, section))
         self._commit_config(config)
         self._drop_legacy(ns)
 
@@ -252,6 +256,49 @@ def _section(config: dict[str, object], ns: str) -> dict[str, object]:
     if not isinstance(node, dict):
         return {}
     return {k: v for k, v in node.items() if not isinstance(v, dict)}
+
+
+def _raw_node(config: dict[str, object], ns: str) -> dict[str, object]:
+    """Return the ``ns`` table node verbatim (child sub-tables kept), or ``{}``.
+
+    Unlike :func:`_section` -- which strips nested sub-tables so it yields only
+    ``ns``'s own scalar/array keys -- this returns the node *as stored*,
+    including any **child namespace** sub-tables (e.g. ``[git.default]`` under
+    ``[git]``). A dotted ``ns`` walks the nested tables; a missing segment or a
+    non-table node yields ``{}``. The node is returned by reference for reading,
+    not mutation.
+    """
+    node: object = config
+    for segment in ns.split("."):
+        if not isinstance(node, dict) or segment not in node:
+            return {}
+        node = node[segment]
+    if not isinstance(node, dict):
+        return {}
+    return node
+
+
+def _with_child_tables(
+    config: dict[str, object], ns: str, section: dict[str, object]
+) -> dict[str, object]:
+    """Merge ``section`` over the child sub-tables already stored under ``ns``.
+
+    :func:`_section` / :meth:`NamespaceStore._fold_legacy` yield only ``ns``'s
+    own scalar/array keys, so persisting that mapping verbatim via
+    :func:`_set_section` would erase any sibling **child namespace** (e.g.
+    ``[git.default]`` under ``[git]``). This re-attaches those children: every
+    dict-valued child of the raw ``ns`` node that ``section`` does not itself
+    provide is preserved, then ``section`` wins for every key it carries
+    (``{**preserved, **section}``). With no child sub-tables the result equals
+    ``section``.
+    """
+    node = _raw_node(config, ns)
+    preserved = {
+        key: value
+        for key, value in node.items()
+        if isinstance(value, dict) and key not in section
+    }
+    return {**preserved, **section}
 
 
 def _set_section(

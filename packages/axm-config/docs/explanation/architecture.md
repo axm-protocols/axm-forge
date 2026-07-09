@@ -53,6 +53,9 @@ update the one section, serialise to a same-directory temp file, and
 Because a namespace section holds only its own scalar/array keys, a nested
 sub-table is treated as a **child namespace**, not a key of the parent — a node
 can be both a leaf (it carries keys) and a prefix (it nests further namespaces).
+Since a section is read back without its child sub-tables, a write that updates
+only the parent's own keys **re-attaches** those children before the atomic
+swap, so setting a key on `[git]` never erases a sibling `[git.default]`.
 
 ## Env-name derivation and its injectivity
 

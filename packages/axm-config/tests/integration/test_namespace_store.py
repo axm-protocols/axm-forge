@@ -209,3 +209,26 @@ def test_legacy_per_ns_file_folded(
         raw = tomllib.load(fh)
     assert raw["echo"]["threshold"] == 0.9
     assert raw["echo"]["window"] == 10
+
+
+def test_write_preserves_sibling_child_namespace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: writing under a namespace keeps its child namespaces.
+
+    A namespace node can be BOTH a leaf (own scalar keys) AND a prefix (nested
+    child namespaces). ``read``/``_section`` strip the children, so persisting
+    that stripped section verbatim used to erase them. After seeding
+    ``[git.default]``, writing a scalar under ``[git]`` and a second child
+    ``[git.profiles]`` must leave ``[git.default]`` intact in ``config.toml``.
+    """
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+    store.write("git.default", "name", "gabriel")
+
+    store.write("git", "token", "abc")
+    store.write("git.profiles", "work", "on")
+
+    assert store.read("git.default") == {"name": "gabriel"}
+    assert store.read("git") == {"token": "abc"}
+    assert store.read("git.profiles") == {"work": "on"}
