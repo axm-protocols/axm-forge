@@ -63,9 +63,17 @@ class AuditTool(AXMTool):
             data = format_agent(result)
             text = format_agent_text(data, category=category)
 
+            from axm_audit.code_metrics import collect_code_metrics
             from axm_audit.quality_trace import record_quality_snapshot
 
             record_quality_snapshot(path=str(project_path), kind="audit", data=data)
+            # Also snapshot code metrics (LOC + structural counts) so trends can
+            # be charted over time; best-effort, never breaks the audit.
+            record_quality_snapshot(
+                path=str(project_path),
+                kind="code",
+                data=collect_code_metrics(str(project_path)),
+            )
             return ToolResult(success=True, data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))

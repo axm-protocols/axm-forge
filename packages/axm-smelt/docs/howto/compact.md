@@ -90,4 +90,4 @@ report = smelt(data, strategies=["minify", "drop_nulls"])
 | `format` | `Format` | Detected input format |
 | `strategies_applied` | `list[str]` | Strategies that changed the output |
 | `strategy_estimates` | `dict[str, float]` | Per-strategy savings estimates (from `check` only) |
-| `counter_backend` | `CounterBackend` | Token-counter backend used (`tiktoken` or the `len//4` fallback) |
+| `counter_backend` | `CounterBackend` | Token-counter backend used (always `tiktoken`; retained as the seam for a future tokenizer backend) |

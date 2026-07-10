@@ -80,12 +80,13 @@ def test_count_exposes_counter_backend(tool: SmeltCountTool) -> None:
     assert "tiktoken" in result.text
 
 
-def test_count_reports_fallback_backend(tool: SmeltCountTool) -> None:
-    """AC3: an unknown model triggers fallback, reported as such (not as exact)."""
+def test_count_unknown_model_reports_tiktoken(tool: SmeltCountTool) -> None:
+    """AC2: an unknown model is routed to the o200k_base proxy and reported as
+    the exact tiktoken backend (the len//4 fallback no longer exists)."""
     result = tool.execute(data="hello world", model="definitely-not-a-real-model-xyz")
     assert result.success is True
-    assert result.data["counter_backend"] == "fallback"
-    assert "fallback" in result.text
+    assert result.data["counter_backend"] == "tiktoken"
+    assert "tiktoken" in result.text
 
 
 def test_count_uses_canonical_json_encoding(tool: SmeltCountTool) -> None:

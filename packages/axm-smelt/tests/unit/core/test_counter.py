@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 import pytest
 import tiktoken
@@ -12,12 +11,6 @@ from axm_smelt import CounterBackend
 from axm_smelt.core import counter
 from axm_smelt.core.counter import count, count_with_backend
 from axm_smelt.core.pipeline import smelt
-
-
-@pytest.fixture(autouse=True)
-def _reset_warn() -> None:
-    counter.reset_warned()
-
 
 # --- count() ---
 
@@ -44,7 +37,7 @@ def test_count_empty() -> None:
 
 
 def test_count_model_parameter() -> None:
-    """AC2: encoding names (o200k_base, cl100k_base) and an OpenAI model name
+    """AC6: encoding names (o200k_base, cl100k_base) and an OpenAI model name
     each return valid counts; encoding names keep resolving (no regression)."""
     text = "The quick brown fox jumps over the lazy dog."
     for model in ("o200k_base", "cl100k_base", "gpt-4o"):
@@ -54,7 +47,7 @@ def test_count_model_parameter() -> None:
 
 
 def test_count_resolves_openai_model_names() -> None:
-    """AC1: OpenAI model names resolve via tiktoken (not fallback) and match
+    """AC6: OpenAI model names resolve via tiktoken (not fallback) and match
     the count from tiktoken.encoding_for_model."""
     text = "The quick brown fox jumps over the lazy dog."
     for model in ("gpt-4o", "gpt-4"):
@@ -64,60 +57,46 @@ def test_count_resolves_openai_model_names() -> None:
         assert n == expected
 
 
-def test_unknown_model_falls_back_and_warns(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """AC3, AC4: a genuinely unknown name falls back to len // 4 and logs a
-    warning naming the unknown model/encoding, NOT 'tiktoken unavailable'."""
-    counter._ENC.clear()
-    text = "abcdefghijklmnop"
-    with caplog.at_level(logging.WARNING):
-        n, backend = count_with_backend(text, "not-a-real-model")
-    assert backend is CounterBackend.FALLBACK
-    assert n == len(text) // 4
-    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert any("not-a-real-model" in m for m in warnings)
-    assert not any("tiktoken unavailable" in m for m in warnings)
-
-
-def test_tiktoken_absent_keeps_unavailable_message(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """AC4: when tiktoken is truly absent (ImportError), the fallback warning
-    keeps the 'tiktoken unavailable' wording."""
-    counter._ENC.clear()
-
-    def _raise(model: str) -> Any:
-        raise ImportError("tiktoken not installed")
-
-    monkeypatch.setattr(tiktoken, "encoding_for_model", _raise)
-    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
-    text = "abcdefghijklmnop"
-    with caplog.at_level(logging.WARNING):
-        n, backend = count_with_backend(text)
-    assert backend is CounterBackend.FALLBACK
-    assert n == len(text) // 4
-    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert any("tiktoken unavailable" in m for m in warnings)
-
-
-def test_count_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When tiktoken resolution fails, falls back to len // 4."""
-    counter._ENC.clear()
-
-    def _raise(model: str) -> Any:
-        raise ValueError("mocked")
-
-    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
-    result = count("abcdefghijklmnop")  # 16 chars -> 4
-    assert result == 4
-
-
 def test_count_int_signature_unchanged() -> None:
     result = count("hello")
     assert isinstance(result, int)
     assert not isinstance(result, tuple)
+
+
+# --- Claude proxy + unknown-model routing ---
+
+
+def test_claude_model_routes_to_o200k() -> None:
+    """AC5, AC6: a Claude model name is counted by tiktoken via the o200k_base
+    proxy encoding (backend TIKTOKEN), never len//4."""
+    n, backend = count_with_backend("hello world", model="claude-opus-4-8")
+    assert n > 0
+    assert backend is CounterBackend.TIKTOKEN
+    # Proxy is o200k_base: count matches that encoding exactly.
+    expected = len(tiktoken.get_encoding("o200k_base").encode("hello world"))
+    assert n == expected
+
+
+def test_claude_model_case_insensitive() -> None:
+    """AC5: the claude prefix is matched case-insensitively."""
+    n, backend = count_with_backend("hello world", model="Claude-Sonnet-4-5")
+    assert backend is CounterBackend.TIKTOKEN
+    assert n > 0
+
+
+def test_unknown_model_routes_to_o200k() -> None:
+    """AC2: a genuinely unknown model name routes to o200k_base (backend
+    TIKTOKEN), never len//4."""
+    n, backend = count_with_backend("hello", model="some-unknown-model")
+    assert backend is CounterBackend.TIKTOKEN
+    assert n > 0
+
+
+def test_openai_model_still_exact() -> None:
+    """AC6: an OpenAI model keeps resolving to its exact tiktoken encoding."""
+    n, backend = count_with_backend("hello", model="gpt-4o")
+    assert backend is CounterBackend.TIKTOKEN
+    assert n > 0
 
 
 # --- encoding cache ---
@@ -132,7 +111,7 @@ def test_count_caches_encoding_once(mocker: MockerFixture) -> None:
 
 
 def test_count_caches_per_model(mocker: MockerFixture) -> None:
-    """AC5: each distinct key resolves once; cache holds both an encoding name
+    """Each distinct key resolves once; the cache holds both an encoding name
     and a model name independently."""
     counter._ENC.clear()
     enc_spy = mocker.spy(tiktoken, "get_encoding")
@@ -141,7 +120,6 @@ def test_count_caches_per_model(mocker: MockerFixture) -> None:
         counter.count("x", model="o200k_base")
     for _ in range(5):
         counter.count("x", model="gpt-4o")
-    # Each distinct key resolves exactly once (the 5 repeats hit the cache):
     # gpt-4o resolves via encoding_for_model; o200k_base falls through to
     # get_encoding after encoding_for_model raises KeyError -> 2 model-name
     # attempts, 1 raw-encoding attempt. No re-resolution on cache hits.
@@ -151,105 +129,36 @@ def test_count_caches_per_model(mocker: MockerFixture) -> None:
     assert "gpt-4o" in counter._ENC
 
 
-def test_cache_not_poisoned_on_failure(mocker: MockerFixture) -> None:
-    counter._ENC.clear()
-    real_get_encoding = tiktoken.get_encoding
-    calls = {"n": 0}
-
-    def flaky(model: str) -> Any:
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise ValueError("boom")
-        return real_get_encoding(model)
-
-    mocker.patch("axm_smelt.core.counter.tiktoken.get_encoding", side_effect=flaky)
-
-    text = "the quick brown fox jumps over the lazy dog"
-    first = counter.count(text, model="o200k_base")
-    assert first == len(text) // 4
-    assert "o200k_base" not in counter._ENC
-
-    second = counter.count(text, model="o200k_base")
-    assert second != len(text) // 4
-    assert "o200k_base" in counter._ENC
+# --- CounterBackend enum (no FALLBACK) ---
 
 
-# --- CounterBackend enum + count_with_backend() ---
-
-
-def test_counter_backend_enum() -> None:
+def test_counter_backend_has_no_fallback() -> None:
+    """AC3: CounterBackend has only TIKTOKEN; FALLBACK is removed."""
     assert CounterBackend.TIKTOKEN
-    assert CounterBackend.FALLBACK
+    assert not hasattr(CounterBackend, "FALLBACK")
+
+
+def test_reset_warned_removed() -> None:
+    """AC4: the one-shot warning seam (_warned / reset_warned) is removed."""
+    assert not hasattr(counter, "reset_warned")
+    assert not hasattr(counter, "_warned")
 
 
 def test_count_with_backend_tiktoken_path() -> None:
+    """AC6: the nominal path returns a positive count via the TIKTOKEN backend."""
     n, backend = count_with_backend("hello world")
     assert isinstance(n, int)
     assert n > 0
     assert backend is CounterBackend.TIKTOKEN
 
 
-def test_count_with_backend_fallback_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    counter._ENC.clear()
-
-    def _raise(model: str) -> Any:
-        raise ValueError("mocked")
-
-    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
-    text = "abcdefghijklmnop"
-    n, backend = count_with_backend(text)
-    assert backend is CounterBackend.FALLBACK
-    assert n == len(text) // 4
-
-
-def test_warn_emitted_once(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    counter._ENC.clear()
-
-    def _raise_model(model: str) -> Any:
-        raise KeyError("mocked")
-
-    def _raise_enc(model: str) -> Any:
-        raise ValueError("mocked")
-
-    monkeypatch.setattr(tiktoken, "encoding_for_model", _raise_model)
-    monkeypatch.setattr(tiktoken, "get_encoding", _raise_enc)
-
-    with caplog.at_level(logging.WARNING):
-        for _ in range(5):
-            count_with_backend("unknown-model-xyz")
-
-    matching = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(matching) == 1
-
-
-# --- merged from test_smelt_report_backend.py ---
+# --- SmeltReport backend column ---
 
 
 def test_smelt_report_backend_tiktoken(caplog: pytest.LogCaptureFixture) -> None:
+    """AC7: SmeltReport.counter_backend is populated and is TIKTOKEN."""
     text = json.dumps({"a": 1, "b": [1, 2, 3], "c": "hello world"})
     with caplog.at_level(logging.WARNING):
         report = smelt(text)
     assert report.counter_backend is CounterBackend.TIKTOKEN
     assert not [r for r in caplog.records if "tiktoken unavailable" in r.message]
-
-
-def test_smelt_report_backend_fallback_propagates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    text = json.dumps({"a": 1, "b": [1, 2, 3], "c": "hello world"})
-
-    calls = {"n": 0}
-
-    def fake(t: str, model: str = "o200k_base") -> tuple[int, CounterBackend]:
-        calls["n"] += 1
-        if calls["n"] == 2:
-            return (len(t) // 4, CounterBackend.FALLBACK)
-        n, _ = count_with_backend(t, model)
-        return (n, CounterBackend.TIKTOKEN)
-
-    monkeypatch.setattr("axm_smelt.core.pipeline.count_with_backend", fake)
-    report = smelt(text)
-    assert report.counter_backend is CounterBackend.FALLBACK

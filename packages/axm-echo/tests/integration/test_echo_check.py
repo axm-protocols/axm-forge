@@ -60,7 +60,18 @@ def _forbid_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
     Patches the ``subprocess`` module surface itself so *any* module reaching
     for ``run``/``Popen``/``call`` during embedding is caught, regardless of how
     it imported subprocess.
+
+    torch is imported *before* the guard is armed: its one-shot extension init
+    legitimately shells out to ``ldconfig`` via ``ctypes.util.find_library`` on
+    Linux. That is not an echo fork, and intercepting it leaves torch
+    half-initialised. Pre-loading it keeps the guard scoped to echo's own
+    embedding path. Best-effort -- skipped if the neural stack is absent.
     """
+    try:
+        import sentence_transformers  # noqa: F401 -- force torch's init before the guard
+    except ImportError:
+        pass
+
     import subprocess
 
     def _boom(*_args: object, **_kwargs: object) -> object:

@@ -9,6 +9,8 @@ import pytest
 from axm_audit import quality_trace
 from axm_audit.quality_trace import normalize_fails, record_quality_snapshot
 
+__all__: list[str] = []
+
 
 @pytest.mark.parametrize(
     ("data", "expected"),
