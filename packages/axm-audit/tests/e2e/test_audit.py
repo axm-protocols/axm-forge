@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import shutil
 import subprocess
@@ -12,6 +13,89 @@ import pytest
 from axm_audit.core.rules.structure import TestsPyramidRule
 
 pytestmark = pytest.mark.e2e
+
+_UNPAIRED_COGNITIVE_FIXTURE = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "unpaired_cognitive"
+    / "sample.py"
+)
+_HAS_COMPLEXIPY = importlib.util.find_spec("complexipy") is not None
+
+
+def _make_unpaired_cognitive_project(root: Path) -> None:
+    """Materialise a src-layout project that fires the complexity diagnostic.
+
+    The fixture's class blocks have no paired complexipy entry, so auditing the
+    ``complexity`` category emits the ``no cognitive score paired`` warning while
+    still producing a numeric score (no offenders).
+    """
+    src = root / "src" / "uc"
+    src.mkdir(parents=True)
+    (src / "__init__.py").write_text("")
+    (src / "sample.py").write_text(_UNPAIRED_COGNITIVE_FIXTURE.read_text())
+    (root / "pyproject.toml").write_text(
+        dedent(
+            """
+            [project]
+            name = "uc"
+            version = "0.0.0"
+            requires-python = ">=3.12"
+            """
+        ).lstrip()
+    )
+
+
+def _run_complexity_json(root: Path) -> subprocess.CompletedProcess[str]:
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv binary not found on PATH")
+    return subprocess.run(  # noqa: S603
+        [
+            uv,
+            "run",
+            "axm-audit",
+            "audit",
+            str(root),
+            "--category",
+            "complexity",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_cli_audit_json_score_numeric_under_complexity_diagnostics(
+    tmp_path: Path,
+) -> None:
+    """AC1: `audit <fixture> --json | jq .score` yields a number with the
+    complexity `no cognitive score paired` diagnostic firing."""
+    _make_unpaired_cognitive_project(tmp_path)
+    proc = _run_complexity_json(tmp_path)
+
+    # stdout is a single valid JSON document (would raise otherwise).
+    payload = json.loads(proc.stdout)
+    assert isinstance(payload["score"], int | float)
+    # No diagnostic text leaks into the JSON stdout payload.
+    assert "no cognitive score paired" not in proc.stdout
+
+
+@pytest.mark.skipif(
+    not _HAS_COMPLEXIPY,
+    reason="complexipy required for the cognitive-pairing diagnostic to fire",
+)
+def test_cli_audit_json_diagnostics_on_stderr_not_stdout(tmp_path: Path) -> None:
+    """AC2: in `--json` mode the complexity diagnostic appears on stderr and is
+    absent from stdout, which stays a single valid JSON document."""
+    _make_unpaired_cognitive_project(tmp_path)
+    proc = _run_complexity_json(tmp_path)
+
+    assert "no cognitive score paired" in proc.stderr
+    assert "no cognitive score paired" not in proc.stdout
+    # stdout parses as one JSON document — no diagnostic interleaving.
+    json.loads(proc.stdout)
 
 
 def _make_pkg(root: Path, name: str, files: dict[str, str]) -> None:
