@@ -81,7 +81,7 @@ dev = [
     "pytest-mock>=3.15.1",
     "ruff==0.15.21",
     "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pip-audit>=2.0",
     "bandit>=1.9.3",
 ]
