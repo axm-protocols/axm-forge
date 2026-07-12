@@ -20,8 +20,8 @@ dependencies = [
     "axm",
     "axm-config",
     "axm-vault",
-    "pydantic>=2.7",
-    "cyclopts>=4.5",
+    "pydantic>=2.13.4",
+    "cyclopts>=4.21.0",
 ]
 
 [project.urls]
@@ -61,17 +61,17 @@ files = []
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "ruff==0.15.21",
-    "mypy>=2.1.0",
-    "prek>=0.4.4",
+    "mypy>=2.2.0",
+    "prek>=0.4.9",
 ]
 docs = [
-    "mkdocs-material>=9.0",
-    "mkdocstrings[python]>=1.0.3",
-    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.6",
+    "mkdocs-gen-files>=0.6.1",
     "mkdocs-literate-nav>=0.6.3",
 ]
 
