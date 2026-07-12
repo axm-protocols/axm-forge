@@ -8,13 +8,57 @@ exercised against genuine ``git`` output, zero network, never the CWD repo.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-__all__ = ["commit_repo", "install_hook"]
+__all__ = ["commit_repo", "install_hook", "scrubbed_axm_home"]
+
+
+@pytest.fixture
+def scrubbed_axm_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Hermetic ``HOME`` + scrubbed env so config resolves only from tmp state.
+
+    The git-identity resolution reads its config from the ``axm_config`` single
+    store (``~/.axm/config.toml``) with ``env > file`` precedence, falling back
+    to the legacy ``~/axm/git-profiles.toml``. Left to the ambient environment
+    the tests would read machine state (a real ``~/.axm``, a stray ``AXM_GIT_*``
+    override, the developer's global git config). This fixture removes every
+    such seam so a test's *only* config source is the store it builds under
+    ``tmp_path``:
+
+    * ``HOME`` → a fresh empty ``tmp_path`` dir (isolates both the store and the
+      legacy file); ``USERPROFILE`` and ``XDG_*`` dropped;
+    * global/system git config pointed at an empty file (no committer identity
+      or include leaks into subprocess ``git`` calls);
+    * every ``AXM_*`` env var dropped — ``axm_config`` resolves ``env > file``,
+      so a stray ``AXM_GIT_DEFAULT`` on the runner would shadow the tmp store.
+
+    The env seam *is* the store path: redirecting ``HOME`` points ``~/.axm`` at
+    the tmp dir, so ``axm_config.set_(...)`` in the test body writes the store
+    the resolution then reads. ``HOME`` is minted via ``tmp_path_factory`` (a
+    sibling of any per-test ``tmp_path``) so it never lands *inside* a git repo
+    a co-fixture initialised at ``tmp_path`` — which the store's in-repo guard
+    (``resolve_safe``) would otherwise refuse.
+    """
+    home = tmp_path_factory.mktemp("axm_home")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("USERPROFILE", raising=False)
+    for var in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
+        monkeypatch.delenv(var, raising=False)
+    empty_gitconfig = home / ".gitconfig-empty"
+    empty_gitconfig.touch()
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty_gitconfig))
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(empty_gitconfig))
+    for name in list(os.environ):
+        if name.startswith("AXM_"):
+            monkeypatch.delenv(name, raising=False)
+    return home
 
 
 def _run(args: list[str], cwd: Path) -> None:

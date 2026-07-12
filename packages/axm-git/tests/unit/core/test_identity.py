@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect as _inspect_axm1710
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -219,3 +220,33 @@ class TestUnknownProfileOverrideObservability:
         warnings = self._warnings(caplog)
         assert any("no profiles" in m.lower() for m in warnings)
         assert not any("available profiles" in m.lower() for m in warnings)
+
+
+class TestLoadConfigFailsLoudOnUnsafeHome:
+    """AC4: an unresolvable store path fails loud, never a silent ``None``.
+
+    ``load_config()`` resolving to ``None`` legitimately means "no config
+    anywhere" (AC5). It must therefore *not* also collapse a store that cannot
+    be read at all — an ``~/.axm`` home refused by the security guard (``HOME``
+    resolving inside a git checkout) — into that same ``None``. Such a state is
+    a real defect surfaced by ``UnsafeHomeError``, which resolution lets
+    propagate rather than swallow, so a broken store is distinguishable from an
+    absent one.
+    """
+
+    def test_unsafe_home_raises_not_silent_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from axm_config import UnsafeHomeError
+
+        from axm_git.core.identity import load_config
+
+        (tmp_path / ".git").mkdir()
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("USERPROFILE", raising=False)
+        for name in list(os.environ):
+            if name.startswith("AXM_"):
+                monkeypatch.delenv(name, raising=False)
+
+        with pytest.raises(UnsafeHomeError):
+            load_config()

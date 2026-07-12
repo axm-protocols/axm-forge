@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import axm_config
+from axm_config import NamespaceStore
 from pydantic import BaseModel, field_validator
 
 __all__ = [
@@ -146,29 +147,51 @@ def _load_from_file(path: Path) -> GitProfileConfig | None:
     return config
 
 
-def _load_from_store() -> GitProfileConfig | None:
-    """Build ``GitProfileConfig`` from the ``[git]`` section of the single store.
+def _read_store_profiles(store: NamespaceStore) -> dict[str, object]:
+    """Re-assemble ``[git.profiles.<name>]`` child namespaces into a mapping.
 
-    ``workspace_paths`` is sourced from ``[echo].workspace_roots`` (single
-    source of followed roots), not from ``[git]``. Returns ``None`` when the
-    ``[git]`` section is absent — a present section requires at least
-    ``default`` to resolve. Malformed/invalid stored data degrades to ``None``
-    with a ``WARNING``.
+    ``axm_config`` persists a dict-valued key as a *child namespace* — a
+    ``profiles`` mapping lands as ``[git.profiles.work]``, ``[git.profiles.…]``
+    tables, not as a scalar key of ``[git]``. Since :meth:`NamespaceStore.read`
+    returns only a namespace's own scalar/array keys (child tables are stripped
+    as sub-namespaces), the profiles must be rebuilt by enumerating those child
+    namespaces rather than fetched with a single ``get``.
     """
-    try:
-        default = axm_config.get("git", "default")
-    except (ValueError, OSError) as exc:
-        logger.warning(
-            "Cannot read git config from store (%s) — falling back to legacy",
-            exc.__class__.__name__,
-        )
-        return None
+    prefix = "git.profiles."
+    profiles: dict[str, object] = {}
+    for namespace in store.namespaces():
+        if namespace.startswith(prefix):
+            profiles[namespace[len(prefix) :]] = store.read(namespace)
+    return profiles
+
+
+def _load_from_store() -> GitProfileConfig | None:
+    """Build ``GitProfileConfig`` from the ``[git]`` store namespaces.
+
+    The single store persists each dict-valued git key as its **own child
+    namespace** — ``[git.default]``, ``[git.profiles.<name>]`` and
+    ``[git.schedule]`` — because ``axm_config``'s key/value surface treats a
+    stored dict as a nested table, not a scalar key. Reading them therefore
+    goes through :meth:`NamespaceStore.read` on the dotted namespace, *not*
+    ``axm_config.get("git", <key>)`` (which only ever sees ``[git]``'s own
+    scalar/array keys and so silently returned ``None`` for every real config).
+    ``workspace_paths`` stays a flat ``[echo].workspace_roots`` array.
+
+    Returns ``None`` when ``[git.default]`` is absent — a present store needs at
+    least a ``default`` identity to resolve. Malformed/invalid stored data
+    degrades to ``None`` with a ``WARNING``. An unusable ``~/.axm`` home
+    (:class:`~axm_config.UnsafeHomeError`) is deliberately **not** swallowed: it
+    propagates so resolution fails loud instead of masking a broken store as an
+    indistinguishable "no config".
+    """
+    store = NamespaceStore()
+    default = store.read("git.default")
     if not default:
         return None
     payload: dict[str, object] = {
         "default": default,
-        "profiles": axm_config.get("git", "profiles", default={}),
-        "schedule": axm_config.get("git", "schedule", default={}),
+        "profiles": _read_store_profiles(store),
+        "schedule": store.read("git.schedule"),
         "workspace_paths": axm_config.get("echo", "workspace_roots", default=[]),
     }
     try:
