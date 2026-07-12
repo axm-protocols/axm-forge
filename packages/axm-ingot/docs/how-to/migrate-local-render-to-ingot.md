@@ -136,3 +136,80 @@ Remove the now-dead `_table`/`_header`/… helpers (and their duplicated tests)
 from the consumer. The primitives are tested once, in `axm-ingot`; the
 consumer's suite should now only cover *its* field mapping, not re-test the
 table aligner.
+
+## Lessons from the AXM-437 pilot
+
+The first real migration (AXM-437) surfaced three things that are easy to miss.
+Apply them on every subsequent port.
+
+### (a) The generic walker is now IN `axm-ingot` — import it, delete the local one
+
+The leaf no longer stops at the six primitives (`header`, `labeled_block`,
+`compact_table`, …). The **full compact walker** — the generic
+`ToolResult.text` renderer that recurses over an arbitrary `data` dict — was
+itself promoted into `axm-ingot` as
+[`render_result`](../reference/render.md) (with
+[`record_table`](../reference/render.md) for the lossless
+homogeneous-record `key | key` table). So a tool that hand-rolled a whole
+`render(data)` walker does **not** rebuild it over the leaf primitives: it
+imports the walker and deletes its local copy outright.
+
+```python
+# tools/render.py  (the whole local walker is gone)
+from axm_ingot.render import render_result  # and record_table, if the tool built its own table
+
+def render(data: dict) -> str:
+    return render_result("backtest", data)
+```
+
+Consequently the anti-duplication check must cover the **whole walker**, not
+just the six leaf names. Grepping the consumer for `header(` / `compact_table(`
+leaves the copied recursion logic behind. Run the structural similarity check
+(`echo_code` / `echo_check`) against `render_result` / `record_table` and
+confirm the *entire* local walker — recursion, dispatch, `None`-handling — is
+retired, then delete `tools/_render.py` entirely.
+
+### (b) Golden-snapshot terminal-newline convention
+
+Golden `.txt` snapshots must round-trip **byte-identically**, and the pitfall is
+the trailing newline. Follow the `axm-weather` `render_snapshot()` convention:
+the snapshot helper **MUST append a terminal newline** to the rendered text
+before writing (and when asserting), so the golden file ends in `\n` exactly as
+an editor / `read_text()` round-trip produces it.
+
+```python
+def render_snapshot(text: str) -> str:
+    # weather convention: golden .txt files end in a terminal newline
+    return text if text.endswith("\n") else text + "\n"
+```
+
+Without this, `render_result(...)` (no trailing newline) compared against a
+golden file that an editor silently newline-terminated diverges by a single
+byte, and the parity check in step 4 fails for a reason that has nothing to do
+with the render logic.
+
+### (c) Grep the error-contract before running the suites
+
+Production errors are now **type-prefixed** since the actionable-errors pass:
+tools return `f"{type(exc).__name__}: {exc}"`, not the bare `str(exc)`. Any test
+that asserts an exact error string with `result.error == "..."` is therefore
+**stale** — it encodes the pre-prefix contract and is pre-existing red.
+
+Before running the package suites, grep the tests for exact-match error asserts:
+
+```bash
+grep -rn 'result\.error == "' tests/
+```
+
+Each hit is a stale exact-match to fix as part of the migration — update it to
+the type-prefixed form (or switch to a substring/`in` assertion on the message):
+
+```python
+# stale — pre-prefix contract
+assert result.error == "file not found"
+# fixed — type-prefixed contract
+assert result.error == "FileNotFoundError: file not found"
+```
+
+These are not regressions introduced by the migration; they are pre-existing red
+that the migration is responsible for clearing.
