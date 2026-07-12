@@ -8,8 +8,9 @@ nav:
   - How-To Guides:
     - Overview: howto/index.md
     - Promote a helper: howto/promote-a-helper.md
+    - Migrate a local renderer: how-to/migrate-local-render-to-ingot.md
   - Reference:
     - Public API: reference/api.md
-    - Python API: reference/
+    - Render primitives: reference/render.md
   - Explanation:
     - Architecture: explanation/architecture.md

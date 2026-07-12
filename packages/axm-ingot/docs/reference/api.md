@@ -92,6 +92,8 @@ A single workspace member. Callers project trivially: `[m.path for m in ...]`
     `name` must account for this; when you need the *package* name, read it from
     the member's `pyproject.toml` (its `path` points at the directory).
 
-## Python API (auto-generated)
+## Render primitives
 
-Full auto-generated API reference is available under [Python API](api/).
+The compact `ToolResult.text` primitives (`header`, `labeled_block`,
+`compact_table`, `truncate`, `format_count`, `format_size`) are documented on
+their own page: [`axm_ingot.render`](render.md).
