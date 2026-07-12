@@ -1,0 +1,2 @@
+confirm
+ok=yes · count=3 · name=x

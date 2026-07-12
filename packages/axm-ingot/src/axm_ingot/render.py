@@ -11,6 +11,9 @@ renderer that emits a compact, token-cheap ``text``:
 - :func:`compact_table` — an aligned columns table for homogeneous rows.
 - :func:`truncate` — bounded text with a trailing ellipsis.
 - :func:`format_count` / :func:`format_size` — human-readable numbers.
+- :func:`render_result` — a full compact, lossless ``text`` walker over an
+  arbitrary ``data`` payload (never raises).
+- :func:`record_table` — the lossless homogeneous-record ``key | key`` table.
 
 Strictly stdlib — no runtime dependency is added by importing this module.
 """
@@ -25,6 +28,8 @@ __all__ = [
     "format_size",
     "header",
     "labeled_block",
+    "record_table",
+    "render_result",
     "truncate",
 ]
 
@@ -33,6 +38,8 @@ _INDENT = "  "
 _COL_SEP = "  "
 _COUNT_STEP = 1000
 _SIZE_STEP = 1024
+_MAX_INLINE_LIST = 8
+_MIN_TABLE_ROWS = 2
 
 
 def _cell(value: object) -> str:
@@ -121,3 +128,172 @@ def format_size(num_bytes: int) -> str:
             return f"{size:.1f} {unit}"
         size /= _SIZE_STEP
     return f"{num_bytes} B"
+
+
+def _is_scalar(value: object) -> bool:
+    """True when *value* renders on a single inline token (not dict/list)."""
+    return not isinstance(value, (dict, list, tuple))
+
+
+def _is_short_scalar_list(value: object) -> bool:
+    """True for a short list/tuple of scalars (inline comma-join candidate)."""
+    return (
+        isinstance(value, (list, tuple))
+        and 0 < len(value) <= _MAX_INLINE_LIST
+        and all(_is_scalar(v) for v in value)
+    )
+
+
+def _is_flat_dict(value: object) -> bool:
+    """True for a non-empty dict whose values are all inline-able."""
+    return (
+        isinstance(value, dict)
+        and bool(value)
+        and all(_is_scalar(v) or _is_short_scalar_list(v) for v in value.values())
+    )
+
+
+def _scalar(value: object) -> str:
+    """Render a leaf value (None as '—', bool as yes/no)."""
+    if value is None:
+        return "—"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    return str(value)
+
+
+def _inline_list(value: object) -> str:
+    """Comma-join a short scalar list/tuple (callers pass a sequence)."""
+    if not isinstance(value, (list, tuple)):
+        return _scalar(value)
+    return ", ".join(_scalar(v) for v in value)
+
+
+def _inline_field(value: object) -> str:
+    """Render a scalar or short scalar-list field for an inline ``k=v``."""
+    return _inline_list(value) if isinstance(value, (list, tuple)) else _scalar(value)
+
+
+def _flat_dict_inline(value: object) -> str:
+    """Render a flat dict as ``k=v · k=v`` on one line (callers pass a dict)."""
+    if not isinstance(value, dict):
+        return _scalar(value)
+    return " · ".join(f"{k}={_inline_field(v)}" for k, v in value.items())
+
+
+def _table_keys(seq: Sequence[object]) -> list[str] | None:
+    """Shared scalar-only key order if *seq* is a homogeneous dict list, else None.
+
+    Homogeneous = ≥2 dicts, identical key sets, all values scalar. Order is
+    taken from the first record so the table reads in declaration order.
+    """
+    rows = [r for r in seq if isinstance(r, dict)]
+    if len(rows) < _MIN_TABLE_ROWS or len(rows) != len(seq):
+        return None
+    keys = list(rows[0].keys())
+    key_set = set(keys)
+    for rec in rows:
+        if set(rec.keys()) != key_set:
+            return None
+        if not all(_is_scalar(v) for v in rec.values()):
+            return None
+    return keys
+
+
+def record_table(
+    rows: Sequence[object],
+    keys: Sequence[str],
+    *,
+    indent: int = 0,
+) -> list[str]:
+    """Render a homogeneous dict list as ``key | key`` header + value rows.
+
+    Lossless: emits the shared *keys* once as a header line then one value row
+    per record. ``None`` cells render as an em-dash, bools as yes/no. *indent*
+    offsets every line by two spaces per level.
+    """
+    pad = _INDENT * indent
+    lines = [f"{pad}{' | '.join(keys)}"]
+    for rec in rows:
+        row = rec if isinstance(rec, dict) else {}
+        lines.append(f"{pad}{' | '.join(_scalar(row.get(k)) for k in keys)}")
+    return lines
+
+
+def _fmt_field(key: object, val: object, *, indent: int) -> list[str]:
+    """Render one ``key: …`` entry of a (non-flat) dict."""
+    pad = _INDENT * indent
+    if _is_scalar(val):
+        return [f"{pad}{key}: {_scalar(val)}"]
+    if _is_short_scalar_list(val):
+        return [f"{pad}{key}: {_inline_list(val)}"]
+    if _is_flat_dict(val):
+        return [f"{pad}{key}: {_flat_dict_inline(val)}"]
+    return [f"{pad}{key}:", *_fmt_value(val, indent=indent + 1)]
+
+
+def _fmt_item(item: object, *, indent: int) -> list[str]:
+    """Render one ``- …`` entry of a (heterogeneous) list."""
+    pad = _INDENT * indent
+    if _is_scalar(item):
+        return [f"{pad}- {_scalar(item)}"]
+    if _is_flat_dict(item):
+        return [f"{pad}- {_flat_dict_inline(item)}"]
+    child = _fmt_value(item, indent=indent + 1)
+    return [f"{pad}- {child[0].strip()}", *child[1:]]
+
+
+def _fmt_dict(value: dict[object, object], *, indent: int) -> list[str]:
+    """Render a (non-flat) dict: one ``key: …`` block per entry."""
+    pad = _INDENT * indent
+    if _is_flat_dict(value):
+        return [f"{pad}{_flat_dict_inline(value)}"]
+    lines: list[str] = []
+    for key, val in value.items():
+        lines.extend(_fmt_field(key, val, indent=indent))
+    return lines or [f"{pad}(empty)"]
+
+
+def _fmt_list(seq: list[object], *, indent: int) -> list[str]:
+    """Render a list: inline / table (homogeneous) / bullet lines."""
+    pad = _INDENT * indent
+    if not seq:
+        return [f"{pad}(none)"]
+    if _is_short_scalar_list(seq):
+        return [f"{pad}{_inline_list(seq)}"]
+    keys = _table_keys(seq)
+    if keys is not None:
+        return record_table(seq, keys, indent=indent)
+    lines: list[str] = []
+    for item in seq:
+        lines.extend(_fmt_item(item, indent=indent))
+    return lines
+
+
+def _fmt_value(value: object, *, indent: int) -> list[str]:
+    """Render *value* as one or more lines, recursing into dicts/lists."""
+    if isinstance(value, dict):
+        return _fmt_dict(value, indent=indent)
+    if isinstance(value, (list, tuple)):
+        return _fmt_list(list(value), indent=indent)
+    return [f"{_INDENT * indent}{_scalar(value)}"]
+
+
+def render_result(tool: str, data: object, *, label: str = "") -> str:
+    """Render an arbitrary tool result as compact, lossless ``text``.
+
+    Header is ``{tool}`` (plus ``| {label}`` when *label* is given); the body
+    preserves every field of *data*. A scalar-only payload collapses to the
+    arrow form ``{header} → {value}``.
+
+    Never raises: any object — including an unrenderable or self-referential
+    one — yields a ``str`` (falling back to the header line on failure).
+    """
+    head = header(tool, label) if label else tool
+    try:
+        body = _fmt_value(data, indent=0)
+        if len(body) == 1 and not isinstance(data, (dict, list, tuple)):
+            return f"{head} → {body[0].strip()}"
+        return "\n".join([head, *body])
+    except Exception:  # noqa: BLE001 — never-raises contract: any object yields a str
+        return head

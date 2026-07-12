@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from axm_ingot import render as render_mod
 from axm_ingot.render import (
     compact_table,
     format_count,
     format_size,
     header,
     labeled_block,
+    record_table,
+    render_result,
     truncate,
 )
 
@@ -81,3 +84,42 @@ def test_primitive_composition_matches_single_block_golden_sample() -> None:
     text = "\n".join([top, block])
 
     assert text == "scan | 2 hits\nHits\n  a.py\n  b.py"
+
+
+def test_render_result_and_record_table_are_exported() -> None:
+    assert "render_result" in render_mod.__all__
+    assert "record_table" in render_mod.__all__
+    assert callable(render_result)
+    assert callable(record_table)
+
+
+def test_render_result_renders_scalar_only_payload_in_arrow_form() -> None:
+    out = render_result("t", {"count": 3})
+    assert " → " not in out  # a dict payload is not the top-level arrow form
+    assert out == "t\ncount=3"  # single-key flat dict renders inline
+
+    assert render_result("t", 3) == "t → 3"
+    assert render_result("t", None) == "t → —"
+    assert render_result("t", True) == "t → yes"
+    assert render_result("t", False) == "t → no"
+
+
+def test_render_result_never_raises_on_arbitrary_object() -> None:
+    out = render_result("t", object())
+    assert isinstance(out, str)
+
+    cyclic: dict[str, object] = {}
+    cyclic["self"] = cyclic
+    result = render_result("t", cyclic)
+    assert isinstance(result, str)
+
+
+def test_record_table_emits_lossless_header_and_value_rows() -> None:
+    rows = [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
+    lines = record_table(rows, ["a", "b"])
+    assert lines[0] == "a | b"
+    assert lines[1:] == ["1 | 2", "3 | 4"]
+
+    indented = record_table(rows, ["a", "b"], indent=1)
+    assert indented[0] == "  a | b"
+    assert all(line.startswith("  ") for line in indented)
