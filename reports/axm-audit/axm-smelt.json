@@ -1,9 +1,9 @@
 {
-  "score": 97.5,
+  "score": 97.7,
   "grade": "A",
   "total": 31,
-  "failed": 1,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -78,26 +78,11 @@
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
-      "passed": false,
-      "message": "Found 1 dead (unreferenced) symbol(s).",
+      "passed": true,
+      "message": "No dead code detected.",
       "details": {
-        "dead_count": 1,
-        "symbols": [
-          {
-            "name": "try_json",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-smelt/src/axm_smelt/core/detector.py",
-            "line": 20,
-            "kind": "function"
-          }
-        ],
-        "top_offenders": [
-          {
-            "name": "try_json",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-smelt/src/axm_smelt/core/detector.py",
-            "line": 20,
-            "kind": "function"
-          }
-        ]
+        "dead_count": 0,
+        "symbols": []
       },
       "metadata": null
     },
