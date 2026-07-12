@@ -1,8 +1,8 @@
 {
-  "score": 97.4,
+  "score": 97.3,
   "grade": "A",
   "total": 31,
-  "failed": 2,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.9245283018868,
+        "coverage": 92.65536723163842,
         "failures": []
       },
       "metadata": null
@@ -183,11 +183,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (10/10)",
+      "message": "Docstring coverage: 100% (12/12)",
       "details": {
         "coverage": 1.0,
-        "total": 10,
-        "documented": 10,
+        "total": 12,
+        "documented": 12,
         "missing": []
       },
       "metadata": null
@@ -280,12 +280,12 @@
               {
                 "file": "tests/unit/test_render.py",
                 "name": "test_header_renders_tool_pipe_summary",
-                "line": 15
+                "line": 18
               },
               {
                 "file": "tests/unit/test_render.py",
                 "name": "test_truncate_leaves_short_text_unchanged",
-                "line": 53
+                "line": 56
               }
             ],
             "cluster_hash": "67f61ee00288"
@@ -294,7 +294,7 @@
         "bucket_counts": {
           "CLUSTERED": 0,
           "AMBIGUOUS": 10,
-          "UNIQUE": 20
+          "UNIQUE": 26
         },
         "stale_acknowledged": []
       }
@@ -342,9 +342,26 @@
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": false,
-      "message": "1 test(s) mis-located vs. classified pyramid level",
+      "message": "2 test(s) mis-located vs. classified pyramid level",
       "details": {
         "mismatches": [
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ingot/tests/integration/test_record_table__render_result.py",
+            "function": "test_record_table_is_lossless_header_and_rows",
+            "level": "unit",
+            "reason": "public API import, no real I/O (pure function unit test)",
+            "current_level": "integration",
+            "has_real_io": false,
+            "has_subprocess": false,
+            "io_signals": [],
+            "imports_public": [
+              "record_table",
+              "render_result"
+            ],
+            "imports_internal": [],
+            "suggested_file": "unit/test_render.py",
+            "severity": "warning"
+          },
           {
             "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ingot/tests/integration/test_render.py",
             "function": "test_full_compact_text_assembled_from_composed_primitives",
@@ -365,17 +382,27 @@
             "severity": "warning"
           }
         ],
-        "total": 1
+        "total": 2
       },
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
-      "passed": true,
-      "message": "no tautologies found",
+      "passed": false,
+      "message": "1 tautology finding(s)",
       "details": null,
       "metadata": {
-        "verdicts": []
+        "verdicts": [
+          {
+            "file": "tests/unit/test_render.py",
+            "test": "test_render_result_never_raises_on_arbitrary_object",
+            "line": 107,
+            "pattern": "isinstance_only",
+            "rule": "step4c_significant_setup",
+            "verdict": "STRENGTHEN",
+            "reason": "significant setup with weak assert \u2014 non-trivial scenario"
+          }
+        ]
       }
     },
     {
