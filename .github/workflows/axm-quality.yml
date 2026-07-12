@@ -181,7 +181,7 @@ jobs:
           write_badge "_publish/badges/$PKG" "axm-init" "axm-init" "$ISCORE" /tmp/init-logo.svg
 
       - name: Upload package badges + reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: badges-${{ matrix.package }}
           path: _publish/
