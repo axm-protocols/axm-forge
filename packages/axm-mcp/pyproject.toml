@@ -15,7 +15,7 @@ classifiers = [
 ]
 dependencies = [
     "axm",
-    "cyclopts>=4.5.1",
+    "cyclopts>=4.21.0",
     "httpx>=0.28",
     "mcp[cli]>=1.25.0",
     "starlette>=1.2",

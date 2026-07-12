@@ -16,7 +16,7 @@ classifiers = [
 
 dependencies = [
     "axm",
-    "cyclopts>=4.5",
+    "cyclopts>=4.21.0",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
     "tiktoken>=0.9",
