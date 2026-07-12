@@ -17,7 +17,7 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-ingot",
-    "cyclopts>=3.0",
+    "cyclopts>=4.21.0",
     "pydantic>=2.12.5",
     "tree-sitter>=0.24",
     "tree-sitter-python>=0.23",
@@ -604,7 +604,7 @@ reason = "2 inspect CLI batch tests probe two distinct rendering contracts on tw
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "0af64a6d5650"
-reason = "2 CLI text-output tests probe two distinct subcommands (callers vs context) with two divergent fixtures and two unrelated text-shape contracts: TestCallersCLI.test_callers_text_output builds a target/user.py pkg via tmp_path.mkdir + write_text (target() callable invoked from user.main) and runs `app(['callers', pkg, '--symbol', 'target'])` asserting 'target' in captured.out, while test_context_cli_text builds a testpkg via _make_pkg + _make_pyproject(['cyclopts>=3.0']) and runs `app(['context', pkg])` asserting 'testpkg' in captured.out. Different CLI binaries (callers vs context, including different required args — callers needs --symbol, context does not), different fixture builders (inline tmp_path target/user setup vs _make_pkg+_make_pyproject), different needle expectations ('target' vs 'testpkg') — folding would conflate two unrelated CLI subcommand contracts into a heterogeneous (cmd, args, expected_needle) parameter and erase the per-subcommand documentation."
+reason = "2 CLI text-output tests probe two distinct subcommands (callers vs context) with two divergent fixtures and two unrelated text-shape contracts: TestCallersCLI.test_callers_text_output builds a target/user.py pkg via tmp_path.mkdir + write_text (target() callable invoked from user.main) and runs `app(['callers', pkg, '--symbol', 'target'])` asserting 'target' in captured.out, while test_context_cli_text builds a testpkg via _make_pkg + _make_pyproject(['cyclopts>=4.21.0']) and runs `app(['context', pkg])` asserting 'testpkg' in captured.out. Different CLI binaries (callers vs context, including different required args — callers needs --symbol, context does not), different fixture builders (inline tmp_path target/user setup vs _make_pkg+_make_pyproject), different needle expectations ('target' vs 'testpkg') — folding would conflate two unrelated CLI subcommand contracts into a heterogeneous (cmd, args, expected_needle) parameter and erase the per-subcommand documentation."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "41867d139bb9"
@@ -636,7 +636,7 @@ reason = "2 CallersTool routing tests probe two mutually exclusive control-flow 
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e5335364f797"
-reason = "2 detect_stack tests probe two distinct config sources with two divergent assertion sets: test_detect_stack_multiple writes pyproject [project].dependencies = ['cyclopts>=3.0', 'pydantic>=2.0', 'tree-sitter>=0.24'] and asserts the cross-category routing 'cyclopts' in stack['cli'] + 'pydantic' in stack['models'] + 'tree-sitter' in stack['parsing'] (three distinct categories from runtime deps), while test_detect_stack_dev_deps starts with empty [project].dependencies then APPENDS a [dependency-groups].dev = ['pytest>=8.0', 'ruff>=0.8', 'mypy>=1.14'] section and asserts the dev-group routing 'tests' in stack + 'lint' in stack + 'types' in stack (three distinct categories from dependency-groups). Different config sources (project.dependencies vs dependency-groups.dev), different SUT routing paths, different category outputs — folding would conflate the runtime-deps categorization contract with the dev-deps categorization contract."
+reason = "2 detect_stack tests probe two distinct config sources with two divergent assertion sets: test_detect_stack_multiple writes pyproject [project].dependencies = ['cyclopts>=4.21.0', 'pydantic>=2.0', 'tree-sitter>=0.24'] and asserts the cross-category routing 'cyclopts' in stack['cli'] + 'pydantic' in stack['models'] + 'tree-sitter' in stack['parsing'] (three distinct categories from runtime deps), while test_detect_stack_dev_deps starts with empty [project].dependencies then APPENDS a [dependency-groups].dev = ['pytest>=8.0', 'ruff>=0.8', 'mypy>=1.14'] section and asserts the dev-group routing 'tests' in stack + 'lint' in stack + 'types' in stack (three distinct categories from dependency-groups). Different config sources (project.dependencies vs dependency-groups.dev), different SUT routing paths, different category outputs — folding would conflate the runtime-deps categorization contract with the dev-deps categorization contract."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "15f2fa123398"

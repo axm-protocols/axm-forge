@@ -19,7 +19,7 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-config",
-    "cyclopts>=4.5",
+    "cyclopts>=4.21.0",
     "pydantic>=2.7",
     "keyring>=25",
     "tomli-w>=1.0",

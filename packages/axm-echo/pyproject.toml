@@ -20,7 +20,7 @@ dependencies = [
     "axm",
     "axm-ast",
     "axm-config",
-    "numpy>=2.5.0",
+    "numpy>=2.5.1",
     "scikit-learn>=1.9.0",
     # echo IS neural: the default backend is MiniLM (sentence-transformers on
     # torch), so the neural stack ships in the base install (AXM-2188). The

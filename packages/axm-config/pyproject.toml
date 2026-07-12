@@ -18,7 +18,7 @@ classifiers = [
 
 dependencies = [
     "axm",
-    "cyclopts>=4.5",
+    "cyclopts>=4.21.0",
     "pydantic>=2.7",
     "tomli-w>=1.0",
 ]

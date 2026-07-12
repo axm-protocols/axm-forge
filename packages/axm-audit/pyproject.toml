@@ -20,7 +20,7 @@ dependencies = [
     "axm-echo",
     "axm-ingot",
     "complexipy==6.0.1",  # pinned: 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186); native dep run via uvx, lock does not protect — Dependabot proposes bumps
-    "cyclopts>=3.0",
+    "cyclopts>=4.21.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
     "radon>=6.0.1",
