@@ -58,7 +58,7 @@
             "function": "DedupValuesStrategy.apply",
             "cc": 12,
             "rank": "C",
-            "cognitive": 10,
+            "cognitive": 13,
             "reason": "cc"
           }
         ],

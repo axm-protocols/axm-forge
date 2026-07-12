@@ -15,8 +15,8 @@
       "total": 16
     },
     "docs": {
-      "earned": 10,
-      "total": 13
+      "earned": 12,
+      "total": 15
     },
     "pyproject": {
       "earned": 4,
@@ -139,6 +139,14 @@
       "earned": 2,
       "weight": 2,
       "message": "README has axm-audit + axm-init badges"
+    },
+    {
+      "name": "docs.standalone_api_ref",
+      "category": "docs",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "reference/api/ builds standalone"
     },
     {
       "name": "pyproject.pyproject_dynamic_version",

@@ -1,5 +1,5 @@
 {
-  "score": 99.3,
+  "score": 97.8,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -49,10 +49,19 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "axm/cli.py",
+            "function": "build_command_for_tool",
+            "cc": 6,
+            "rank": "B",
+            "cognitive": 20,
+            "reason": "cog"
+          }
+        ],
         "cognitive_disabled": false
       },
       "metadata": null

@@ -1,5 +1,5 @@
 {
-  "score": 96.6,
+  "score": 96.7,
   "grade": "A",
   "total": 31,
   "failed": 4,
@@ -1540,34 +1540,9 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": false,
-      "message": "7 naming finding(s): 4 INFO + 3 WARNING",
+      "message": "6 naming finding(s): 4 INFO + 2 WARNING",
       "details": {
         "findings": [
-          {
-            "verdict": "SPLIT",
-            "severity": "warning",
-            "tier": "integration",
-            "current_name": "test_commit_phase_hook__git_commit_tool.py",
-            "proposed_name": "test_commit_phase_hook__git_commit_tool.py",
-            "path": "tests/integration/test_commit_phase_hook__git_commit_tool.py",
-            "tuples": [
-              [
-                "CommitPhaseHook"
-              ],
-              [
-                "CommitPhaseHook",
-                "GitCommitTool"
-              ],
-              [
-                "GitCommitTool"
-              ]
-            ],
-            "suggested_splits": [
-              "test_commit_phase_hook.py",
-              "test_commit_phase_hook__git_commit_tool.py",
-              "test_git_commit_tool.py"
-            ]
-          },
           {
             "verdict": "NAME_MISMATCH",
             "severity": "info",

@@ -19,8 +19,8 @@
       "total": 3
     },
     "docs": {
-      "earned": 6,
-      "total": 6
+      "earned": 8,
+      "total": 8
     },
     "pyproject": {
       "earned": 29,
@@ -123,6 +123,14 @@
       "earned": 3,
       "weight": 3,
       "message": "README follows standard"
+    },
+    {
+      "name": "docs.standalone_api_ref",
+      "category": "docs",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "reference/api/ builds standalone"
     },
     {
       "name": "pyproject.pyproject_classifiers",
@@ -250,7 +258,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "257 test file(s) found across unit/integration/e2e"
+      "message": "259 test file(s) found across unit/integration/e2e"
     },
     {
       "name": "structure.uv_lock",

@@ -1,9 +1,9 @@
 {
-  "score": 99.3,
+  "score": 99.4,
   "grade": "A",
   "total": 31,
-  "failed": 1,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -679,52 +679,10 @@
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": false,
-      "message": "1 naming finding(s): 0 INFO + 1 WARNING",
+      "passed": true,
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "findings": [
-          {
-            "verdict": "SPLIT",
-            "severity": "warning",
-            "tier": "integration",
-            "current_name": "test_batch_apply__batch_rollback_tool.py",
-            "proposed_name": "test_batch_apply__batch_rollback_tool.py",
-            "path": "tests/integration/test_batch_apply__batch_rollback_tool.py",
-            "tuples": [
-              [
-                "BatchRollbackTool"
-              ],
-              [
-                "BatchRollbackTool",
-                "batch_apply"
-              ],
-              [
-                "DeleteOp",
-                "batch_apply"
-              ],
-              [
-                "Edit",
-                "ReplaceOp"
-              ],
-              [
-                "ReplaceOp",
-                "batch_apply"
-              ],
-              [
-                "create_checkpoint",
-                "snapshot_paths"
-              ]
-            ],
-            "suggested_splits": [
-              "test_batch_apply__batch_rollback_tool.py",
-              "test_batch_apply__delete_op.py",
-              "test_batch_apply__replace_op.py",
-              "test_batch_rollback_tool.py",
-              "test_create_checkpoint__snapshot_paths.py",
-              "test_edit__replace_op.py"
-            ]
-          }
-        ]
+        "findings": []
       },
       "metadata": null
     },

@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo",
-  "score": 98,
+  "score": 96,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -20,7 +20,7 @@
     },
     "docs": {
       "earned": 6,
-      "total": 6
+      "total": 8
     },
     "pyproject": {
       "earned": 29,
@@ -123,6 +123,14 @@
       "earned": 3,
       "weight": 3,
       "message": "README follows standard"
+    },
+    {
+      "name": "docs.standalone_api_ref",
+      "category": "docs",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "nav declares reference/api/ but standalone build cannot resolve it \u2014 missing 4 item(s)"
     },
     {
       "name": "pyproject.pyproject_classifiers",
@@ -318,6 +326,15 @@
     }
   ],
   "failures": [
+    {
+      "name": "docs.standalone_api_ref",
+      "weight": 2,
+      "message": "nav declares reference/api/ but standalone build cannot resolve it \u2014 missing 4 item(s)",
+      "details": [
+        "Missing locally: gen-files, literate-nav, mkdocstrings, docs/gen_ref_pages.py"
+      ],
+      "fix": "Add docs/gen_ref_pages.py + gen-files/literate-nav/mkdocstrings plugins so `mkdocs build --strict` passes standalone (do not rely on the workspace-root mkdocs.yml)."
+    },
     {
       "name": "tooling.precommit_installed",
       "weight": 2,

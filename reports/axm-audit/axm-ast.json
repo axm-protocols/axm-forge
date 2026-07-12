@@ -1,9 +1,9 @@
 {
-  "score": 97.5,
-  "grade": "A",
+  "score": 88.5,
+  "grade": "B",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -56,11 +56,59 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 30/100 (7 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 7,
         "top_offenders": [
+          {
+            "file": "axm_ast/core/impact.py",
+            "function": "_add_workspace_git_coupling",
+            "cc": 8,
+            "rank": "B",
+            "cognitive": 20,
+            "reason": "cog"
+          },
+          {
+            "file": "axm_ast/core/analyzer.py",
+            "function": "fingerprint_source_tree",
+            "cc": 9,
+            "rank": "B",
+            "cognitive": 18,
+            "reason": "cog"
+          },
+          {
+            "file": "axm_ast/core/context.py",
+            "function": "_group_by_subpackage",
+            "cc": 9,
+            "rank": "B",
+            "cognitive": 18,
+            "reason": "cog"
+          },
+          {
+            "file": "axm_ast/core/doc_impact.py",
+            "function": "find_stale_signatures",
+            "cc": 9,
+            "rank": "B",
+            "cognitive": 17,
+            "reason": "cog"
+          },
+          {
+            "file": "axm_ast/core/workspace.py",
+            "function": "_expand_workspace_members",
+            "cc": 8,
+            "rank": "B",
+            "cognitive": 16,
+            "reason": "cog"
+          },
+          {
+            "file": "axm_ast/core/analyzer.py",
+            "function": "analyze_package",
+            "cc": 10,
+            "rank": "B",
+            "cognitive": 16,
+            "reason": "cog"
+          },
           {
             "file": "axm_ast/core/callers.py",
             "function": "_visit_references",
