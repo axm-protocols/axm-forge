@@ -1,5 +1,5 @@
 {
-  "score": 96.7,
+  "score": 96.6,
   "grade": "A",
   "total": 31,
   "failed": 4,
@@ -68,28 +68,11 @@
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "Test coverage: 94% (4 test(s) failed)",
+      "passed": true,
+      "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 94.06456091634848,
-        "failures": [
-          {
-            "test": "tests/integration/test_identity__load_config.py::test_loads_from_store_git_section",
-            "traceback": "assert None is not None"
-          },
-          {
-            "test": "tests/integration/test_identity__load_config.py::test_workspace_paths_sourced_from_echo_roots",
-            "traceback": "assert None is not None"
-          },
-          {
-            "test": "tests/integration/test_identity__load_config.py::test_enabled_flag_round_trips_via_store",
-            "traceback": "assert None is not None"
-          },
-          {
-            "test": "tests/integration/test_merge_squash_hook__run_git.py::test_squash_commit_uses_resolved_profile",
-            "traceback": "axm_config.resolver.UnsafeHomeError: refusing in-repo path /tmp/pytest-of-runner/pytest-1/test_squash_commit_uses_resolv0/home/.axm: resolves inside the git checkout at /tmp/pytest-of-runner/pytest-1/test_squash_commit_uses_resolv0"
-          }
-        ]
+        "coverage": 94.42906574394463,
+        "failures": []
       },
       "metadata": null
     },
@@ -222,7 +205,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": false,
-      "message": "45 cluster(s), 1 clustered pair(s)",
+      "message": "46 cluster(s), 1 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -754,6 +737,39 @@
             ],
             "cluster_hash": "e7377c7b0e34",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "pytest.raises divergence rescue for SUT load_config(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_identity__load_config.py",
+                "name": "test_loads_from_store_git_section",
+                "line": 26
+              },
+              {
+                "file": "tests/integration/test_identity__load_config.py",
+                "name": "test_workspace_paths_sourced_from_echo_roots",
+                "line": 45
+              },
+              {
+                "file": "tests/integration/test_identity__load_config.py",
+                "name": "test_none_when_no_config_anywhere",
+                "line": 80
+              },
+              {
+                "file": "tests/integration/test_identity__load_config.py",
+                "name": "test_enabled_flag_round_trips_via_store",
+                "line": 86
+              },
+              {
+                "file": "tests/unit/core/test_identity.py",
+                "name": "test_unsafe_home_raises_not_silent_none",
+                "line": 237
+              }
+            ],
+            "cluster_hash": "4062d39a747e"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1510,8 +1526,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 13,
-          "AMBIGUOUS": 164,
-          "UNIQUE": 425
+          "AMBIGUOUS": 169,
+          "UNIQUE": 422
         },
         "stale_acknowledged": [
           {
@@ -1630,10 +1646,17 @@
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
-      "passed": true,
-      "message": "every integration/e2e test exercises the package",
+      "passed": false,
+      "message": "1 integration/e2e test(s) exercise no package symbol or CLI",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "test_file": "tests/e2e/test_git.py",
+            "verdict": "NO_PACKAGE_SYMBOL",
+            "criterion_a_passed": false,
+            "criterion_b_passed": false
+          }
+        ]
       },
       "metadata": null
     },
@@ -1649,9 +1672,26 @@
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": false,
-      "message": "4 test(s) mis-located vs. classified pyramid level",
+      "message": "6 test(s) mis-located vs. classified pyramid level",
       "details": {
         "mismatches": [
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/e2e/test_git.py",
+            "function": "test_load_config_suite_green_under_scrubbed_env",
+            "level": "unit",
+            "reason": "no real I/O, no package import (unit)",
+            "current_level": "e2e",
+            "has_real_io": false,
+            "has_subprocess": true,
+            "io_signals": [
+              "imports subprocess",
+              "call:subprocess.run"
+            ],
+            "imports_public": [],
+            "imports_internal": [],
+            "suggested_file": "unit/test_git.py",
+            "severity": "warning"
+          },
           {
             "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/unit/core/test_identity.py",
             "function": "test_explicit_config_path_still_parses_file",
@@ -1670,6 +1710,7 @@
               "GitProfileConfig",
               "author_args",
               "resolve_identity",
+              "load_config",
               "load_config"
             ],
             "imports_internal": [
@@ -1696,6 +1737,7 @@
               "GitProfileConfig",
               "author_args",
               "resolve_identity",
+              "load_config",
               "load_config"
             ],
             "imports_internal": [
@@ -1722,6 +1764,7 @@
               "GitProfileConfig",
               "author_args",
               "resolve_identity",
+              "load_config",
               "load_config"
             ],
             "imports_internal": [
@@ -1748,6 +1791,34 @@
               "GitProfileConfig",
               "author_args",
               "resolve_identity",
+              "load_config",
+              "load_config"
+            ],
+            "imports_internal": [
+              "Schedule",
+              "resolve_by_schedule"
+            ],
+            "suggested_file": "integration/core/test_identity.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/unit/core/test_identity.py",
+            "function": "test_unsafe_home_raises_not_silent_none",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.mkdir()",
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "GitIdentity",
+              "GitProfileConfig",
+              "author_args",
+              "resolve_identity",
+              "load_config",
               "load_config"
             ],
             "imports_internal": [
@@ -1758,7 +1829,7 @@
             "severity": "warning"
           }
         ],
-        "total": 4
+        "total": 6
       },
       "metadata": null
     },
