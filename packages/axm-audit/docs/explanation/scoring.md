@@ -26,6 +26,24 @@ Crashed rules are also surfaced on `AuditResult.crashed_rules` — the list of
 `rule_id`s whose check raised — so a degraded audit is observable and traceable
 instead of silently passing with an optimistic grade.
 
+### Serialization: `.score` is never dropped silently
+
+`AuditResult.quality_score` may be `None`, but the machine-facing serialization
+must not leak that into a payload. All score/grade serialization routes through
+a single source of truth, `axm_audit.score.resolve_score_grade`:
+
+- when scored categories ran but every metric came back **unmeasured**, the
+  score is *assumed* (`UNMEASURED_ASSUMED_SCORE`, floored to 0 — no masking) so
+  the `--json` payload always carries a **numeric** `.score` and its grade;
+- when **no scored signal exists at all** (e.g. `--category structure`, an
+  unscored category), the score is genuinely incalculable: serialization raises
+  `ScoreIncalculableError`, and `audit --json` fails loud — non-zero exit with an
+  explicit stderr message rather than a success JSON missing `.score`.
+
+Lax summaries (`format_agent`, `format_test_quality_json`) use the tolerant
+`score_grade_or_none` variant, which returns `None` instead of raising, but
+still derive from the same source so no path computes the pair differently.
+
 | Category | Tool | Weight |
 |---|---|---|
 | Linting | Ruff | **15%** |

@@ -31,6 +31,7 @@ from axm_audit.formatters import (
     format_test_quality_text,
 )
 from axm_audit.models.results import format_categories_help
+from axm_audit.score import ScoreIncalculableError
 
 __all__ = ["app"]
 
@@ -103,7 +104,12 @@ def audit(
     if agent:
         print(format_agent_text(format_agent(result), category=category))
     elif json_output:
-        print(json.dumps(format_json(result), indent=2))
+        try:
+            payload = format_json(result)
+        except ScoreIncalculableError as exc:
+            print(f"❌ quality score incalculable: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+        print(json.dumps(payload, indent=2))
     else:
         print(format_report(result))
 

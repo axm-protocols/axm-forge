@@ -7,6 +7,7 @@ from collections.abc import Sized
 
 from axm_audit.core.rules.base import PERFECT_SCORE
 from axm_audit.models.results import AuditResult, CheckResult
+from axm_audit.score import resolve_score_grade, score_grade_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +123,18 @@ def format_report(result: AuditResult) -> str:
 
 
 def format_json(result: AuditResult) -> dict[str, object]:
-    """Format audit result as JSON-serializable dict."""
+    """Format audit result as JSON-serializable dict.
+
+    The ``score``/``grade`` pair is resolved through the single serialization
+    source (:func:`axm_audit.score.resolve_score_grade`): the payload always
+    carries a numeric ``score``, and when a score cannot be computed at all it
+    raises :class:`axm_audit.score.ScoreIncalculableError` rather than emit a
+    success payload without a ``score`` key.
+    """
+    score, grade = resolve_score_grade(result)
     return {
-        "score": result.quality_score,
-        "grade": result.grade,
+        "score": score,
+        "grade": grade,
         "total": result.total,
         "failed": result.failed,
         "success": result.success,
@@ -193,10 +202,15 @@ def format_agent(result: AuditResult) -> dict[str, object]:
     Rule-specific ``metadata`` (e.g. tautology verdicts, duplicate clusters,
     pyramid mismatches) is propagated verbatim under the ``metadata`` key
     on both passed and failed entries when non-empty.
+
+    Score/grade derive from the single serialization source
+    (:func:`axm_audit.score.score_grade_or_none`); this lax surface tolerates
+    an incalculable score as ``None`` rather than failing loud.
     """
+    score, grade = score_grade_or_none(result)
     return {
-        "score": result.quality_score,
-        "grade": result.grade,
+        "score": score,
+        "grade": grade,
         "passed": [_render_passed_entry(c) for c in result.checks if c.passed],
         "failed": [_render_failed_entry(c) for c in result.checks if not c.passed],
     }
@@ -556,9 +570,10 @@ def format_test_quality_json(result: AuditResult) -> dict[str, object]:
             if (c.rule_id or "").startswith("TEST_QUALITY_")
         }
     )
+    score, grade = score_grade_or_none(result)
     payload: dict[str, object] = {
-        "score": result.quality_score,
-        "grade": result.grade,
+        "score": score,
+        "grade": grade,
         "rules": rule_ids,
         "clusters": clusters,
         "verdicts": verdicts,

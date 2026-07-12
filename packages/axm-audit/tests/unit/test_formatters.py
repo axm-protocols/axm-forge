@@ -155,6 +155,7 @@ class TestFormatJson:
                     passed=True,
                     message="OK",
                     score=100,
+                    category="lint",
                 ),
             ]
         )

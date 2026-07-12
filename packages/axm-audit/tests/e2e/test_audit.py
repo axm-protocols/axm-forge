@@ -227,6 +227,10 @@ def test_audit_type_cli_fails_on_missing_stub(tmp_path: Path) -> None:
 
 
 def test_cli_audit_structure_shows_pyramid(tmp_path: Path) -> None:
+    """Structure (an unscored category) reports the pyramid rule in the human
+    report. ``--json`` is *not* used here: with no scored signal the score is
+    incalculable and the JSON surface fails loud (see
+    ``test_cli_audit_structure_json_incalculable_fails_loud``)."""
     (tmp_path / "pyproject.toml").write_text(PYPROJECT)
     for d in ("tests/unit", "tests/integration", "tests/e2e"):
         (tmp_path / d).mkdir(parents=True, exist_ok=True)
@@ -243,17 +247,57 @@ def test_cli_audit_structure_shows_pyramid(tmp_path: Path) -> None:
             str(tmp_path),
             "--category",
             "structure",
-            "--json",
         ],
         capture_output=True,
         text=True,
         check=False,
     )
     assert proc.returncode in (0, 1), proc.stderr
-    payload = json.loads(proc.stdout)
-    checks = payload.get("checks", [])
     pyramid_rule_id = TestsPyramidRule().rule_id
-    assert any(c.get("rule_id") == pyramid_rule_id for c in checks)
+    assert pyramid_rule_id in proc.stdout
+
+
+def test_cli_audit_json_always_emits_score_on_success(tmp_path: Path) -> None:
+    """AC1: `audit <fixture> --json` emits a numeric ``.score`` and exits 0 even
+    when a metric diagnostic (unmeasured cognitive score) fires."""
+    _make_unpaired_cognitive_project(tmp_path)
+    proc = _run_complexity_json(tmp_path)
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert isinstance(payload["score"], int | float)
+    assert payload["grade"] in {"A", "B", "C", "D", "F"}
+
+
+def test_cli_audit_structure_json_incalculable_fails_loud(tmp_path: Path) -> None:
+    """AC2: when the score is genuinely incalculable (an unscored-only audit),
+    ``--json`` exits non-zero with an explicit stderr error and emits NO
+    success JSON on stdout (never a payload without ``.score``)."""
+    _make_clean_project(tmp_path)
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv binary not found on PATH")
+
+    proc = subprocess.run(  # noqa: S603
+        [
+            uv,
+            "run",
+            "axm-audit",
+            "audit",
+            str(tmp_path),
+            "--category",
+            "structure",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode != 0
+    assert proc.stderr.strip(), "expected an explicit error on stderr"
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(proc.stdout)
 
 
 def test_cli_help_lists_test_quality() -> None:
