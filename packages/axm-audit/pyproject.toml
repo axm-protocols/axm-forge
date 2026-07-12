@@ -79,7 +79,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-json-report>=1.5",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
+    "ruff==0.15.21",
     "mypy>=1.20.0",
     "prek>=0.4.4",
     "pip-audit>=2.0",
