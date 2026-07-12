@@ -935,7 +935,9 @@ def test_offender_dict_has_cognitive_key_from_unit(
     assert result.details is not None
     top = result.details["top_offenders"][0]
     assert "cognitive" in top
-    assert top["cognitive"] == 0
+    # complexipy >= 6.0 conforms to the SonarSource spec v1.7: a `match`
+    # statement scores +1 cognitive (it scored 0 before the conformance fix).
+    assert top["cognitive"] == 1
 
 
 def _function_cc11(name: str) -> str:

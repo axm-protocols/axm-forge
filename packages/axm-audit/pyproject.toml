@@ -19,7 +19,7 @@ dependencies = [
     "axm-ast",
     "axm-echo",
     "axm-ingot",
-    "complexipy==5.6.1",  # pinned: 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186); native dep run via uvx, lock does not protect — Dependabot proposes bumps
+    "complexipy==6.0.1",  # pinned: 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186); native dep run via uvx, lock does not protect — Dependabot proposes bumps
     "cyclopts>=3.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
@@ -81,7 +81,7 @@ dev = [
     "pytest-mock>=3.15.1",
     "ruff==0.15.21",
     "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pip-audit>=2.0",
     "bandit>=1.9.3",
 ]
