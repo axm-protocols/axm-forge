@@ -1,0 +1,27 @@
+{
+  "input": {
+    "tool": "backtest",
+    "symbol": "AAPL",
+    "summary": "backtested momentum strategy over 2020-2024 with daily rebalancing and slippage model applied",
+    "metrics": {
+      "sharpe": "1.82",
+      "max_drawdown": "-12.4%",
+      "cagr": "18.7%"
+    },
+    "trades": [
+      {
+        "date": "2020-03-12",
+        "side": "buy",
+        "qty": "100",
+        "price": "62.10"
+      },
+      {
+        "date": "2021-11-05",
+        "side": "sell",
+        "qty": "100",
+        "price": "151.28"
+      }
+    ]
+  },
+  "expected": "backtest | AAPL\nbacktested momentum strategy over 2020-2024 with daily rebal…\nMetrics\n  sharpe=1.82\n  max_drawdown=-12.4%\n  cagr=18.7%\ndate        side  qty  price\n2020-03-12  buy   100  62.10\n2021-11-05  sell  100  151.28"
+}

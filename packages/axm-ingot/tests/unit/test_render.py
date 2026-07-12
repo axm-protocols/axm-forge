@@ -70,3 +70,14 @@ def test_format_count_and_format_size_render_human_readable() -> None:
     assert format_count(42) == "42"
     assert format_size(2048) == "2.0 KB"
     assert format_size(512) == "512 B"
+
+
+def test_primitive_composition_matches_single_block_golden_sample() -> None:
+    # Captured single-block sample: a header line plus one labeled block. The
+    # golden is inlined (unit level = no file I/O) and is a real behavioral
+    # assertion — a no-op ``labeled_block`` would drop the indented body.
+    top = header("scan", "2 hits")
+    block = labeled_block("Hits", ["a.py", "b.py"])
+    text = "\n".join([top, block])
+
+    assert text == "scan | 2 hits\nHits\n  a.py\n  b.py"

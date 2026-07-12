@@ -1,0 +1,23 @@
+{
+  "input": {
+    "tool": "route",
+    "origin": "Paris",
+    "destination": "Lyon",
+    "notes": "fastest driving route avoiding tolls where possible with live traffic adjustments and rest-stop suggestions",
+    "legs": [
+      {
+        "from": "Paris",
+        "to": "Beaune",
+        "km": "315",
+        "eta": "2h55"
+      },
+      {
+        "from": "Beaune",
+        "to": "Lyon",
+        "km": "150",
+        "eta": "1h25"
+      }
+    ]
+  },
+  "expected": "route | Paris→Lyon\nfrom    to      km   eta\nParis   Beaune  315  2h55\nBeaune  Lyon    150  1h25\nNotes\n  fastest driving route avoiding tolls where possibl…"
+}
