@@ -226,25 +226,25 @@ requires-dist = [
     { name = "axm-ast", editable = "packages/axm-ast" },
     { name = "axm-edit", editable = "packages/axm-edit" },
     { name = "axm-ingot", editable = "packages/axm-ingot" },
-    { name = "cyclopts", specifier = ">=4.5" },
-    { name = "libcst", specifier = ">=1.5.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "cyclopts", specifier = ">=4.21.0" },
+    { name = "libcst", specifier = ">=1.8.6" },
+    { name = "pydantic", specifier = ">=2.13.4" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.2.0" },
     { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = "==0.15.21" },
 ]
 docs = [
-    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
+    { name = "mkdocs-gen-files", specifier = ">=0.6.1" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
-    { name = "mkdocs-material", specifier = ">=9.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+    { name = "mkdocs-material", specifier = ">=9.7.6" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
 ]
 
 [[package]]
@@ -425,25 +425,25 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
-    { name = "cyclopts", specifier = ">=4.5" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "tomli-w", specifier = ">=1.0" },
+    { name = "cyclopts", specifier = ">=4.21.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "tomli-w", specifier = ">=1.2.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=2.2.0" },
     { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = "==0.15.21" },
 ]
 docs = [
-    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
+    { name = "mkdocs-gen-files", specifier = ">=0.6.1" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
-    { name = "mkdocs-material", specifier = ">=9.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+    { name = "mkdocs-material", specifier = ">=9.7.6" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
 ]
 
 [[package]]
@@ -478,24 +478,24 @@ requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "axm-config", editable = "packages/axm-config" },
     { name = "axm-vault", editable = "packages/axm-vault" },
-    { name = "cyclopts", specifier = ">=4.5" },
-    { name = "pydantic", specifier = ">=2.7" },
+    { name = "cyclopts", specifier = ">=4.21.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=2.2.0" },
     { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = "==0.15.21" },
 ]
 docs = [
-    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
+    { name = "mkdocs-gen-files", specifier = ">=0.6.1" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
-    { name = "mkdocs-material", specifier = ">=9.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+    { name = "mkdocs-material", specifier = ">=9.7.6" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
 ]
 
 [[package]]
@@ -1031,26 +1031,26 @@ docs = [
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "axm-config", editable = "packages/axm-config" },
-    { name = "cyclopts", specifier = ">=4.5" },
-    { name = "keyring", specifier = ">=25" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "tomli-w", specifier = ">=1.0" },
+    { name = "cyclopts", specifier = ">=4.21.0" },
+    { name = "keyring", specifier = ">=25.7.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "tomli-w", specifier = ">=1.2.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=2.2.0" },
     { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = "==0.15.21" },
 ]
 docs = [
-    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
+    { name = "mkdocs-gen-files", specifier = ">=0.6.1" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
-    { name = "mkdocs-material", specifier = ">=9.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+    { name = "mkdocs-material", specifier = ">=9.7.6" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
 ]
 
 [[package]]
@@ -1519,7 +1519,7 @@ wheels = [
 
 [[package]]
 name = "cyclopts"
-version = "4.18.0"
+version = "4.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -1527,9 +1527,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-rst" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/19/5c438b428b3dca208eb920804dc16aeb3ca1e85d6163d17e8fb0785ead19/cyclopts-4.18.0.tar.gz", hash = "sha256:fb7b730f21932e0784f7e54462df0447aaa1fbf034d65b605bd8a25dce58b188", size = 182821, upload-time = "2026-06-11T19:55:05.326Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/53/977540be379b0c82550df872912446def343ab0dfa138b8726120427f83d/cyclopts-4.21.0.tar.gz", hash = "sha256:477c18c791c924cca4836f79fce000a7bae45f551e340d9e1654e102c6d9ab9d", size = 190914, upload-time = "2026-07-09T19:07:07.154Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/9f/b67f14c6b686ca90d317c0358f1a52ae171f43f83c808683fae3ba0b1f90/cyclopts-4.18.0-py3-none-any.whl", hash = "sha256:18ba2912e48e890a97ecc8a05c9beddf30a407b43f4e14cccfd40efddc41f029", size = 221216, upload-time = "2026-06-11T19:55:03.773Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/f6/1c671874560a70d902dd57028a75411c176910de2df3d6a6a533de424131/cyclopts-4.21.0-py3-none-any.whl", hash = "sha256:ded3ddb15b0c815f44d245011fc4cdd5a4809a3bb8202869e9e02195a87c0e18", size = 230066, upload-time = "2026-07-09T19:07:05.326Z" },
 ]
 
 [[package]]
