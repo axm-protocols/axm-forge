@@ -1,9 +1,9 @@
 {
-  "score": 99.4,
+  "score": 99.3,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 8)",
       "details": {
-        "max_fan_out": 9,
+        "max_fan_out": 8,
         "max_fan_in": 10,
-        "avg_coupling": 4.43,
+        "avg_coupling": 4.29,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -60,9 +60,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (94/100)",
+      "message": "Test coverage: 95% (94/100)",
       "details": {
-        "coverage": 94.40993788819875,
+        "coverage": 94.78155339805825,
         "failures": []
       },
       "metadata": null
@@ -102,9 +102,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -174,11 +174,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (35/35)",
+      "message": "Docstring coverage: 100% (36/36)",
       "details": {
         "coverage": 1.0,
-        "total": 35,
-        "documented": 35,
+        "total": 36,
+        "documented": 36,
         "missing": []
       },
       "metadata": null
@@ -599,7 +599,7 @@
         "bucket_counts": {
           "CLUSTERED": 0,
           "AMBIGUOUS": 53,
-          "UNIQUE": 179
+          "UNIQUE": 192
         },
         "stale_acknowledged": [
           {
@@ -679,10 +679,52 @@
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
+      "passed": false,
+      "message": "1 naming finding(s): 0 INFO + 1 WARNING",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "verdict": "SPLIT",
+            "severity": "warning",
+            "tier": "integration",
+            "current_name": "test_batch_apply__batch_rollback_tool.py",
+            "proposed_name": "test_batch_apply__batch_rollback_tool.py",
+            "path": "tests/integration/test_batch_apply__batch_rollback_tool.py",
+            "tuples": [
+              [
+                "BatchRollbackTool"
+              ],
+              [
+                "BatchRollbackTool",
+                "batch_apply"
+              ],
+              [
+                "DeleteOp",
+                "batch_apply"
+              ],
+              [
+                "Edit",
+                "ReplaceOp"
+              ],
+              [
+                "ReplaceOp",
+                "batch_apply"
+              ],
+              [
+                "create_checkpoint",
+                "snapshot_paths"
+              ]
+            ],
+            "suggested_splits": [
+              "test_batch_apply__batch_rollback_tool.py",
+              "test_batch_apply__delete_op.py",
+              "test_batch_apply__replace_op.py",
+              "test_batch_rollback_tool.py",
+              "test_create_checkpoint__snapshot_paths.py",
+              "test_edit__replace_op.py"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -758,13 +800,6 @@
           },
           {
             "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "checkpoint.py",
-            "line": 19
-          },
-          {
-            "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "batch_edit.py",
@@ -776,6 +811,13 @@
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "batch_edit.py",
             "line": 46
+          },
+          {
+            "severity": "LOW",
+            "code": "B101",
+            "message": "Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.",
+            "file": "search_files.py",
+            "line": 71
           }
         ]
       },

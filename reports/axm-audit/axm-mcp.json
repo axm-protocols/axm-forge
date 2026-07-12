@@ -1,5 +1,5 @@
 {
-  "score": 97.0,
+  "score": 96.5,
   "grade": "A",
   "total": 31,
   "failed": 1,
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 8,
         "max_fan_in": 8,
-        "avg_coupling": 4.73,
+        "avg_coupling": 4.8,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -69,9 +69,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (93/100)",
+      "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 93.56435643564356,
+        "coverage": 93.43365253077975,
         "failures": []
       },
       "metadata": null
@@ -111,9 +111,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -141,10 +141,16 @@
     {
       "rule_id": "DEPS_HYGIENE",
       "passed": true,
-      "message": "Clean dependencies (0 issues)",
+      "message": "1 dependency issue(s) found",
       "details": {
-        "issue_count": 0,
-        "top_issues": []
+        "issue_count": 1,
+        "top_issues": [
+          {
+            "code": "DEP004",
+            "module": "mkdocs_gen_files",
+            "message": "'mkdocs_gen_files' imported but declared as a dev dependency"
+          }
+        ]
       },
       "metadata": null
     },
@@ -191,11 +197,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (53/53)",
+      "message": "Docstring coverage: 100% (55/55)",
       "details": {
         "coverage": 1.0,
-        "total": 53,
-        "documented": 53,
+        "total": 55,
+        "documented": 55,
         "missing": []
       },
       "metadata": null
@@ -259,27 +265,27 @@
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_unknown_raises",
-                "line": 129
+                "line": 131
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_bad_kwargs_propagate_typeerror",
-                "line": 133
+                "line": 135
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_text_result_returned",
-                "line": 118
+                "line": 120
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_data_rendered_when_no_text",
-                "line": 121
+                "line": 123
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_plain_callable",
-                "line": 126
+                "line": 128
               }
             ],
             "cluster_hash": "442a41860557",
@@ -298,17 +304,17 @@
               {
                 "file": "tests/unit/test_lifecycle.py",
                 "name": "test_falls_back_to_which",
-                "line": 190
+                "line": 200
               },
               {
                 "file": "tests/unit/test_lifecycle.py",
                 "name": "test_warns_on_protected_dir",
-                "line": 203
+                "line": 213
               },
               {
                 "file": "tests/unit/test_lifecycle.py",
                 "name": "test_not_found",
-                "line": 224
+                "line": 234
               }
             ],
             "cluster_hash": "f7694c5b0202"
@@ -378,17 +384,17 @@
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_parses_typed_params",
-                "line": 212
+                "line": 245
               },
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_parses_numpy_typed_params",
-                "line": 316
+                "line": 349
               },
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_parses_rst_params",
-                "line": 378
+                "line": 411
               }
             ],
             "cluster_hash": "ad6f44b64ded"
@@ -401,17 +407,17 @@
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_numpy_untyped_param",
-                "line": 358
+                "line": 391
               },
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_rst_param_without_type_directive",
-                "line": 405
+                "line": 438
               },
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_rst_param_with_inline_type",
-                "line": 412
+                "line": 445
               }
             ],
             "cluster_hash": "a221380a7787"
@@ -491,7 +497,7 @@
               {
                 "file": "tests/unit/test_server.py",
                 "name": "test_stdio_still_works",
-                "line": 146
+                "line": 155
               }
             ],
             "cluster_hash": "6cf0ea4fb95c"
@@ -504,12 +510,12 @@
               {
                 "file": "tests/unit/test_lifecycle.py",
                 "name": "test_cli_install_delegates",
-                "line": 255
+                "line": 265
               },
               {
                 "file": "tests/unit/test_lifecycle.py",
                 "name": "test_cli_uninstall_delegates",
-                "line": 273
+                "line": 283
               }
             ],
             "cluster_hash": "4c1a4161d8d3",
@@ -542,12 +548,12 @@
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_numpy_params_are_keyword_only_default_none",
-                "line": 341
+                "line": 374
               },
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_rst_params_are_keyword_only_default_none",
-                "line": 397
+                "line": 430
               }
             ],
             "cluster_hash": "6fba6436c20d"
@@ -597,12 +603,12 @@
               {
                 "file": "tests/unit/test_wrapping.py",
                 "name": "test_tool_exception_returns_error_dict",
-                "line": 409
+                "line": 366
               },
               {
                 "file": "tests/unit/test_wrapping.py",
                 "name": "test_plain_fn_exception_returns_error_dict",
-                "line": 423
+                "line": 380
               }
             ],
             "cluster_hash": "e6e942662986",
@@ -616,12 +622,12 @@
               {
                 "file": "tests/unit/test_wrapping.py",
                 "name": "test_failing_result_with_text_not_shortcircuited",
-                "line": 456
+                "line": 413
               },
               {
                 "file": "tests/unit/test_wrapping.py",
                 "name": "test_flatten_collision_success_key_preserved",
-                "line": 483
+                "line": 440
               }
             ],
             "cluster_hash": "74c48c9bac1b",
@@ -650,7 +656,7 @@
         "bucket_counts": {
           "CLUSTERED": 0,
           "AMBIGUOUS": 56,
-          "UNIQUE": 166
+          "UNIQUE": 170
         },
         "stale_acknowledged": [
           {
@@ -753,13 +759,6 @@
           },
           {
             "severity": "LOW",
-            "code": "B603",
-            "message": "subprocess call - check for execution of untrusted input.",
-            "file": "lifecycle.py",
-            "line": 77
-          },
-          {
-            "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "cli.py",
@@ -770,6 +769,13 @@
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "cli.py",
+            "line": 79
+          },
+          {
+            "severity": "LOW",
+            "code": "B603",
+            "message": "subprocess call - check for execution of untrusted input.",
+            "file": "lifecycle.py",
             "line": 79
           }
         ]

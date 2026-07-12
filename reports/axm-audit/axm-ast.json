@@ -79,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.29714048901782,
+        "coverage": 91.32726896836883,
         "failures": []
       },
       "metadata": null
@@ -119,9 +119,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -217,6 +217,79 @@
       "metadata": {
         "clusters": [
           {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "same SUT: analyze_package(1) + same asserts + pytest.raises divergence rescue for SUT analyze_package(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_src_layout_multiple_packages",
+                "line": 60
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_namespace_package_no_init",
+                "line": 137
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_src_layout_name",
+                "line": 37
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_flat_layout_package",
+                "line": 46
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_multi_package_src_deterministic",
+                "line": 84
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_single_package_unchanged",
+                "line": 120
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_build_edges_src_layout",
+                "line": 150
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_relative_dot_import_targets_root_package",
+                "line": 193
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_not_a_directory",
+                "line": 208
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_no_python_files",
+                "line": 214
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_single_file_package",
+                "line": 220
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_skips_venv_dir",
+                "line": 233
+              },
+              {
+                "file": "tests/integration/test_analyze_package.py",
+                "name": "test_skips_dirs",
+                "line": 270
+              }
+            ],
+            "cluster_hash": "72fedc36431a"
+          },
+          {
             "signal": "ambiguous_multi",
             "reason": "setup divergence rescue for SUT _run(2) + distinct literals rescue for SUT _run(2) + body-size delta rescue (intra-file 100%)",
             "similarity": 1.0,
@@ -288,75 +361,6 @@
               }
             ],
             "cluster_hash": "290b176f5103",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_raises_divergence",
-            "reason": "same SUT: analyze_package(1) + same asserts + pytest.raises divergence rescue for SUT analyze_package(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_src_layout_multiple_packages",
-                "line": 60
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_namespace_package_no_init",
-                "line": 137
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_src_layout_name",
-                "line": 37
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_flat_layout_package",
-                "line": 46
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_multi_package_src_deterministic",
-                "line": 84
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_single_package_unchanged",
-                "line": 120
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_build_edges_src_layout",
-                "line": 150
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_not_a_directory",
-                "line": 168
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_no_python_files",
-                "line": 174
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_single_file_package",
-                "line": 180
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_skips_venv_dir",
-                "line": 193
-              },
-              {
-                "file": "tests/integration/test_analyze_package.py",
-                "name": "test_skips_dirs",
-                "line": 230
-              }
-            ],
-            "cluster_hash": "f0ce85ddcd18",
             "acknowledged": true
           },
           {
@@ -888,32 +892,32 @@
               {
                 "file": "tests/integration/test_analyze_package.py",
                 "name": "test_skips_pycache",
-                "line": 207
+                "line": 247
               },
               {
                 "file": "tests/integration/test_analyze_package.py",
                 "name": "test_nested_skip_dir",
-                "line": 244
+                "line": 284
               },
               {
                 "file": "tests/integration/test_analyze_package.py",
                 "name": "test_skips_gitignored_dirs",
-                "line": 293
+                "line": 333
               },
               {
                 "file": "tests/integration/test_analyze_package.py",
                 "name": "test_works_outside_git_repo",
-                "line": 309
+                "line": 349
               },
               {
                 "file": "tests/integration/test_analyze_package.py",
                 "name": "test_no_git_dir_graceful_fallback",
-                "line": 348
+                "line": 388
               },
               {
                 "file": "tests/integration/test_analyze_package.py",
                 "name": "test_nested_gitignore_respected",
-                "line": 328
+                "line": 368
               }
             ],
             "cluster_hash": "be3365445a1c",
@@ -3076,10 +3080,15 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 32,
-          "AMBIGUOUS": 346,
-          "UNIQUE": 1118
+          "AMBIGUOUS": 347,
+          "UNIQUE": 1125
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "f0ce85ddcd18",
+            "reason": "12 analyze_package tests (re-anchored from 4f82f9d1ae07, grown 5\u219212) mix mutually-exclusive contracts on the same SUT analyze_package: success-path src-layout/namespace/flat tests assert on pkg.name/pkg.modules with different fixtures (multi-package src, namespace-no-init, single-pkg, single-file, venv/dir skipping), while test_not_a_directory uses pytest.raises(ValueError, match='not a directory') and test_no_python_files asserts pkg.modules == [] on empty dir. Parametrization would conflate raises-vs-success branches and force a heterogeneous expected_* parameter across mutually exclusive assertion targets (.name vs .modules vs exception). ambiguous_raises_divergence \u2014 ACK."
+          }
+        ]
       }
     },
     {

@@ -79,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.35802469135803,
+        "coverage": 91.14155251141553,
         "failures": []
       },
       "metadata": null
@@ -119,9 +119,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -199,11 +199,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (47/47)",
+      "message": "Docstring coverage: 100% (51/51)",
       "details": {
         "coverage": 1.0,
-        "total": 47,
-        "documented": 47,
+        "total": 51,
+        "documented": 51,
         "missing": []
       },
       "metadata": null
@@ -211,7 +211,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "19 cluster(s), 0 clustered pair(s)",
+      "message": "20 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -424,6 +424,29 @@
             "cluster_hash": "b0a57ba93141"
           },
           {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "pytest.raises divergence rescue for SUT mod.read_text(0)>rename_symbols(3|workspace_root=Name)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_rename_symbols.py",
+                "name": "test_rename_module_level_assignment",
+                "line": 93
+              },
+              {
+                "file": "tests/integration/test_rename_symbols.py",
+                "name": "test_rename_absent_symbol_warns_and_skips",
+                "line": 121
+              },
+              {
+                "file": "tests/integration/test_rename_symbols__symbol_already_exists_error.py",
+                "name": "test_rename_onto_existing_name_raises_collision",
+                "line": 20
+              }
+            ],
+            "cluster_hash": "7397ec81c05d"
+          },
+          {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT tgt.read_text(0)",
             "similarity": 0.0,
@@ -503,12 +526,12 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_move_resolves_project_root",
-                "line": 38
+                "line": 39
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_fallback_when_no_pyproject",
-                "line": 60
+                "line": 185
               }
             ],
             "cluster_hash": "4ef007749bc2"
@@ -648,8 +671,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 4,
-          "AMBIGUOUS": 50,
-          "UNIQUE": 221
+          "AMBIGUOUS": 53,
+          "UNIQUE": 225
         },
         "stale_acknowledged": [
           {
@@ -775,14 +798,14 @@
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1468
+            "line": 1525
           },
           {
             "severity": "LOW",
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1602
+            "line": 1659
           }
         ]
       },

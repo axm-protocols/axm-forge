@@ -1,5 +1,5 @@
 {
-  "score": 99.2,
+  "score": 99.3,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -60,9 +60,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (92/100)",
+      "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 92.98701298701299,
+        "coverage": 93.08641975308642,
         "failures": []
       },
       "metadata": null
@@ -102,9 +102,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -190,6 +190,49 @@
       "metadata": {
         "clusters": [
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT capsys.readouterr(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_runs_and_prints_text",
+                "line": 215
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_positional_args_bind_to_params",
+                "line": 220
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_nonscalar_json_decoded",
+                "line": 228
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_help_flag_prints_catalog",
+                "line": 347
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_dispatch_runs_tool",
+                "line": 365
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_custom_command_failure_falls_back_to_tool",
+                "line": 387
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_positional_path_dispatches_through_main",
+                "line": 445
+              }
+            ],
+            "cluster_hash": "654df483f294"
+          },
+          {
             "signal": "ambiguous_multi",
             "reason": "distinct literals rescue for SUT node(1) + pytest.raises divergence rescue for SUT node(1)",
             "similarity": 0.0,
@@ -221,45 +264,16 @@
               },
               {
                 "file": "tests/unit/tools/test_node.py",
+                "name": "test_bad_payload_key_raises_tool_node_error",
+                "line": 102
+              },
+              {
+                "file": "tests/unit/tools/test_node.py",
                 "name": "test_class_entry_point_is_instantiated",
-                "line": 104
+                "line": 124
               }
             ],
-            "cluster_hash": "6e5f513d358e"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT capsys.readouterr(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_runs_and_prints_text",
-                "line": 204
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_nonscalar_json_decoded",
-                "line": 209
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_help_flag_prints_catalog",
-                "line": 322
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_dispatch_runs_tool",
-                "line": 340
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_custom_command_failure_falls_back_to_tool",
-                "line": 362
-              }
-            ],
-            "cluster_hash": "f7679913e585",
-            "acknowledged": true
+            "cluster_hash": "c2ab56f51038"
           },
           {
             "signal": "ambiguous_call_multiplicity",
@@ -269,12 +283,12 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_classifies_annotation",
-                "line": 155
+                "line": 160
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_is_nonscalar_unwraps_annotated",
-                "line": 406
+                "line": 480
               }
             ],
             "cluster_hash": "6535b44e69ab"
@@ -287,12 +301,12 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_failure_exits_1",
-                "line": 220
+                "line": 239
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_exception_exits_1",
-                "line": 247
+                "line": 272
               }
             ],
             "cluster_hash": "54c40b8fa6e0",
@@ -306,12 +320,12 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_tool_registered_as_command",
-                "line": 272
+                "line": 297
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_explicit_command_wins_over_tool",
-                "line": 277
+                "line": 302
               }
             ],
             "cluster_hash": "935c6a5eef12",
@@ -320,10 +334,14 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 2,
-          "AMBIGUOUS": 15,
-          "UNIQUE": 89
+          "AMBIGUOUS": 18,
+          "UNIQUE": 91
         },
         "stale_acknowledged": [
+          {
+            "hash": "f7679913e585",
+            "reason": "distinct SUTs/scenarios (build_command stdout vs main --help/dispatch/fallback) sharing only the 'substring in captured stdout' shape \u2014 parametrization would conflate four behaviors"
+          },
           {
             "hash": "ea93c07b2fcf",
             "reason": "mixed observation surfaces: 2 happy-path tests assert on the returned dict, 3 fail-fast tests assert distinct ToolNodeError messages on different branches \u2014 parametrization would erase the return-vs-raise divergence"

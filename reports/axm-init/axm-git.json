@@ -250,7 +250,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "84 test file(s) found across unit/integration/e2e"
+      "message": "88 test file(s) found across unit/integration/e2e"
     },
     {
       "name": "structure.uv_lock",

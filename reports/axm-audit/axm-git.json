@@ -1,9 +1,9 @@
 {
-  "score": 98.6,
+  "score": 96.7,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 4,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 28,
-        "avg_coupling": 4.16,
+        "avg_coupling": 4.19,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -49,21 +49,47 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "axm_git/tools/tag.py",
+            "function": "resolve_version",
+            "cc": 11,
+            "rank": "C",
+            "cognitive": 12,
+            "reason": "cc"
+          }
+        ],
         "cognitive_disabled": false
       },
       "metadata": null
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 94% (94/100)",
+      "passed": false,
+      "message": "Test coverage: 94% (4 test(s) failed)",
       "details": {
-        "coverage": 94.05150525933986,
-        "failures": []
+        "coverage": 94.06456091634848,
+        "failures": [
+          {
+            "test": "tests/integration/test_identity__load_config.py::test_loads_from_store_git_section",
+            "traceback": "assert None is not None"
+          },
+          {
+            "test": "tests/integration/test_identity__load_config.py::test_workspace_paths_sourced_from_echo_roots",
+            "traceback": "assert None is not None"
+          },
+          {
+            "test": "tests/integration/test_identity__load_config.py::test_enabled_flag_round_trips_via_store",
+            "traceback": "assert None is not None"
+          },
+          {
+            "test": "tests/integration/test_merge_squash_hook__run_git.py::test_squash_commit_uses_resolved_profile",
+            "traceback": "axm_config.resolver.UnsafeHomeError: refusing in-repo path /tmp/pytest-of-runner/pytest-1/test_squash_commit_uses_resolv0/home/.axm: resolves inside the git checkout at /tmp/pytest-of-runner/pytest-1/test_squash_commit_uses_resolv0"
+          }
+        ]
       },
       "metadata": null
     },
@@ -102,9 +128,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -184,19 +210,19 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (102/102)",
+      "message": "Docstring coverage: 100% (104/104)",
       "details": {
         "coverage": 1.0,
-        "total": 102,
-        "documented": 102,
+        "total": 104,
+        "documented": 104,
         "missing": []
       },
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
-      "message": "42 cluster(s), 0 clustered pair(s)",
+      "passed": false,
+      "message": "45 cluster(s), 1 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -487,6 +513,54 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_multi",
+            "reason": "distinct literals rescue for SUT load_config(1) + same SUT: load_config(1) + same asserts + body-size delta rescue (intra-file 83%)",
+            "similarity": 0.8333333333333334,
+            "members": [
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_warns_on_invalid_schema",
+                "line": 71
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_degrades_on_bad_schedule_time",
+                "line": 197
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_silent_on_missing_file",
+                "line": 82
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_silent_on_empty_file",
+                "line": 92
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_missing_file",
+                "line": 152
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_invalid_toml",
+                "line": 157
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_empty_file",
+                "line": 164
+              },
+              {
+                "file": "tests/integration/test_load_config.py",
+                "name": "test_load_config_warns_on_malformed_toml",
+                "line": 59
+              }
+            ],
+            "cluster_hash": "02ae71352cbe"
+          },
+          {
             "signal": "ambiguous_raises_divergence",
             "reason": "same SUT: parse_tag(1) + same asserts + same SUT: parse_tag(1) + pytest.raises divergence rescue for SUT parse_tag(1)",
             "similarity": 0.0,
@@ -533,50 +607,6 @@
               }
             ],
             "cluster_hash": "56eb1aaf8690",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "same SUT: load_config(1) + same asserts + body-size delta rescue (intra-file 83%) + distinct literals rescue (intra-file 80%)",
-            "similarity": 0.8333333333333334,
-            "members": [
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_silent_on_missing_file",
-                "line": 82
-              },
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_silent_on_empty_file",
-                "line": 92
-              },
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_missing_file",
-                "line": 152
-              },
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_invalid_toml",
-                "line": 157
-              },
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_empty_file",
-                "line": 164
-              },
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_warns_on_malformed_toml",
-                "line": 59
-              },
-              {
-                "file": "tests/integration/test_load_config.py",
-                "name": "test_load_config_warns_on_invalid_schema",
-                "line": 71
-              }
-            ],
-            "cluster_hash": "045fc214b278",
             "acknowledged": true
           },
           {
@@ -1010,6 +1040,29 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT runner.staged_delta(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_runner.py",
+                "name": "test_returns_only_newly_staged_paths",
+                "line": 147
+              },
+              {
+                "file": "tests/unit/core/test_runner.py",
+                "name": "test_empty_when_nothing_new_staged",
+                "line": 153
+              },
+              {
+                "file": "tests/unit/core/test_runner.py",
+                "name": "test_output_is_sorted",
+                "line": 157
+              }
+            ],
+            "cluster_hash": "2b4341d63a4f"
+          },
+          {
             "signal": "ambiguous_multi",
             "reason": "setup divergence rescue for SUT resolve_version(3) + pytest.raises divergence rescue for SUT resolve_version(3)",
             "similarity": 0.0,
@@ -1122,12 +1175,12 @@
               {
                 "file": "tests/integration/test_commit_identity.py",
                 "name": "test_commit_with_identity",
-                "line": 116
+                "line": 118
               },
               {
                 "file": "tests/integration/test_commit_identity.py",
                 "name": "test_batch_commits_same_identity",
-                "line": 155
+                "line": 157
               }
             ],
             "cluster_hash": "8ceb7c3d4980",
@@ -1151,6 +1204,24 @@
             ],
             "cluster_hash": "c6e40f60a322",
             "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: _git(3)>_seed_repo(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_commit_phase_hook__git_commit_tool.py",
+                "name": "test_tool_fails_when_hook_rejects_without_autofix",
+                "line": 157
+              },
+              {
+                "file": "tests/integration/test_commit_phase_hook__git_commit_tool.py",
+                "name": "test_tool_single_retry_no_false_green_when_hook_never_settles",
+                "line": 206
+              }
+            ],
+            "cluster_hash": "912b103d5e5e"
           },
           {
             "signal": "ambiguous_patch_context",
@@ -1189,6 +1260,24 @@
             ],
             "cluster_hash": "5d1c55c2cc51",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _head_files(1)>_head_subject(1)>_staged(1)>install_hook(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_git_commit_tool__reset_paths.py",
+                "name": "test_green_hook_commits_normally",
+                "line": 105
+              },
+              {
+                "file": "tests/integration/test_git_commit_tool__reset_paths.py",
+                "name": "test_autofix_then_green_commits_normally",
+                "line": 123
+              }
+            ],
+            "cluster_hash": "c869bfbb44d8"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -1420,19 +1509,60 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 11,
-          "AMBIGUOUS": 158,
-          "UNIQUE": 392
+          "CLUSTERED": 13,
+          "AMBIGUOUS": 164,
+          "UNIQUE": 425
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "045fc214b278",
+            "reason": "7 load_config tests span 3 behavior groups -- silent_on_missing/empty assert result is None AND caplog.records == 0 (no warning), missing_file/invalid_toml/empty_file assert result is None ONLY (no caplog observation), warns_on_malformed_toml/invalid_schema assert result is None AND caplog.records >= 1 (warning emitted) -- the warning-emission observation surface differs across groups (zero vs none vs nonzero), and the file-content fixtures encode the silent-vs-noisy contract that parametrize would erase"
+          }
+        ]
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": true,
-      "message": "2 naming finding(s): 2 INFO + 0 WARNING",
+      "passed": false,
+      "message": "7 naming finding(s): 4 INFO + 3 WARNING",
       "details": {
         "findings": [
+          {
+            "verdict": "SPLIT",
+            "severity": "warning",
+            "tier": "integration",
+            "current_name": "test_commit_phase_hook__git_commit_tool.py",
+            "proposed_name": "test_commit_phase_hook__git_commit_tool.py",
+            "path": "tests/integration/test_commit_phase_hook__git_commit_tool.py",
+            "tuples": [
+              [
+                "CommitPhaseHook"
+              ],
+              [
+                "CommitPhaseHook",
+                "GitCommitTool"
+              ],
+              [
+                "GitCommitTool"
+              ]
+            ],
+            "suggested_splits": [
+              "test_commit_phase_hook.py",
+              "test_commit_phase_hook__git_commit_tool.py",
+              "test_git_commit_tool.py"
+            ]
+          },
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_git_commit_tool__reset_paths.py",
+            "proposed_name": "test_git_commit_tool.py",
+            "path": "tests/integration/test_git_commit_tool__reset_paths.py",
+            "tuple": [
+              "GitCommitTool"
+            ]
+          },
           {
             "verdict": "NAME_MISMATCH",
             "severity": "info",
@@ -1449,12 +1579,49 @@
             "verdict": "NAME_MISMATCH",
             "severity": "info",
             "tier": "integration",
+            "current_name": "test_identity__load_config.py",
+            "proposed_name": "test_load_config.py",
+            "path": "tests/integration/test_identity__load_config.py",
+            "tuple": [
+              "load_config"
+            ]
+          },
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
             "current_name": "test_resolve_default_branch.py",
             "proposed_name": "test_resolve_default_branch__run_git.py",
             "path": "tests/integration/test_resolve_default_branch.py",
             "tuple": [
               "resolve_default_branch",
               "run_git"
+            ]
+          },
+          {
+            "verdict": "COLLIDE",
+            "severity": "warning",
+            "tier": "integration",
+            "current_name": "",
+            "proposed_name": "test_git_commit_tool.py",
+            "path": "",
+            "canonical_name": "test_git_commit_tool.py",
+            "files": [
+              "tests/integration/test_git_commit_tool.py",
+              "tests/integration/test_git_commit_tool__reset_paths.py"
+            ]
+          },
+          {
+            "verdict": "COLLIDE",
+            "severity": "warning",
+            "tier": "integration",
+            "current_name": "",
+            "proposed_name": "test_load_config.py",
+            "path": "",
+            "canonical_name": "test_load_config.py",
+            "files": [
+              "tests/integration/test_identity__load_config.py",
+              "tests/integration/test_load_config.py"
             ]
           }
         ]
@@ -1481,11 +1648,117 @@
     },
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": true,
-      "message": "pyramid levels match folder layout",
+      "passed": false,
+      "message": "4 test(s) mis-located vs. classified pyramid level",
       "details": {
-        "mismatches": [],
-        "total": 0
+        "mismatches": [
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/unit/core/test_identity.py",
+            "function": "test_explicit_config_path_still_parses_file",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.write_text()",
+              "fixture-arg:tmp_path",
+              "tmp_path+write/read"
+            ],
+            "imports_public": [
+              "GitIdentity",
+              "GitProfileConfig",
+              "author_args",
+              "resolve_identity",
+              "load_config"
+            ],
+            "imports_internal": [
+              "Schedule",
+              "resolve_by_schedule"
+            ],
+            "suggested_file": "integration/core/test_identity.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/unit/core/test_identity.py",
+            "function": "test_schedule_disabled_returns_none",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.mkdir()",
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "GitIdentity",
+              "GitProfileConfig",
+              "author_args",
+              "resolve_identity",
+              "load_config"
+            ],
+            "imports_internal": [
+              "Schedule",
+              "resolve_by_schedule"
+            ],
+            "suggested_file": "integration/core/test_identity.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/unit/core/test_identity.py",
+            "function": "test_schedule_enabled_default_unchanged",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.mkdir()",
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "GitIdentity",
+              "GitProfileConfig",
+              "author_args",
+              "resolve_identity",
+              "load_config"
+            ],
+            "imports_internal": [
+              "Schedule",
+              "resolve_by_schedule"
+            ],
+            "suggested_file": "integration/core/test_identity.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/unit/core/test_identity.py",
+            "function": "test_resolve_identity_falls_back_to_default_when_disabled",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.mkdir()",
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "GitIdentity",
+              "GitProfileConfig",
+              "author_args",
+              "resolve_identity",
+              "load_config"
+            ],
+            "imports_internal": [
+              "Schedule",
+              "resolve_by_schedule"
+            ],
+            "suggested_file": "integration/core/test_identity.py",
+            "severity": "warning"
+          }
+        ],
+        "total": 4
       },
       "metadata": null
     },

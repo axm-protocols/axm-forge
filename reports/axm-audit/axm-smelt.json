@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.63803680981596,
+        "coverage": 92.54185692541857,
         "failures": []
       },
       "metadata": null
@@ -111,9 +111,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -197,7 +197,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "20 cluster(s), 0 clustered pair(s)",
+      "message": "21 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -307,7 +307,8 @@
                 "line": 40
               }
             ],
-            "cluster_hash": "d084bccd99fa"
+            "cluster_hash": "d084bccd99fa",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -499,22 +500,22 @@
               {
                 "file": "tests/unit/strategies/test_minify.py",
                 "name": "test_minify_xml_preserves_text",
-                "line": 88
+                "line": 100
               },
               {
                 "file": "tests/unit/strategies/test_minify.py",
                 "name": "test_minify_xml_attributes",
-                "line": 94
+                "line": 106
               },
               {
                 "file": "tests/unit/strategies/test_minify.py",
                 "name": "test_minify_xml_cdata",
-                "line": 158
+                "line": 170
               },
               {
                 "file": "tests/unit/strategies/test_minify.py",
                 "name": "test_minify_xml_declaration",
-                "line": 164
+                "line": 176
               }
             ],
             "cluster_hash": "761417a37983",
@@ -552,12 +553,12 @@
               {
                 "file": "tests/unit/strategies/test_minify.py",
                 "name": "test_smelt_yaml_savings",
-                "line": 115
+                "line": 127
               },
               {
                 "file": "tests/unit/strategies/test_minify.py",
                 "name": "test_smelt_xml_savings",
-                "line": 123
+                "line": 135
               },
               {
                 "file": "tests/unit/core/test_pipeline.py",
@@ -641,6 +642,25 @@
             "acknowledged": true
           },
           {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/strategies/test_strip_quotes.py",
+                "name": "test_prose_is_left_untouched",
+                "line": 38
+              },
+              {
+                "file": "tests/unit/strategies/test_strip_quotes.py",
+                "name": "test_markdown_is_left_untouched",
+                "line": 45
+              }
+            ],
+            "cluster_hash": "1accfb95b015",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_setup_divergence",
             "reason": "setup divergence rescue for SUT Incomplete(0)",
             "similarity": 0.0,
@@ -667,12 +687,12 @@
               {
                 "file": "tests/unit/core/test_pipeline.py",
                 "name": "test_guard_rejects_regression",
-                "line": 552
+                "line": 562
               },
               {
                 "file": "tests/unit/core/test_pipeline.py",
                 "name": "test_zero_token_change_discarded",
-                "line": 636
+                "line": 646
               }
             ],
             "cluster_hash": "e95bbb62bd6f",
@@ -732,7 +752,8 @@
                 "line": 95
               }
             ],
-            "cluster_hash": "9f782e0b98e8"
+            "cluster_hash": "9f782e0b98e8",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -831,16 +852,11 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 6,
+          "CLUSTERED": 8,
           "AMBIGUOUS": 84,
-          "UNIQUE": 216
+          "UNIQUE": 218
         },
-        "stale_acknowledged": [
-          {
-            "hash": "6af3c08c7b6f",
-            "reason": "16-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments) \u2014 each test pins a separate detector branch; parametrization would erase the per-format intent"
-          }
-        ]
+        "stale_acknowledged": []
       }
     },
     {

@@ -1,5 +1,5 @@
 {
-  "score": 97.3,
+  "score": 97.2,
   "grade": "A",
   "total": 31,
   "failed": 2,
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 9,
         "max_fan_in": 5,
-        "avg_coupling": 3.75,
+        "avg_coupling": 4.0,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.00126742712294,
+        "coverage": 91.30434782608695,
         "failures": []
       },
       "metadata": null
@@ -111,9 +111,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 126 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 126
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -139,18 +139,16 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": false,
-      "message": "1 orphan test(s)",
+      "passed": true,
+      "message": "All source modules have test files",
       "details": {
         "missing": [],
-        "orphan": [
-          "tests/unit/test_echo_code_guards.py"
-        ],
+        "orphan": [],
         "exempt": [
-          "scope.py",
           "tools.py"
         ],
         "exempt_tests": [
+          "tests/unit/test_tools_guards.py",
           "tests/unit/test_version.py"
         ]
       },
@@ -187,11 +185,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 94% (30/32)",
+      "message": "Docstring coverage: 94% (31/33)",
       "details": {
         "coverage": 0.94,
-        "total": 32,
-        "documented": 30,
+        "total": 33,
+        "documented": 31,
         "missing": [
           "axm_echo/cluster.py:find",
           "axm_echo/cluster.py:union"
@@ -201,15 +199,70 @@
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
-      "message": "no duplicate-test clusters found",
+      "passed": false,
+      "message": "3 cluster(s), 1 clustered pair(s)",
       "details": null,
       "metadata": {
-        "clusters": [],
+        "clusters": [
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT load_scope(0)>root_a.resolve(0)>root_b.resolve(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_scope.py",
+                "name": "test_load_scope_via_config",
+                "line": 22
+              },
+              {
+                "file": "tests/unit/test_scope.py",
+                "name": "test_load_scope_env_string_is_pathsep_split",
+                "line": 61
+              }
+            ],
+            "cluster_hash": "1d0b8d8709ab"
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: load_scope(0)>tmp_path.resolve(0) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_scope.py",
+                "name": "test_load_scope_absent_degrades_to_cwd",
+                "line": 37
+              },
+              {
+                "file": "tests/unit/test_scope.py",
+                "name": "test_load_scope_config_error_degrades_to_cwd",
+                "line": 49
+              }
+            ],
+            "cluster_hash": "84fd26b343f5"
+          },
+          {
+            "signal": "ambiguous_distinct_sut",
+            "reason": "distinct public SUT rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/test_tools_guards.py",
+                "name": "test_echo_code_invalid_input_returns_error_result",
+                "line": 30
+              },
+              {
+                "file": "tests/unit/test_tools_guards.py",
+                "name": "test_echo_check_invalid_input_returns_error_result",
+                "line": 49
+              }
+            ],
+            "cluster_hash": "78edf031948f"
+          }
+        ],
         "bucket_counts": {
-          "CLUSTERED": 0,
-          "AMBIGUOUS": 0,
-          "UNIQUE": 64
+          "CLUSTERED": 2,
+          "AMBIGUOUS": 4,
+          "UNIQUE": 71
         },
         "stale_acknowledged": []
       }
@@ -217,9 +270,21 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
+      "message": "1 naming finding(s): 1 INFO + 0 WARNING",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_scope__load_scope.py",
+            "proposed_name": "test_load_scope.py",
+            "path": "tests/integration/test_scope__load_scope.py",
+            "tuple": [
+              "load_scope"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -244,7 +309,7 @@
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": false,
-      "message": "2 test(s) mis-located vs. classified pyramid level",
+      "message": "7 test(s) mis-located vs. classified pyramid level",
       "details": {
         "mismatches": [
           {
@@ -290,9 +355,99 @@
             "imports_internal": [],
             "suggested_file": "integration/test_echo_code.py",
             "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
+            "function": "test_load_scope_via_config",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "load_scope"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/test_scope.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
+            "function": "test_load_scope_absent_degrades_to_cwd",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "load_scope"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/test_scope.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
+            "function": "test_load_scope_config_error_degrades_to_cwd",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "load_scope"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/test_scope.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
+            "function": "test_load_scope_env_string_is_pathsep_split",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "load_scope"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/test_scope.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
+            "function": "test_load_scope_non_string_entries_skipped",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "fixture-arg:tmp_path"
+            ],
+            "imports_public": [
+              "load_scope"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/test_scope.py",
+            "severity": "warning"
           }
         ],
-        "total": 2
+        "total": 7
       },
       "metadata": null
     },
@@ -336,7 +491,7 @@
             "code": "B110",
             "message": "Try, Except, Pass detected.",
             "file": "embedding.py",
-            "line": 116
+            "line": 113
           }
         ]
       },
