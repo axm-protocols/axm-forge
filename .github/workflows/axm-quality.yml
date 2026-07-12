@@ -140,7 +140,7 @@ jobs:
           fi
 
           # ── axm-audit ─────────────────────────────────────────────────
-          RESULT=$(uv run axm-audit audit "$PKG_DIR" --json) || true
+          RESULT=$(uv run --package axm-audit axm-audit audit "$PKG_DIR" --json) || true
           echo "$RESULT" > "_publish/reports/axm-audit/$PKG.json"
           # Guard: empty / malformed RESULT or non-numeric .score -> explicit
           # error/red badge + exit 1 (fails the job), never a bogus "%"/red badge.
@@ -153,7 +153,7 @@ jobs:
           write_badge "_publish/badges/$PKG" "coverage" "coverage" "$COV"
 
           # ── axm-init ──────────────────────────────────────────────────
-          IRESULT=$(uv run axm-init check "$PKG_DIR" --json) || true
+          IRESULT=$(uv run --package axm-init axm-init check "$PKG_DIR" --json) || true
           echo "$IRESULT" > "_publish/reports/axm-init/$PKG.json"
           ISCORE=$(echo "$IRESULT" | jq '.score')
           write_badge "_publish/badges/$PKG" "axm-init" "axm-init" "$ISCORE" /tmp/init-logo.svg
@@ -223,7 +223,7 @@ jobs:
         run: |
           source /tmp/badge-helpers.sh
           mkdir -p _publish/reports/axm-init
-          RESULT=$(uv run axm-init check . --json) || true
+          RESULT=$(uv run --package axm-init axm-init check . --json) || true
           echo "$RESULT" > _publish/reports/axm-init/root.json
 
       # Recompute workspace-wide averages from the merged per-package reports.
