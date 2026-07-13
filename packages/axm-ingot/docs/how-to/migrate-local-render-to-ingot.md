@@ -139,7 +139,7 @@ table aligner.
 
 ## Lessons from the AXM-437 pilot
 
-The first real migration (AXM-437) surfaced three things that are easy to miss.
+The first real migration (AXM-437) surfaced four things that are easy to miss.
 Apply them on every subsequent port.
 
 ### (a) The generic walker is now IN `axm-ingot` — import it, delete the local one
@@ -213,3 +213,37 @@ assert result.error == "FileNotFoundError: file not found"
 
 These are not regressions introduced by the migration; they are pre-existing red
 that the migration is responsible for clearing.
+
+### (d) Shield golden snapshots from mutating pre-commit hooks
+
+Golden `.txt` snapshots must round-trip **byte-identically** (see lesson (b)),
+but the whitespace-normalising pre-commit hooks fight that invariant. The
+`trailing-whitespace` and `end-of-file-fixer` hooks **rewrite files at commit
+time**: they strip trailing spaces and force a single terminal newline. Rendered
+output legitimately carries trailing whitespace — an empty value renders as
+`key: ` (a key, a colon, a space, then nothing) — so letting these hooks touch a
+golden silently mutates the fixture into something the renderer never produces.
+
+Exclude the golden trees from both hooks in `.pre-commit-config.yaml`:
+
+```yaml
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    hooks:
+      - id: trailing-whitespace
+        exclude: tests/fixtures/(snapshots|goldens)/
+      - id: end-of-file-fixer
+        exclude: tests/fixtures/(snapshots|goldens)/
+```
+
+Why this matters beyond a cosmetic diff: a hook that mutates a golden **at commit
+time** breaks the **Verdict-Carrying Patch invariant**. The suite is green in the
+worktree (the golden on disk matches the renderer), the hook rewrites the golden
+as part of the commit, and now the committed tree is **red on `HEAD`** — the
+snapshot the reviewer pulls no longer matches the rendered output. The patch
+carries a passing verdict that does not survive the commit.
+
+The detection signal is `hook_autofixed_files` in `git_commit`'s `ToolResult`
+(added in commit `02da79f3`): when a golden path shows up in that list, a hook
+just rewrote a fixture behind your back. Treat any golden appearing there as a
+broken verdict — add the `exclude:` above and re-commit rather than accepting the
+hook's mutation.
