@@ -136,6 +136,19 @@ class TestScaffoldFlow:
         assert "prek>=" in content
         assert "pre-commit" not in content
 
+    def test_scaffold_python_project_precommit_excludes_fixtures(
+        self, scaffolded_project: Path
+    ) -> None:
+        """AC3: scaffolded python-project pre-commit excludes fixtures on both hooks."""
+        config = next(scaffolded_project.rglob(".pre-commit-config.yaml"))
+        content = config.read_text()
+        for hook in ("trailing-whitespace", "end-of-file-fixer"):
+            block = content.split(f"- id: {hook}", 1)[1]
+            assert (
+                "exclude: tests/fixtures/(snapshots|goldens)/"
+                in block.split("- id:", 1)[0]
+            ), f"{hook} must carry the fixtures exclude"
+
     def test_scaffold_json_output_is_valid_json(
         self, scaffolded_json_output: tuple[str, int]
     ) -> None:
@@ -208,3 +221,15 @@ class TestWorkspaceScaffoldFlow:
     def test_workspace_has_file(self, scaffolded_workspace: Path, relpath: str) -> None:
         """Generated workspace contains the expected scaffolded file."""
         assert (scaffolded_workspace / relpath).is_file()
+
+    def test_workspace_precommit_excludes_fixtures(
+        self, scaffolded_workspace: Path
+    ) -> None:
+        """AC3: scaffolded workspace pre-commit excludes fixtures on both hooks."""
+        content = (scaffolded_workspace / ".pre-commit-config.yaml").read_text()
+        for hook in ("trailing-whitespace", "end-of-file-fixer"):
+            block = content.split(f"- id: {hook}", 1)[1]
+            assert (
+                "exclude: tests/fixtures/(snapshots|goldens)/"
+                in block.split("- id:", 1)[0]
+            ), f"{hook} must carry the fixtures exclude"
