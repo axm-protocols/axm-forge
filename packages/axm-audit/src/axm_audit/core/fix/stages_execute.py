@@ -449,6 +449,18 @@ def _recover_anchor_fixtures(
     return msgs
 
 
+def _unit_arg_fixtures(node: ast.FunctionDef | ast.ClassDef) -> set[str]:
+    """Return the fixture-arg names of a test unit (class methods or function)."""
+    if isinstance(node, ast.ClassDef):
+        return {
+            a.arg
+            for m in node.body
+            if isinstance(m, ast.FunctionDef)
+            for a in m.args.args
+        }
+    return {a.arg for a in node.args.args}
+
+
 def _fixtures_referenced_by(tree: ast.Module, unit_names: set[str]) -> set[str]:
     refs: set[str] = set()
     for n in tree.body:
@@ -456,12 +468,7 @@ def _fixtures_referenced_by(tree: ast.Module, unit_names: set[str]) -> set[str]:
             continue
         refs |= _string_literal_fixtures_in_unit(n)
         refs |= marker_fixtures_in_unit(n)
-        if isinstance(n, ast.ClassDef):
-            for m in n.body:
-                if isinstance(m, ast.FunctionDef):
-                    refs |= {a.arg for a in m.args.args}
-        else:
-            refs |= {a.arg for a in n.args.args}
+        refs |= _unit_arg_fixtures(n)
     return refs
 
 

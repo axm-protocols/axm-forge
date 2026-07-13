@@ -148,6 +148,39 @@ def _canonical_for_tuple(tier: str, tup: object, ctx: _ScanContext) -> str:
     )
 
 
+def _aggregate_e2e(
+    tree: ast.Module, tier: str, ctx: _ScanContext
+) -> tuple[list[tuple[str, ...]], str]:
+    """Per-test CLI tuples + the file's canonical name for the e2e tier."""
+    per_test: list[tuple[str, ...]] = []
+    agg_cli: Counter[tuple[str, str]] = Counter()
+    for func in iter_test_funcs(tree):
+        cli_tup = _per_test_cli_tuples(func, tree, ctx)
+        per_test.append(cli_tup)  # type: ignore[arg-type]
+        for tup in cli_tup:
+            agg_cli[tup] += 1
+    e2e_union: tuple[tuple[str, str], ...] = tuple(
+        tup for tup, _ in agg_cli.most_common(_TOP_K)
+    )
+    return per_test, _canonical_for_tuple(tier, e2e_union, ctx)
+
+
+def _aggregate_symbols(
+    tree: ast.Module, tier: str, ctx: _ScanContext
+) -> tuple[list[tuple[str, ...]], str]:
+    """Per-test symbol tuples + the file's canonical name for non-e2e tiers."""
+    per_test: list[tuple[str, ...]] = []
+    agg_symbols: Counter[str] = Counter()
+    for func in iter_test_funcs(tree):
+        sym_tup = _per_test_symbols(func, tree, ctx)
+        per_test.append(sym_tup)
+        for sym in sym_tup:
+            agg_symbols[sym] += 1
+    ranked = [s for s, _ in agg_symbols.most_common()]
+    sym_union: tuple[str, ...] = tuple(sorted(ranked[:_TOP_K]))
+    return per_test, _canonical_for_tuple(tier, sym_union, ctx)
+
+
 def _aggregate_file(
     test_file: Path,
     tree: ast.Module,
@@ -155,33 +188,12 @@ def _aggregate_file(
     ctx: _ScanContext,
 ) -> _FileVerdict | None:
     file_marked = file_has_module_marker(tree, _MARKER_NAME)
-    per_test: list[tuple[str, ...]] = []
-    agg_symbols: Counter[str] = Counter()
-    agg_cli: Counter[tuple[str, str]] = Counter()
-    saw_test = False
-    for func in iter_test_funcs(tree):
-        saw_test = True
-        if tier == "e2e":
-            cli_tup = _per_test_cli_tuples(func, tree, ctx)
-            per_test.append(cli_tup)  # type: ignore[arg-type]
-            for tup in cli_tup:
-                agg_cli[tup] += 1
-        else:
-            sym_tup = _per_test_symbols(func, tree, ctx)
-            per_test.append(sym_tup)
-            for sym in sym_tup:
-                agg_symbols[sym] += 1
-    if not saw_test:
+    if not iter_test_funcs(tree):
         return None
     if tier == "e2e":
-        e2e_union: tuple[tuple[str, str], ...] = tuple(
-            tup for tup, _ in agg_cli.most_common(_TOP_K)
-        )
-        canonical = _canonical_for_tuple(tier, e2e_union, ctx)
+        per_test, canonical = _aggregate_e2e(tree, tier, ctx)
     else:
-        ranked = [s for s, _ in agg_symbols.most_common()]
-        sym_union: tuple[str, ...] = tuple(sorted(ranked[:_TOP_K]))
-        canonical = _canonical_for_tuple(tier, sym_union, ctx)
+        per_test, canonical = _aggregate_symbols(tree, tier, ctx)
     return _FileVerdict(
         test_file=test_file,
         tier=tier,

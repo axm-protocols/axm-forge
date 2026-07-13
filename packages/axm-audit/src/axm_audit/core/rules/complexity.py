@@ -79,21 +79,14 @@ class ComplexityRule(ProjectRule):
         offenders: list[dict[str, str | int]] = []
         for py_file in src_path.rglob("*.py"):
             try:
-                source = py_file.read_text(encoding="utf-8")
-                blocks = cc_visit(source)
+                blocks = cc_visit(py_file.read_text(encoding="utf-8"))
             except (SyntaxError, UnicodeDecodeError):
                 continue
             rel = _relative_key(str(py_file), src_path)
             for block in blocks:
-                if not hasattr(block, "complexity"):
-                    continue
-                cc = int(getattr(block, "complexity", 0))
-                rank = cc_rank(cc)
-                classname = getattr(block, "classname", "") or ""
-                block_name = getattr(block, "name", "") or ""
-                name = f"{classname}.{block_name}" if classname else block_name
-                cognitive = _lookup_cognitive(cog_map, (rel, name), cog_disabled)
-                offender = _classify(rel, name, cc, rank, cognitive)
+                offender = _api_block_to_offender(
+                    block, rel, cc_rank, cog_map, cog_disabled
+                )
                 if offender is not None:
                     offenders.append(offender)
         return self._build_result(offenders, cog_disabled)
@@ -266,6 +259,25 @@ def _block_to_offender(
     name = f"{classname}.{raw_name}" if classname else raw_name
     cognitive = _lookup_cognitive(cog_map, (file_key, name), cog_disabled)
     return _classify(file_key, name, cc, rank, cognitive)
+
+
+def _api_block_to_offender(
+    block: object,
+    rel: str,
+    cc_rank: Callable[[int], str],
+    cog_map: dict[tuple[str, str], int],
+    cog_disabled: bool,
+) -> dict[str, str | int] | None:
+    """Classify a single radon API block. Return offender or None."""
+    if not hasattr(block, "complexity"):
+        return None
+    cc = int(getattr(block, "complexity", 0))
+    rank = cc_rank(cc)
+    classname = getattr(block, "classname", "") or ""
+    block_name = getattr(block, "name", "") or ""
+    name = f"{classname}.{block_name}" if classname else block_name
+    cognitive = _lookup_cognitive(cog_map, (rel, name), cog_disabled)
+    return _classify(rel, name, cc, rank, cognitive)
 
 
 def _classify(

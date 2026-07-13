@@ -2037,6 +2037,37 @@ def canonical_filename(
     return "test_" + "__".join(tokens) + ".py"
 
 
+def _dedup_preserving_order(tokens: list[str]) -> list[str]:
+    """Drop empties and later duplicates, keeping first-seen order."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for tok in tokens:
+        if tok and tok not in seen:
+            seen.add(tok)
+            ordered.append(tok)
+    return ordered
+
+
+def _e2e_tokens_collapsed(items: list[tuple[str, str]]) -> list[str]:
+    """Single-binary tokens: each ``(bin, sub)`` collapses to its sub (or bin)."""
+    collapsed = [
+        to_snake_token(sub if sub else bin_name)
+        for bin_name, sub in items[:_FILE_NAMING_TOP_K]
+    ]
+    return _dedup_preserving_order(collapsed)
+
+
+def _e2e_tokens_paired(items: list[tuple[str, str]]) -> list[str]:
+    """Multi-binary tokens: ``bin__sub`` (or bare ``bin`` when no sub)."""
+    pieces: list[str] = []
+    for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
+        bin_tok = to_snake_token(bin_name)
+        sub_tok = to_snake_token(sub) if sub else ""
+        # ``__`` (not ``-``) — see ``canonical_filename`` comment above.
+        pieces.append(f"{bin_tok}__{sub_tok}" if sub_tok else bin_tok)
+    return pieces
+
+
 def _e2e_tokens(
     items: list[tuple[str, str]],
     single_binary: str | None,
@@ -2048,21 +2079,5 @@ def _e2e_tokens(
     so a bare-binary invocation still surfaces a name).
     """
     if single_binary is not None:
-        collapsed: list[str] = []
-        for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
-            token = sub if sub else bin_name
-            collapsed.append(to_snake_token(token))
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for tok in collapsed:
-            if tok and tok not in seen:
-                seen.add(tok)
-                ordered.append(tok)
-        return ordered
-    pieces: list[str] = []
-    for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
-        bin_tok = to_snake_token(bin_name)
-        sub_tok = to_snake_token(sub) if sub else ""
-        # ``__`` (not ``-``) — see ``canonical_filename`` comment above.
-        pieces.append(f"{bin_tok}__{sub_tok}" if sub_tok else bin_tok)
-    return pieces
+        return _e2e_tokens_collapsed(items)
+    return _e2e_tokens_paired(items)
