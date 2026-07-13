@@ -119,7 +119,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: tests/fixtures/(snapshots|goldens)/
       - id: end-of-file-fixer
+        exclude: tests/fixtures/(snapshots|goldens)/
       - id: check-yaml
         args: [--unsafe]
       - id: check-added-large-files
