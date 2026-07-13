@@ -184,13 +184,17 @@ def _process_single_commit(  # noqa: PLR0913
     path: Path,
     results: list[dict[str, object]],
     total: int,
+    autofixed: list[str],
     *,
     strict: bool = False,
 ) -> ToolResult | None:
     """Process one commit spec: validate, stage, commit, record result.
 
     Returns a ``ToolResult`` on failure or ``None`` on success
-    (appending the commit record to *results*).
+    (appending the commit record to *results*). On the success path any
+    hook-mutated file paths captured during the autofix-retry are appended
+    to *autofixed* so the caller can surface them at the top level
+    (``hook_autofixed_files`` — the Verdict-Carrying Patch invariant).
     """
     validation_err = _validate_commit_spec(spec, index, results, total, strict=strict)
     if validation_err:
@@ -268,6 +272,10 @@ def _process_single_commit(  # noqa: PLR0913
             text=render_failure_text(error=error, data=data),
         )
 
+    # The commit landed. Record any hook-mutated paths captured during the
+    # autofix-retry (empty on the clean path) so the caller surfaces them.
+    autofixed.extend(auto_fixed)
+
     # Get the SHA of the commit
     log = run_git(["log", "-1", "--format=%H"], git_root)
     sha = log.stdout.strip()[:7]
@@ -298,6 +306,14 @@ class GitCommitTool(AXMTool):
 
     When a commit hook auto-fixes files (e.g. ruff ``--fix``),
     the tool automatically re-stages and retries the commit once.
+
+    **Verdict-Carrying Patch invariant** — when a hook mutates staged
+    content on the autofix-retry path, ``ToolResult.data`` reports exactly
+    which files changed under ``hook_autofixed_files: list[str]`` (repo-root
+    relative). The field is *always present*: it is an empty list on the
+    clean path (no hooks, or no mutation) and never ``None``. This lets a
+    consumer see that the patch it committed is not byte-for-byte the patch
+    it staged — the commit still carries a truthful verdict of what landed.
 
     The hook runner is whatever the repo installs at
     ``.git/hooks/pre-commit`` (pre-commit OR prek); axm-git never
@@ -339,8 +355,11 @@ class GitCommitTool(AXMTool):
                 (warn-by-default guardrail).
 
         Returns:
-            ToolResult with list of committed results and an
-            ``author`` key (``{name, email}`` or ``None``).
+            ToolResult with a list of committed results, an ``author`` key
+            (``{name, email}`` or ``None``), and ``hook_autofixed_files``
+            (``list[str]``, repo-root relative) naming any staged files a
+            commit hook mutated during the autofix-retry — always present,
+            ``[]`` when no hook auto-fixed anything.
         """
         resolved = Path(path).resolve()
         commit_list: list[dict[str, object]] = commits or []
@@ -373,10 +392,18 @@ class GitCommitTool(AXMTool):
             identity_args = author_args(identity)
 
             results: list[dict[str, object]] = []
+            autofixed: list[str] = []
 
             for i, spec in enumerate(commit_list):
                 failure = _process_single_commit(
-                    spec, i + 1, identity_args, resolved, results, total, strict=strict
+                    spec,
+                    i + 1,
+                    identity_args,
+                    resolved,
+                    results,
+                    total,
+                    autofixed,
+                    strict=strict,
                 )
                 if failure:
                     return failure
@@ -387,6 +414,10 @@ class GitCommitTool(AXMTool):
             "results": results,
             "total": len(results),
             "succeeded": len(results),
+            # Verdict-Carrying Patch invariant: the paths a commit hook
+            # auto-fixed during the re-stage + retry (deduplicated, sorted);
+            # always present, ``[]`` on the clean path (AC1/AC2).
+            "hook_autofixed_files": sorted(set(autofixed)),
             "author": (
                 {"name": identity.name, "email": identity.email} if identity else None
             ),

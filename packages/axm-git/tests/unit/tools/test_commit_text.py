@@ -128,6 +128,35 @@ class TestRenderText:
     def test_render(self, data: dict[str, Any], expected: str) -> None:
         assert render_text(data) == expected
 
+    def test_omits_autofix_line_when_field_empty(self) -> None:
+        """AC4: an empty ``hook_autofixed_files`` leaves the text unchanged."""
+        data: dict[str, Any] = {
+            "results": [
+                {"sha": "aa83f25", "message": "feat: a", "retried": False},
+            ],
+            "total": 1,
+            "succeeded": 1,
+            "hook_autofixed_files": [],
+        }
+        rendered = render_text(data)
+        assert "auto-fixed" not in rendered
+        assert rendered == "git_commit | ok | 1/1 commits\naa83f25 feat: a"
+
+    def test_renders_autofix_line_when_field_non_empty(self) -> None:
+        """AC4: a non-empty ``hook_autofixed_files`` appends the warning line."""
+        data: dict[str, Any] = {
+            "results": [
+                {"sha": "aa83f25", "message": "feat: a", "retried": True},
+            ],
+            "total": 1,
+            "succeeded": 1,
+            "hook_autofixed_files": ["a.txt"],
+        }
+        rendered = render_text(data)
+        assert "auto-fixed" in rendered
+        assert "a.txt" in rendered
+        assert rendered.endswith("⚠ hooks auto-fixed 1 file: a.txt")
+
 
 class TestRenderFailureText:
     """render_failure_text: every failure branch."""

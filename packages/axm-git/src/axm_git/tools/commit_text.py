@@ -83,10 +83,19 @@ def _retried_count(results: list[dict[str, object]]) -> int:
     return sum(1 for r in results if r.get("retried"))
 
 
+def _format_autofix_line(files: list[str]) -> str:
+    """Render the Verdict-Carrying-Patch warning line for hook-mutated files."""
+    count = len(files)
+    noun = "file" if count == 1 else "files"
+    return f"⚠ hooks auto-fixed {count} {noun}: {', '.join(files)}"
+
+
 def render_text(data: dict[str, object]) -> str:
     """Render the success-path ``data`` dict.
 
     Header + one ``format_commit_line`` per entry in ``data['results']``.
+    When ``data['hook_autofixed_files']`` is non-empty a trailing
+    ``⚠ hooks auto-fixed …`` warning line is appended (empty → unchanged).
     """
     results = _as_results(data.get("results"))
     total = _as_int(data.get("total"), len(results))
@@ -97,9 +106,10 @@ def render_text(data: dict[str, object]) -> str:
         total=total,
         retried_count=_retried_count(results),
     )
-    if not results:
-        return header
     lines = [header, *(format_commit_line(r) for r in results)]
+    autofixed = _as_str_list(data.get("hook_autofixed_files"))
+    if autofixed:
+        lines.append(_format_autofix_line(autofixed))
     return "\n".join(lines)
 
 

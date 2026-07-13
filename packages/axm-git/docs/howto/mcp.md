@@ -13,7 +13,7 @@
 |---|---|
 | `git_preflight` | Working tree status and diff summary before a phase |
 | `git_branch` | Create or checkout a branch |
-| `git_commit` | Batched atomic commits with commit-hook handling; warns on non-Conventional-Commit messages (`strict=True` blocks them), retries on commit-hook auto-fixes |
+| `git_commit` | Batched atomic commits with commit-hook handling; warns on non-Conventional-Commit messages (`strict=True` blocks them), retries on commit-hook auto-fixes, and reports any hook-mutated files in `data["hook_autofixed_files"]` |
 | `git_clone` | Clone a repository into a local directory |
 | `git_tag` | One-shot semver tagging (skips CI checks when `gh` is unavailable) |
 | `git_push` | Push with dirty-check and auto-upstream; `force` uses `--force-with-lease` by default |
@@ -38,6 +38,14 @@ git_commit(path="/path/to/repo", commits=[{"files": ["src/foo.py"], "message": "
 ```
 
 `git_commit` handles staging internally — it stages each spec file individually (`git add -- <file>`, with a `git ls-files -d` probe so tracked-but-deleted paths are staged as deletions, and gitignored paths skipped with a warning), so you never run `git add` separately.
+
+### Verdict-Carrying Patch — `hook_autofixed_files`
+
+When a commit hook auto-fixes staged content (e.g. ruff `--fix`, a trailing-whitespace stripper) `git_commit` re-stages and retries the commit once, then reports **which** files the hook mutated in `data["hook_autofixed_files"]` — a repo-root-relative `list[str]`. The field is always present: it is `[]` on the clean path (no hooks, or no mutation) and never `null`. This is the *Verdict-Carrying Patch* invariant — the committed patch tells you truthfully whether it differs from the patch you staged. When non-empty, the compact `text` rendering appends a line such as:
+
+```
+⚠ hooks auto-fixed 1 file: tests/fixtures/snapshots/old/knowledge_ingest.txt
+```
 
 ## Entry Points
 

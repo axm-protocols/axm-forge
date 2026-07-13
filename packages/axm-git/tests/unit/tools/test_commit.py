@@ -580,6 +580,70 @@ class TestRunnerAgnosticWording:
         assert "precommit_passed" in result.data["results"][0]
 
 
+class TestHookAutofixedFiles:
+    """AC1/AC2: ``hook_autofixed_files`` always present in success data."""
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    @patch("axm_git.tools.commit.run_git")
+    def test_clean_path_yields_empty_hook_autofixed_files(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
+        """AC2: no hook mutation → field present and equal to ``[]``."""
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert result.success
+        assert result.data["hook_autofixed_files"] == []
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    def test_autofix_retry_success_reports_mutated_files(
+        self, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
+        """AC1: a hook that auto-fixes then passes names the file at top level."""
+        commit_count = 0
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            nonlocal commit_count
+            if args[0] == "commit":
+                commit_count += 1
+                if commit_count == 1:
+                    return _fail(stdout="files were modified by this hook")
+                return _ok()
+            if args[0] == "diff":
+                return _ok("a.py\n")
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git = MagicMock(side_effect=_side_effect)
+        with (
+            patch("axm_git.tools.commit.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.stage_spec_files", return_value=None),
+        ):
+            result = GitCommitTool().execute(
+                path="/tmp/test",
+                commits=[{"files": ["a.py"], "message": "fix: a"}],
+            )
+        assert result.success
+        assert result.data["hook_autofixed_files"] == ["a.py"]
+        assert "auto-fixed" in (result.text or "")
+
+
 class TestEmptyCommitList:
     """commits=[] returns success=False with clear error."""
 
