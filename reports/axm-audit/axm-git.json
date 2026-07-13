@@ -69,9 +69,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (94/100)",
+      "message": "Test coverage: 95% (94/100)",
       "details": {
-        "coverage": 94.42906574394463,
+        "coverage": 94.51156368657232,
         "failures": []
       },
       "metadata": null
@@ -1527,7 +1527,7 @@
         "bucket_counts": {
           "CLUSTERED": 13,
           "AMBIGUOUS": 169,
-          "UNIQUE": 422
+          "UNIQUE": 429
         },
         "stale_acknowledged": [
           {
@@ -1540,9 +1540,20 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": false,
-      "message": "6 naming finding(s): 4 INFO + 2 WARNING",
+      "message": "7 naming finding(s): 5 INFO + 2 WARNING",
       "details": {
         "findings": [
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_commit__hooks.py",
+            "proposed_name": "test_git_commit_tool.py",
+            "path": "tests/integration/test_commit__hooks.py",
+            "tuple": [
+              "GitCommitTool"
+            ]
+          },
           {
             "verdict": "NAME_MISMATCH",
             "severity": "info",
@@ -1598,6 +1609,7 @@
             "path": "",
             "canonical_name": "test_git_commit_tool.py",
             "files": [
+              "tests/integration/test_commit__hooks.py",
               "tests/integration/test_git_commit_tool.py",
               "tests/integration/test_git_commit_tool__reset_paths.py"
             ]
