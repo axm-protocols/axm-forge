@@ -26,7 +26,7 @@ dependencies = [
     # torch), so the neural stack ships in the base install (AXM-2188). The
     # `tfidf` backend remains a pure-CPU option for callers that want to avoid
     # loading torch at runtime.
-    "torch>=2.12.1",
+    "torch>=2.13.0",
     "sentence-transformers>=5.6.0",
 ]
 

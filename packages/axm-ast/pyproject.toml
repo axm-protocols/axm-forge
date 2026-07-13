@@ -19,7 +19,7 @@ dependencies = [
     "axm-ingot",
     "cyclopts>=4.21.0",
     "pydantic>=2.12.5",
-    "tree-sitter>=0.24",
+    "tree-sitter>=0.26.0",
     "tree-sitter-python>=0.23",
 ]
 
@@ -636,7 +636,7 @@ reason = "2 CallersTool routing tests probe two mutually exclusive control-flow 
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e5335364f797"
-reason = "2 detect_stack tests probe two distinct config sources with two divergent assertion sets: test_detect_stack_multiple writes pyproject [project].dependencies = ['cyclopts>=3.0', 'pydantic>=2.0', 'tree-sitter>=0.24'] and asserts the cross-category routing 'cyclopts' in stack['cli'] + 'pydantic' in stack['models'] + 'tree-sitter' in stack['parsing'] (three distinct categories from runtime deps), while test_detect_stack_dev_deps starts with empty [project].dependencies then APPENDS a [dependency-groups].dev = ['pytest>=8.0', 'ruff>=0.8', 'mypy>=1.14'] section and asserts the dev-group routing 'tests' in stack + 'lint' in stack + 'types' in stack (three distinct categories from dependency-groups). Different config sources (project.dependencies vs dependency-groups.dev), different SUT routing paths, different category outputs — folding would conflate the runtime-deps categorization contract with the dev-deps categorization contract."
+reason = "2 detect_stack tests probe two distinct config sources with two divergent assertion sets: test_detect_stack_multiple writes pyproject [project].dependencies = ['cyclopts>=3.0', 'pydantic>=2.0', 'tree-sitter>=0.26.0'] and asserts the cross-category routing 'cyclopts' in stack['cli'] + 'pydantic' in stack['models'] + 'tree-sitter' in stack['parsing'] (three distinct categories from runtime deps), while test_detect_stack_dev_deps starts with empty [project].dependencies then APPENDS a [dependency-groups].dev = ['pytest>=8.0', 'ruff>=0.8', 'mypy>=1.14'] section and asserts the dev-group routing 'tests' in stack + 'lint' in stack + 'types' in stack (three distinct categories from dependency-groups). Different config sources (project.dependencies vs dependency-groups.dev), different SUT routing paths, different category outputs — folding would conflate the runtime-deps categorization contract with the dev-deps categorization contract."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "15f2fa123398"
