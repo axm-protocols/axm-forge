@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from axm_init.tools.scaffold import InitScaffoldTool
+
 pytestmark = pytest.mark.integration
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -65,3 +67,78 @@ def test_no_strict_member_missing_tests_override() -> None:
     strict = _strict_members()
     missing = [name for name, mypy in strict if _tests_override(mypy) is None]
     assert missing == [], f"strict members without a tests.* override: {missing}"
+
+
+# --- freshly rendered templates (via InitScaffoldTool) ---
+
+
+def _scaffold_standalone(tmp_path: Path) -> Path:
+    """Render the python-project template into tmp_path; return its pyproject."""
+    dest = tmp_path / "demo-pkg"
+    dest.mkdir()
+    result = InitScaffoldTool().execute(
+        path=str(dest),
+        org="DemoOrg",
+        author="Demo Author",
+        email="demo@example.com",
+        license="MIT",
+        description="demo package",
+    )
+    assert result.success, result.error
+    return dest / "pyproject.toml"
+
+
+def _scaffold_member(tmp_path: Path) -> Path:
+    """Render the workspace-member template inside a fresh workspace."""
+    tool = InitScaffoldTool()
+    ws = tmp_path / "demo-ws"
+    ws.mkdir()
+    ws_result = tool.execute(
+        path=str(ws),
+        org="DemoOrg",
+        author="Demo Author",
+        email="demo@example.com",
+        license="MIT",
+        description="demo workspace",
+        workspace=True,
+    )
+    assert ws_result.success, ws_result.error
+    member_result = tool.execute(
+        path=str(ws),
+        member="demo-member",
+        org="DemoOrg",
+        author="Demo Author",
+        email="demo@example.com",
+        license="MIT",
+        description="demo member",
+    )
+    assert member_result.success, member_result.error
+    return ws / "packages" / "demo-member" / "pyproject.toml"
+
+
+def test_rendered_python_project_relaxes_incomplete_defs(tmp_path: Path) -> None:
+    """Freshly rendered python-project relaxes incomplete defs (AC4)."""
+    mypy = _load_mypy(_scaffold_standalone(tmp_path))
+    assert mypy is not None
+    override = _tests_override(mypy)
+    assert override is not None
+    assert override.get("disallow_incomplete_defs") is False
+
+
+def test_rendered_workspace_member_relaxes_incomplete_defs(tmp_path: Path) -> None:
+    """Freshly rendered workspace-member relaxes incomplete defs (AC4)."""
+    mypy = _load_mypy(_scaffold_member(tmp_path))
+    assert mypy is not None
+    override = _tests_override(mypy)
+    assert override is not None
+    assert override.get("disallow_incomplete_defs") is False
+
+
+def test_rendered_templates_keep_strict_block(tmp_path: Path) -> None:
+    """Rendered templates keep their src strict block intact (AC4)."""
+    for pyproject in (_scaffold_standalone(tmp_path), _scaffold_member(tmp_path)):
+        mypy = _load_mypy(pyproject)
+        assert mypy is not None
+        assert mypy.get("strict") is True
+        assert mypy.get("disallow_incomplete_defs") is True
+        assert mypy.get("check_untyped_defs") is True
