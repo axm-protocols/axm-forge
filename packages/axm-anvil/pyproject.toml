@@ -127,6 +127,7 @@ exclude = ["tests/integration/fixtures/"]
 [[tool.mypy.overrides]]
 module = ["tests.*", "conftest"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 ignore_missing_imports = true
 disable_error_code = [

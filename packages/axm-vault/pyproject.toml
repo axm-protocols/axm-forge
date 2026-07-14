@@ -127,6 +127,7 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = ["tests.*", "conftest"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",

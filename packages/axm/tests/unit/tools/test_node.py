@@ -33,7 +33,7 @@ def _ep(name: str, obj: object) -> MagicMock:
     return ep
 
 
-def _with_tool(tool: object, name: str = "ast_impact"):  # type: ignore[no-untyped-def]
+def _with_tool(tool: object, name: str = "ast_impact"):
     """Patch entry-point discovery to expose a single fake tool."""
     return patch(
         "axm.tools.node.entry_points_for", return_value={name: _ep(name, tool)}
