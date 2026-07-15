@@ -46,6 +46,58 @@ def _snapshot_staged(git_root: Path) -> set[str]:
     return {line for line in result.stdout.splitlines() if line.strip()}
 
 
+def _spec_staged_set(
+    files: list[str], git_root: Path, working_dir: Path | None
+) -> set[str]:
+    """Return the git-root-relative POSIX paths the spec declares to stage.
+
+    Mirrors the resolution :func:`stage_spec_files` performs (git-root first,
+    then *working_dir*), keeping every candidate that lands inside the
+    repository. Intentionally over-inclusive: an extra candidate can only mask
+    a debris path, never wrongly flag a legitimate spec path — false negatives
+    are safe here, false positives (refusing a clean spec) are not.
+    """
+    root = git_root.resolve()
+    out: set[str] = set()
+    for filepath in files:
+        raw = Path(filepath)
+        if raw.is_absolute():
+            candidates = [raw]
+        else:
+            candidates = [root / filepath]
+            if working_dir is not None and working_dir.resolve() != root:
+                candidates.append(working_dir.resolve() / filepath)
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved.is_relative_to(root):
+                out.add(resolved.relative_to(root).as_posix())
+    return out
+
+
+def _unexpected_staged(
+    staged: set[str], spec: set[str], autofixed: set[str]
+) -> list[str]:
+    """Return the sorted staged paths that sit outside the spec set.
+
+    A path is *unexpected* when the index holds it, the spec did not declare
+    it, and no commit hook auto-fixed it — ``hook_autofixed_files`` is a
+    legitimate channel (paths a hook mutated + the retry re-staged) and is
+    exempt from the strict check (AC3).
+
+    A spec entry may be a *directory* (staging it introduces nested paths, e.g.
+    ``pkg`` → ``pkg/a.py``), so a staged path is also expected when it is nested
+    under any declared/auto-fixed prefix. Sorted for a deterministic diagnostic
+    and ``unexpected_staged`` data field.
+    """
+    allowed = spec | autofixed
+    return sorted(
+        path
+        for path in staged
+        if path not in allowed
+        and not any(path.startswith(f"{prefix}/") for prefix in allowed)
+    )
+
+
 def _attempt_commit(
     commit_args: list[str],
     files: list[str],
@@ -150,6 +202,7 @@ def _build_failure_data(  # noqa: PLR0913
     total: int,
     index_restored: bool = False,
     restored_paths: list[str] | None = None,
+    unexpected_staged: list[str] | None = None,
 ) -> dict[str, object]:
     """Build failure data dict for a failed commit.
 
@@ -165,6 +218,9 @@ def _build_failure_data(  # noqa: PLR0913
         "results": results,
         "total": total,
         "succeeded": len(results),
+        # Additive, non-breaking surface (AC4): the staged paths outside the
+        # spec that triggered a strict refusal; ``[]`` on every other failure.
+        "unexpected_staged": unexpected_staged or [],
         "failed_commit": {
             "index": index,
             "message": message,
@@ -232,7 +288,46 @@ def _process_single_commit(  # noqa: PLR0913
 
     # The paths this operation staged (delta vs the pre-call index) — the only
     # paths a definitive-failure restore is allowed to unstage (AC1/AC2).
-    recorded = staged_delta(staged_before, _snapshot_staged(git_root))
+    staged_after = _snapshot_staged(git_root)
+    recorded = staged_delta(staged_before, staged_after)
+
+    # Strict index check — Verdict-Carrying Patch applied to the commit itself:
+    # the index must hold ONLY what the spec declared. Any other staged path is
+    # debris a third party left in the index; committing it would land content
+    # the spec never claimed. Hook auto-fixed paths are a legitimate channel and
+    # are exempt (AC3). On a match: restore the index to its pre-call state and
+    # refuse fail-loud, naming every offending path (AC1/AC2/AC4).
+    unexpected = _unexpected_staged(
+        staged_after,
+        _spec_staged_set(files, git_root, path),
+        set(autofixed),
+    )
+    if unexpected:
+        restored = bool(recorded)
+        if restored:
+            reset_paths(recorded, git_root)
+        offending = ", ".join(unexpected)
+        error = "Commit {i}: index holds staged paths outside the spec: {p}{r}".format(
+            i=index, p=offending, r=" (index restored)" if restored else ""
+        )
+        data = _build_failure_data(
+            results,
+            index=index,
+            message=message,
+            output="",
+            retried=False,
+            auto_fixed=[],
+            total=total,
+            index_restored=restored,
+            restored_paths=recorded,
+            unexpected_staged=unexpected,
+        )
+        return ToolResult(
+            success=False,
+            error=error,
+            data=data,
+            text=render_failure_text(error=error, data=data),
+        )
 
     # Build commit command
     commit_args = ["commit", "-m", message]
