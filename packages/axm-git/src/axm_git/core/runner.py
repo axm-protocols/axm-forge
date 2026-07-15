@@ -132,9 +132,11 @@ def _resolve_add_target(
 ) -> tuple[str, str | None]:
     """Return the path to pass to ``git add`` for *filepath*.
 
-    When the resolved path exists on disk it is used verbatim. When it
-    does not exist but ``git ls-files -d`` reports it as tracked-but-deleted,
-    *filepath* is returned so git stages the deletion. Otherwise an error
+    When the resolved path exists on disk it is used verbatim. When it does
+    not exist but ``git status --porcelain`` reports a pending deletion for
+    the pathspec — whether already staged (``git rm``) or a plain disk
+    deletion, and including a wholly removed directory — *filepath* is
+    returned so ``git add -A`` stages the deletion. Otherwise an error
     listing every attempted path is returned.
     """
     resolved, tried, err = _resolve_repo_path(filepath, git_root, working_dir)
@@ -142,17 +144,19 @@ def _resolve_add_target(
         return "", err
     if resolved is not None and resolved.exists():
         return str(resolved), None
-    # Tracked-but-deleted: probe ``git ls-files -d`` with each candidate path
-    # relativized to git_root (``ls-files`` interprets the pathspec relative
-    # to its cwd, which is git_root). Return that git_root-relative path so
+    # Tracked-but-deleted: probe ``git status --porcelain`` with each candidate
+    # path relativized to git_root (git interprets the pathspec relative to its
+    # cwd, which is git_root). A non-empty status means git has a pending change
+    # for that pathspec — a staged (``git rm``) or unstaged deletion, or a
+    # directory whose files were removed. Return that git_root-relative path so
     # the deletion stages even when working_dir is a subdir of git_root.
     git_root_abs = git_root.resolve()
     for candidate in tried:
         if not candidate.is_relative_to(git_root_abs):
             continue
         rel = candidate.relative_to(git_root_abs).as_posix()
-        ls_result = run_git(["ls-files", "-d", rel], git_root)
-        if ls_result.stdout.strip():
+        status_result = run_git(["status", "--porcelain", "--", rel], git_root)
+        if status_result.stdout.strip():
             return rel, None
     attempts = ", ".join(str(p) for p in tried)
     return "", f"files not found: {filepath!r} (tried: {attempts})"
@@ -168,12 +172,18 @@ def _stage_single_file(
     add_target, err = _resolve_add_target(filepath, git_root, working_dir)
     if err:
         return err
-    add_result = run_git(["add", "--", add_target], git_root)
+    add_result = run_git(["add", "-A", "--", add_target], git_root)
     if add_result.returncode == 0:
         return None
     if "ignored" in add_result.stderr.lower():
         if warnings is not None:
             warnings.append(f"skipped gitignored file: {filepath}")
+        return None
+    if "did not match any files" in add_result.stderr.lower():
+        # Nothing left for ``git add`` to stage: the deletion was already
+        # fully staged (e.g. ``git rm`` pre-staged it). ``_resolve_add_target``
+        # only returns a target after confirming a pending change exists for
+        # the pathspec, so an unmatched pathspec here means the work is done.
         return None
     return f"git add failed for {filepath}: {add_result.stderr}"
 
