@@ -168,6 +168,11 @@ def _commit_from_outputs_deps() -> Any:
         patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git) as mock_git,
         patch("axm_git.core.runner.run_git", side_effect=_run_git),
         patch("axm_git.core.commit_spec.run_git", side_effect=_run_git),
+        # AXM-743/744: staging now probes ``git status --porcelain`` and stages
+        # via ``git add -A --`` (the ``git ls-files -d`` fallback is gone). These
+        # identity-focused tests use non-existent fake paths, so bypass the real
+        # resolver at the first-stage seam and let the commit path run.
+        patch("axm_git.hooks.commit_phase.stage_spec_files", return_value=None),
         patch(
             "axm_git.hooks.commit_phase.find_git_root", return_value=Path("/fake/repo")
         ),
@@ -330,6 +335,11 @@ class TestIdentityEdgeCases:
             patch("axm_git.hooks.commit_phase.run_git", new=mock_git),
             patch("axm_git.core.runner.run_git", new=mock_git),
             patch("axm_git.core.commit_spec.run_git", new=mock_git),
+            # AXM-743/744: the first stage (hook module) and the autofix re-stage
+            # (commit_spec module) both go through the new ``git add -A --``
+            # resolver. Bypass both seams so this test isolates the --author
+            # preservation across the retry, not the deleted-target fallback.
+            patch("axm_git.hooks.commit_phase.stage_spec_files", return_value=None),
             patch("axm_git.core.commit_spec.stage_spec_files", return_value=None),
             patch(
                 "axm_git.hooks.commit_phase.find_git_root",
@@ -400,13 +410,15 @@ class TestDeletedTargetResolution:
     """AC2: deleted-file staging must use the resolved git_root-relative path."""
 
     def test_deleted_target_returns_root_relative_path(self) -> None:
-        """AC2: a deleted file in a subdir stages via its git_root-relative path.
+        """AC2 (AXM-743/744): a deleted file in a subdir stages via ``git add -A``.
 
-        ``working_dir`` differs from ``git_root`` and the file does not exist
-        on disk (tracked-but-deleted). ``git ls-files -d`` reports it, so the
-        ``git add`` target must be the resolved git_root-relative path
-        (``sub/gone.py``), never the raw working-dir-relative input
-        (``gone.py``).
+        ``working_dir`` differs from ``git_root`` and the file does not exist on
+        disk (tracked-but-deleted). Under the new staging semantics the resolver
+        probes ``git status --porcelain -- <path>`` (the ``git ls-files -d``
+        fallback is gone) and then stages the deletion with
+        ``git add -A -- <git_root-relative path>``. The ``git add`` target must
+        therefore be the resolved git_root-relative path (``sub/gone.py``),
+        never the raw working-dir-relative input (``gone.py``).
         """
         git_root = Path("/fake/repo")
         working_dir = git_root / "sub"
@@ -416,13 +428,14 @@ class TestDeletedTargetResolution:
             if cmd[0] == "add":
                 add_targets.append(cmd[-1])
                 return SimpleNamespace(returncode=0, stdout="", stderr="")
-            if cmd[0] == "ls-files":
-                # Tracked-but-deleted: ls-files -d (run from git_root) reports
-                # the file only when probed with its git_root-relative path.
+            if cmd[0] == "status":
+                # Tracked-but-deleted: ``git status --porcelain`` (run from
+                # git_root) reports a pending change only when probed with the
+                # file's git_root-relative pathspec.
                 found = cmd[-1] if cmd[-1] == "sub/gone.py" else ""
                 return SimpleNamespace(
                     returncode=0,
-                    stdout=found + "\n" if found else "",
+                    stdout=" D " + found + "\n" if found else "",
                     stderr="",
                 )
             if cmd[0] == "diff":
