@@ -1,8 +1,8 @@
 {
-  "score": 89.0,
-  "grade": "B",
+  "score": 98.0,
+  "grade": "A",
   "total": 31,
-  "failed": 2,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -98,60 +98,11 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 40/100 (6 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 6,
-        "top_offenders": [
-          {
-            "file": "axm_audit/core/fix/stages_execute.py",
-            "function": "_fixtures_referenced_by",
-            "cc": 9,
-            "rank": "B",
-            "cognitive": 22,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_audit/core/rules/security.py",
-            "function": "SecurityPatternRule._scan_file_for_secrets",
-            "cc": 10,
-            "rank": "B",
-            "cognitive": 17,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_audit/core/rules/test_quality/_shared.py",
-            "function": "_e2e_tokens",
-            "cc": 10,
-            "rank": "B",
-            "cognitive": 17,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_audit/core/rules/test_quality/file_naming.py",
-            "function": "_aggregate_file",
-            "cc": 9,
-            "rank": "B",
-            "cognitive": 17,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_audit/core/rules/complexity.py",
-            "function": "ComplexityRule._check_via_api",
-            "cc": 9,
-            "rank": "B",
-            "cognitive": 16,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_audit/core/fix/findings.py",
-            "function": "collect_unfixable",
-            "cc": 9,
-            "rank": "B",
-            "cognitive": 16,
-            "reason": "cog"
-          }
-        ],
+        "high_complexity_count": 0,
+        "top_offenders": [],
         "cognitive_disabled": false
       },
       "metadata": null
@@ -161,7 +112,7 @@
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.9472460773552,
+        "coverage": 90.99587203302373,
         "failures": []
       },
       "metadata": null

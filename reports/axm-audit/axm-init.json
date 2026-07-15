@@ -1,8 +1,8 @@
 {
-  "score": 96.6,
+  "score": 96.5,
   "grade": "A",
   "total": 31,
-  "failed": 1,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -77,9 +77,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 96% (96/100)",
+      "message": "Test coverage: 97% (96/100)",
       "details": {
-        "coverage": 96.36294027565084,
+        "coverage": 96.55436447166922,
         "failures": []
       },
       "metadata": null
@@ -230,7 +230,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "56 cluster(s), 0 clustered pair(s)",
+      "message": "59 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -1315,6 +1315,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT _load_mypy(1)>_tests_override(1)>override.get(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_mypy_override_consistency.py",
+                "name": "test_rendered_python_project_relaxes_incomplete_defs",
+                "line": 119
+              },
+              {
+                "file": "tests/integration/test_mypy_override_consistency.py",
+                "name": "test_rendered_workspace_member_relaxes_incomplete_defs",
+                "line": 128
+              }
+            ],
+            "cluster_hash": "7267604a7880"
+          },
+          {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT yaml.safe_load(1)",
             "similarity": 0.0,
@@ -1353,6 +1371,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT block.split(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_scaffold_flow_via_cli.py",
+                "name": "test_scaffold_python_project_precommit_excludes_fixtures",
+                "line": 139
+              },
+              {
+                "file": "tests/integration/test_scaffold_flow_via_cli.py",
+                "name": "test_workspace_precommit_excludes_fixtures",
+                "line": 225
+              }
+            ],
+            "cluster_hash": "e6d1c2383918"
+          },
+          {
             "signal": "ambiguous_patch_context",
             "reason": "patch-context rescue for SUT PyPIAdapter(0)>adapter.check_availability(1)",
             "similarity": 0.0,
@@ -1389,6 +1425,24 @@
             ],
             "cluster_hash": "b23135302f50",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT _override_block(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_templates.py",
+                "name": "test_python_project_relaxes_incomplete_defs",
+                "line": 44
+              },
+              {
+                "file": "tests/unit/core/test_templates.py",
+                "name": "test_workspace_member_relaxes_incomplete_defs",
+                "line": 50
+              }
+            ],
+            "cluster_hash": "0dde6771f1b8"
           },
           {
             "signal": "ambiguous_body_size",
@@ -1564,8 +1618,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 19,
-          "AMBIGUOUS": 149,
-          "UNIQUE": 354
+          "AMBIGUOUS": 155,
+          "UNIQUE": 361
         },
         "stale_acknowledged": [
           {
@@ -1577,19 +1631,40 @@
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
+      "passed": false,
+      "message": "1 naming finding(s): 0 INFO + 1 WARNING",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "verdict": "COLLIDE",
+            "severity": "warning",
+            "tier": "integration",
+            "current_name": "",
+            "proposed_name": "test_template_type.py",
+            "path": "",
+            "canonical_name": "test_template_type.py",
+            "files": [
+              "tests/integration/test_precommit_template__exclude.py",
+              "tests/integration/test_template_type.py"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
-      "passed": true,
-      "message": "every integration/e2e test exercises the package",
+      "passed": false,
+      "message": "1 integration/e2e test(s) exercise no package symbol or CLI",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "test_file": "tests/integration/test_mypy_incomplete_defs_probe.py",
+            "verdict": "NO_PACKAGE_SYMBOL",
+            "criterion_a_passed": false,
+            "criterion_b_passed": false
+          }
+        ]
       },
       "metadata": null
     },
@@ -1604,11 +1679,50 @@
     },
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": true,
-      "message": "pyramid levels match folder layout",
+      "passed": false,
+      "message": "2 test(s) mis-located vs. classified pyramid level",
       "details": {
-        "mismatches": [],
-        "total": 0
+        "mismatches": [
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/tests/unit/core/test_templates.py",
+            "function": "test_python_project_relaxes_incomplete_defs",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.read_text()"
+            ],
+            "imports_public": [
+              "TemplateType",
+              "get_template_path"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/core/test_templates.py",
+            "severity": "warning"
+          },
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/tests/unit/core/test_templates.py",
+            "function": "test_workspace_member_relaxes_incomplete_defs",
+            "level": "integration",
+            "reason": "real I/O + public import (integration)",
+            "current_level": "unit",
+            "has_real_io": true,
+            "has_subprocess": false,
+            "io_signals": [
+              "attr:.read_text()"
+            ],
+            "imports_public": [
+              "TemplateType",
+              "get_template_path"
+            ],
+            "imports_internal": [],
+            "suggested_file": "integration/core/test_templates.py",
+            "severity": "warning"
+          }
+        ],
+        "total": 2
       },
       "metadata": null
     },

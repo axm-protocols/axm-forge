@@ -1,8 +1,8 @@
 {
-  "score": 96.7,
+  "score": 95.0,
   "grade": "A",
   "total": 31,
-  "failed": 4,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -48,10 +48,10 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 2,
         "top_offenders": [
           {
             "file": "axm_git/tools/tag.py",
@@ -59,6 +59,14 @@
             "cc": 11,
             "rank": "C",
             "cognitive": 12,
+            "reason": "cc"
+          },
+          {
+            "file": "axm_git/tools/commit.py",
+            "function": "_process_single_commit",
+            "cc": 11,
+            "rank": "C",
+            "cognitive": 10,
             "reason": "cc"
           }
         ],
@@ -69,9 +77,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 95% (94/100)",
+      "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 94.51156368657232,
+        "coverage": 94.4954128440367,
         "failures": []
       },
       "metadata": null
@@ -1398,7 +1406,7 @@
               {
                 "file": "tests/unit/hooks/test_commit_phase.py",
                 "name": "test_commit_phase_hook_loads",
-                "line": 462
+                "line": 475
               },
               {
                 "file": "tests/unit/hooks/test_preflight.py",
@@ -1527,7 +1535,7 @@
         "bucket_counts": {
           "CLUSTERED": 13,
           "AMBIGUOUS": 169,
-          "UNIQUE": 429
+          "UNIQUE": 438
         },
         "stale_acknowledged": [
           {
@@ -1540,7 +1548,7 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": false,
-      "message": "7 naming finding(s): 5 INFO + 2 WARNING",
+      "message": "9 naming finding(s): 7 INFO + 2 WARNING",
       "details": {
         "findings": [
           {
@@ -1550,6 +1558,28 @@
             "current_name": "test_commit__hooks.py",
             "proposed_name": "test_git_commit_tool.py",
             "path": "tests/integration/test_commit__hooks.py",
+            "tuple": [
+              "GitCommitTool"
+            ]
+          },
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_git_commit__staging.py",
+            "proposed_name": "test_git_commit_tool.py",
+            "path": "tests/integration/test_git_commit__staging.py",
+            "tuple": [
+              "GitCommitTool"
+            ]
+          },
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_git_commit__strict.py",
+            "proposed_name": "test_git_commit_tool.py",
+            "path": "tests/integration/test_git_commit__strict.py",
             "tuple": [
               "GitCommitTool"
             ]
@@ -1610,6 +1640,8 @@
             "canonical_name": "test_git_commit_tool.py",
             "files": [
               "tests/integration/test_commit__hooks.py",
+              "tests/integration/test_git_commit__staging.py",
+              "tests/integration/test_git_commit__strict.py",
               "tests/integration/test_git_commit_tool.py",
               "tests/integration/test_git_commit_tool__reset_paths.py"
             ]
@@ -1634,9 +1666,15 @@
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
       "passed": false,
-      "message": "1 integration/e2e test(s) exercise no package symbol or CLI",
+      "message": "2 integration/e2e test(s) exercise no package symbol or CLI",
       "details": {
         "findings": [
+          {
+            "test_file": "tests/e2e/test_axm__git_commit.py",
+            "verdict": "NO_PACKAGE_SYMBOL",
+            "criterion_a_passed": false,
+            "criterion_b_passed": false
+          },
           {
             "test_file": "tests/e2e/test_git.py",
             "verdict": "NO_PACKAGE_SYMBOL",
@@ -1659,9 +1697,32 @@
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": false,
-      "message": "6 test(s) mis-located vs. classified pyramid level",
+      "message": "7 test(s) mis-located vs. classified pyramid level",
       "details": {
         "mismatches": [
+          {
+            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/e2e/test_axm__git_commit.py",
+            "function": "test_axm_git_commit_commits_a_deletion",
+            "level": "integration",
+            "reason": "real I/O without package import (integration)",
+            "current_level": "e2e",
+            "has_real_io": true,
+            "has_subprocess": true,
+            "io_signals": [
+              "imports subprocess",
+              "call:subprocess.run",
+              "attr:.mkdir()",
+              "attr:.unlink()",
+              "attr:.write_text()",
+              "fixture-arg:tmp_path",
+              "tmp_path-as-arg",
+              "tmp_path-bookkeeping"
+            ],
+            "imports_public": [],
+            "imports_internal": [],
+            "suggested_file": "integration/test_axm__git_commit.py",
+            "severity": "warning"
+          },
           {
             "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-git/tests/e2e/test_git.py",
             "function": "test_load_config_suite_green_under_scrubbed_env",
@@ -1816,7 +1877,7 @@
             "severity": "warning"
           }
         ],
-        "total": 6
+        "total": 7
       },
       "metadata": null
     },
