@@ -197,3 +197,25 @@ class TestSearchFilesToolIO:
 
         for match in result.data["matches"]:
             assert f"{match['line']}: {match['content']}" in (result.text or "")
+
+
+class TestSearchFilesMinifiedBounded:
+    """A match in a minified single-line file stays bounded (AC3)."""
+
+    def test_minified_single_line_stays_bounded(self, tmp_path: Path) -> None:
+        """One huge line yields a capped content, not the entire line."""
+        blob = ";".join(f"var a{i}=needle{i}" for i in range(20000))
+        (tmp_path / "app.min.js").write_text(blob, encoding="utf-8")
+
+        result = SearchFilesTool().execute(path=str(tmp_path), pattern="needle")
+
+        assert result.success is True
+        assert result.data is not None
+        matches = result.data["matches"]
+        assert len(matches) >= 1
+        for m in matches:
+            assert len(str(m["content"])) <= 500 + 80
+        # The whole payload is bounded far under the raw blob size.
+        total = sum(len(str(m["content"])) for m in matches)
+        assert total <= 50 * (500 + 80)
+        assert total < len(blob)

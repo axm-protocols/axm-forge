@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from axm_edit.tools.search_files import SearchFilesTool, render_text
+from axm_edit.tools.search_files import (
+    SearchFilesTool,
+    render_text,
+    truncate_line,
+)
 
 
 class TestSearchFilesTool:
@@ -41,3 +45,24 @@ class TestRenderText:
         ]
         text = render_text(matches=matches, count=1, truncated=False)
         assert text == "search_files | 1 match · 1 file\na.py\n  7: needle"
+
+
+class TestTruncateLine:
+    """Per-line content capping (AC1, AC2)."""
+
+    def test_long_line_truncated_with_marker(self) -> None:
+        """A line over the cap is clipped and carries a truncation marker."""
+        original = "x" * 5000
+        out = truncate_line(original)
+        assert len(out) < len(original)
+        assert len(out) <= 500 + 80
+        assert out.startswith("x" * 500)
+        assert "[truncated:" in out
+        assert out.endswith("]")
+
+    def test_short_line_unchanged(self) -> None:
+        """A line at or under the cap is returned verbatim, with no marker."""
+        original = "def hello():  # a short matching line"
+        out = truncate_line(original)
+        assert out == original
+        assert "truncated" not in out

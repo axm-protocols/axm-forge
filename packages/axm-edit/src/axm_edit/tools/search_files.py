@@ -21,6 +21,7 @@ __all__ = ["SearchFilesTool"]
 logger = logging.getLogger(__name__)
 
 _MAX_RESULTS = 50
+_MAX_LINE_CHARS = 500
 _SKIP_DIRS = frozenset(
     {
         ".git",
@@ -42,6 +43,25 @@ _SKIP_DIRS = frozenset(
 def _matches_include(filename: str, include: list[str]) -> bool:
     """Return True if *filename* matches at least one include glob."""
     return any(fnmatch.fnmatch(filename, pat) for pat in include)
+
+
+def truncate_line(content: str) -> str:
+    """Bound a matched line's *content* to ``_MAX_LINE_CHARS`` characters.
+
+    Mirrors the per-unit size cap idiom already applied to ``read_file``:
+    lines at or under the cap are returned unchanged, while a longer line is
+    clipped to the first ``_MAX_LINE_CHARS`` characters with an explicit
+    truncation marker recording the original length appended. This keeps a
+    match inside a minified single-line file from dragging the whole line
+    into the result payload.
+    """
+    if len(content) <= _MAX_LINE_CHARS:
+        return content
+    return (
+        f"{content[:_MAX_LINE_CHARS]}"
+        f" [truncated: {len(content)} chars total,"
+        f" showing first {_MAX_LINE_CHARS}]"
+    )
 
 
 def _search_file(
@@ -79,7 +99,7 @@ def _search_file(
                 {
                     "file": relative,
                     "line": line_num,
-                    "content": line.rstrip(),
+                    "content": truncate_line(line.rstrip()),
                 }
             )
 
