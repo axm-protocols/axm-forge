@@ -11,8 +11,6 @@ from axm_anvil._cst.visitors import ReferenceCollector
 
 __all__ = [
     "ImportInfo",
-    "_gather_target_existing",
-    "_gather_target_imports",
     "gather_source_constants",
     "gather_source_helpers",
     "gather_source_imports",

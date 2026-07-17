@@ -143,3 +143,11 @@ def test_rewrite_caller_text_multiple_import_lines() -> None:
         "from pkg.old import Foo",
         "from pkg.old import Bar",
     }
+
+
+def test_callers_all_carries_no_private_symbols() -> None:
+    """AC2: `axm_anvil.core.callers.__all__` exports no `_`-prefixed name."""
+    from axm_anvil.core import callers
+
+    assert not [name for name in callers.__all__ if name.startswith("_")]
+    assert set(callers.__all__) == {"CallerRewrite", "rewrite_caller_text"}

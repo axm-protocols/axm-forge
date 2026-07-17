@@ -96,6 +96,13 @@ rewriting is pattern-based on the import statement; shadowing, alias chains,
 and re-exports/star imports are deferred to a later tier (see the function
 and module docstrings).
 
+**`RenamePlan`** — the value returned by `rename_symbols` (the rename
+counterpart of `MovePlan`). It carries the rewritten defining-module text,
+the `renamed` mapping actually applied (`old -> new`), the `callers_updated`
+rewrites, `warnings` (e.g. a symbol absent in non-strict mode), and
+`files_modified`. Like the other core entrypoints and models, it is exported
+from the package root (`from axm_anvil import RenamePlan`).
+
 **`SIDE_EFFECT_DECORATORS`** — the default whitelist of decorator
 dotted-names whose primary purpose is to register the decorated symbol with
 an external registry as an import-time side effect (e.g. `app.route`,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import libcst as cst
 
-__all__ = ["_ruff_fix"]
+__all__: list[str] = []
 
 _SOURCE_SELECT = "I,E402,F401,F811"
 _SOURCE_SELECT_NO_F401 = "I,E402,F811"

@@ -179,3 +179,12 @@ def test_topo_sort_deep_chain_no_recursion_error() -> None:
     assert len(names) == n
     positions = {name: idx for idx, name in enumerate(names)}
     assert all(positions[f"K{i - 1}"] < positions[f"K{i}"] for i in range(1, n))
+
+
+def test_deps_all_carries_no_private_symbols() -> None:
+    """AC2: `axm_anvil.core.deps.__all__` exports no `_`-prefixed name."""
+    from axm_anvil.core import deps
+
+    assert not [name for name in deps.__all__ if name.startswith("_")]
+    assert "_gather_target_existing" not in deps.__all__
+    assert "_gather_target_imports" not in deps.__all__
