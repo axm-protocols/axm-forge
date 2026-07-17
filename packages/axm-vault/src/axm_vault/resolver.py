@@ -60,7 +60,7 @@ class Resolved(BaseModel):  # type: ignore[explicit-any]
 
     model_config = ConfigDict(frozen=True)
 
-    value: str
+    value: str | None
     layer: Layer
     spec: CredentialSpec
 
@@ -96,7 +96,7 @@ class Resolver:
                 return Resolved(value=value, layer=layer, spec=spec)
         if spec.required:
             raise MissingCredentialError(f"{group.id}.{name}")
-        return Resolved(value=spec.default or "", layer="default", spec=spec)
+        return Resolved(value=spec.default, layer="default", spec=spec)
 
     def probe(
         self,
@@ -224,11 +224,19 @@ def _resolved_value(resolved: Resolved) -> str | None:
     return None if absent else resolved.value
 
 
-def get(group: str, name: str, instance: str | None = None) -> str:
+def get(group: str, name: str, instance: str | None = None) -> str | None:
     """Resolve ``group.name`` via the singleton :data:`resolver`.
 
     Convenience over ``resolver.resolve(load_catalog().group(group), name)``
     returning just the resolved value.
+
+    Returns ``None`` for an absent optional spec with no declared default,
+    matching exactly what :func:`bind` binds for the same spec (both route
+    through the ``default`` layer with ``spec.default is None``). Binding
+    ``""`` there would defeat a consumer's ``if x is None`` check -- see
+    :func:`_resolved_value` for the shared rationale. A spec that declares a
+    real default (even an empty string) returns that default verbatim, and a
+    value sourced from any real layer passes through unchanged.
     """
     grp = load_catalog().group(group)
     return resolver.resolve(grp, name, instance).value

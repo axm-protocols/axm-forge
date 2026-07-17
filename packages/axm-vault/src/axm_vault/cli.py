@@ -71,7 +71,7 @@ def get(group: str, name: str, *, reveal: bool = False) -> None:
         _die(exc)
         return
     secret = resolved.spec.sensitivity is Sensitivity.SECRET
-    print(MASK if secret and not reveal else resolved.value)
+    print(MASK if secret and not reveal else (resolved.value or ""))
 
 
 @app.command

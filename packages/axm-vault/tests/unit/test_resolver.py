@@ -8,7 +8,13 @@ from keyring.errors import NoKeyringError
 from pydantic import BaseModel, SecretStr
 
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
-from axm_vault.resolver import MissingCredentialError, Resolver, bind
+from axm_vault.resolver import (
+    MissingCredentialError,
+    Resolver,
+    _resolved_value,
+    bind,
+    get,
+)
 
 
 class _UnavailableKeyring(keyring.backend.KeyringBackend):
@@ -449,3 +455,89 @@ class _Catalog:
 
     def group(self, group_id: str) -> CredentialGroup:
         return self._groups[group_id]
+
+
+def _patch_catalog(
+    monkeypatch: pytest.MonkeyPatch, group: CredentialGroup, group_id: str = "svc"
+) -> None:
+    """Route the module-level ``get``/``bind`` through an in-memory catalog."""
+    import importlib
+
+    resolver_mod = importlib.import_module("axm_vault.resolver")
+    monkeypatch.setattr(
+        resolver_mod, "load_catalog", lambda: _Catalog({group_id: group})
+    )
+
+
+def test_get_absent_optional_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC1: get() returns None for an absent optional spec with no default.
+
+    Mirrors what bind() binds: the synthetic ``default`` layer with no real
+    default declared yields ``None`` (not ``""``), so a consumer's
+    ``if x is None`` check works.
+    """
+    spec = CredentialSpec(
+        name="host",
+        env="SVC_HOST",
+        kind="host",
+        sensitivity=Sensitivity.CONFIG,
+        required=False,
+    )
+    group = _group(spec, group_id="svc")
+    monkeypatch.delenv("SVC_HOST", raising=False)
+    _patch_file_store(monkeypatch, {})
+    _patch_catalog(monkeypatch, group)
+    assert get("svc", "host") is None
+
+
+def test_get_returns_declared_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC2: get() returns the declared default verbatim (no regression)."""
+    spec = CredentialSpec(
+        name="region",
+        env="SVC_REGION",
+        kind="region",
+        sensitivity=Sensitivity.CONFIG,
+        required=False,
+        default="eu-west",
+    )
+    group = _group(spec, group_id="svc")
+    monkeypatch.delenv("SVC_REGION", raising=False)
+    _patch_file_store(monkeypatch, {})
+    _patch_catalog(monkeypatch, group)
+    assert get("svc", "region") == "eu-west"
+
+
+def test_get_returns_present_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC2: get() returns a value sourced from a real layer verbatim."""
+    spec = CredentialSpec(
+        name="host",
+        env="SVC_HOST",
+        kind="host",
+        sensitivity=Sensitivity.CONFIG,
+        required=False,
+    )
+    group = _group(spec, group_id="svc")
+    monkeypatch.setenv("SVC_HOST", "from-env")
+    _patch_file_store(monkeypatch, {})
+    _patch_catalog(monkeypatch, group)
+    assert get("svc", "host") == "from-env"
+
+
+def test_get_and_bind_agree_on_absent_optional(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: get() and _resolved_value (bind's rule) both yield None when absent."""
+    spec = CredentialSpec(
+        name="host",
+        env="SVC_HOST",
+        kind="host",
+        sensitivity=Sensitivity.CONFIG,
+        required=False,
+    )
+    group = _group(spec, group_id="svc")
+    monkeypatch.delenv("SVC_HOST", raising=False)
+    _patch_file_store(monkeypatch, {})
+    _patch_catalog(monkeypatch, group)
+    resolved = Resolver().resolve(group, "host")
+    assert _resolved_value(resolved) is None
+    assert get("svc", "host") is None
