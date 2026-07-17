@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import libcst as cst
 
 from axm_anvil._cst.blocks import Block, extract_blocks
 from axm_anvil.core.move import (
     PYTEST_BUILTIN_FIXTURES,
+    _process_callers,
     detect_fixture_dependencies,
 )
 
@@ -59,3 +62,48 @@ def test_fixture_self_and_defaults_excluded() -> None:
 
     assert "self" not in used
     assert "opt" not in used
+
+
+def test_out_of_workspace_file_yields_caller_warning(tmp_path: Path) -> None:
+    """AC1: a source file outside ``workspace_root`` (unresolvable import path)
+    makes ``_process_callers`` return a non-empty warnings channel instead of
+    silently swallowing the ``ValueError``."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    outside = tmp_path / "elsewhere" / "stray.py"
+
+    _texts, _rewrites, warnings = _process_callers(
+        workspace, ["foo"], outside, workspace / "target.py"
+    )
+
+    assert warnings
+
+
+def test_caller_warning_names_unresolved_file(tmp_path: Path) -> None:
+    """AC2: the emitted warning names the offending file so the user can act
+    on it."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    outside = tmp_path / "elsewhere" / "stray.py"
+
+    _texts, _rewrites, warnings = _process_callers(
+        workspace, ["foo"], outside, workspace / "target.py"
+    )
+
+    assert str(outside) in warnings[0]
+
+
+def test_in_root_move_emits_no_caller_warning(tmp_path: Path) -> None:
+    """AC3: a move whose source/target both resolve under ``workspace_root``
+    produces no caller-skipped warning (no spurious noise)."""
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    source = pkg / "a.py"
+    source.write_text("def foo():\n    return 1\n")
+    target = pkg / "b.py"
+    target.write_text("")
+
+    _texts, _rewrites, warnings = _process_callers(tmp_path, ["foo"], source, target)
+
+    assert warnings == []

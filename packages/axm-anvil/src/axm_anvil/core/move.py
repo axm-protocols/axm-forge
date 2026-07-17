@@ -1245,25 +1245,46 @@ def _build_plan(  # noqa: PLR0913
     )
 
 
+def _unresolved_module_warning(
+    file_path: Path, workspace_root: Path, exc: ValueError
+) -> str:
+    """Human-readable warning for a caller file outside ``workspace_root``.
+
+    Names the offending file and the root it could not be resolved against so
+    the user can update any remaining callers by hand.
+    """
+    return (
+        f"skipped caller import rewrite: could not resolve '{file_path}' to an "
+        f"import path under workspace root '{workspace_root}' ({exc}); callers "
+        f"referencing the moved symbols may need manual updates"
+    )
+
+
 def _process_callers(
     workspace_root: Path,
     moved_names: Sequence[str],
     source_path: Path,
     target_path: Path,
     rename_map: dict[str, str] | None = None,
-) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite]]:
+) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite], list[str]]:
     """Discover callers, rewrite their imports, and validate the results.
 
-    Returns ``(caller_texts, rewrites)`` where ``caller_texts`` maps each
-    caller path to ``(original_text, new_text)``. Raises
-    :class:`MoveValidationError` if any caller fails to parse before or after
-    rewrite. Files are only read — writes happen later via ``_apply_write``.
+    Returns ``(caller_texts, rewrites, warnings)`` where ``caller_texts`` maps
+    each caller path to ``(original_text, new_text)`` and ``warnings`` carries
+    non-fatal notices (e.g. a source/target file outside ``workspace_root``
+    whose import path cannot be resolved, so its callers are left untouched).
+    Raises :class:`MoveValidationError` if any caller fails to parse before or
+    after rewrite. Files are only read — writes happen later via
+    ``_apply_write``.
     """
     try:
         from_module = _module_path_from_file(source_path, workspace_root)
+    except ValueError as exc:
+        return {}, [], [_unresolved_module_warning(source_path, workspace_root, exc)]
+    try:
         new_module = _module_path_from_file(target_path, workspace_root)
-    except ValueError:
-        return {}, []
+    except ValueError as exc:
+        return {}, [], [_unresolved_module_warning(target_path, workspace_root, exc)]
 
     from_callers = _discover_callers(
         workspace_root,
@@ -1296,7 +1317,7 @@ def _process_callers(
             rewrite.file = file_str
             rewrites.append(rewrite)
         new_texts[caller_path] = (original, current_text)
-    return new_texts, rewrites
+    return new_texts, rewrites, []
 
 
 def _dedup_caller_paths(
@@ -2128,9 +2149,9 @@ def _resolve_caller_phase(  # noqa: PLR0913
     source_path: Path,
     target_path: Path,
     rename_map: dict[str, str] | None = None,
-) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite]]:
+) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite], list[str]]:
     if reexport:
-        return {}, []
+        return {}, [], []
     return _process_callers(root, moved_names, source_path, target_path, rename_map)
 
 
@@ -2271,7 +2292,7 @@ def move_symbols(  # noqa: PLR0913
         new_source_tree, new_target_tree
     )
 
-    caller_texts, caller_rewrites = _resolve_caller_phase(
+    caller_texts, caller_rewrites, caller_warnings = _resolve_caller_phase(
         reexport, root, moved_names, source_path, target_path, rename_map
     )
 
@@ -2286,6 +2307,7 @@ def move_symbols(  # noqa: PLR0913
         redundant_import_warnings=redundant_import_warnings,
     )
     plan.warnings.extend(skipped_warnings)
+    plan.warnings.extend(caller_warnings)
     # Forward-refs to *renamed* symbols are rewritten in the moved code
     # (RenameSymbols.leave_Annotation); only moved-but-not-renamed names still
     # warrant the manual-update warning.
