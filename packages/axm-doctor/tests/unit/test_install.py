@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pytest_mock import MockerFixture
 
 from axm_doctor.detect import ToolStatus
 from axm_doctor.install import (
+    _MAX_SCRIPT_BYTES,
     InstallPlan,
     InstallResult,
     install_command,
@@ -182,3 +184,109 @@ def test_run_argv_missing_binary_clean(mocker: MockerFixture) -> None:
     assert result.executed is True
     assert result.returncode is not None
     assert result.returncode != 0
+
+
+class _FakeOKResponse:
+    """A 200 response whose ``read(amt)`` honours the bounded-read cap."""
+
+    status = 200
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def read(self, amt: int | None = None) -> bytes:
+        return self._body if amt is None else self._body[:amt]
+
+    def __enter__(self) -> _FakeOKResponse:
+        return self
+
+    def __exit__(self, *_exc: object) -> Literal[False]:
+        return False
+
+
+def test_uv_fetch_url_is_pinned_versioned() -> None:
+    """AC1: the uv plan's fetch_url is a pinned, versioned endpoint."""
+    plan = install_command("uv")
+    assert plan is not None
+    assert plan.fetch_url is not None
+    # A pinned URL carries a version segment (``/uv/<version>/install.sh``),
+    # NOT the floating ``/uv/install.sh`` latest endpoint.
+    assert plan.fetch_url != "https://astral.sh/uv/install.sh"
+    assert re.search(r"astral\.sh/uv/\d[\w.\-]*/install\.sh$", plan.fetch_url)
+
+
+def test_fetch_install_non_https_rejected_before_exec(
+    mocker: MockerFixture,
+) -> None:
+    """AC2: a non-HTTPS fetch_url is refused before any network call or exec."""
+    open_spy = mocker.patch("axm_doctor.install.urllib.request.urlopen")
+    run_spy = mocker.patch("axm_doctor.install.subprocess.run")
+    mocker.patch(
+        "axm_doctor.install.detect_tool",
+        return_value=ToolStatus(name="uv", state="absent"),
+    )
+
+    plan = InstallPlan(
+        tool="uv",
+        argv=["curl", "-LsSf", "http://astral.sh/uv/0.8.4/install.sh"],
+        human_command="curl -LsSf http://astral.sh/uv/0.8.4/install.sh | sh",
+        fetch_url="http://astral.sh/uv/0.8.4/install.sh",  # non-HTTPS
+    )
+
+    result = run_install(plan, confirm=True)
+
+    assert result.returncode is not None
+    assert result.returncode != 0
+    open_spy.assert_not_called()  # rejected before the fetch
+    run_spy.assert_not_called()  # sh <tmpfile> never ran
+
+
+def test_fetch_install_oversize_body_rejected_before_exec(
+    mocker: MockerFixture,
+) -> None:
+    """AC2: a body over the size cap is refused, never written or executed."""
+    oversize = b"a" * (_MAX_SCRIPT_BYTES + 10)
+    mocker.patch(
+        "axm_doctor.install.urllib.request.urlopen",
+        return_value=_FakeOKResponse(oversize),
+    )
+    run_spy = mocker.patch("axm_doctor.install.subprocess.run")
+    mocker.patch(
+        "axm_doctor.install.detect_tool",
+        return_value=ToolStatus(name="uv", state="absent"),
+    )
+
+    plan = install_command("uv")
+    assert plan is not None
+    assert plan.fetch_url is not None
+
+    result = run_install(plan, confirm=True)
+
+    assert result.returncode is not None
+    assert result.returncode != 0
+    run_spy.assert_not_called()  # oversize script never executed
+
+
+def test_fetch_install_wellformed_body_accepted(mocker: MockerFixture) -> None:
+    """AC1: a small HTTPS 200 body is written and the sh <tmpfile> step runs."""
+    mocker.patch(
+        "axm_doctor.install.urllib.request.urlopen",
+        return_value=_FakeOKResponse(b"#!/bin/sh\necho installing uv\n"),
+    )
+    run_spy = mocker.patch(
+        "axm_doctor.install.subprocess.run",
+        return_value=mocker.Mock(returncode=0),
+    )
+    mocker.patch(
+        "axm_doctor.install.detect_tool",
+        return_value=ToolStatus(name="uv", state="present"),
+    )
+
+    plan = install_command("uv")
+    assert plan is not None
+
+    result = run_install(plan, confirm=True)
+
+    assert result.executed is True
+    assert result.returncode == 0
+    run_spy.assert_called_once()  # sh <tmpfile> install step invoked

@@ -9,9 +9,11 @@ no-system-install-without-authorization posture.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -26,6 +28,8 @@ __all__ = [
     "run_install",
 ]
 
+_logger = logging.getLogger(__name__)
+
 # Conventional shell code for "command not found / could not execute" — used
 # as the failure returncode when an installer is unreachable or its binary is
 # missing, so callers see a non-zero state instead of a traceback.
@@ -35,6 +39,10 @@ _DOWNLOAD_TIMEOUT_S = 30
 # Only a 200 response carries the installer script; anything else is an error
 # page that must never be executed.
 _HTTP_OK = 200
+# Fail-closed size cap on the fetched installer script. The uv install script
+# is a few KiB; a body past this cap is treated as hostile (an error page, a
+# redirect loop, or a tampered payload) and is refused, never written or run.
+_MAX_SCRIPT_BYTES = 1_048_576  # 1 MiB
 
 
 class InstallPlan(BaseModel, frozen=True):  # type: ignore[explicit-any]
@@ -74,7 +82,13 @@ class InstallResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
 # as a two-step argv pipeline via ``fetch_url`` (download the script, then run
 # ``sh <tmpfile>``) so NO branch ever needs ``shell=True``. The npm tools are
 # plain argv lists.
-_UV_INSTALL_URL = "https://astral.sh/uv/install.sh"
+#
+# The uv install-script URL is PINNED to a versioned endpoint
+# (``/uv/<version>/install.sh``) rather than the floating ``/uv/install.sh``
+# which always serves the latest release: a pinned URL makes the fetched
+# script reproducible and reviewable across runs.
+_UV_VERSION = "0.8.4"
+_UV_INSTALL_URL = f"https://astral.sh/uv/{_UV_VERSION}/install.sh"
 
 _REGISTRY: dict[str, InstallPlan] = {
     "uv": InstallPlan(
@@ -145,23 +159,42 @@ def _run_fetch_install(plan: InstallPlan) -> int:
     Replaces the legacy ``curl | sh`` shell pipe: the script is fetched over
     HTTPS to a temporary file, executed via a bare ``sh <tmpfile>`` argv (no
     shell interpolation), then the temp file is removed. ``plan.fetch_url`` is
-    a controlled internal constant, never user input.
+    a controlled internal constant (a *pinned*, versioned endpoint), never
+    user input.
+
+    Fails closed with :data:`_UNAVAILABLE_RC` — writing/executing nothing —
+    when the URL scheme is not HTTPS, the response is non-200, or the fetched
+    body exceeds :data:`_MAX_SCRIPT_BYTES`.
     """
-    if plan.fetch_url is None:  # pragma: no cover - guarded by caller
+    url = plan.fetch_url
+    if url is None:  # pragma: no cover - guarded by caller
         raise ValueError("fetch install requires a fetch_url")
-    # NOTE: the URL is a controlled internal constant, but its *content* is a
-    # remote script with no checksum — the sha256-pin hardening is a separate
-    # future ticket, out of scope here.
+    # Fail closed: only an HTTPS installer URL may ever be fetched-and-run. A
+    # non-HTTPS scheme (http/file/ftp/...) is rejected BEFORE any network call,
+    # so a tampered plan can never downgrade the transport or read a local file.
+    if urllib.parse.urlsplit(url).scheme != "https":
+        _logger.error("refusing non-HTTPS installer URL: %s", url)
+        return _UNAVAILABLE_RC
     try:
         with urllib.request.urlopen(  # noqa: S310
-            plan.fetch_url, timeout=_DOWNLOAD_TIMEOUT_S
+            url, timeout=_DOWNLOAD_TIMEOUT_S
         ) as response:
             # A non-200 body is an error page (404/503/...), NOT an installer
             # script: never write it to a temp file and run `sh <tmpfile>`.
             if response.status != _HTTP_OK:
                 return _UNAVAILABLE_RC
-            script = response.read()
+            # Bounded read: pull at most one byte past the cap so an oversize
+            # body can neither exhaust memory nor slip through the size guard.
+            script = response.read(_MAX_SCRIPT_BYTES + 1)
     except (urllib.error.URLError, OSError):
+        return _UNAVAILABLE_RC
+    # Fail closed on an over-cap body: refuse to write/execute a script larger
+    # than the expected installer (error page, redirect loop, tampered payload).
+    if len(script) > _MAX_SCRIPT_BYTES:
+        _logger.error(
+            "installer script exceeds the %d-byte cap; refusing to execute",
+            _MAX_SCRIPT_BYTES,
+        )
         return _UNAVAILABLE_RC
     # NamedTemporaryFile closes the fd on context exit (no descriptor leak);
     # delete=False keeps the path alive for the `sh <tmpfile>` exec, and the
