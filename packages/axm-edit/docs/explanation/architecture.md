@@ -29,8 +29,39 @@ src/axm_edit/
 │   ├── list_dir.py           # ListDirTool (AXMTool protocol)
 │   └── run_command.py        # RunCommandTool (AXMTool protocol)
 └── utils/
-    └── __init__.py           # Shared utilities (is_binary)
+    └── __init__.py           # Shared utilities (is_binary, resolve_safe)
 ```
+
+## Filesystem-tool confinement
+
+Every filesystem tool takes a **project `root` (the `path` argument) plus a
+`file`/`cwd` relative to it**, and resolves that target through the single
+canonical `resolve_safe(root, relative)` resolver in `utils`. Containment is
+OS-faithful: the path is fully resolved (following `..` segments, symlinks and
+absolute targets to their real location) and rejected if the result does not
+stay under `root` — no ad-hoc string `..` pre-filter that could diverge from the
+engine/checkpoint view.
+
+The stance is **deliberately uniform across all fs tools** — there is no
+read-vs-write asymmetry:
+
+| Tool | Confined via `resolve_safe` |
+|---|---|
+| `read_file` | ✅ |
+| `search_files` | ✅ |
+| `list_dir` | ✅ |
+| `run_command` (cwd) | ✅ |
+| `write_file` | ✅ |
+| `edit_file` | ✅ |
+
+`write_file` and `edit_file` historically took a single absolute `path` and were
+therefore *unconfined*, which was the one remaining asymmetry: a read was
+sandboxed but a write could land anywhere. They now follow the same
+`path` (root) + `file` (relative) contract as the read-side tools, route the
+target through `resolve_safe` before any `mkdir`/`write_text`/open, and refuse
+an escaping target (absolute path outside root, or `..` traversal) with
+`ToolResult(success=False)` (MCP) / a non-zero exit with the error on stderr
+(CLI). Parent-directory creation for a write happens **only inside `root`**.
 
 ## The line-shift problem
 

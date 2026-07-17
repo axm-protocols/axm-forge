@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from axm_edit.tools.write_file import WriteFileTool, render_text
@@ -32,7 +34,25 @@ class TestWriteFileTool:
     def test_agent_hint_exists(self, tool: WriteFileTool) -> None:
         assert tool.agent_hint
 
-    def test_missing_path(self, tool: WriteFileTool) -> None:
+    def test_missing_file(self, tool: WriteFileTool) -> None:
         result = tool.execute(content="hello")
         assert result.success is False
-        assert result.error is not None and "path" in result.error
+        assert result.error is not None and "file" in result.error
+
+    def test_escape_outside_root_refused(
+        self, tool: WriteFileTool, tmp_path: Path
+    ) -> None:
+        """AC1: an absolute target outside root is refused on confinement."""
+        outside = tmp_path.parent / "escapee.txt"
+        result = tool.execute(path=str(tmp_path), file=str(outside), content="x")
+        assert result.success is False
+        assert result.error is not None and "confinement" in result.error
+        assert not outside.exists()
+
+    def test_in_root_relative_write_succeeds(
+        self, tool: WriteFileTool, tmp_path: Path
+    ) -> None:
+        """AC3: a legitimate in-root relative write still succeeds."""
+        result = tool.execute(path=str(tmp_path), file="sub/out.txt", content="hi")
+        assert result.success is True
+        assert (tmp_path / "sub" / "out.txt").read_text() == "hi"

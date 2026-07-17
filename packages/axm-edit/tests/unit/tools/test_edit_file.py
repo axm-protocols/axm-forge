@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from axm_edit.tools.edit_file import EditFileTool, render_text
@@ -49,7 +51,13 @@ class TestEditFileTool:
     def test_agent_hint_exists(self, tool: EditFileTool) -> None:
         assert tool.agent_hint
 
-    def test_missing_path(self, tool: EditFileTool) -> None:
+    def test_missing_file(self, tool: EditFileTool) -> None:
         result = tool.execute(old="a", new="b")
         assert result.success is False
-        assert result.error is not None and "path" in result.error
+        assert result.error is not None and "file" in result.error
+
+    def test_escape_traversal_refused(self, tool: EditFileTool, tmp_path: Path) -> None:
+        """AC2: a ``..`` traversal target is refused before opening the file."""
+        result = tool.execute(path=str(tmp_path), file="../x", old="a", new="b")
+        assert result.success is False
+        assert result.error is not None and "confinement" in result.error
