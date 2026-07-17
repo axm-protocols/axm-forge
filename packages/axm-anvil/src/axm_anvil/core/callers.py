@@ -150,13 +150,68 @@ class _RewriteOldImport(cst.CSTTransformer):
         return updated_node.with_changes(names=kept)
 
 
-def _find_import_line(text: str, old_module: str) -> tuple[int, str] | None:
-    """Return ``(lineno, line_text)`` of the first ``from old_module import`` line."""
-    for idx, line in enumerate(text.splitlines(), start=1):
-        stripped = line.lstrip()
-        if stripped.startswith(f"from {old_module} import"):
-            return idx, line
-    return None
+class _ImportFromLocator(cst.CSTVisitor):
+    """Locate ``from old_module import …`` lines that bind a moved name."""
+
+    METADATA_DEPENDENCIES = (cst.metadata.PositionProvider,)
+
+    def __init__(self, old_module: str, moved_names: set[str]) -> None:
+        super().__init__()
+        self._old_module = old_module
+        self._moved_names = moved_names
+        self.locations: list[tuple[int, list[str]]] = []
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:  # noqa: N802
+        """Record ``(line, bound_names)`` for a matching import statement."""
+        if _dump_module(node.module) != self._old_module:
+            return
+        if isinstance(node.names, cst.ImportStar):
+            return
+        bound = [
+            alias.name.value
+            for alias in node.names
+            if isinstance(alias.name.value, str)
+            and alias.name.value in self._moved_names
+        ]
+        if not bound:
+            return
+        pos = self.get_metadata(cst.metadata.PositionProvider, node)
+        self.locations.append((pos.start.line, bound))
+
+
+def _find_import_lines(
+    text: str, old_module: str, names: set[str]
+) -> list[tuple[int, str, list[str]]]:
+    """Return ``(lineno, line_text, bound_names)`` per matching import line.
+
+    Only ``from old_module import`` statements that actually bind a name in
+    ``names`` are returned, ordered by line number. Uses libcst position
+    metadata so multi-line imports resolve to their opening line.
+    """
+    try:
+        tree = cst.parse_module(text)
+    except cst.ParserSyntaxError:
+        return []
+    locator = _ImportFromLocator(old_module, names)
+    cst.metadata.MetadataWrapper(tree).visit(locator)
+    lines = text.splitlines()
+    results: list[tuple[int, str, list[str]]] = []
+    for lineno, bound in sorted(locator.locations, key=lambda loc: loc[0]):
+        line_text = lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
+        results.append((lineno, line_text, bound))
+    return results
+
+
+def _find_import_line(
+    text: str, old_module: str, names: Iterable[str]
+) -> tuple[int, str] | None:
+    """Return ``(lineno, line_text)`` of the first ``from old_module import`` line
+    that binds one of ``names`` (not merely the first from-import in the file)."""
+    located = _find_import_lines(text, old_module, set(names))
+    if not located:
+        return None
+    lineno, line_text, _bound = located[0]
+    return lineno, line_text
 
 
 def _add_new_imports(
@@ -189,6 +244,32 @@ def _format_new_import_stmt(
     return f"from {new_module} import {names_piece}"
 
 
+def _build_caller_rewrites(
+    located_lines: Sequence[tuple[int, str, list[str]]],
+    symbols: Sequence[str],
+    matched_names: Mapping[str, str | None],
+    new_module: str,
+) -> list[CallerRewrite]:
+    """Build one :class:`CallerRewrite` per matching import line.
+
+    Each record reflects only the names bound on its own line, so a file with
+    several distinct ``from old_module import`` statements yields one record per
+    statement rather than a single collapsed entry.
+    """
+    if not located_lines:
+        new_stmt = _format_new_import_stmt(symbols, matched_names, new_module)
+        return [CallerRewrite(file="", line=1, old="", new=new_stmt)]
+    rewrites: list[CallerRewrite] = []
+    for lineno, line_text, bound in located_lines:
+        line_matched = {n: matched_names[n] for n in bound if n in matched_names}
+        line_symbols = [s for s in symbols if s in line_matched]
+        new_stmt = _format_new_import_stmt(line_symbols, line_matched, new_module)
+        rewrites.append(
+            CallerRewrite(file="", line=lineno, old=line_text, new=new_stmt)
+        )
+    return rewrites
+
+
 def rewrite_caller_text(
     text: str,
     old_module: str,
@@ -208,19 +289,16 @@ def rewrite_caller_text(
     if not collector.matched_names:
         return text, []
 
-    located = _find_import_line(text, old_module)
-    line_no = located[0] if located else 1
-    old_line = located[1].strip() if located else ""
-
     new_tree = tree.visit(_RewriteOldImport(old_module, moved))
 
     context = _add_new_imports(symbols, collector.matched_names, new_module)
     final_tree = AddImportsVisitor(context).transform_module(new_tree)
 
-    new_stmt = _format_new_import_stmt(symbols, collector.matched_names, new_module)
-
-    rewrite = CallerRewrite(file="", line=line_no, old=old_line, new=new_stmt)
-    return final_tree.code, [rewrite]
+    located_lines = _find_import_lines(text, old_module, moved)
+    rewrites = _build_caller_rewrites(
+        located_lines, symbols, collector.matched_names, new_module
+    )
+    return final_tree.code, rewrites
 
 
 class _CollectModuleImportAliases(cst.CSTVisitor):
@@ -279,6 +357,66 @@ class _RemoveModuleImports(cst.CSTTransformer):
         return updated_node.with_changes(body=[inner.with_changes(names=kept)])
 
 
+class _ModuleImportLocator(cst.CSTVisitor):
+    """Locate the source line of each ``import old_module[ as X]`` statement."""
+
+    METADATA_DEPENDENCIES = (cst.metadata.PositionProvider,)
+
+    def __init__(self, old_module: str) -> None:
+        super().__init__()
+        self._old_module = old_module
+        self.locations: dict[str, int] = {}
+
+    def visit_Import(self, node: cst.Import) -> None:  # noqa: N802
+        """Record ``local_name -> line`` for each matching ``old_module`` alias."""
+        pos = self.get_metadata(cst.metadata.PositionProvider, node)
+        for alias in node.names:
+            if _dump_module(alias.name) != self._old_module:
+                continue
+            if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
+                local = alias.asname.name.value
+            else:
+                local = self._old_module
+            self.locations[local] = pos.start.line
+
+
+def _line_text_at(text: str, lineno: int) -> str:
+    """Return the stripped source line ``lineno`` (1-based) or ``\"\"`` if OOB."""
+    lines = text.splitlines()
+    if 0 < lineno <= len(lines):
+        return lines[lineno - 1].strip()
+    return ""
+
+
+def _build_module_import_rewrites(
+    text: str,
+    tree: cst.Module,
+    old_module: str,
+    new_module: str,
+    rewritten_aliases: Sequence[str],
+) -> list[CallerRewrite]:
+    """Build one record per rewritten ``import old_module`` alias.
+
+    Resolves each alias to the real source line and original import text
+    (alias-aware) instead of hard-coding ``line=1`` / ``import old_module``.
+    """
+    locator = _ModuleImportLocator(old_module)
+    cst.metadata.MetadataWrapper(tree).visit(locator)
+    new_stmt = f"import {new_module}"
+    fallback_old = f"import {old_module}"
+    rewrites: list[CallerRewrite] = []
+    for alias in rewritten_aliases:
+        lineno = locator.locations.get(alias)
+        if lineno is None:
+            rewrites.append(
+                CallerRewrite(file="", line=1, old=fallback_old, new=new_stmt)
+            )
+            continue
+        old_text = _line_text_at(text, lineno) or fallback_old
+        rewrites.append(CallerRewrite(file="", line=lineno, old=old_text, new=new_stmt))
+    return rewrites
+
+
 def _rewrite_module_import_caller(
     text: str,
     old_module: str,
@@ -301,7 +439,7 @@ def _rewrite_module_import_caller(
 
     moved = set(symbols)
     aliases_to_remove: set[str] = set()
-    any_rewritten = False
+    rewritten_aliases: list[str] = []
     current_tree: cst.Module = tree
     for alias in collector.aliases:
         wrapper = cst.metadata.MetadataWrapper(current_tree)
@@ -312,7 +450,7 @@ def _rewrite_module_import_caller(
         )
         rewritten = wrapper.visit(rewriter)
         if rewritten.code != current_tree.code:
-            any_rewritten = True
+            rewritten_aliases.append(alias)
         if (
             rewriter.kept_usages == 0
             and rewritten.code != current_tree.code
@@ -321,7 +459,7 @@ def _rewrite_module_import_caller(
             aliases_to_remove.add(alias)
         current_tree = rewritten
 
-    if not any_rewritten:
+    if not rewritten_aliases:
         return text, []
 
     context = CodemodContext()
@@ -333,13 +471,10 @@ def _rewrite_module_import_caller(
             _RemoveModuleImports(old_module, aliases_to_remove)
         )
 
-    rewrite = CallerRewrite(
-        file="",
-        line=1,
-        old=f"import {old_module}",
-        new=f"import {new_module}",
+    rewrites = _build_module_import_rewrites(
+        text, tree, old_module, new_module, rewritten_aliases
     )
-    return current_tree.code, [rewrite]
+    return current_tree.code, rewrites
 
 
 class _BareNameUsageCounter(cst.CSTVisitor):

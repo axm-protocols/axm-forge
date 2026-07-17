@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from axm_anvil.core.callers import rewrite_caller_text
+from axm_anvil.core.callers import (
+    _find_import_line,
+    _rewrite_module_import_caller,
+    rewrite_caller_text,
+)
 
 
 def test_rewrite_caller_text_simple_from_import() -> None:
@@ -94,3 +98,48 @@ def test_rewrite_caller_text_multiline_import() -> None:
     entry = rewrites[0]
     assert "from pkg.old import" in entry.old
     assert entry.new == "from pkg.new import Foo"
+
+
+def test_find_import_line_matches_bound_name() -> None:
+    """AC1: with two `from old import` lines, `_find_import_line` returns the one
+    that actually binds the requested name, not merely the first from-import."""
+    text = "from pkg.old import Foo\nfrom pkg.old import Bar\n"
+
+    located = _find_import_line(text, "pkg.old", ["Bar"])
+
+    assert located is not None
+    assert located[0] == 2
+    assert located[1] == "from pkg.old import Bar"
+
+
+def test_rewrite_module_import_caller_reports_alias_line() -> None:
+    """AC2: an aliased `import old as om` caller reports the real source line and
+    the literal alias-import text instead of hard-coded line=1 / `import old`."""
+    text = "import os\nimport pkg.old as om\n\nx = om.Foo()\n"
+
+    _new_text, rewrites = _rewrite_module_import_caller(
+        text, "pkg.old", "pkg.new", ["Foo"]
+    )
+
+    assert len(rewrites) == 1
+    entry = rewrites[0]
+    assert entry.line == 2
+    assert entry.old == "import pkg.old as om"
+    assert entry.new == "import pkg.new"
+
+
+def test_rewrite_caller_text_multiple_import_lines() -> None:
+    """AC3: two distinct matching `from old import` statements yield one record
+    each rather than a single collapsed record."""
+    text = "from pkg.old import Foo\nfrom pkg.old import Bar\n\nFoo()\nBar()\n"
+
+    _new_text, rewrites = rewrite_caller_text(
+        text, "pkg.old", "pkg.new", ["Foo", "Bar"]
+    )
+
+    assert len(rewrites) == 2
+    assert sorted(r.line for r in rewrites) == [1, 2]
+    assert {r.old for r in rewrites} == {
+        "from pkg.old import Foo",
+        "from pkg.old import Bar",
+    }
