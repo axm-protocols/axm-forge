@@ -95,6 +95,7 @@ def extract_symbols(  # noqa: PLR0913
         target_path.write_text("")
         created_scaffold = True
 
+    succeeded = False
     try:
         plan = move_symbols(
             source_path,
@@ -110,10 +111,14 @@ def extract_symbols(  # noqa: PLR0913
             include_helpers=include_helpers,
             side_effect_decorators=side_effect_decorators,
         )
+        succeeded = True
     finally:
-        # A dry run must leave disk state byte-identical: drop the empty
-        # scaffold file *and* any parent directories we created for it.
-        if dry_run and created_scaffold:
+        # Two situations must not leave a scaffold on disk: a raised move
+        # (its empty target file *and* the parent dirs we created would be
+        # orphaned) and a dry run (which must leave disk byte-identical).
+        # A successful write keeps the scaffold so the move pipeline's
+        # output survives.
+        if created_scaffold and (not succeeded or dry_run):
             _cleanup_scaffold(target_path, created_dirs)
 
     return plan
