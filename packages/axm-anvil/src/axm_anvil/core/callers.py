@@ -552,30 +552,47 @@ def _iter_workspace_py_files(
     )
 
 
-def _discover_callers(
-    workspace_root: Path,
-    moved_names: Sequence[str],
-    from_module: str,
-    exclude: Iterable[Path] = (),
-) -> list[Path]:
-    """Return caller files that import any ``moved_names`` from ``from_module``.
+def _scan_workspace_py_files(
+    workspace_root: Path, exclude: Iterable[Path] = ()
+) -> list[tuple[Path, str]]:
+    """Materialise the workspace ``.py`` scan once as ``(path, source)`` pairs.
 
-    Scans ``.py`` files under ``workspace_root`` with a cheap textual
-    pre-filter (``from <from_module> import``) to avoid parsing every file,
-    then confirms the match by parsing the candidate with libcst and
-    collecting ``ImportFrom`` targets via :class:`_CollectOldImport`. This
-    handles multi-line ``from <from_module> import (\n  foo,\n)`` imports
-    that a per-line textual scan would miss. Matches are validated again
-    via libcst during rewriting.
+    Walks ``workspace_root`` via :func:`_iter_workspace_py_files` and reads each
+    file exactly once. Unreadable files (``OSError``/``UnicodeDecodeError``) are
+    skipped. The resulting collection is threaded to the discovery passes so the
+    disk is walked -- and every file read -- a single time per move, instead of
+    once per discovery function.
     """
-    needle = f"from {from_module} import"
-    moved = set(moved_names)
-    matches: list[Path] = []
+    scanned: list[tuple[Path, str]] = []
     for path in _iter_workspace_py_files(workspace_root, exclude):
         try:
             text = path.read_text()
         except (OSError, UnicodeDecodeError):
             continue
+        scanned.append((path, text))
+    return scanned
+
+
+def _discover_callers(
+    scanned: Sequence[tuple[Path, str]],
+    moved_names: Sequence[str],
+    from_module: str,
+) -> list[Path]:
+    """Return caller files that import any ``moved_names`` from ``from_module``.
+
+    Consumes the pre-scanned ``(path, source)`` collection produced once per
+    move by :func:`_scan_workspace_py_files` rather than re-walking the disk.
+    Applies a cheap textual pre-filter (``from <from_module> import``) to avoid
+    parsing every file, then confirms the match by parsing the candidate with
+    libcst and collecting ``ImportFrom`` targets via :class:`_CollectOldImport`.
+    This handles multi-line ``from <from_module> import (\n  foo,\n)`` imports
+    that a per-line textual scan would miss. Matches are validated again via
+    libcst during rewriting.
+    """
+    needle = f"from {from_module} import"
+    moved = set(moved_names)
+    matches: list[Path] = []
+    for path, text in scanned:
         if needle not in text:
             continue
         try:
@@ -594,24 +611,21 @@ def _discover_callers(
 
 
 def _discover_module_import_callers(
-    workspace_root: Path,
+    scanned: Sequence[tuple[Path, str]],
     from_module: str,
-    exclude: Iterable[Path] = (),
 ) -> list[Path]:
     """Return caller files that contain ``import from_module[ as X]``.
 
-    Textual pre-filter: matches are validated via libcst during rewriting.
+    Consumes the pre-scanned ``(path, source)`` collection produced once per
+    move by :func:`_scan_workspace_py_files`. Textual pre-filter: matches are
+    validated via libcst during rewriting.
     """
     pattern = re.compile(
         rf"^\s*import\s+{re.escape(from_module)}(?:\s|,|$)",
         re.MULTILINE,
     )
     matches: list[Path] = []
-    for path in _iter_workspace_py_files(workspace_root, exclude):
-        try:
-            text = path.read_text()
-        except (OSError, UnicodeDecodeError):
-            continue
+    for path, text in scanned:
         if pattern.search(text):
             matches.append(path)
     return matches

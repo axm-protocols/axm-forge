@@ -114,8 +114,9 @@ source/target rendering:
 | Helper | Responsibility |
 |---|---|
 | `_module_path_from_file` | Derive a dotted module path from a file path under a workspace root (strips `src/`, drops `.py`) |
-| `_discover_callers` | Find workspace `.py` files importing a moved name via `from <from_module> import …`: a cheap textual pre-filter (`from <from_module> import`) narrows candidates, then each is parsed with libcst and matched through `_CollectOldImport` so multi-line `from … import (\n foo,\n)` blocks are caught (a textual scan would miss them); unparseable candidates are kept so the downstream validation gate can roll back |
-| `_discover_module_import_callers` | Scan workspace `.py` files for bare `import old_module` (with optional `as` alias) statements that refer to the source module |
+| `_scan_workspace_py_files` | Materialise the workspace `.py` scan **once** into a list of `(path, source)` pairs (each file read a single time), threaded to both discovery passes so the disk is walked once per move rather than once per pass |
+| `_discover_callers` | Find, among the pre-scanned `(path, source)` pairs, the callers importing a moved name via `from <from_module> import …`: a cheap textual pre-filter (`from <from_module> import`) narrows candidates, then each is parsed with libcst and matched through `_CollectOldImport` so multi-line `from … import (\n foo,\n)` blocks are caught (a textual scan would miss them); unparseable candidates are kept so the downstream validation gate can roll back |
+| `_discover_module_import_callers` | Scan the pre-scanned `(path, source)` pairs for bare `import old_module` (with optional `as` alias) statements that refer to the source module |
 | `_rewrite_caller_text` | Rewrite a caller's text via libcst: remove moved names from the old import, add them to the new import, preserve asnames |
 | `_add_new_imports` | Build a `CodemodContext` with `AddImportsVisitor.add_needed_import` calls for each matched moved name, preserving asnames |
 | `_format_new_import_stmt` | Render the `from new_module import …` statement (with `as` aliases) used as the `new` side of the `CallerRewrite` record |
@@ -123,6 +124,8 @@ source/target rendering:
 | `CallerRewrite` | Per-line record `(file, line, old, new)` surfaced through `MovePlan.callers_updated` |
 
 The `_process_callers` helper in `core/move.py` orchestrates the flow:
+scan the workspace `.py` files **once** via `_scan_workspace_py_files` and
+thread that single `(path, source)` collection into both discovery passes;
 discover candidate callers (both `from`-imports and bare module imports),
 parse + rewrite each via libcst, re-parse the result as a validation
 gate, and stage the `(original, new)` text pairs for atomic write

@@ -36,6 +36,7 @@ from axm_anvil.core.callers import (
     CallerRewrite,
     _discover_callers,
     _module_path_from_file,
+    _scan_workspace_py_files,
 )
 from axm_anvil.core.move import batch_edit
 from axm_anvil.core.plan import (
@@ -141,13 +142,14 @@ def _rewrite_callers(
         from_module = _module_path_from_file(source_path, root)
     except ValueError:
         return {}, []
-    callers = _discover_callers(root, list(mapping), from_module, exclude=[source_path])
+    scanned = _scan_workspace_py_files(root, exclude=[source_path])
+    callers = _discover_callers(scanned, list(mapping), from_module)
+    source_by_path = dict(scanned)
     caller_texts: dict[Path, tuple[str, str]] = {}
     rewrites: list[CallerRewrite] = []
     for caller_path in callers:
-        try:
-            original = caller_path.read_text()
-        except (OSError, UnicodeDecodeError):
+        original = source_by_path.get(caller_path)
+        if original is None:
             continue
         rewritten = _render_renamed(original, mapping)
         if rewritten == original:

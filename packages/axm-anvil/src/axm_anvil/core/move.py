@@ -30,6 +30,7 @@ from axm_anvil.core.callers import (
     _discover_module_import_callers,
     _module_path_from_file,
     _rewrite_module_import_caller,
+    _scan_workspace_py_files,
     rewrite_caller_text,
 )
 from axm_anvil.core.context import MoveContext
@@ -1280,25 +1281,19 @@ def _process_callers(
     except ValueError as exc:
         return {}, [], [_unresolved_module_warning(target_path, workspace_root, exc)]
 
-    from_callers = _discover_callers(
-        workspace_root,
-        moved_names,
-        from_module,
-        exclude=[source_path, target_path],
+    scanned = _scan_workspace_py_files(
+        workspace_root, exclude=[source_path, target_path]
     )
-    module_callers = _discover_module_import_callers(
-        workspace_root,
-        from_module,
-        exclude=[source_path, target_path],
-    )
+    from_callers = _discover_callers(scanned, moved_names, from_module)
+    module_callers = _discover_module_import_callers(scanned, from_module)
     ordered_callers = _dedup_caller_paths(from_callers, module_callers)
 
+    source_by_path = dict(scanned)
     new_texts: dict[Path, tuple[str, str]] = {}
     rewrites: list[CallerRewrite] = []
     for caller_path in ordered_callers:
-        try:
-            original = caller_path.read_text()
-        except (OSError, UnicodeDecodeError):
+        original = source_by_path.get(caller_path)
+        if original is None:
             continue
         result = _rewrite_one_caller(
             original, from_module, new_module, moved_names, rename_map

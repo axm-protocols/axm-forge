@@ -5,9 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from axm_anvil.core.callers import (
+    _discover_callers,
+    _discover_module_import_callers,
     _find_import_line,
     _iter_workspace_py_files,
     _rewrite_module_import_caller,
+    _scan_workspace_py_files,
     rewrite_caller_text,
 )
 
@@ -202,3 +205,63 @@ def test_callers_all_carries_no_private_symbols() -> None:
 
     assert not [name for name in callers.__all__ if name.startswith("_")]
     assert set(callers.__all__) == {"CallerRewrite", "rewrite_caller_text"}
+
+
+def test_discover_callers_prescanned_matches_baseline(tmp_path: Path) -> None:
+    """AC2: ``_discover_callers`` over a pre-scanned ``(path, source)`` list
+    returns exactly the files importing a moved name from ``from_module``."""
+    caller = tmp_path / "caller.py"
+    other = tmp_path / "other.py"
+    scanned = [
+        (caller, "from pkg.mod import foo\n\nfoo()\n"),
+        (other, "x = 1\n"),
+    ]
+
+    result = _discover_callers(scanned, ["foo"], "pkg.mod")
+
+    assert result == [caller]
+
+
+def test_discover_callers_prescanned_ignores_unrelated_import(
+    tmp_path: Path,
+) -> None:
+    """AC2: a file importing a different name from the module is not a caller."""
+    other = tmp_path / "other.py"
+    scanned = [(other, "from pkg.mod import bar\n\nbar()\n")]
+
+    assert _discover_callers(scanned, ["foo"], "pkg.mod") == []
+
+
+def test_discover_module_import_callers_prescanned_matches_baseline(
+    tmp_path: Path,
+) -> None:
+    """AC2: ``_discover_module_import_callers`` over a pre-scanned list returns
+    files that contain ``import <from_module>``."""
+    caller = tmp_path / "mod_caller.py"
+    other = tmp_path / "plain.py"
+    scanned = [
+        (caller, "import pkg.mod\n\npkg.mod.foo()\n"),
+        (other, "from pkg.mod import foo\n\nfoo()\n"),
+    ]
+
+    result = _discover_module_import_callers(scanned, "pkg.mod")
+
+    assert result == [caller]
+
+
+def test_scan_workspace_py_files_reads_each_file_once(tmp_path: Path, mocker) -> None:
+    """AC1: the materialised scan reads every workspace ``.py`` file exactly
+    once and pairs it with its source."""
+    (tmp_path / "a.py").write_text("import pkg.mod\n")
+    (tmp_path / "b.py").write_text("from pkg.mod import foo\n")
+    spy = mocker.spy(Path, "read_text")
+
+    scanned = _scan_workspace_py_files(tmp_path, exclude=())
+
+    assert {p.name for p, _ in scanned} == {"a.py", "b.py"}
+    read_counts: dict[Path, int] = {}
+    for call in spy.call_args_list:
+        resolved = call.args[0].resolve()
+        read_counts[resolved] = read_counts.get(resolved, 0) + 1
+    for path, _source in scanned:
+        assert read_counts[path.resolve()] == 1

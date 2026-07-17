@@ -107,3 +107,60 @@ def test_in_root_move_emits_no_caller_warning(tmp_path: Path) -> None:
     _texts, _rewrites, warnings = _process_callers(tmp_path, ["foo"], source, target)
 
     assert warnings == []
+
+
+def _make_caller_workspace(tmp_path: Path) -> tuple[Path, Path]:
+    """Scaffold a package with a from-import and a module-import caller.
+
+    Returns ``(source, target)`` for :func:`_process_callers`.
+    """
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    source = pkg / "a.py"
+    source.write_text("def foo():\n    return 1\n")
+    target = pkg / "b.py"
+    target.write_text("")
+    (pkg / "from_caller.py").write_text(
+        "from pkg.a import foo\n\n\ndef use():\n    return foo()\n"
+    )
+    (pkg / "mod_caller.py").write_text(
+        "import pkg.a\n\n\ndef use():\n    return pkg.a.foo()\n"
+    )
+    return source, target
+
+
+def test_process_callers_reads_each_file_at_most_once(tmp_path: Path, mocker) -> None:
+    """AC1: a single move scans the workspace once -- every ``.py`` file is read
+    at most once across the whole caller-discovery pass."""
+    source, target = _make_caller_workspace(tmp_path)
+    spy = mocker.spy(Path, "read_text")
+
+    _process_callers(tmp_path, ["foo"], source, target)
+
+    read_counts: dict[Path, int] = {}
+    for call in spy.call_args_list:
+        resolved = call.args[0].resolve()
+        read_counts[resolved] = read_counts.get(resolved, 0) + 1
+    for py_file in tmp_path.rglob("*.py"):
+        assert read_counts.get(py_file.resolve(), 0) <= 1
+
+
+def test_process_callers_scans_once_and_shares_collection(
+    tmp_path: Path, mocker
+) -> None:
+    """AC3: the orchestrator builds the scan once and threads the *same*
+    collection into both discovery passes."""
+    import axm_anvil.core.move as move_mod
+
+    source, target = _make_caller_workspace(tmp_path)
+    scan_spy = mocker.spy(move_mod, "_scan_workspace_py_files")
+    from_spy = mocker.spy(move_mod, "_discover_callers")
+    mod_spy = mocker.spy(move_mod, "_discover_module_import_callers")
+
+    _process_callers(tmp_path, ["foo"], source, target)
+
+    assert scan_spy.call_count == 1
+    scanned = scan_spy.spy_return
+    assert from_spy.call_args.args[0] is scanned
+    assert mod_spy.call_args.args[0] is scanned
