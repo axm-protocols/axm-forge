@@ -8,6 +8,12 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
+from axm_init.core.scaffolder import (
+    build_member_data,
+    read_workspace_name,
+    resolve_workspace_root,
+)
+
 __all__ = ["InitScaffoldTool", "read_workspace_name"]
 
 
@@ -52,18 +58,6 @@ def _render_scaffold_text(
     return "\n".join(lines)
 
 
-def read_workspace_name(workspace_root: Path) -> str:
-    """Read workspace name from pyproject.toml or fall back to dir name."""
-    import tomllib
-
-    root_pyproject = workspace_root / "pyproject.toml"
-    if root_pyproject.is_file():
-        with open(root_pyproject, "rb") as f:
-            root_data = tomllib.load(f)
-        return str(root_data.get("project", {}).get("name", workspace_root.name))
-    return workspace_root.name
-
-
 @dataclass(frozen=True, slots=True)
 class _ProjectMeta:
     org: str
@@ -86,7 +80,10 @@ class InitScaffoldTool:
     def _validate_inputs(
         self,
         kwargs: dict[str, object],
-    ) -> tuple[str, str | None, str, str, str, str, str, bool, str | None] | ToolResult:
+    ) -> (
+        tuple[str, str | None, str, str, str, str, str, bool, str | None, str | None]
+        | ToolResult
+    ):
         """Extract and validate inputs from kwargs.
 
         Returns a tuple of validated values or a ToolResult on error.
@@ -106,6 +103,7 @@ class InitScaffoldTool:
         author: str = _str("author")
         email: str = _str("email")
         license_type: str = _str("license", "Apache-2.0")
+        license_holder: str | None = _opt_str("license_holder")
         description: str = _str("description")
         workspace_raw = kwargs.get("workspace", False)
         if not isinstance(workspace_raw, bool):
@@ -140,6 +138,7 @@ class InitScaffoldTool:
             description,
             workspace,
             member,
+            license_holder,
         )
 
     def _build_template_data(
@@ -176,6 +175,7 @@ class InitScaffoldTool:
                 author: Author name.
                 email: Author email.
                 license: License type.
+                license_holder: License holder (defaults to org).
                 description: Project description.
                 workspace: If True, scaffold a UV workspace.
                 member: Member package name to scaffold inside a workspace.
@@ -187,9 +187,18 @@ class InitScaffoldTool:
         if isinstance(validated, ToolResult):
             return validated
 
-        path, name, org, author, email, license_type, description, workspace, member = (
-            validated
-        )
+        (
+            path,
+            name,
+            org,
+            author,
+            email,
+            license_type,
+            description,
+            workspace,
+            member,
+            license_holder,
+        ) = validated
 
         try:
             target_path = Path(path).resolve()
@@ -205,6 +214,7 @@ class InitScaffoldTool:
                         "license": license_type,
                         "description": description,
                     },
+                    license_holder=license_holder,
                 )
 
             project_name = name or target_path.name
@@ -262,18 +272,7 @@ class InitScaffoldTool:
     @staticmethod
     def _resolve_workspace_root(target_path: Path) -> Path | None:
         """Resolve workspace root from target path, or None if not in a workspace."""
-        from axm_init.checks._workspace import (
-            ProjectContext,
-            detect_context,
-            find_workspace_root,
-        )
-
-        context = detect_context(target_path)
-        if context == ProjectContext.WORKSPACE:
-            return target_path
-        if context == ProjectContext.MEMBER:
-            return find_workspace_root(target_path)
-        return None
+        return resolve_workspace_root(target_path)
 
     def _scaffold_member(
         self,
@@ -281,6 +280,7 @@ class InitScaffoldTool:
         member_name: str,
         *,
         scaffold_data: dict[str, str],
+        license_holder: str | None = None,
     ) -> ToolResult:
         """Scaffold a member sub-package inside an existing workspace.
 
@@ -288,6 +288,7 @@ class InitScaffoldTool:
             target_path: Current directory (must be inside a workspace).
             member_name: Name of the new member package.
             scaffold_data: Template variables (org, author, email, etc.).
+            license_holder: Explicit LICENSE holder; falls back to ``org``.
 
         Returns:
             ToolResult with member scaffold results.
@@ -307,14 +308,12 @@ class InitScaffoldTool:
                 error=f"Member '{member_name}' already exists at {member_dir}",
             )
 
-        ws_name = read_workspace_name(workspace_root)
-        data = {
-            "member_name": member_name,
-            "workspace_name": ws_name,
-            **scaffold_data,
-        }
-        if "description" not in data or not data["description"]:
-            data["description"] = "A workspace member package"
+        data = build_member_data(
+            member_name,
+            read_workspace_name(workspace_root),
+            scaffold_data,
+            license_holder=license_holder,
+        )
 
         copier_adapter = CopierAdapter()
         copier_config = CopierConfig(

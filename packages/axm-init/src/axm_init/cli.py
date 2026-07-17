@@ -249,6 +249,7 @@ def scaffold(
             author=author,
             email=email,
             license_type=license,
+            license_holder=license_holder,
             description=description,
             json_output=json_output,
         )
@@ -321,35 +322,6 @@ def _fail(msg: str, *, json_output: bool) -> NoReturn:
     raise SystemExit(1)
 
 
-def _resolve_workspace_root(target_path: Path) -> Path | None:
-    """Resolve workspace root from *target_path*, or return ``None``."""
-    from axm_init.checks._workspace import (
-        ProjectContext,
-        detect_context,
-        find_workspace_root,
-    )
-
-    context = detect_context(target_path)
-    if context == ProjectContext.WORKSPACE:
-        return target_path
-    if context == ProjectContext.MEMBER:
-        return find_workspace_root(target_path)
-    return None
-
-
-def _read_workspace_name(workspace_root: Path) -> str:
-    """Read project name from workspace root pyproject.toml."""
-    import tomllib
-
-    root_pyproject = workspace_root / "pyproject.toml"
-    if root_pyproject.is_file():
-        with open(root_pyproject, "rb") as f:
-            data = tomllib.load(f)
-        name: str = data.get("project", {}).get("name", workspace_root.name)
-        return name
-    return workspace_root.name
-
-
 def _scaffold_member(
     target_path: Path,
     member_name: str,
@@ -358,6 +330,7 @@ def _scaffold_member(
     author: str,
     email: str,
     license_type: str,
+    license_holder: str | None,
     description: str,
     json_output: bool,
 ) -> None:
@@ -370,15 +343,21 @@ def _scaffold_member(
         author: Author name.
         email: Author email.
         license_type: License type.
+        license_holder: License holder (defaults to *org* when ``None``).
         description: Package description.
         json_output: Whether to output JSON.
     """
     from axm_init.adapters.copier import CopierAdapter, CopierConfig
     from axm_init.adapters.workspace_patcher import patch_all
+    from axm_init.core.scaffolder import (
+        build_member_data,
+        read_workspace_name,
+        resolve_workspace_root,
+    )
     from axm_init.core.templates import TemplateType, get_template_path
 
     # 1. Detect workspace root
-    workspace_root = _resolve_workspace_root(target_path)
+    workspace_root = resolve_workspace_root(target_path)
     if workspace_root is None:
         _fail(
             "Not inside a UV workspace — use --member from a workspace directory",
@@ -394,15 +373,18 @@ def _scaffold_member(
         )
 
     # 3. Scaffold member
-    data = {
-        "member_name": member_name,
-        "description": description or "A workspace member package",
-        "org": org,
-        "license": license_type,
-        "author_name": author,
-        "author_email": email,
-        "workspace_name": _read_workspace_name(workspace_root),
-    }
+    data = build_member_data(
+        member_name,
+        read_workspace_name(workspace_root),
+        {
+            "org": org,
+            "author_name": author,
+            "author_email": email,
+            "license": license_type,
+            "description": description,
+        },
+        license_holder=license_holder,
+    )
 
     copier_adapter = CopierAdapter()
     copier_config = CopierConfig(
