@@ -104,6 +104,7 @@ def check(
         lines.append("Strategy estimates:")
         for strat, pct in report.strategy_estimates.items():
             lines.append(f"  {strat}: {pct:.1f}%")
+    lines.append(f"Savings: {report.savings_pct:.1f}%")
     print("\n".join(lines))
 
 
