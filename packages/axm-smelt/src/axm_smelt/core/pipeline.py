@@ -47,7 +47,7 @@ def resolve_input(
 ) -> tuple[str, dict[str, JsonValue] | list[JsonValue] | None]:
     """Normalize inputs into ``(text, parsed)``."""
     if parsed is not None:
-        return json.dumps(parsed, separators=(",", ":")), parsed
+        return json.dumps(parsed, separators=(",", ":"), ensure_ascii=False), parsed
     if text is None:
         msg = "Either text or parsed must be provided"
         raise ValueError(msg)
@@ -172,7 +172,7 @@ def check(
     from axm_smelt.strategies import _REGISTRY
 
     if parsed is not None:
-        text = json.dumps(parsed, separators=(",", ":"))
+        text = json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)
     elif text is None:
         msg = "Either text or parsed must be provided"
         raise ValueError(msg)

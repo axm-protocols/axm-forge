@@ -807,6 +807,38 @@ def test_yaml_through_minify() -> None:
     assert len(result.text) > 0
 
 
+# --- Accented parsed= working text stays UTF-8 (no \uXXXX escapes) ---
+
+
+def test_resolve_input_keeps_accented_parsed_as_utf8() -> None:
+    """AC2: resolve_input serializes accented parsed= as raw UTF-8, not escaped."""
+    parsed = {"ville": "Genève", "note": "café crème"}
+    text, returned = resolve_input(text=None, parsed=parsed)
+
+    assert "\\u" not in text
+    assert "Genève" in text
+    assert "café crème" in text
+    assert returned is parsed
+
+
+def test_check_keeps_accented_parsed_as_utf8() -> None:
+    """AC2: check() compacted baseline keeps accented parsed= as raw UTF-8."""
+    parsed = {"ville": "Genève", "note": "café crème"}
+    report = check(parsed=parsed)
+
+    assert "\\u" not in report.original
+    assert "\\u" not in report.compacted
+    assert "Genève" in report.compacted
+
+
+def test_resolve_input_ascii_only_unchanged() -> None:
+    """AC3: ASCII-only parsed= round-trips exactly as before the fix."""
+    parsed = {"a": 1, "b": [1, 2, 3]}
+    text, _ = resolve_input(text=None, parsed=parsed)
+
+    assert text == '{"a":1,"b":[1,2,3]}'
+
+
 # --- Deep-nesting graceful degradation (AXM-2003) ---
 
 
