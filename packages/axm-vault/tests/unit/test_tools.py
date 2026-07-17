@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
 from collections.abc import Iterator
 
 import keyring
@@ -126,6 +127,33 @@ def test_vault_set_nonsensitive_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
     result = VaultSetTool().execute(group="svc", name="account_id", value="123")
     assert result.success is False
     assert result.error is not None
+
+
+def test_vault_set_requires_group_name_value() -> None:
+    """AC1/AC2: group/name/value are required params (no empty-string default)."""
+    params = inspect.signature(VaultSetTool.execute).parameters
+    required = {"group", "name", "value"}
+    for field in required:
+        assert params[field].default is inspect.Parameter.empty
+    assert params["instance"].default is None
+
+
+def test_vault_set_happy_path_stores_secret(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC3: a well-formed call with all three fields stores the secret."""
+    from axm_vault.store import KeyringStore
+
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultSetTool().execute(group="svc", name="token", value="s3cret")
+    assert result.success is True
+    assert KeyringStore().get("svc", "token") == "s3cret"
+
+
+def test_vault_set_missing_group_raises_type_error() -> None:
+    """AC2: a missing required field fails with TypeError, not a bare KeyError."""
+    with pytest.raises(TypeError):
+        VaultSetTool().execute(name="token", value="s3cret")  # type: ignore[call-arg]
 
 
 def test_vault_delete_removes_secret(

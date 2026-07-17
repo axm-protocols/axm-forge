@@ -71,9 +71,9 @@ class VaultSetTool:
     def execute(
         self,
         *,
-        group: str = "",
-        name: str = "",
-        value: str = "",
+        group: str,
+        name: str,
+        value: str,
         instance: str | None = None,
     ) -> ToolResult:
         """Route ``group.name`` to its store by sensitivity; never echo value."""
