@@ -2,11 +2,62 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from axm_anvil.core.callers import (
     _find_import_line,
+    _iter_workspace_py_files,
     _rewrite_module_import_caller,
     rewrite_caller_text,
 )
+
+
+def _write(root: Path, rel: str) -> None:
+    """Create ``root/rel`` with a trivial module body."""
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x = 1\n")
+
+
+def test_iter_workspace_prunes_build_dist_node_modules(tmp_path: Path) -> None:
+    """AC1: build/, dist/ and node_modules/ subtrees are pruned from the scan."""
+    _write(tmp_path, "src/mod.py")
+    _write(tmp_path, "build/gen.py")
+    _write(tmp_path, "dist/pkg.py")
+    _write(tmp_path, "node_modules/x.py")
+
+    found = _iter_workspace_py_files(tmp_path, [])
+    rels = {p.relative_to(tmp_path).as_posix() for p in found}
+
+    assert "src/mod.py" in rels
+    assert not (rels & {"build/gen.py", "dist/pkg.py", "node_modules/x.py"})
+
+
+def test_iter_workspace_prunes_nondot_virtualenv_dirs(tmp_path: Path) -> None:
+    """AC1: non-dot virtualenv dirs (venv, env, site-packages) are pruned."""
+    _write(tmp_path, "venv/lib.py")
+    _write(tmp_path, "env/lib.py")
+    _write(tmp_path, "site-packages/pkg.py")
+    _write(tmp_path, "src/keep.py")
+
+    found = _iter_workspace_py_files(tmp_path, [])
+    rels = {p.relative_to(tmp_path).as_posix() for p in found}
+
+    assert rels == {"src/keep.py"}
+
+
+def test_iter_workspace_yields_src_and_tests(tmp_path: Path) -> None:
+    """AC1: legitimate src/ and tests/ .py files are still yielded."""
+    _write(tmp_path, "src/a.py")
+    _write(tmp_path, "tests/unit/test_a.py")
+    _write(tmp_path, ".hidden/skip.py")
+
+    found = _iter_workspace_py_files(tmp_path, [])
+    rels = {p.relative_to(tmp_path).as_posix() for p in found}
+
+    assert "src/a.py" in rels
+    assert "tests/unit/test_a.py" in rels
+    assert ".hidden/skip.py" not in rels
 
 
 def test_rewrite_caller_text_simple_from_import() -> None:

@@ -518,16 +518,37 @@ def _alias_used_as_bare_name(tree: cst.Module, alias: str) -> bool:
     return counter.count > 0
 
 
+_EXCLUDED_DIR_NAMES: frozenset[str] = frozenset(
+    {
+        "build",
+        "dist",
+        "node_modules",
+        "venv",
+        "env",
+        "site-packages",
+        "__pycache__",
+    }
+)
+
+
 def _iter_workspace_py_files(
     workspace_root: Path, exclude: Iterable[Path]
 ) -> list[Path]:
-    """Return all ``.py`` files in ``workspace_root`` excluding given paths."""
+    """Return all ``.py`` files in ``workspace_root`` excluding given paths.
+
+    Directories are pruned when their name starts with a dot or is one of the
+    well-known non-source trees in :data:`_EXCLUDED_DIR_NAMES` (build outputs,
+    vendored ``node_modules``, virtualenvs, ``site-packages``).
+    """
     excluded = {p.resolve() for p in exclude}
     return sorted(
         p
         for p in workspace_root.rglob("*.py")
         if p.resolve() not in excluded
-        and not any(part.startswith(".") for part in p.parts)
+        and not any(
+            part.startswith(".") or part in _EXCLUDED_DIR_NAMES
+            for part in p.relative_to(workspace_root).parts
+        )
     )
 
 
