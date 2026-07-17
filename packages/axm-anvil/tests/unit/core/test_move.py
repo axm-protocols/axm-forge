@@ -164,3 +164,62 @@ def test_process_callers_scans_once_and_shares_collection(
     scanned = scan_spy.spy_return
     assert from_spy.call_args.args[0] is scanned
     assert mod_spy.call_args.args[0] is scanned
+
+
+def _write_graph_pkg(tmp_path: Path) -> Path:
+    """Create a tiny two-module package on disk and return its root."""
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "a.py").write_text("from pkg.b import X\n")
+    (pkg / "b.py").write_text("X = 1\n")
+    return pkg
+
+
+def test_repeated_cycle_checks_parse_package_once(tmp_path: Path, mocker) -> None:
+    """AC1: within one session, repeated ``_build_current_graph`` calls parse
+    the package a single time (the cached parsed graph is reused)."""
+    import axm_anvil.core.move as move_mod
+
+    pkg = _write_graph_pkg(tmp_path)
+    parse_spy = mocker.spy(move_mod, "_parse_package_graph")
+
+    with move_mod._graph_cache_session():
+        move_mod._build_current_graph(pkg)
+        move_mod._build_current_graph(pkg)
+        move_mod._build_current_graph(pkg)
+
+    assert parse_spy.call_count == 1
+
+
+def test_fresh_session_reparses(tmp_path: Path, mocker) -> None:
+    """AC2: a new session does not reuse a previous session's parsed graph —
+    it triggers a fresh parse (the cache never bridges two moves)."""
+    import axm_anvil.core.move as move_mod
+
+    pkg = _write_graph_pkg(tmp_path)
+    parse_spy = mocker.spy(move_mod, "_parse_package_graph")
+
+    with move_mod._graph_cache_session():
+        move_mod._build_current_graph(pkg)
+    with move_mod._graph_cache_session():
+        move_mod._build_current_graph(pkg)
+
+    assert parse_spy.call_count == 2
+
+
+def test_cached_graph_equivalent_to_fresh(tmp_path: Path) -> None:
+    """AC3: the graph returned from the cache is equivalent (same node and
+    edge sets) to a freshly parsed graph for the same unchanged sources."""
+    import axm_anvil.core.move as move_mod
+
+    pkg = _write_graph_pkg(tmp_path)
+
+    with move_mod._graph_cache_session():
+        cached_graph, cached_modules = move_mod._build_current_graph(pkg)
+    # Outside any session -> always a fresh parse.
+    fresh_graph, fresh_modules = move_mod._build_current_graph(pkg)
+
+    assert cached_modules == fresh_modules
+    assert cached_graph == fresh_graph
+    assert "pkg.b" in cached_graph["pkg.a"]

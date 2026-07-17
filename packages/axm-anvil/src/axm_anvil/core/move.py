@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextvars
 import os
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -1510,9 +1512,30 @@ def _pkg_module_name(py: Path, pkg_root: Path) -> str:
     return pkg_prefix + (("." + ".".join(parts)) if parts else "")
 
 
-def _build_current_graph(
-    pkg_root: Path,
-) -> tuple[dict[str, set[str]], set[str]]:
+_GraphResult = tuple[dict[str, set[str]], set[str]]
+
+_GRAPH_CACHE: contextvars.ContextVar[dict[Path, _GraphResult] | None] = (
+    contextvars.ContextVar("_GRAPH_CACHE", default=None)
+)
+
+
+@contextmanager
+def _graph_cache_session() -> Iterator[None]:
+    """Scope a parsed-graph cache to a single move/session.
+
+    Inside the ``with`` block, repeated :func:`_build_current_graph` calls for
+    the same package root reuse one parsed graph instead of re-parsing the
+    package on every cycle-check. The cache is created on entry and dropped on
+    exit, so it never bridges two moves (a fresh session always re-parses).
+    """
+    token = _GRAPH_CACHE.set({})
+    try:
+        yield
+    finally:
+        _GRAPH_CACHE.reset(token)
+
+
+def _parse_package_graph(pkg_root: Path) -> _GraphResult:
     """Parse all ``.py`` files under ``pkg_root`` and build an import graph.
 
     Returns ``(graph, internal_modules)`` using fully-qualified dotted names.
@@ -1536,6 +1559,24 @@ def _build_current_graph(
             continue
         graph[mod_name] |= _extract_absolute_imports(tree, modules)
     return graph, modules
+
+
+def _build_current_graph(pkg_root: Path) -> _GraphResult:
+    """Return the package import graph, reusing the session cache if active.
+
+    When a :func:`_graph_cache_session` is open, the parsed graph for
+    ``pkg_root`` is computed once and memoised for the remainder of the
+    session; outside a session each call parses fresh. The returned graph is
+    equivalent to a freshly parsed one for the same unchanged sources.
+    """
+    cache = _GRAPH_CACHE.get()
+    key = pkg_root.resolve()
+    if cache is not None and key in cache:
+        return cache[key]
+    result = _parse_package_graph(pkg_root)
+    if cache is not None:
+        cache[key] = result
+    return result
 
 
 def _resolve_internal_module(module: str, internal_modules: set[str]) -> str | None:
@@ -2312,16 +2353,17 @@ def move_symbols(  # noqa: PLR0913
         _fixture_scope_warnings(blocks, source_tree, source_path, target_path, root)
     )
 
-    cycle = _cycle_check(
-        root,
-        source_path,
-        target_path,
-        new_source_tree,
-        new_target_tree,
-        caller_texts,
-        blocks,
-        source_tree,
-    )
+    with _graph_cache_session():
+        cycle = _cycle_check(
+            root,
+            source_path,
+            target_path,
+            new_source_tree,
+            new_target_tree,
+            caller_texts,
+            blocks,
+            source_tree,
+        )
     _enforce_cycle(cycle, check, dry_run)
 
     if dry_run or check:
