@@ -19,12 +19,17 @@ class TestCheckPrecommitInstalled:
         r = check_precommit_installed(empty_project)
         assert r.passed is True
 
-    def test_fail_config_no_hooks(self, tmp_path: Path) -> None:
+    def test_fail_config_no_hooks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Config exists but no .git/hooks/pre-commit -> FAIL (AC4).
 
         The fix string steers the user to ``prek install`` (the uv-native
-        runner) rather than the legacy ``pre-commit install``.
+        runner) rather than the legacy ``pre-commit install``. Local
+        enforcement only: CI env is cleared so the check does not skip.
         """
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
         (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
         r = check_precommit_installed(tmp_path)
         assert r.passed is False
@@ -38,9 +43,14 @@ class TestCheckPrecommitInstalled:
         ],
     )
     def test_fail_when_hooks_missing(
-        self, tmp_path: Path, create_git_dir: bool
+        self,
+        tmp_path: Path,
+        create_git_dir: bool,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Config exists but hooks not installed -> FAIL."""
+        """Config exists but hooks not installed -> FAIL (local only)."""
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
         (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
         if create_git_dir:
             (tmp_path / ".git").mkdir()
