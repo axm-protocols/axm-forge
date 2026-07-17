@@ -47,6 +47,21 @@ def _safe_home() -> Path:
         raise UnsafeHomeError(str(exc)) from exc
 
 
+def _is_namespace(stem: str) -> bool:
+    """Return ``True`` when ``stem`` is a valid namespace path.
+
+    Reuses :data:`axm_config.resolver._NAMESPACE_RE` -- the single source of
+    truth for what a namespace may look like. The import is deferred (as in
+    :func:`_safe_home`) to break the ``resolver -> store -> resolver`` cycle.
+    This bounds the legacy migration and namespace enumeration to *recognised*
+    namespaces, so an unrelated ``~/.axm/<stem>.toml`` owned by another tool is
+    never folded into ``config.toml``, unlinked, or reported as a namespace.
+    """
+    from axm_config.resolver import _NAMESPACE_RE
+
+    return _NAMESPACE_RE.match(stem) is not None
+
+
 NAMESPACE_FILE_MODE = 0o600
 CONFIG_FILENAME = "config.toml"
 
@@ -192,19 +207,33 @@ class NamespaceStore:
         found = set(_leaf_paths(self._load_config()))
         home = _safe_home()
         for legacy in home.glob("*.toml"):
-            if legacy.name != CONFIG_FILENAME:
+            if legacy.name != CONFIG_FILENAME and _is_namespace(legacy.stem):
                 found.add(legacy.stem)
         return sorted(found)
 
     def _fold_legacy(self, config: dict[str, object], ns: str) -> dict[str, object]:
-        """Return the ``ns`` section merged with any legacy file (legacy base)."""
+        """Return the ``ns`` section merged with any legacy file (legacy base).
+
+        The fold is bounded to recognised namespaces: when ``ns`` is not a valid
+        namespace (:func:`_is_namespace`) no legacy file is read, so an unrelated
+        ``~/.axm/<ns>.toml`` owned by another tool is never absorbed.
+        """
         section = _section(config, ns)
+        if not _is_namespace(ns):
+            return section
         legacy = self._read_legacy(ns)
         merged: dict[str, object] = {**legacy, **section}
         return merged
 
     def _drop_legacy(self, ns: str) -> None:
-        """Remove the legacy ``~/.axm/<ns>.toml`` after a successful fold."""
+        """Remove the legacy ``~/.axm/<ns>.toml`` after a successful fold.
+
+        Bounded to recognised namespaces (:func:`_is_namespace`): a foreign
+        top-level ``.toml`` whose stem is not a valid namespace is left on disk
+        untouched rather than unlinked.
+        """
+        if not _is_namespace(ns):
+            return
         self._legacy_path(ns).unlink(missing_ok=True)
 
     def _commit_config(self, config: dict[str, object]) -> None:

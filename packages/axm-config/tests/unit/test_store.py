@@ -1,9 +1,25 @@
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
+
 import pytest
 
 from axm_config import ConfigError, set_
-from axm_config.store import _raw_node, _with_child_tables
+from axm_config.store import (
+    CONFIG_FILENAME,
+    NamespaceStore,
+    _raw_node,
+    _with_child_tables,
+)
+
+
+def _seed_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point ``~/.axm`` at ``tmp_path`` and return the created home dir."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    home = tmp_path / ".axm"
+    home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return home
 
 
 class _RecordingStore:
@@ -101,3 +117,55 @@ def test_with_child_tables_no_children_returns_section() -> None:
     section = {"token": "abc", "url": "https://example"}
 
     assert _with_child_tables(config, "git", section) == section
+
+
+def test_write_leaves_foreign_toml_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC1: a foreign ``~/.axm/*.toml`` survives a write() on another namespace.
+
+    A top-level ``.toml`` whose stem is not a valid namespace (here a hyphen
+    makes it fail ``_NAMESPACE_RE``) is owned by another tool; ``write`` must
+    never fold or unlink it.
+    """
+    home = _seed_home(tmp_path, monkeypatch)
+    foreign = home / "mail-agent.toml"
+    foreign.write_text('token = "keep-me"\n', encoding="utf-8")
+
+    set_("portfolio", "risk", "high")
+
+    assert foreign.exists()
+    assert foreign.read_text(encoding="utf-8") == 'token = "keep-me"\n'
+
+
+def test_namespaces_excludes_foreign_toml_stems(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC2: namespaces() reports only ``_NAMESPACE_RE``-valid legacy stems."""
+    home = _seed_home(tmp_path, monkeypatch)
+    (home / CONFIG_FILENAME).write_text(
+        '[portfolio]\nrisk = "high"\n', encoding="utf-8"
+    )
+    (home / "notes.toml").write_text("x = 1\n", encoding="utf-8")
+    (home / "my-notes.toml").write_text("x = 1\n", encoding="utf-8")
+
+    result = NamespaceStore().namespaces()
+
+    assert "portfolio" in result
+    assert "notes" in result
+    assert "my-notes" not in result
+
+
+def test_legacy_fold_ignores_non_namespace_stem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3: write() neither unlinks nor folds a legacy file with a bad stem."""
+    home = _seed_home(tmp_path, monkeypatch)
+    foreign = home / "bad_stem.toml"
+    foreign.write_text('old_key = "old"\n', encoding="utf-8")
+
+    NamespaceStore().write("bad_stem", "new_key", "new")
+
+    assert foreign.exists()
+    config = tomllib.loads((home / CONFIG_FILENAME).read_text(encoding="utf-8"))
+    assert "old_key" not in config.get("bad_stem", {})
