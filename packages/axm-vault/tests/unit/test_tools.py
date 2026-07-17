@@ -10,7 +10,7 @@ import pytest
 
 from axm_vault.catalog import Catalog
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
-from axm_vault.tools import VaultDoctorTool, VaultSetTool
+from axm_vault.tools import VaultDeleteTool, VaultDoctorTool, VaultSetTool
 
 
 class _MemoryKeyring(keyring.backend.KeyringBackend):
@@ -126,3 +126,27 @@ def test_vault_set_nonsensitive_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
     result = VaultSetTool().execute(group="svc", name="account_id", value="123")
     assert result.success is False
     assert result.error is not None
+
+
+def test_vault_delete_removes_secret(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC2: VaultDeleteTool deletes a stored SECRET and returns success."""
+    from axm_vault.store import KeyringStore
+
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    KeyringStore().set("svc", "token", "PLAINTEXT")
+    result = VaultDeleteTool().execute(group="svc", name="token")
+    assert result.success is True
+    assert result.data["deleted"] == "keyring:svc.token"
+    assert KeyringStore().get("svc", "token") is None
+
+
+def test_vault_delete_absent_is_noop_success(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC1: deleting an already-absent secret is a safe no-op returning success."""
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultDeleteTool().execute(group="svc", name="token")
+    assert result.success is True
+    assert result.error is None

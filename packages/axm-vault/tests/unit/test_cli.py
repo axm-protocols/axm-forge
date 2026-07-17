@@ -9,7 +9,7 @@ from axm_vault.catalog import Catalog
 from axm_vault.cli import app
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
 
-_EXPECTED = {"setup", "get", "set", "rotate", "doctor", "path"}
+_EXPECTED = {"setup", "get", "set", "delete", "rotate", "doctor", "path"}
 
 
 def _catalog_with(sensitivity: Sensitivity) -> Catalog:
@@ -143,6 +143,22 @@ def test_doctor_healthy_entry_has_no_marker(
     out = capsys.readouterr().out.strip()
     assert out == "svc.token\tenv\tpresent"
     assert "unavailable" not in out
+
+
+def test_delete_calls_store_delete(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC1: ``delete`` resolves the spec via the catalog then calls the store."""
+    monkeypatch.setattr(cli, "load_catalog", lambda: _catalog_with(Sensitivity.SECRET))
+    calls: list[tuple[str, str, str | None]] = []
+
+    class _StubStore:
+        def delete(self, group: str, name: str, instance: str | None = None) -> None:
+            calls.append((group, name, instance))
+
+    monkeypatch.setattr(cli, "KeyringStore", _StubStore)
+
+    cli.delete("svc", "token")
+
+    assert calls == [("svc", "token", None)]
 
 
 def test_rotate_secret_spec_calls_rotate(monkeypatch: pytest.MonkeyPatch) -> None:

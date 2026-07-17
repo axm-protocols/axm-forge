@@ -35,6 +35,7 @@ Issues = "https://github.com/axm-protocols/axm-forge-workspace/issues"
 axm-vault = "axm_vault.cli:main"
 
 [project.entry-points."axm.tools"]
+vault_delete = "axm_vault.tools:VaultDeleteTool"
 vault_doctor = "axm_vault.tools:VaultDoctorTool"
 vault_set = "axm_vault.tools:VaultSetTool"
 

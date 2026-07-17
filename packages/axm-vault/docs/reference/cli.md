@@ -5,9 +5,9 @@ invariant — no command ever prints a `SECRET` value:
 
 1. The standalone **`axm-vault`** console script (`[project.scripts]`), an
    interactive operator CLI built on [cyclopts](https://cyclopts.readthedocs.io).
-2. The two **`axm.tools`** entry points (`vault_doctor`, `vault_set`), each
-   reachable as an `axm <tool>` command, over MCP, and as a DAG node from a
-   single declaration.
+2. The three **`axm.tools`** entry points (`vault_doctor`, `vault_set`,
+   `vault_delete`), each reachable as an `axm <tool>` command, over MCP, and as
+   a DAG node from a single declaration.
 
 The CLI is a thin shell: it owns argument parsing and human-facing output but
 delegates every operation to the central functions / tools, so no business
@@ -21,6 +21,7 @@ logic is duplicated across the CLI / MCP boundary.
 | `axm-vault get <group> <name> [--reveal]` | Resolve a credential and print it, masking `SECRET` values as `********` unless `--reveal` |
 | `axm-vault set <group> <name> <value>` | Store a credential by sensitivity (`SECRET`->keyring, `CONFIG`->config); echoes only the storage target |
 | `axm-vault rotate <group> <name> <value> [--instance <id>]` | Rotate a `SECRET`, retaining the previous value as `{name}.prev` for one cycle |
+| `axm-vault delete <group> <name> [--instance <id>]` | Remove a stored credential from the keyring; a safe no-op when it is already absent (resolves the spec via the catalog first) |
 | `axm-vault doctor [--package <pkg>] [--instance <id>]` | Print each credential's provenance (`layer` + `present`) — value-free. Appends a `keyring:unavailable` marker on any `SECRET` row whose keyring backend is unreachable |
 | `axm-vault path` | Print the resolved `~/.axm` home directory used for file-backed config |
 
@@ -38,6 +39,9 @@ axm-vault get broker api_key --reveal   # -> s3cr3t
 # Store / rotate a secret (the value is never echoed back)
 axm-vault set broker api_key s3cr3t
 axm-vault rotate broker api_key new-s3cr3t
+
+# Remove a stored secret — idempotent: a second delete is a safe no-op
+axm-vault delete broker api_key   # -> deleted keyring:broker.api_key
 
 # Which layer answers each credential, and is it present? (never the value)
 axm-vault doctor
@@ -69,14 +73,15 @@ and blocks on operator input, which is why it lives as a plain function
 
 ## `axm.tools` (MCP)
 
-Both tools are deterministic `axm.tools.base.AXMTool` implementations, so a
+All three tools are deterministic `axm.tools.base.AXMTool` implementations, so a
 single entry-point declaration exposes each over MCP, the `axm` CLI and as a
-DAG node. Neither command ever prints a `SECRET` value.
+DAG node. No command ever prints a `SECRET` value.
 
 | Command | Purpose |
 | -- | -- |
 | `axm vault_doctor [--package <pkg>] [--instance <id>]` | Report each credential's provenance (`layer` + `present`) — value-free |
 | `axm vault_set --group <id> --name <spec> --value <v> [--instance <id>]` | Store a credential by sensitivity (SECRET->keyring, CONFIG->config); reports only the target |
+| `axm vault_delete --group <id> --name <spec> [--instance <id>]` | Remove a stored credential from the keyring; reports only the deletion target, a safe no-op when absent |
 
 ```bash
 # Which layer answers each credential, and is it present? (never the value)
@@ -84,6 +89,9 @@ axm vault_doctor
 
 # Store a secret into the OS keyring (value is never echoed back)
 axm vault_set --group broker --name api_key --value s3cr3t
+
+# Remove a stored secret from the keyring (idempotent, value-free)
+axm vault_delete --group broker --name api_key
 ```
 
 See [Doctor & Tools](doctor.md) for the full parameter and routing tables.

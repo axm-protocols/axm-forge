@@ -44,12 +44,14 @@ def test_doctor_empty_catalog_exits_clean() -> None:
     assert proc.stdout.strip() == ""
 
 
-def test_help_lists_commands_no_import() -> None:
-    """AC4: ``--help`` lists the 6 commands and never advertises 'import'."""
+def test_help_never_advertises_import() -> None:
+    """AC4: ``--help`` never advertises the deferred bulk 'import' command.
+
+    The positive contract — that all 7 commands (including ``delete``) are
+    listed — is asserted in ``tests/e2e/test_delete.py``; this test guards the
+    complementary negative: no phantom ``import`` command ever appears.
+    """
     proc = subprocess.run(
         [*_VAULT, "--help"], capture_output=True, text=True, check=True
     )
-    out = proc.stdout
-    for command in ("setup", "get", "set", "rotate", "doctor", "path"):
-        assert command in out
-    assert "import" not in out
+    assert "import" not in proc.stdout

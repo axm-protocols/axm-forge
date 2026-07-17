@@ -1,11 +1,12 @@
-"""AXM tools for the vault — ``vault_doctor`` and ``vault_set``.
+"""AXM tools for the vault — ``vault_doctor``, ``vault_set``, ``vault_delete``.
 
-Both tools are deterministic :class:`~axm.tools.base.AXMTool` implementations
-so they are reachable over MCP, the ``axm`` CLI and as DAG nodes from a
-single ``axm.tools`` entry-point declaration. They uphold the vault's
-central security invariant: **no tool ever serializes a SECRET value**.
-``vault_doctor`` returns value-free provenance; ``vault_set`` stores a value
-but echoes only the storage target, never the value.
+All three tools are deterministic :class:`~axm.tools.base.AXMTool`
+implementations so they are reachable over MCP, the ``axm`` CLI and as DAG
+nodes from a single ``axm.tools`` entry-point declaration. They uphold the
+vault's central security invariant: **no tool ever serializes a SECRET
+value**. ``vault_doctor`` returns value-free provenance; ``vault_set`` stores
+a value but echoes only the storage target, never the value; ``vault_delete``
+removes a stored credential and reports only the deletion target.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from axm_vault.doctor import doctor_data
 from axm_vault.models import Sensitivity
 from axm_vault.store import KeyringStore
 
-__all__ = ["VaultDoctorTool", "VaultSetTool"]
+__all__ = ["VaultDeleteTool", "VaultDoctorTool", "VaultSetTool"]
 
 
 class VaultDoctorTool:
@@ -110,3 +111,39 @@ class VaultSetTool:
                     "set it via its env var, it is never stored"
                 )
                 raise ValueError(msg)
+
+
+class VaultDeleteTool:
+    """Remove a stored credential by ``group.name`` from the keyring.
+
+    The ``group.name`` is resolved through the catalog first (validating it is
+    a known spec), then deleted from the OS keyring. Deletion is a **safe
+    no-op** when the credential is already absent — the underlying store
+    suppresses the keyring's ``Item not found`` error — so callers can delete
+    idempotently. Only the deletion target is reported, never a value.
+    """
+
+    agent_hint = (
+        "Delete a stored credential from the OS keyring by group.name; it is a "
+        "safe no-op when the secret is already absent. No value is returned."
+    )
+    domain = "vault"
+    tags = frozenset({"vault", "credentials", "delete"})
+
+    @property
+    def name(self) -> str:
+        """Unique tool identifier."""
+        return "vault_delete"
+
+    def execute(
+        self, *, group: str = "", name: str = "", instance: str | None = None
+    ) -> ToolResult:
+        """Resolve ``group.name`` then delete it from the keyring (no-op if absent)."""
+        try:
+            spec = load_catalog().group(group).spec(name)
+            KeyringStore().delete(group, spec.name, instance)
+        except Exception as exc:  # noqa: BLE001 # MCP boundary: any error -> failure
+            return ToolResult(success=False, error=str(exc))
+        return ToolResult(
+            success=True, data={"deleted": f"keyring:{group}.{spec.name}"}
+        )

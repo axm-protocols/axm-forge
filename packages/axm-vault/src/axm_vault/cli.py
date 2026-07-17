@@ -24,7 +24,7 @@ from axm_vault.models import Sensitivity
 from axm_vault.resolver import MissingCredentialError, resolver
 from axm_vault.secrets import MASK
 from axm_vault.setup import run_setup
-from axm_vault.store import rotate_secret
+from axm_vault.store import KeyringStore, rotate_secret
 from axm_vault.tools import VaultSetTool
 
 _RESOLVE_ERRORS = (KeyError, MissingCredentialError)
@@ -130,6 +130,28 @@ def rotate(
         _die(exc)
         return
     print(f"rotated keyring:{group}.{name}")
+
+
+@app.command
+def delete(group: str, name: str, instance: str | None = None) -> None:
+    """Remove ``group.name`` from the keyring (a safe no-op if already absent).
+
+    The spec is resolved through the catalog first (an unknown ``group.name``
+    is an up-front error), then the credential is deleted from the keyring. The
+    delete is idempotent: removing an already-absent secret succeeds silently.
+
+    Args:
+        group: Credential group id.
+        name: Credential name within the group.
+        instance: Optional multi-instance segment.
+    """
+    try:
+        spec = load_catalog().group(group).spec(name)
+        KeyringStore().delete(group, spec.name, instance)
+    except Exception as exc:  # noqa: BLE001 # CLI boundary: any error -> exit 1
+        _die(exc)
+        return
+    print(f"deleted keyring:{group}.{name}")
 
 
 @app.command
