@@ -106,6 +106,45 @@ def test_rotate_unknown_name_exits_clean(
     assert "nope" in capsys.readouterr().err
 
 
+def test_doctor_shows_keyring_unavailable_marker(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC1: a ``keyring=unavailable`` annotation surfaces the outage marker."""
+    monkeypatch.setattr(
+        cli,
+        "doctor_data",
+        lambda *_a, **_k: {
+            "svc.token": {
+                "layer": "missing",
+                "present": False,
+                "keyring": "unavailable",
+            }
+        },
+    )
+
+    cli.doctor()
+
+    out = capsys.readouterr().out
+    assert "keyring:unavailable" in out
+
+
+def test_doctor_healthy_entry_has_no_marker(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC2: an entry without the annotation renders layer + present, no marker."""
+    monkeypatch.setattr(
+        cli,
+        "doctor_data",
+        lambda *_a, **_k: {"svc.token": {"layer": "env", "present": True}},
+    )
+
+    cli.doctor()
+
+    out = capsys.readouterr().out.strip()
+    assert out == "svc.token\tenv\tpresent"
+    assert "unavailable" not in out
+
+
 def test_rotate_secret_spec_calls_rotate(monkeypatch: pytest.MonkeyPatch) -> None:
     """``rotate`` on a SECRET spec resolves through the catalog then rotates."""
     monkeypatch.setattr(cli, "load_catalog", lambda: _catalog_with(Sensitivity.SECRET))

@@ -141,7 +141,11 @@ def doctor(package: str | None = None, instance: str | None = None) -> None:
         instance: Optional multi-instance segment.
     """
     for key, entry in doctor_data(package, instance=instance).items():
-        print(f"{key}\t{entry['layer']}\t{'present' if entry['present'] else '-'}")
+        present = "present" if entry["present"] else "-"
+        line = f"{key}\t{entry['layer']}\t{present}"
+        if entry.get("keyring") == "unavailable":
+            line += "\tkeyring:unavailable"
+        print(line)
 
 
 @app.command

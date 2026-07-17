@@ -21,7 +21,7 @@ logic is duplicated across the CLI / MCP boundary.
 | `axm-vault get <group> <name> [--reveal]` | Resolve a credential and print it, masking `SECRET` values as `********` unless `--reveal` |
 | `axm-vault set <group> <name> <value>` | Store a credential by sensitivity (`SECRET`->keyring, `CONFIG`->config); echoes only the storage target |
 | `axm-vault rotate <group> <name> <value> [--instance <id>]` | Rotate a `SECRET`, retaining the previous value as `{name}.prev` for one cycle |
-| `axm-vault doctor [--package <pkg>] [--instance <id>]` | Print each credential's provenance (`layer` + `present`) — value-free |
+| `axm-vault doctor [--package <pkg>] [--instance <id>]` | Print each credential's provenance (`layer` + `present`) — value-free. Appends a `keyring:unavailable` marker on any `SECRET` row whose keyring backend is unreachable |
 | `axm-vault path` | Print the resolved `~/.axm` home directory used for file-backed config |
 
 There is deliberately **no** `import` command — a bulk credential importer is
@@ -41,7 +41,15 @@ axm-vault rotate broker api_key new-s3cr3t
 
 # Which layer answers each credential, and is it present? (never the value)
 axm-vault doctor
+# svc.token	env	present
+# svc.secret	missing	-	keyring:unavailable   # keyring backend unreachable
 ```
+
+The `doctor` output is one tab-separated row per credential: `group.name`,
+the winning `layer` (or `missing`), and `present`/`-`. When the OS keyring
+backend is unavailable on the host, every keyring-eligible (`SECRET`) row gains
+a trailing `keyring:unavailable` column so the outage is visible instead of
+silently reading as a plain `missing`.
 
 ### `setup` — interactive provisioning
 
