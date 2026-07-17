@@ -83,7 +83,7 @@ async def fetch_page(
     try:
         match mode:
             case "auto" | "basic":
-                page = Fetcher.get(url)
+                page = await asyncio.to_thread(Fetcher.get, url)
             case "dynamic":
                 page = await DynamicFetcher.async_fetch(url)
             case "stealth":

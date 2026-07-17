@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -250,6 +251,48 @@ def test_fetch_page_docstring_matches_behavior() -> None:
     doc = (fetch_page.__doc__ or "").lower()
     assert "no escalation" in doc
     assert "basic" in doc
+
+
+# ── asyncio.to_thread offloading (AC1/AC2) ───────────────────────────
+
+
+@pytest.mark.asyncio
+@patch("axm_mcp.web_fetch._HAS_SCRAPLING", True)
+@patch("axm_mcp.web_fetch.Fetcher")
+async def test_fetch_page_offloads_get_off_event_loop(
+    mock_fetcher_cls: MagicMock,
+) -> None:
+    """AC1: Fetcher.get runs on a worker thread, not the event-loop thread."""
+    recorded: dict[str, int] = {}
+
+    def _record_thread(url: str) -> MagicMock:
+        recorded["thread_id"] = threading.get_ident()
+        return _make_mock_page()
+
+    mock_fetcher_cls.get.side_effect = _record_thread
+    loop_thread_id = threading.get_ident()
+
+    result = await fetch_page(url="https://example.com", mode="basic")
+
+    assert result["success"] is True
+    assert recorded["thread_id"] != loop_thread_id
+
+
+@pytest.mark.asyncio
+@patch("axm_mcp.web_fetch._HAS_SCRAPLING", True)
+@patch("axm_mcp.web_fetch.Fetcher")
+async def test_fetch_page_returns_get_result_unchanged(
+    mock_fetcher_cls: MagicMock,
+) -> None:
+    """AC2: returned content equals the mocked Fetcher.get page content."""
+    page = _make_mock_page(title="Sentinel Title", text="sentinel body")
+    mock_fetcher_cls.get.return_value = page
+
+    result = await fetch_page(url="https://example.com", mode="basic")
+
+    assert result["title"] == "Sentinel Title"
+    assert result["text"] == "sentinel body"
+    assert result["status_code"] == 200
 
 
 # ── execute() across event-loop contexts (Fetcher mocked) ────────────
