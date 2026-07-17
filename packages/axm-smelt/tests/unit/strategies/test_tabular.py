@@ -104,6 +104,34 @@ class TestTabularEdgeCases:
         assert lines[0] == "a|b"
         assert lines[1] == "true|null"
 
+    def test_pipe_in_key_no_phantom_column(self) -> None:
+        """AC1: a key containing a pipe must not spawn a phantom header column."""
+        result = to_table([{"a|b": 1, "c": 2}])
+        assert result is not None
+        lines = result.split("\n")
+        header_cols = lines[0].split("|")
+        row_cols = lines[1].split("|")
+        # Header boundaries align with the data row: same column count.
+        assert len(header_cols) == len(row_cols) == 2
+        # The pipe in the key is escaped (no bare pipe inside the cell).
+        assert "\\u007c" in lines[0]
+
+    def test_header_escaping_symmetric_with_value(self) -> None:
+        """AC2: header keys use the same pipe-escape scheme as cell values."""
+        result = to_table([{"a|b": ["x|y"]}])
+        assert result is not None
+        header, row = result.split("\n")
+        # Key and value both escape the pipe via the | scheme.
+        assert "\\u007c" in header
+        assert "\\u007c" in row
+        # No bare pipe remains in the single-key header -> no phantom column.
+        assert "|" not in header
+
+    def test_pipe_free_keys_regression(self) -> None:
+        """AC3: pipe-free keys render byte-identical to the pre-fix output."""
+        result = to_table([{"name": "A", "age": 1}, {"name": "B", "age": 2}])
+        assert result == "name|age\nA|1\nB|2"
+
 
 # --- merged from test_tabular_helpers.py ---
 

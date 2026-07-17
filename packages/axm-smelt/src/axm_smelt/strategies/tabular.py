@@ -12,6 +12,12 @@ from axm_smelt.strategies.base import SmeltStrategy
 __all__ = ["TabularStrategy"]
 
 
+def _escape_pipe(text: str) -> str:
+    """Escape bare pipes to their JSON unicode form so a cell/header
+    stays a single column (a bare ``|`` would spawn a phantom column)."""
+    return text.replace("|", "\\u007c")
+
+
 def _format_cell(value: object) -> str:
     """Format a single cell value for tabular output."""
     if value is None:
@@ -21,10 +27,7 @@ def _format_cell(value: object) -> str:
     if isinstance(value, (dict, list)):
         dumped = json.dumps(value, separators=(",", ": "), ensure_ascii=False)
         if "|" in dumped:
-            # A bare pipe inside nested JSON would be read as a column
-            # separator and spawn a phantom column. Escape it to its JSON
-            # unicode form so the cell stays a single column.
-            return dumped.replace("|", "\\u007c")
+            return _escape_pipe(dumped)
         return dumped
     s = str(value)
     if "|" in s:
@@ -61,7 +64,7 @@ def to_table(data: object) -> str | None:
         return None
 
     keys = collect_ordered_keys(data)
-    header = "|".join(keys)
+    header = "|".join(_escape_pipe(k) for k in keys)
     rows = render_rows(data, keys)
     return "\n".join([header, *rows])
 
