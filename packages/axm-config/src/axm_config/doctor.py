@@ -18,7 +18,7 @@ import os
 
 from axm_config.resolver import _KEY_RE, _env_name, _store, validate_segment
 
-__all__ = ["config_doctor_data"]
+__all__ = ["config_doctor_data", "render_doctor_report"]
 
 
 def _env_keys(namespace: str) -> set[str]:
@@ -71,6 +71,18 @@ def _known_namespaces() -> list[str]:
     files — is the source of truth for "all known".
     """
     return _store.namespaces()
+
+
+def render_doctor_report(report: dict[str, dict[str, object]]) -> str:
+    """Render a doctor report as one ``<dotted_key>: <layer>`` line per key.
+
+    Shared by the CLI ``doctor`` command and :class:`ConfigDoctorTool` so the
+    two provenance renderings cannot drift. Keys are emitted in the report's
+    own (already sorted) order; an empty report renders the empty string.
+    """
+    return "\n".join(
+        f"{dotted_key}: {info['layer']}" for dotted_key, info in report.items()
+    )
 
 
 def config_doctor_data(

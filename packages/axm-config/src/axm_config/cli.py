@@ -12,7 +12,7 @@ from typing import Annotated, NoReturn
 
 import cyclopts
 
-from axm_config.doctor import config_doctor_data
+from axm_config.doctor import config_doctor_data, render_doctor_report
 from axm_config.home import axm_home
 from axm_config.resolver import ConfigError, delete, get, set_
 
@@ -96,5 +96,6 @@ def _doctor_cmd(
         report = config_doctor_data(namespace)
     except (OSError, ConfigError) as exc:
         _die(exc)
-    for dotted_key, info in report.items():
-        print(f"{dotted_key}: {info['layer']}")  # noqa: T201 - CLI output
+    rendered = render_doctor_report(report)
+    if rendered:
+        print(rendered)  # noqa: T201 - CLI output

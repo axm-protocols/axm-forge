@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from axm.tools.base import ToolResult
 
-from axm_config.doctor import config_doctor_data
+from axm_config.doctor import config_doctor_data, render_doctor_report
 
 __all__ = ["ConfigDoctorTool"]
 
@@ -41,11 +41,14 @@ class ConfigDoctorTool:
         """Return the provenance report for ``namespace`` (or all known).
 
         On success, ``data`` is the ``{"<ns>.<key>": {layer, present}}``
-        mapping from :func:`config_doctor_data`. Any failure is shaped into
-        ``ToolResult(success=False, error=...)`` at the MCP boundary.
+        mapping from :func:`config_doctor_data` and ``text`` is the shared
+        one-line-per-key rendering from :func:`render_doctor_report` (so the
+        MCP text and the CLI ``doctor`` output cannot drift). Any failure is
+        shaped into ``ToolResult(success=False, error=...)`` at the MCP
+        boundary.
         """
         try:
             report = config_doctor_data(namespace)
         except Exception as exc:  # noqa: BLE001 - MCP boundary
             return ToolResult(success=False, error=str(exc))
-        return ToolResult(success=True, data=report)
+        return ToolResult(success=True, data=report, text=render_doctor_report(report))
