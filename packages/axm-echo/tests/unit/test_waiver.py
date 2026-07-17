@@ -36,6 +36,38 @@ def test_cluster_hash_order_independent() -> None:
     assert all(c in "0123456789abcdef" for c in direct)
 
 
+def test_cluster_hash_skips_non_mapping_members() -> None:
+    """AC1: a non-mapping member mixed with mappings never raises."""
+    key = ("file", "name")
+    raw_members: list[object] = [
+        {"file": "a.py", "symbol": "f"},
+        "pas-un-mapping",
+        42,
+        None,
+    ]
+    cluster: dict[str, object] = {"members": raw_members}
+
+    digest = cluster_hash(cluster, key_fields=key)
+
+    assert isinstance(digest, str)
+    assert len(digest) == 12
+
+
+def test_cluster_hash_valid_members_deterministic() -> None:
+    """AC2: all-mapping members hash identically across calls (non-regression)."""
+    members = [
+        {"package": "axm-foo", "qualname": "foo.alpha"},
+        {"package": "axm-bar", "qualname": "bar.beta"},
+    ]
+    key = ("package", "qualname")
+
+    first = cluster_hash(_cluster(members), key_fields=key)
+    second = cluster_hash(_cluster(list(members)), key_fields=key)
+
+    assert first == second
+    assert len(first) == 12
+
+
 def test_cluster_hash_key_fields_param() -> None:
     """AC3: the same cluster hashes differently under different key schemas."""
     members = [
