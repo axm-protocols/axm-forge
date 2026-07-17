@@ -45,7 +45,7 @@ def test_group_spec_lookup() -> None:
 
 
 def test_group_spec_unknown_raises_keyerror() -> None:
-    """AC4: CredentialGroup.spec(name) raises KeyError on unknown name."""
+    """AC1: spec(name) raises KeyError with a contextual, group-qualified message."""
     group = CredentialGroup(id="acme", package="axm-acme", title="Acme", specs=())
-    with pytest.raises(KeyError):
+    with pytest.raises(KeyError, match=r"unknown credential acme\.'nope'"):
         group.spec("nope")

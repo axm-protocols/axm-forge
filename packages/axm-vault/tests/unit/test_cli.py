@@ -59,6 +59,21 @@ def test_get_unknown_group_exits_clean(
     assert captured.out == ""
 
 
+def test_get_unknown_spec_prints_contextual_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC2: ``get`` on a known group but unknown spec prints the contextual message."""
+    monkeypatch.setattr(cli, "load_catalog", lambda: _catalog_with(Sensitivity.SECRET))
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.get("svc", "nope")
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert "unknown credential svc.'nope'" in captured.err
+    assert captured.out == ""
+
+
 @pytest.mark.parametrize("sensitivity", [Sensitivity.CONFIG, Sensitivity.NONSENSITIVE])
 def test_rotate_rejects_non_secret_spec(
     monkeypatch: pytest.MonkeyPatch,

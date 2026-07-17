@@ -68,4 +68,4 @@ class CredentialGroup(BaseModel):  # type: ignore[explicit-any]
         for candidate in self.specs:
             if candidate.name == name:
                 return candidate
-        raise KeyError(name)
+        raise KeyError(f"unknown credential {self.id}.{name!r}")

@@ -150,6 +150,18 @@ def test_vault_set_happy_path_stores_secret(
     assert KeyringStore().get("svc", "token") == "s3cret"
 
 
+def test_vault_set_unknown_spec_surfaces_contextual_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: vault_set on an unknown spec name surfaces the contextual message."""
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultSetTool().execute(group="svc", name="nope", value="x")
+    assert result.success is False
+    assert result.error is not None
+    assert "unknown credential svc.'nope'" in result.error
+    assert result.error != "'nope'"
+
+
 def test_vault_set_missing_group_raises_type_error() -> None:
     """AC2: a missing required field fails with TypeError, not a bare KeyError."""
     with pytest.raises(TypeError):
