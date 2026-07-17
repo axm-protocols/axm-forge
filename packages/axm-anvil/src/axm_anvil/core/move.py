@@ -32,6 +32,7 @@ from axm_anvil.core.callers import (
     _rewrite_module_import_caller,
     rewrite_caller_text,
 )
+from axm_anvil.core.context import MoveContext
 from axm_anvil.core.cycles import GraphEdits, detect_new_cycle
 from axm_anvil.core.deps import (
     ImportInfo,
@@ -1205,16 +1206,7 @@ def _render_and_validate(
     return source_text_new, target_text_new
 
 
-def _build_plan(  # noqa: PLR0913
-    source_text_new: str,
-    target_text_new: str,
-    moved_names: list[str],
-    imports_added: list[str],
-    constants_added: list[str],
-    shared_map: dict[str, SharedInfo],
-    callers_updated: list[CallerRewrite] | None = None,
-    redundant_import_warnings: list[str] | None = None,
-) -> MovePlan:
+def _build_plan(ctx: MoveContext) -> MovePlan:
     """Assemble the MovePlan with shared-helper detections and warnings."""
     shared_detected = [
         SharedHelperDetection(
@@ -1222,7 +1214,7 @@ def _build_plan(  # noqa: PLR0913
             used_by_moved=sorted(info.used_by_moved),
             used_by_remaining=sorted(info.used_by_remaining),
         )
-        for name, info in sorted(shared_map.items())
+        for name, info in sorted(ctx.shared_map.items())
     ]
     shared_warnings = [
         (
@@ -1232,16 +1224,18 @@ def _build_plan(  # noqa: PLR0913
         )
         for det in shared_detected
     ]
-    warnings: list[str] = list(redundant_import_warnings or []) + list(shared_warnings)
+    warnings: list[str] = list(ctx.redundant_import_warnings or []) + list(
+        shared_warnings
+    )
     return MovePlan(
-        source_text_new=source_text_new,
-        target_text_new=target_text_new,
-        moved_names=moved_names,
-        imports_added=imports_added,
-        constants_added=constants_added,
+        source_text_new=ctx.source_text_new,
+        target_text_new=ctx.target_text_new,
+        moved_names=ctx.moved_names,
+        imports_added=ctx.imports_added,
+        constants_added=ctx.constants_added,
         warnings=warnings,
         shared_helpers_detected=shared_detected,
-        callers_updated=list(callers_updated or []),
+        callers_updated=list(ctx.callers_updated or []),
     )
 
 
@@ -2238,12 +2232,14 @@ def move_symbols(  # noqa: PLR0913
         # move is a no-op. Return an empty plan with the original texts BEFORE
         # any tree-building or write, so source and target stay byte-identical.
         noop_plan = _build_plan(
-            source_text,
-            target_text,
-            moved_names,
-            [],
-            [],
-            {},
+            MoveContext(
+                source_text_new=source_text,
+                target_text_new=target_text,
+                moved_names=moved_names,
+                imports_added=[],
+                constants_added=[],
+                shared_map={},
+            )
         )
         noop_plan.warnings.extend(skipped_warnings)
         return noop_plan
@@ -2297,14 +2293,16 @@ def move_symbols(  # noqa: PLR0913
     )
 
     plan = _build_plan(
-        source_text_new,
-        target_text_new,
-        moved_names,
-        imports_added,
-        constants_added,
-        shared_map,
-        callers_updated=caller_rewrites,
-        redundant_import_warnings=redundant_import_warnings,
+        MoveContext(
+            source_text_new=source_text_new,
+            target_text_new=target_text_new,
+            moved_names=moved_names,
+            imports_added=imports_added,
+            constants_added=constants_added,
+            shared_map=shared_map,
+            callers_updated=caller_rewrites,
+            redundant_import_warnings=redundant_import_warnings,
+        )
     )
     plan.warnings.extend(skipped_warnings)
     plan.warnings.extend(caller_warnings)
