@@ -120,6 +120,27 @@ class TestFailFast:
                 node({"path": ".", "unexpected_key": 1})
 
 
+class TestResolutionMemoized:
+    def test_tool_resolved_once_across_two_invocations(self) -> None:
+        """The entry points are scanned once, not on every closure call (AC1)."""
+        tool = _Tool(ToolResult(success=True, text="impact"))
+        node = tool_node("ast_impact", returns={"r": "text"})
+        with patch(
+            "axm.tools.node.entry_points_for",
+            return_value={"ast_impact": _ep("ast_impact", tool)},
+        ) as eps:
+            first = node({"path": "/p", "symbol": "F"})
+            second = node({"path": "/p", "symbol": "F"})
+        assert eps.call_count == 1
+        assert first == second == {"r": "impact"}
+
+    def test_building_node_resolves_nothing_late_binding(self) -> None:
+        """Constructing the node triggers no entry-point resolution (AC2)."""
+        with patch("axm.tools.node.entry_points_for") as eps:
+            tool_node("ast_impact", returns={"r": "text"})
+        assert eps.call_count == 0
+
+
 class TestClassEntryPoint:
     def test_class_entry_point_is_instantiated(self) -> None:
         """An entry point loading to a class is instantiated before use."""

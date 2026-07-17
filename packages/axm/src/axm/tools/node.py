@@ -82,9 +82,15 @@ def tool_node(
     """
     rename = dict(args or {})
     out_spec = dict(returns or {})
+    cache: dict[str, AXMTool] = {}
 
     def _run(payload: Mapping[str, object]) -> dict[str, object]:
-        tool = _load_tool(name)
+        tool = cache.get(name)
+        if tool is None:
+            # Resolve entry points + instantiate once, lazily on first call
+            # (late-binding): building the node scans nothing.
+            tool = _load_tool(name)
+            cache[name] = tool
         kwargs = _kwargs_from_payload(payload, rename)
         try:
             result = tool.execute(**kwargs)
