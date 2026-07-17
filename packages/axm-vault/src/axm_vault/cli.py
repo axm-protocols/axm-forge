@@ -12,6 +12,7 @@ deferred.
 
 from __future__ import annotations
 
+import getpass
 import sys
 
 import axm_config
@@ -74,14 +75,18 @@ def get(group: str, name: str, *, reveal: bool = False) -> None:
 
 
 @app.command
-def set(group: str, name: str, value: str) -> None:  # CLI verb
+def set(group: str, name: str, value: str | None = None) -> None:  # CLI verb
     """Store ``group.name`` in its backend (keyring for SECRET, config else).
 
     Args:
         group: Credential group id.
         name: Credential name within the group.
-        value: The value to store (never echoed back).
+        value: The value to store (never echoed back). Omit it to be prompted
+            for the secret via a hidden :func:`getpass.getpass` input — the
+            plaintext then never appears on the process argv.
     """
+    if value is None:
+        value = getpass.getpass(f"Secret for {group}.{name}: ")
     result = VaultSetTool().execute(group=group, name=name, value=value)
     if not result.success:
         print(result.error, file=sys.stderr)
@@ -90,7 +95,9 @@ def set(group: str, name: str, value: str) -> None:  # CLI verb
 
 
 @app.command
-def rotate(group: str, name: str, value: str, instance: str | None = None) -> None:
+def rotate(
+    group: str, name: str, value: str | None = None, instance: str | None = None
+) -> None:
     """Rotate a SECRET to ``value``, retaining the previous one for one cycle.
 
     The spec is resolved through the catalog first and MUST be
@@ -103,9 +110,13 @@ def rotate(group: str, name: str, value: str, instance: str | None = None) -> No
     Args:
         group: Credential group id.
         name: Credential name within the group.
-        value: The new secret value (never echoed back).
+        value: The new secret value (never echoed back). Omit it to be prompted
+            via a hidden :func:`getpass.getpass` input, keeping the plaintext
+            off the process argv.
         instance: Optional multi-instance segment.
     """
+    if value is None:
+        value = getpass.getpass(f"New secret for {group}.{name}: ")
     try:
         spec = load_catalog().group(group).spec(name)
         if spec.sensitivity is not Sensitivity.SECRET:
