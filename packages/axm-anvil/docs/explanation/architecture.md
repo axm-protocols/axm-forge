@@ -54,7 +54,7 @@ should use the public `axm_anvil` API.
 | Module | Responsibility |
 |---|---|
 | `_cst.blocks` | Extract top-level symbol `Block` records (node + leading lines + referenced names) |
-| `_cst.visitors` | `ReferenceCollector` (collect referenced root names) and `dotted_name` (flatten `Attribute` chains) |
+| `_cst.visitors` | `ReferenceCollector` (collect *external* referenced root names — excludes keyword-argument labels and locally-bound names such as parameters and assignment targets, so a homonymous top-level helper is not pulled in as a spurious dependency) and `dotted_name` (flatten `Attribute` chains) |
 | `_cst.transformers` | `RemoveSymbols` transformer that deletes targeted top-level `ClassDef`, `FunctionDef`, and constant (`Assign` / `AnnAssign`) nodes while preserving surrounding formatting; `AttributeRewriter` rewrites `old_module.Symbol` attribute chains (and alias-bound equivalents) to `new_module.Symbol`, using `ScopeProvider` to skip shadowed names and tracking residual `old_module.*` references so the caller layer knows when it can drop the bare `import old_module` line |
 | `_cst.overloads` | `detect_overload_group` — find the ordered `@overload` companions of a symbol, with alias-aware detection. Delegates alias discovery to `_collect_overload_aliases`, which composes two small helpers: `_iter_typing_import_names` (walk `from typing import ...` lines) and `_overload_alias_name` (resolve one `ImportAlias` to the local name bound to `typing.overload`, or `None`) |
 

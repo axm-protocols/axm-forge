@@ -25,6 +25,32 @@ def test_reference_collector(expression: str, expected: set[str]) -> None:
     assert collector.names == expected
 
 
+def test_reference_collector_ignores_keyword_argument_name() -> None:
+    """AC1: a kwarg label (``f(x=1)``) is not collected as a reference."""
+    expr = cst.parse_expression("f(x=1)")
+    collector = ReferenceCollector()
+    expr.visit(collector)
+    assert collector.names == {"f"}
+    assert "x" not in collector.names
+
+
+def test_reference_collector_excludes_local_bindings() -> None:
+    """AC2: parameters and local assignments are not external references."""
+    block = cst.parse_module("def moved(y):\n    z = y + 1\n    return z + helper\n")
+    collector = ReferenceCollector()
+    block.visit(collector)
+    assert "y" not in collector.names
+    assert "z" not in collector.names
+
+
+def test_reference_collector_keeps_genuine_top_level_reference() -> None:
+    """AC2: a genuine top-level reference is still collected."""
+    block = cst.parse_module("def moved(y):\n    z = y + 1\n    return z + helper\n")
+    collector = ReferenceCollector()
+    block.visit(collector)
+    assert "helper" in collector.names
+
+
 def test_dotted_name_simple() -> None:
     assert dotted_name(cst.Name("foo")) == "foo"
 
