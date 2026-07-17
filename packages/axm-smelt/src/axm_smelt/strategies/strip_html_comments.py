@@ -6,10 +6,10 @@ import re
 
 from axm_smelt.core.models import Format, SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
+from axm_smelt.strategies.fences import FENCED_BLOCK_RE
 
 __all__ = ["StripHtmlCommentsStrategy"]
 
-_FENCED_BLOCK_RE = re.compile(r"(`{3,})[\s\S]*?\1", re.MULTILINE)
 _HTML_COMMENT_RE = re.compile(r"<!--[\s\S]*?-->")
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
 
@@ -68,7 +68,7 @@ class StripHtmlCommentsStrategy(SmeltStrategy):
             blocks.append(m.group(0))
             return f"\x00CODEBLOCK{idx}\x00"
 
-        stripped = _FENCED_BLOCK_RE.sub(_save_block, text)
+        stripped = FENCED_BLOCK_RE.sub(_save_block, text)
 
         # Remove HTML comments
         result = _strip_comments(stripped)

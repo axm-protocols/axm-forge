@@ -119,6 +119,45 @@ def test_table_inside_fenced_code(strategy: CompactTablesStrategy) -> None:
     assert "| foo | bar |" in result.text  # padding preserved inside code block
 
 
+def test_table_after_quad_backtick_block_is_compacted(
+    strategy: CompactTablesStrategy,
+) -> None:
+    text = (
+        "````markdown\n"
+        "```\n"
+        "inner fence\n"
+        "```\n"
+        "````\n"
+        "\n"
+        "| Name  | Age |\n"
+        "| ----- | --- |\n"
+        "| Alice | 30  |"
+    )
+    ctx = SmeltContext(text=text, format=Format.MARKDOWN)
+    result = strategy.apply(ctx)
+    lines = result.text.split("\n")
+    assert "|Name|Age|" in lines
+    assert "|Alice|30|" in lines
+
+
+def test_real_quad_backtick_block_untouched(
+    strategy: CompactTablesStrategy,
+) -> None:
+    text = "````\n| foo | bar |\n| --- | --- |\n````"
+    ctx = SmeltContext(text=text, format=Format.MARKDOWN)
+    result = strategy.apply(ctx)
+    assert "| foo | bar |" in result.text  # padding preserved inside code block
+
+
+def test_plain_table_no_fence_still_compacted(
+    strategy: CompactTablesStrategy,
+) -> None:
+    text = "| a  | b  |\n| -- | -- |"
+    ctx = SmeltContext(text=text, format=Format.MARKDOWN)
+    result = strategy.apply(ctx)
+    assert result.text == "|a|b|\n|--|--|"
+
+
 def test_non_markdown_format_passthrough(strategy: CompactTablesStrategy) -> None:
     text = "| foo  |  bar  |"
     ctx = SmeltContext(text=text, format=Format.TEXT)

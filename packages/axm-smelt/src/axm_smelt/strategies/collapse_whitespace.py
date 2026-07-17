@@ -6,10 +6,10 @@ import re
 
 from axm_smelt.core.models import Format, SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
+from axm_smelt.strategies.fences import FENCED_BLOCK_RE
 
 __all__ = ["CollapseWhitespaceStrategy"]
 
-_FENCED_BLOCK_RE = re.compile(r"(`{3,})[\s\S]*?\1", re.MULTILINE)
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
 _TRAILING_WS_RE = re.compile(r"[ \t]+$", re.MULTILINE)
 
@@ -46,7 +46,7 @@ class CollapseWhitespaceStrategy(SmeltStrategy):
             blocks.append(m.group(0))
             return f"\x00CODEBLOCK{idx}\x00"
 
-        stripped = _FENCED_BLOCK_RE.sub(_save_block, text)
+        stripped = FENCED_BLOCK_RE.sub(_save_block, text)
         collapsed = _collapse(stripped)
 
         # Normalize newlines around placeholders so that code blocks don't
