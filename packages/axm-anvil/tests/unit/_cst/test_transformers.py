@@ -250,6 +250,28 @@ def test_rename_preserves_attribute_member_name() -> None:
     assert "\nNew\n" in result
 
 
+def test_rename_preserves_colliding_keyword_argument_name() -> None:
+    # ``f(Old=1)`` names a parameter ``Old``; the keyword must not be renamed.
+    source = "f(Old=1)\n"
+    result = _rename(source, {"Old": "New"})
+    assert "f(Old=1)" in result
+
+
+def test_rename_renames_call_reference() -> None:
+    # A genuine call to the renamed symbol is rewritten.
+    source = "Old()\n"
+    result = _rename(source, {"Old": "New"})
+    assert "New()" in result
+    assert "Old" not in result
+
+
+def test_rename_renames_keyword_argument_value() -> None:
+    # ``f(k=Old)``: the keyword ``k`` is kept, the value ``Old`` is renamed.
+    source = "f(k=Old)\n"
+    result = _rename(source, {"Old": "New"})
+    assert "f(k=New)" in result
+
+
 def test_rename_rewrites_string_forward_reference() -> None:
     source = "def f(x: 'Old') -> None:\n    pass\n"
     result = _rename(source, {"Old": "New"})

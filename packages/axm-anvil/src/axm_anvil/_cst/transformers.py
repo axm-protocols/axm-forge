@@ -167,6 +167,20 @@ class RenameSymbols(cst.CSTTransformer):
             return updated_node.with_changes(attr=original_node.attr)
         return updated_node
 
+    def leave_Arg(  # noqa: N802
+        self, original_node: cst.Arg, updated_node: cst.Arg
+    ) -> cst.Arg:
+        """Preserve a keyword-argument name, restoring it if renamed.
+
+        ``leave_Name`` fires for the ``keyword`` child of ``f(Old=1)`` too;
+        undo that rewrite so a parameter that merely shares the renamed
+        symbol's spelling stays put. The argument *value* (a genuine
+        reference) keeps its rename.
+        """
+        if isinstance(original_node.keyword, cst.Name):
+            return updated_node.with_changes(keyword=original_node.keyword)
+        return updated_node
+
     def leave_Annotation(  # noqa: N802
         self, original_node: cst.Annotation, updated_node: cst.Annotation
     ) -> cst.Annotation:
