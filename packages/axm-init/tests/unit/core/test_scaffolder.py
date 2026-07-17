@@ -5,7 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from axm_init.core.scaffolder import build_member_data, resolve_workspace_root
+from axm_init.core.scaffolder import (
+    build_member_data,
+    read_workspace_name,
+    resolve_workspace_root,
+)
 
 _SCAFFOLD_DATA = {
     "org": "acme",
@@ -90,3 +94,27 @@ class TestResolveWorkspaceRoot:
             ),
         ):
             assert resolve_workspace_root(member) == root
+
+
+class TestReadWorkspaceName:
+    """AC1 — workspace-name read lives in the shared seam."""
+
+    def test_returns_configured_name_from_pyproject(self, tmp_path: Path) -> None:
+        """The ``[project].name`` field is returned when present."""
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "axm-demo"\n')
+        assert read_workspace_name(tmp_path) == "axm-demo"
+
+
+class TestSeamPurity:
+    """AC3 — the seam carries no CLI/MCP coupling."""
+
+    def test_seam_functions_have_no_cli_or_mcp_binding(self) -> None:
+        """No argparse/cyclopts/ToolResult symbol is bound in the module."""
+        import axm_init.core.scaffolder as scaffolder_module
+
+        bound = set(vars(scaffolder_module))
+        forbidden = {"ToolResult", "cyclopts", "argparse", "App", "AXMTool"}
+        assert forbidden.isdisjoint(bound)
+        assert callable(build_member_data)
+        assert callable(read_workspace_name)
+        assert callable(resolve_workspace_root)
