@@ -49,6 +49,81 @@ def test_check_never_installs(
     assert "uv" in out
 
 
+def test_check_default_exit_zero_when_unhealthy(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC1: `check` without `--strict` exits 0 even with a logged_out auth."""
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import AuthStatus, ToolStatus
+
+    monkeypatch.setattr(
+        cli_mod, "detect_tool", lambda name: ToolStatus(name=name, state="present")
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "detect_auth",
+        lambda tool: AuthStatus(tool=tool, state="logged_out", login_cmd="x login"),
+    )
+    monkeypatch.setattr(cli_mod, "missing_secrets", list)
+
+    # No --strict -> a pure report, so no SystemExit is raised at all.
+    cli_mod.check(strict=False)
+
+    assert "logged_out" in capsys.readouterr().out
+
+
+def test_check_strict_exits_one_when_unhealthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: `check --strict` exits 1 when a secret is missing."""
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import AuthStatus, ToolStatus
+    from axm_doctor.orchestrate import MissingSecret
+
+    monkeypatch.setattr(
+        cli_mod, "detect_tool", lambda name: ToolStatus(name=name, state="present")
+    )
+    monkeypatch.setattr(
+        cli_mod, "detect_auth", lambda tool: AuthStatus(tool=tool, state="logged_in")
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "missing_secrets",
+        lambda: [
+            MissingSecret(
+                group="openai",
+                name="api_key",
+                package="axm-llm",
+                setup_hint="axm-vault set openai.api_key",
+            )
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_mod.check(strict=True)
+
+    assert exc_info.value.code == 1
+
+
+def test_check_strict_exits_zero_when_healthy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: `check --strict` exits 0 when everything is healthy."""
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import AuthStatus, ToolStatus
+
+    monkeypatch.setattr(
+        cli_mod, "detect_tool", lambda name: ToolStatus(name=name, state="present")
+    )
+    monkeypatch.setattr(
+        cli_mod, "detect_auth", lambda tool: AuthStatus(tool=tool, state="logged_in")
+    )
+    monkeypatch.setattr(cli_mod, "missing_secrets", list)
+
+    # Everything healthy -> no SystemExit even under --strict.
+    cli_mod.check(strict=True)
+
+
 def test_bootstrap_no_install_on_decline(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC4: `bootstrap` installs nothing when the user declines (default No)."""
     import axm_doctor.cli as cli_mod

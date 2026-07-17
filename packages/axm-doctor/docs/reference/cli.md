@@ -23,10 +23,25 @@ secret	research.fred.api_key	axm-vault set research.fred.api_key
 ```
 
 `check` **installs nothing and prompts for nothing** — it is safe to run in CI
-or a hook. Note it always exits `0` (a report, not a gate) and it prints only
-the `tools` / `auth` / `secrets` rows; the git-identity and `gh` config states
-are **not** in the CLI report — they are exposed by the `env_doctor` MCP tool
-under its `config` key.
+or a hook. By default it always exits `0` (a report, not a gate) and it prints
+only the `tools` / `auth` / `secrets` rows; the git-identity and `gh` config
+states are **not** in the CLI report — they are exposed by the `env_doctor` MCP
+tool under its `config` key.
+
+### `--strict` (CI gate)
+
+Pass `--strict` to turn the report into a gate: `check --strict` exits `1` when
+any probed tool is **absent**, any third-party auth is **`logged_out`**, or any
+secret is **missing**, and exits `0` only when every probed component is
+healthy. The verdict is derived from the printed report — no extra probing — so
+the same rows are printed either way. The default (no flag) is unchanged and
+always exits `0`.
+
+```console
+$ axm-doctor check --strict   # codex absent above -> non-zero exit
+$ echo $?
+1
+```
 
 ## `axm-doctor bootstrap`
 

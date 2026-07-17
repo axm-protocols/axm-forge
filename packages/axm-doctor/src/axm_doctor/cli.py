@@ -18,6 +18,7 @@ Two commands, two postures:
 from __future__ import annotations
 
 import sys
+from typing import Annotated
 
 import cyclopts
 
@@ -53,25 +54,55 @@ def _yes(prompt: str) -> bool:
 
 
 @app.command
-def check() -> None:
-    """Print the read-only env report and exit 0; never installs or prompts."""
+def check(
+    strict: Annotated[
+        bool,
+        cyclopts.Parameter(
+            help=(
+                "Exit 1 when any probed tool is absent, an auth is logged_out, "
+                "or a secret is missing (CI gate). Default: always exit 0."
+            ),
+        ),
+    ] = False,
+) -> None:
+    """Print the read-only env report; never installs or prompts.
+
+    By default the command always exits 0 — it is a pure report. With
+    ``--strict`` it becomes a CI gate: it exits 1 when any probed tool is
+    absent, a third-party auth is ``logged_out``, or a secret is missing, and
+    exits 0 only when every probed component is healthy. The strict verdict is
+    derived from the printed report, with no extra probing.
+    """
     try:
-        _print_check()
+        unhealthy = _print_check()
     except Exception as exc:  # noqa: BLE001 # CLI boundary: any error -> exit 1
         _die(exc)
+        return
+    if strict and unhealthy:
+        raise SystemExit(1)
 
 
-def _print_check() -> None:
-    """Render the tool / auth / secret report to stdout."""
+def _print_check() -> bool:
+    """Render the tool / auth / secret report to stdout.
+
+    Returns True when the report is unhealthy — any probed tool absent, any
+    third-party auth ``logged_out``, or any secret missing — so :func:`check`
+    can turn it into a strict exit code without re-probing.
+    """
+    unhealthy = False
     for name in PROBED_TOOLS:
         status = detect_tool(name)
         version = status.version or "-"
         print(f"tool\t{name}\t{status.state}\t{version}")
+        unhealthy = unhealthy or status.state == "absent"
     for tool in THIRD_PARTY_AUTH:
         auth = detect_auth(tool)
         print(f"auth\t{tool}\t{auth.state}\t{auth.login_cmd or '-'}")
-    for secret in missing_secrets():
+        unhealthy = unhealthy or auth.state == "logged_out"
+    secrets = missing_secrets()
+    for secret in secrets:
         print(f"secret\t{secret.group}.{secret.name}\t{secret.setup_hint}")
+    return unhealthy or bool(secrets)
 
 
 @app.command
