@@ -120,3 +120,35 @@ def test_patch_publish_inserts_into_tags_not_steps(tmp_path: Path) -> None:
     steps = parsed["jobs"]["publish"]["steps"]
     for step in steps:
         assert "my-lib/v*" not in str(step)
+
+
+def test_patch_publish_ignores_decoy_jobs_comment(tmp_path: Path) -> None:
+    """A ``# jobs:`` comment must not anchor the push.tags insertion (AC1)."""
+    body = (
+        "name: Publish\n\n"
+        "# jobs: this is a decoy comment, not the real mapping\n"
+        "jobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+    )
+    publish_yml = _publish_with(tmp_path, body)
+
+    changed = patch_publish(tmp_path, "my-lib")
+
+    content = publish_yml.read_text()
+    assert changed is True
+    # Decoy comment survives verbatim.
+    assert "# jobs: this is a decoy comment, not the real mapping" in content
+    assert '"my-lib/v*"' in content
+    # Trigger lands after the decoy comment, before the real jobs mapping.
+    assert content.index("decoy comment") < content.index('"my-lib/v*"')
+    assert content.index('"my-lib/v*"') < content.index("jobs:\n  publish")
+
+
+def test_patch_publish_skips_when_no_top_level_jobs(tmp_path: Path) -> None:
+    """No top-level ``jobs:`` mapping → clean skip, no corruption (AC1)."""
+    body = "name: Publish\n\n# jobs: decoy only\non:\n  workflow_dispatch:\n"
+    publish_yml = _publish_with(tmp_path, body)
+
+    changed = patch_publish(tmp_path, "my-lib")
+
+    assert changed is False
+    assert publish_yml.read_text() == body

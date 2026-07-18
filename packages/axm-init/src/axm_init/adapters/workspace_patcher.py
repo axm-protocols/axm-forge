@@ -319,6 +319,30 @@ def patch_ci(root: Path, member_name: str) -> bool:
     return True
 
 
+def _find_top_level_key_index(lines: list[str], key: str) -> int | None:
+    """Return the index of the line holding the top-level mapping *key*.
+
+    A top-level key sits at column 0 (no leading indentation), is not a
+    comment, and its token before ``:`` equals *key* exactly. Anchors
+    structurally so a ``# jobs:`` comment or an indented step name never
+    masquerades as the real mapping key.
+
+    Args:
+        lines: File split with ``splitlines(keepends=True)``.
+        key: Bare mapping key to anchor on (e.g. ``"jobs"``).
+
+    Returns:
+        Line index of the matching top-level key, or ``None`` if absent.
+    """
+    for idx, line in enumerate(lines):
+        if line[:1].isspace() or line.lstrip().startswith("#"):
+            continue
+        head, sep, _ = line.strip().partition(":")
+        if sep and head == key:
+            return idx
+    return None
+
+
 def patch_publish(root: Path, member_name: str) -> bool:
     """Add tag trigger pattern for *member_name*.
 
@@ -354,12 +378,21 @@ def patch_publish(root: Path, member_name: str) -> bool:
         )
         content = "".join(new_lines)
     else:
-        # No tags section — add push.tags trigger
-        # Insert before the jobs: section
-        content = content.replace(
-            "jobs:",
-            f'  push:\n    tags:\n      - "{tag_pattern}"\n\njobs:',
-        )
+        # No tags section — add a push.tags trigger before the real
+        # top-level ``jobs:`` mapping key. Anchor structurally (column-0,
+        # exact key token, not a ``# jobs:`` comment or an indented step
+        # name) instead of a first-substring replace; skip cleanly when no
+        # top-level ``jobs:`` exists so the file is never corrupted.
+        lines = content.splitlines(keepends=True)
+        idx = _find_top_level_key_index(lines, "jobs")
+        if idx is None:
+            logger.info(
+                "publish.yml has no top-level jobs: for %s — skipping",
+                member_name,
+            )
+            return False
+        lines.insert(idx, f'  push:\n    tags:\n      - "{tag_pattern}"\n\n')
+        content = "".join(lines)
 
     if content == original:
         logger.info("publish.yml unchanged for %s — skipping", member_name)
@@ -445,13 +478,26 @@ def _insert_into_toml_array(
     if section not in content:
         return content + f'\n{section}\n{key} = [\n    "{value}",\n]\n'
 
-    if key not in content:
+    if not _toml_key_present(content, key):
         return content.replace(
             section,
             f'{section}\n{key} = [\n    "{value}",\n]',
         )
 
     return _append_to_toml_array_lines(content, value, key)
+
+
+def _toml_key_present(content: str, key: str) -> bool:
+    """Return ``True`` if *content* has a top-level ``key = ...`` assignment.
+
+    Matches the exact key token before ``=`` (ignoring surrounding
+    whitespace), so ``testpaths`` never matches ``testpaths_extra``.
+    """
+    for line in content.splitlines():
+        head, sep, _ = line.strip().partition("=")
+        if sep and head.strip() == key:
+            return True
+    return False
 
 
 def _append_to_toml_array_lines(content: str, value: str, key: str) -> str:
@@ -463,7 +509,8 @@ def _append_to_toml_array_lines(content: str, value: str, key: str) -> str:
     for line in lines:
         stripped = line.strip()
 
-        if stripped.startswith(key) and "=" in stripped:
+        head, sep, _ = stripped.partition("=")
+        if sep and head.strip() == key:
             if "]" in stripped:
                 # Single-line: testpaths = ["a", "b"]
                 pos = line.rindex("]")

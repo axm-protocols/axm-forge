@@ -45,3 +45,38 @@ class TestScaffoldMemberReportsTruthfulPatches:
             payload["skipped_root_files"]
         )
         assert overlap == set()
+
+
+def test_member_scaffold_patches_correct_blocks_with_decoys(tmp_path: Path) -> None:
+    """AC3: decoy ``jobs:`` comment + ``testpaths_extra`` are never mis-patched."""
+    from axm_init.adapters.workspace_patcher import patch_publish, patch_testpaths
+
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "publish.yml").write_text(
+        "name: Publish\n\n"
+        'on:\n  push:\n    tags:\n      - "existing/v*"\n\n'
+        "# jobs: decoy\n"
+        "jobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+    )
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n\n'
+        '[tool.uv.workspace]\nmembers = ["packages/*"]\n\n'
+        "[tool.pytest.ini_options]\n"
+        'testpaths_extra = ["packages/decoy/tests"]\n'
+        'testpaths = [\n    "packages/existing/tests",\n]\n'
+    )
+
+    assert patch_publish(tmp_path, "my-lib") is True
+    assert patch_testpaths(tmp_path, "my-lib") is True
+
+    publish = (wf / "publish.yml").read_text()
+    pyproject = (tmp_path / "pyproject.toml").read_text()
+
+    # publish.yml: tag added to the real tags block, decoy comment intact.
+    assert '"my-lib/v*"' in publish
+    assert "# jobs: decoy" in publish
+    # pyproject: new testpath in testpaths, testpaths_extra decoy untouched.
+    assert '"packages/my-lib/tests"' in pyproject
+    assert 'testpaths_extra = ["packages/decoy/tests"]' in pyproject
+    assert '"packages/existing/tests"' in pyproject
