@@ -237,6 +237,35 @@ class TestCheckVerboseFlag:
         assert "checks passed" in stdout
 
 
+class TestCheckWorkspaceCategoryNotApplicable:
+    """AC1/AC3: workspace category on a standalone project → N/A across modes."""
+
+    def test_na_across_report_json_agent(self, tmp_path: Path) -> None:
+        from axm_init.core.checker import (
+            CheckEngine,
+            format_agent,
+            format_json,
+            format_report,
+        )
+
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "standalone"\n')
+        result = CheckEngine(tmp_path, category="workspace").run()
+
+        assert result.not_applicable
+
+        report = format_report(result)
+        assert "not applicable" in report.lower() or "N/A" in report
+        assert "Grade F" not in report
+
+        json_out = format_json(result)
+        assert json_out["score"] is None
+        assert json_out["grade"] is None
+
+        agent_out = format_agent(result)
+        assert agent_out["score"] is None
+        assert agent_out["grade"] is None
+
+
 class TestCheckAgentCompact:
     """--agent flag uses passed_count instead of passed list."""
 

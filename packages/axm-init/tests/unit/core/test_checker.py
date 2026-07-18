@@ -14,6 +14,7 @@ from axm_init.core.checker import (
     CheckEngine,
     format_agent,
     format_json,
+    format_report,
     get_check_name,
     stamp_canonical_name,
 )
@@ -258,3 +259,30 @@ def test_json_and_agent_use_same_failures_key() -> None:
     assert len(agent_out["failures"]) == 1
     assert json_out["failures"][0]["name"] == "has_license"
     assert agent_out["failures"][0]["name"] == "has_license"
+
+
+def test_format_report_renders_na_for_not_applicable(tmp_path: Path) -> None:
+    """AC3: a not-applicable result renders N/A, not '0/100 — Grade F'."""
+    result = ProjectResult.from_checks(tmp_path, [])
+
+    report = format_report(result)
+
+    assert result.not_applicable
+    assert "not applicable" in report.lower() or "N/A" in report
+    assert "Score: 0/100" not in report
+    assert "Grade F" not in report
+
+
+def test_format_json_and_agent_null_score_grade_when_not_applicable(
+    tmp_path: Path,
+) -> None:
+    """AC3: both serializers emit null score+grade for a not-applicable result."""
+    result = ProjectResult.from_checks(tmp_path, [])
+
+    json_out = format_json(result)
+    agent_out = format_agent(result)
+
+    assert json_out["score"] is None
+    assert json_out["grade"] is None
+    assert agent_out["score"] is None
+    assert agent_out["grade"] is None

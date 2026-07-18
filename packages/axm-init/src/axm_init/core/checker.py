@@ -402,8 +402,8 @@ def format_json(result: ProjectResult) -> dict[str, object]:
     """Format check result as JSON-serializable dict."""
     return {
         "project": str(result.project_path),
-        "score": result.score,
-        "grade": result.grade.value,
+        "score": None if result.not_applicable else result.score,
+        "grade": None if result.not_applicable else result.grade.value,
         "context": result.context,
         "workspace_root": str(result.workspace_root) if result.workspace_root else None,
         "excluded_checks": result.excluded_checks,
@@ -442,8 +442,8 @@ def format_agent(result: ProjectResult) -> dict[str, object]:
     Only failures carry actionable detail.
     """
     return {
-        "score": result.score,
-        "grade": result.grade.value,
+        "score": None if result.not_applicable else result.score,
+        "grade": None if result.not_applicable else result.grade.value,
         "context": result.context,
         "workspace_root": str(result.workspace_root) if result.workspace_root else None,
         "excluded_checks": result.excluded_checks,
