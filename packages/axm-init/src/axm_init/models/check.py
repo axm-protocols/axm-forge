@@ -165,6 +165,7 @@ class ProjectResult(BaseModel):  # type: ignore[explicit-any]
     workspace_root: Path | None = None
     excluded_checks: list[str] = []
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def applicable(self) -> bool:
         """Whether any weighted check ran (summed check weight > 0).
@@ -176,6 +177,7 @@ class ProjectResult(BaseModel):  # type: ignore[explicit-any]
         """
         return any(c.weight > 0 for c in self.checks)
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def not_applicable(self) -> bool:
         """Inverse of :attr:`applicable` — True when no weighted checks ran."""

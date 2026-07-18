@@ -244,6 +244,19 @@ class TestProjectResult:
         assert len(r.failures) == 1
         assert r.failures[0].name == "fail"
 
+    def test_empty_checks_is_not_applicable(self) -> None:
+        """No weighted check ran → N/A verdict, not a real 0."""
+        r = ProjectResult.from_checks(Path("."), [])
+        assert r.not_applicable is True
+        assert r.applicable is False
+
+    def test_weighted_all_fail_is_real_zero(self) -> None:
+        """Weighted checks that all fail → applicable, real 0 / Grade.F."""
+        r = ProjectResult.from_checks(Path("."), self._make_checks(0, 100))
+        assert r.applicable is True
+        assert r.score == 0
+        assert r.grade is Grade.F
+
     def test_extra_forbidden(self) -> None:
         """ProjectResult rejects unknown fields."""
         with pytest.raises(ValidationError, match="extra"):
