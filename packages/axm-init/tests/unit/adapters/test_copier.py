@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -145,6 +146,58 @@ class TestCopierAdapterUnit:
             adapter.copy(config)
 
         assert not any("unsafe" in r.message.lower() for r in caplog.records)
+
+    def test_copy_offloads_via_asyncio_to_thread(self, tmp_path: Path) -> None:
+        """AC1: inside a running loop, copy offloads via ``asyncio.to_thread``.
+
+        The event-loop branch must not block the loop on ``future.result()``;
+        it awaits ``asyncio.to_thread`` with the synchronous copier callable.
+        """
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "offload",
+            data={"package_name": "test"},
+        )
+        adapter = CopierAdapter()
+        spy = AsyncMock()
+
+        with (
+            patch("axm_init.adapters.copier.run_copy") as mock_run,
+            patch("asyncio.to_thread", spy),
+        ):
+            mock_run.return_value = MagicMock()
+
+            async def _run_under_loop() -> None:
+                # Sync call issued while a loop is running on this thread.
+                adapter.copy(config)
+
+            asyncio.run(_run_under_loop())
+
+        spy.assert_awaited_once()
+        offloaded = spy.await_args.args[0]
+        assert callable(offloaded)
+
+    def test_suppression_never_rewrites_global_fds(self, tmp_path: Path) -> None:
+        """AC2: suppression never calls ``os.dup2`` on the global fds 1/2."""
+        import os
+
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "no-dup2",
+            data={"package_name": "test"},
+        )
+        adapter = CopierAdapter()
+
+        with (
+            patch("axm_init.adapters.copier.run_copy") as mock_run,
+            patch("os.dup2", wraps=os.dup2) as spy_dup2,
+        ):
+            mock_run.return_value = MagicMock()
+            adapter.copy(config)
+
+        for call in spy_dup2.call_args_list:
+            assert 1 not in call.args
+            assert 2 not in call.args
 
 
 def test_copier_adapter_instantiation() -> None:

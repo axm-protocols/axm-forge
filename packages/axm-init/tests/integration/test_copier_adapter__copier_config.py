@@ -74,45 +74,47 @@ class TestCopierAdapterIntegration:
         # The copier output must NOT have leaked to the real stdout
         assert "Initialized project" not in captured_stdout
 
-    def test_copy_fd_cleanup_on_dup_failure(self, tmp_path: Path) -> None:
-        """No fd leak when os.dup fails partway through acquisition.
+    def test_concurrent_fd_writer_unaffected_during_copy(self, tmp_path: Path) -> None:
+        """AC2: suppression is scoped — a concurrent fd-1 writer is unaffected.
 
-        Simulates fd limit exhaustion: os.dup(1) succeeds but os.dup(2)
-        raises OSError.  The previously acquired fd must still be closed.
+        The old implementation pointed the process-global fd 1 at
+        ``/dev/null`` via ``os.dup2``, which would swallow *any* writer on
+        fd 1 (not just copier's).  The scoped ``_suppress_output`` only swaps
+        ``sys.stdout``/``sys.stderr``, so raw ``os.write(1, ...)`` bytes from a
+        concurrent task still reach the underlying fd intact, while the
+        interpreter-level copier chatter is discarded.
         """
-        config = CopierConfig(
-            template_path=Path("/templates/python"),
-            destination=tmp_path / "fd-leak-test",
-            data={"package_name": "test"},
-        )
-        adapter = CopierAdapter()
+        r, w = os.pipe()
+        saved_fd1 = os.dup(1)
+        os.dup2(w, 1)
+        try:
+            config = CopierConfig(
+                template_path=Path("/templates/python"),
+                destination=tmp_path / "concurrent-fd",
+                data={"package_name": "test"},
+            )
+            adapter = CopierAdapter()
 
-        original_dup = os.dup
-        call_count = 0
+            def fake_run_copy(**kwargs: object) -> None:
+                # Interpreter-level chatter (must be suppressed) ...
+                print("copier post-copy chatter")  # noqa: T201
+                # ... alongside a concurrent writer on the raw fd 1.
+                os.write(1, b"CONCURRENT-FD-BYTES\n")
 
-        def _dup_that_fails_second(fd: int) -> int:
-            nonlocal call_count
-            call_count += 1
-            if call_count >= 2:
-                raise OSError("fd limit reached")
-            return original_dup(fd)
+            with patch("axm_init.adapters.copier.run_copy", side_effect=fake_run_copy):
+                result = adapter.copy(config)
+        finally:
+            os.dup2(saved_fd1, 1)
+            os.close(saved_fd1)
+            os.close(w)
+            piped = os.read(r, 65536)
+            os.close(r)
 
-        with (
-            patch(
-                "axm_init.adapters.copier.os.dup",
-                side_effect=_dup_that_fails_second,
-            ),
-            patch("axm_init.adapters.copier.os.open", return_value=99),
-            patch("axm_init.adapters.copier.os.dup2"),
-            patch("axm_init.adapters.copier.os.close") as mock_close,
-        ):
-            result = adapter.copy(config)
-
-        assert result.success is False
-        assert "fd limit" in result.message.lower()
-        # devnull (99) and the first dup'd fd must have been closed
-        closed_fds = [c.args[0] for c in mock_close.call_args_list]
-        assert 99 in closed_fds  # devnull was cleaned up
+        assert result.success is True
+        # The concurrent fd-1 writer's bytes survived (suppression not global).
+        assert b"CONCURRENT-FD-BYTES" in piped
+        # The interpreter-level copier chatter did not reach fd 1.
+        assert b"copier post-copy chatter" not in piped
 
     def test_copy_fd_cleanup_on_copier_failure(self, tmp_path: Path) -> None:
         """stdout/stderr are restored after run_copy raises."""
