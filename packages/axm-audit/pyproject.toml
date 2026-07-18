@@ -39,6 +39,7 @@ Issues = "https://github.com/axm-protocols/axm-audit/issues"
 audit = "axm_audit.tools.audit:AuditTool"
 audit_test = "axm_audit.tools.audit_test:AuditTestTool"
 audit_fix = "axm_audit.tools.audit_fix:AuditFixTool"
+doc_gate = "axm_audit.doc_gate.tool:DocGateTool"
 
 [project.entry-points."axm.witnesses"]
 audit_quality = "axm_audit.witnesses.audit_quality:AuditQualityRule"
