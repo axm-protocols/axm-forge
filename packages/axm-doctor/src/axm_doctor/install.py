@@ -107,6 +107,20 @@ _REGISTRY: dict[str, InstallPlan] = {
         argv=["npm", "i", "-g", "@openai/codex"],
         human_command="npm i -g @openai/codex",
     ),
+    # ``gh`` is the one shell tool with a single official, documented install
+    # command on the workspace platform (Homebrew on macOS), so the doctor
+    # PROPOSES it here. Like every plan it is proposed, never auto-run: bootstrap
+    # installs only on an explicit confirm (never-guesses doctrine).
+    "gh": InstallPlan(
+        tool="gh",
+        argv=["brew", "install", "gh"],
+        human_command="brew install gh",
+    ),
+    # git / node / npm are DELIBERATELY absent from this registry: they are
+    # system prerequisites with platform-specific provisioning (Xcode CLT / an
+    # OS package manager / a node version manager) and no single canonical
+    # command the doctor can honestly propose. With no entry they fall through
+    # to the "no known install command" message in ``_bootstrap_tools``.
 }
 
 

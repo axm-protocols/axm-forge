@@ -124,6 +124,52 @@ def test_check_strict_exits_zero_when_healthy(
     cli_mod.check(strict=True)
 
 
+def test_bootstrap_surfaces_gh_proposal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC2: an absent tool with a registered plan surfaces its proposed command."""
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import ToolStatus
+    from axm_doctor.install import InstallResult
+
+    # Scope the probe to gh (registered) so the assertion targets its proposal.
+    monkeypatch.setattr(cli_mod, "PROBED_TOOLS", ("gh",))
+    monkeypatch.setattr(
+        cli_mod, "detect_tool", lambda name: ToolStatus(name=name, state="absent")
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "run_install",
+        lambda *a, **k: InstallResult(command="noop", executed=False),
+    )
+    monkeypatch.setattr(cli_mod.sys, "stdin", _Tty())
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")
+
+    cli_mod._bootstrap_tools()
+
+    # The proposed (official) install command reaches the user.
+    assert "brew install gh" in capsys.readouterr().out
+
+
+def test_bootstrap_prerequisite_falls_through(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC3: an out-of-scope prerequisite yields the 'no known install command'."""
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import ToolStatus
+
+    # git is a deliberately-excluded system prerequisite (no registry entry).
+    monkeypatch.setattr(cli_mod, "PROBED_TOOLS", ("git",))
+    monkeypatch.setattr(
+        cli_mod, "detect_tool", lambda name: ToolStatus(name=name, state="absent")
+    )
+    monkeypatch.setattr(cli_mod.sys, "stdin", _Tty())
+
+    cli_mod._bootstrap_tools()
+
+    assert "no known install command" in capsys.readouterr().err
+
+
 def test_bootstrap_no_install_on_decline(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC4: `bootstrap` installs nothing when the user declines (default No)."""
     import axm_doctor.cli as cli_mod

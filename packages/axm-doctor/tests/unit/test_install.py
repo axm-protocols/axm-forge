@@ -41,6 +41,22 @@ def test_install_command_unknown_returns_none() -> None:
     assert install_command("bogus") is None
 
 
+def test_registry_exposes_gh_proposal() -> None:
+    """AC1: gh has a registered plan with its official documented command."""
+    plan = install_command("gh")
+    assert isinstance(plan, InstallPlan)
+    assert plan.tool == "gh"
+    # gh's official macOS install command is `brew install gh`.
+    assert plan.human_command == "brew install gh"
+    assert plan.argv == ["brew", "install", "gh"]
+
+
+def test_registry_omits_system_prerequisites() -> None:
+    """AC3: git/node/npm are out-of-scope prerequisites with no proposed plan."""
+    for prerequisite in ("git", "node", "npm"):
+        assert install_command(prerequisite) is None
+
+
 def test_run_install_dry_run_does_not_execute(mocker: MockerFixture) -> None:
     """AC3, AC5: confirm=False is a dry-run: subprocess NOT called, command echoed."""
     spy = mocker.patch("axm_doctor.install.subprocess.run")
