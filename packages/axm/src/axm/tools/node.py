@@ -73,6 +73,14 @@ def tool_node(
             ``{name: "text"}`` is **not** assumed — supply it so the node's writes
             are explicit (decision: writes nommés par clé).
 
+            Precedence / collision: the literal ``"text"`` is a sentinel that
+            **always** routes to ``ToolResult.text``, checked *before* any lookup
+            in ``ToolResult.data``. A tool whose ``data`` carries its own
+            ``"text"`` key therefore cannot surface that field through this
+            shortcut — ``source="text"`` yields ``ToolResult.text``, never
+            ``data["text"]`` (which is unreachable via *returns*). Route such a
+            field under a different write source, or rename the data key upstream.
+
     Returns:
         A callable mapping the node's ``payload`` to a dict keyed by *returns*.
 

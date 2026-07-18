@@ -76,6 +76,29 @@ class TestOutputShaping:
             out = node({"path": "/p", "symbol": "F"})
         assert out == {"callers": ["a", "b"]}
 
+    def test_text_sentinel_wins_over_data_text_key(self) -> None:
+        """'text' source routes to ToolResult.text even when data has a 'text' key.
+
+        Pins the documented precedence (AC2): the ``"text"`` sentinel is checked
+        before any ``ToolResult.data`` lookup, so a ``data["text"]`` field is
+        unreachable through the *returns* shortcut. Guard-rail against a silent
+        future divergence where the data key could shadow the sentinel.
+        """
+        tool = _Tool(
+            ToolResult(success=True, data={"text": "DATA_VAL"}, text="TEXT_VAL")
+        )
+        node = tool_node("ast_impact", returns={"body": "text"})
+        with _with_tool(tool):
+            out = node({"path": "/p", "symbol": "F"})
+        assert out == {"body": "TEXT_VAL"}  # sentinel wins, not "DATA_VAL"
+
+    def test_docstring_documents_text_sentinel_collision(self) -> None:
+        """Docstring warns 'text' shadows any data['text'] key (AC1)."""
+        doc = tool_node.__doc__ or ""
+        assert "text" in doc.lower()
+        assert 'data["text"]' in doc
+        assert "unreachable" in doc.lower()
+
     def test_missing_data_key_raises(self) -> None:
         """A write sourced from an absent data key fails loudly."""
         tool = _Tool(ToolResult(success=True, data={}))
