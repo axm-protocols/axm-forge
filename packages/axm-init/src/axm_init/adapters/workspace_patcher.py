@@ -8,6 +8,7 @@ when a new member sub-package is added via ``scaffold --member``.
 from __future__ import annotations
 
 __all__ = [
+    "PatchReport",
     "patch_all",
     "patch_ci",
     "patch_dependabot",
@@ -21,12 +22,13 @@ __all__ = [
 
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def patch_makefile(root: Path, member_name: str) -> None:
+def patch_makefile(root: Path, member_name: str) -> bool:
     """Append per-package test/lint targets for *member_name*.
 
     Adds ``test-<name>`` and ``lint-<name>`` Makefile targets.
@@ -35,6 +37,10 @@ def patch_makefile(root: Path, member_name: str) -> None:
     Args:
         root: Workspace root directory.
         member_name: Name of the new member package.
+
+    Returns:
+        ``True`` if the Makefile was modified, ``False`` if the targets
+        already existed (no-op).
 
     Raises:
         FileNotFoundError: If ``Makefile`` is missing.
@@ -49,7 +55,7 @@ def patch_makefile(root: Path, member_name: str) -> None:
     # skip ``foo``. Mirrors the anchored guard in ``patch_ci``.
     if any(line.startswith(f"{target}:") for line in content.splitlines()):
         logger.info("Makefile already contains target %s — skipping", target)
-        return
+        return False
 
     module_name = member_name.replace("-", "_")
     block = (
@@ -62,9 +68,10 @@ def patch_makefile(root: Path, member_name: str) -> None:
     )
     makefile.write_text(content + block)
     logger.info("Patched Makefile with targets for %s", member_name)
+    return True
 
 
-def patch_mkdocs(root: Path, member_name: str) -> None:
+def patch_mkdocs(root: Path, member_name: str) -> bool:
     """Add ``!include`` nav entry for *member_name*.
 
     Appends a nav entry referencing the member's ``mkdocs.yml``
@@ -75,6 +82,10 @@ def patch_mkdocs(root: Path, member_name: str) -> None:
         root: Workspace root directory.
         member_name: Name of the new member package.
 
+    Returns:
+        ``True`` if ``mkdocs.yml`` was modified, ``False`` if the include
+        entry already existed (no-op).
+
     Raises:
         FileNotFoundError: If ``mkdocs.yml`` is missing.
     """
@@ -84,16 +95,17 @@ def patch_mkdocs(root: Path, member_name: str) -> None:
     include = f"!include ./packages/{member_name}/mkdocs.yml"
     if include in content:
         logger.info("mkdocs.yml already includes %s — skipping", member_name)
-        return
+        return False
 
     # Append nav entry at the end of the nav section
     entry = f"  - {member_name}: '{include}'\n"
     content = content.rstrip("\n") + "\n" + entry
     mkdocs.write_text(content)
     logger.info("Patched mkdocs.yml with !include for %s", member_name)
+    return True
 
 
-def patch_pyproject(root: Path, member_name: str) -> None:
+def patch_pyproject(root: Path, member_name: str) -> bool:
     """Register *member_name* as a UV workspace source.
 
     The primary effect is appending a ``[tool.uv.sources.<member_name>]``
@@ -107,6 +119,10 @@ def patch_pyproject(root: Path, member_name: str) -> None:
     Args:
         root: Workspace root directory.
         member_name: Name of the new member package.
+
+    Returns:
+        ``True`` if ``pyproject.toml`` was modified, ``False`` if the member
+        was already registered (no-op).
 
     Raises:
         FileNotFoundError: If ``pyproject.toml`` is missing.
@@ -162,6 +178,7 @@ def patch_pyproject(root: Path, member_name: str) -> None:
         logger.info("Patched pyproject.toml with %s (%s)", member_name, effect)
     else:
         logger.info("pyproject.toml already contains %s — skipping", member_name)
+    return modified
 
 
 def _detect_yaml_indent(lines: list[str], default: str = "          ") -> str:
@@ -239,24 +256,28 @@ def _insert_into_yaml_list(
     item_to_insert: str,
     list_marker: str | None = None,
     default_indent: str = "          ",
-) -> list[str]:
+) -> tuple[list[str], bool]:
     """Insert an item into a YAML list after the last element.
 
     If *list_marker* is provided, insertion begins only after
     encountering it.  Uses a 2-pass approach: first locate the
     list boundaries, then insert at the correct position.
+
+    Returns:
+        A ``(lines, changed)`` pair. ``changed`` is ``False`` (and *lines*
+        is returned unmodified) when no target list is found.
     """
     bounds = _find_yaml_list_range(lines, list_marker)
     if bounds is None:
-        return list(lines)
+        return list(lines), False
 
     _, end = bounds
     indent = _detect_yaml_indent(lines[:end], default=default_indent)
     new_line = f"{indent}- {item_to_insert}\n"
-    return [*lines[:end], new_line, *lines[end:]]
+    return [*lines[:end], new_line, *lines[end:]], True
 
 
-def patch_ci(root: Path, member_name: str) -> None:
+def patch_ci(root: Path, member_name: str) -> bool:
     """Add *member_name* to CI matrix package list.
 
     Inserts the package name in the ``strategy.matrix.package`` list
@@ -266,6 +287,10 @@ def patch_ci(root: Path, member_name: str) -> None:
     Args:
         root: Workspace root directory.
         member_name: Name of the new member package.
+
+    Returns:
+        ``True`` if ``ci.yml`` was modified, ``False`` if the member was
+        already listed or no matrix list was found (no-op).
 
     Raises:
         FileNotFoundError: If ``ci.yml`` is missing.
@@ -281,14 +306,20 @@ def patch_ci(root: Path, member_name: str) -> None:
     matrix_entry = f"- {member_name}"
     if any(line.strip() == matrix_entry for line in lines):
         logger.info("ci.yml already contains %s — skipping", member_name)
-        return
+        return False
 
-    new_lines = _insert_into_yaml_list(lines, member_name, list_marker="package:")
+    new_lines, changed = _insert_into_yaml_list(
+        lines, member_name, list_marker="package:"
+    )
+    if not changed:
+        logger.info("ci.yml has no matrix package list — skipping %s", member_name)
+        return False
     ci_yml.write_text("".join(new_lines))
     logger.info("Patched ci.yml matrix with %s", member_name)
+    return True
 
 
-def patch_publish(root: Path, member_name: str) -> None:
+def patch_publish(root: Path, member_name: str) -> bool:
     """Add tag trigger pattern for *member_name*.
 
     Adds a ``<member_name>/v*`` tag pattern to the publish workflow's
@@ -299,21 +330,26 @@ def patch_publish(root: Path, member_name: str) -> None:
         root: Workspace root directory.
         member_name: Name of the new member package.
 
+    Returns:
+        ``True`` if ``publish.yml`` was modified, ``False`` if the tag
+        pattern already existed or nothing changed (no-op).
+
     Raises:
         FileNotFoundError: If ``publish.yml`` is missing.
     """
     publish_yml = root / ".github" / "workflows" / "publish.yml"
     content = publish_yml.read_text()
+    original = content
 
     tag_pattern = f"{member_name}/v*"
     if tag_pattern in content:
         logger.info("publish.yml already contains %s tag — skipping", member_name)
-        return
+        return False
 
     # If there's a tags section, add the pattern there
     if "tags:" in content:
         lines = content.splitlines(keepends=True)
-        new_lines = _insert_into_yaml_list(
+        new_lines, _ = _insert_into_yaml_list(
             lines, f'"{tag_pattern}"', list_marker="tags:", default_indent="      "
         )
         content = "".join(new_lines)
@@ -325,11 +361,15 @@ def patch_publish(root: Path, member_name: str) -> None:
             f'  push:\n    tags:\n      - "{tag_pattern}"\n\njobs:',
         )
 
+    if content == original:
+        logger.info("publish.yml unchanged for %s — skipping", member_name)
+        return False
     publish_yml.write_text(content)
     logger.info("Patched publish.yml with tag pattern %s", tag_pattern)
+    return True
 
 
-def patch_release(root: Path, member_name: str) -> None:
+def patch_release(root: Path, member_name: str) -> bool:
     """Add tag trigger and detect block for *member_name* in release.yml.
 
     Adds a ``<member_name>/v*`` tag pattern and a corresponding
@@ -341,21 +381,26 @@ def patch_release(root: Path, member_name: str) -> None:
         root: Workspace root directory.
         member_name: Name of the new member package.
 
+    Returns:
+        ``True`` if ``release.yml`` was modified, ``False`` if the tag
+        pattern already existed or nothing changed (no-op).
+
     Raises:
         FileNotFoundError: If ``release.yml`` is missing.
     """
     release_yml = root / ".github" / "workflows" / "release.yml"
     content = release_yml.read_text()
+    original = content
 
     tag_pattern = f"{member_name}/v*"
     if tag_pattern in content:
         logger.info("release.yml already contains %s — skipping", member_name)
-        return
+        return False
 
     # 1. Add tag pattern — reuse the shared YAML list inserter
     if "tags:" in content:
         lines = content.splitlines(keepends=True)
-        lines = _insert_into_yaml_list(
+        lines, _ = _insert_into_yaml_list(
             lines,
             f'"{tag_pattern}"',
             list_marker="tags:",
@@ -376,8 +421,12 @@ def patch_release(root: Path, member_name: str) -> None:
             detect_block + "          else\n",
         )
 
+    if content == original:
+        logger.info("release.yml unchanged for %s — skipping", member_name)
+        return False
     release_yml.write_text(content)
     logger.info("Patched release.yml with tag pattern + detect for %s", member_name)
+    return True
 
 
 def _insert_into_toml_array(
@@ -436,7 +485,7 @@ def _append_to_toml_array_lines(content: str, value: str, key: str) -> str:
     return "".join(result)
 
 
-def patch_testpaths(root: Path, member_name: str) -> None:
+def patch_testpaths(root: Path, member_name: str) -> bool:
     """Ensure root testpaths includes ``packages/<member_name>/tests``.
 
     Adds the test directory of *member_name* to
@@ -448,6 +497,10 @@ def patch_testpaths(root: Path, member_name: str) -> None:
         root: Workspace root directory.
         member_name: Name of the new member package.
 
+    Returns:
+        ``True`` if ``pyproject.toml`` was modified, ``False`` if the test
+        path was already listed (no-op).
+
     Raises:
         FileNotFoundError: If ``pyproject.toml`` is missing.
     """
@@ -457,14 +510,15 @@ def patch_testpaths(root: Path, member_name: str) -> None:
     test_path = f"packages/{member_name}/tests"
     if test_path in content:
         logger.info("testpaths already contains %s — skipping", test_path)
-        return
+        return False
 
     content = _insert_into_toml_array(content, test_path)
     pyproject.write_text(content)
     logger.info("Patched testpaths with %s", test_path)
+    return True
 
 
-def patch_dependabot(root: Path, member_name: str) -> None:
+def patch_dependabot(root: Path, member_name: str) -> bool:
     """Add a per-package Dependabot entry for *member_name*.
 
     Appends a ``package-ecosystem: uv`` update block scoped to
@@ -477,6 +531,10 @@ def patch_dependabot(root: Path, member_name: str) -> None:
         root: Workspace root directory.
         member_name: Name of the new member package.
 
+    Returns:
+        ``True`` if ``dependabot.yml`` was modified, ``False`` if the member
+        entry already existed (no-op).
+
     Raises:
         FileNotFoundError: If ``.github/dependabot.yml`` is missing.
     """
@@ -486,7 +544,7 @@ def patch_dependabot(root: Path, member_name: str) -> None:
     member_dir = f"directory: /packages/{member_name}"
     if member_dir in content:
         logger.info("dependabot.yml already covers %s — skipping", member_name)
-        return
+        return False
 
     block = (
         f"  - package-ecosystem: uv\n"
@@ -510,22 +568,53 @@ def patch_dependabot(root: Path, member_name: str) -> None:
 
     dependabot_yml.write_text(content)
     logger.info("Patched dependabot.yml with per-package entry for %s", member_name)
+    return True
 
 
-def patch_all(root: Path, member_name: str) -> list[str]:
+@dataclass(frozen=True, slots=True)
+class PatchReport:
+    """Truthful accounting of a :func:`patch_all` run.
+
+    Attributes:
+        patched: Names of files a patcher actually modified.
+        skipped: Names of files left unchanged — either a no-op (already
+            patched) or absent (``FileNotFoundError``). Never overlaps
+            *patched*.
+        failed: Names of files whose patcher raised an unexpected error
+            (``PermissionError``, ``UnicodeDecodeError``, …). A non-empty
+            list is the partial-state signal.
+    """
+
+    patched: list[str]
+    skipped: list[str]
+    failed: list[str]
+
+    @property
+    def has_partial_failure(self) -> bool:
+        """``True`` when at least one patcher failed unexpectedly."""
+        return bool(self.failed)
+
+
+def patch_all(root: Path, member_name: str) -> PatchReport:
     """Run all workspace patches for *member_name*.
 
-    Calls each ``patch_*`` function and collects the names of
-    successfully patched files.
+    Calls each ``patch_*`` function and records, per file, whether it was
+    actually modified (*patched*), left unchanged (*skipped* — no-op or
+    missing file), or failed unexpectedly (*failed*). Non-``FileNotFoundError``
+    exceptions are caught and surfaced as a partial-state signal instead of
+    being raised, so a single unwritable file never aborts the whole run.
 
     Args:
         root: Workspace root directory.
         member_name: Name of the new member package.
 
     Returns:
-        List of patched file names (relative to *root*).
+        A :class:`PatchReport` partitioning every patcher into patched /
+        skipped / failed. ``patched`` lists only files with a real write.
     """
     patched: list[str] = []
+    skipped: list[str] = []
+    failed: list[str] = []
 
     patchers = [
         ("Makefile", patch_makefile),
@@ -540,9 +629,15 @@ def patch_all(root: Path, member_name: str) -> list[str]:
 
     for name, fn in patchers:
         try:
-            fn(root, member_name)
-            patched.append(name)
+            if fn(root, member_name):
+                patched.append(name)
+            else:
+                skipped.append(name)
         except FileNotFoundError:
             logger.warning("Skipping %s — file not found", name)
+            skipped.append(name)
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.error("Failed to patch %s — %s", name, exc)
+            failed.append(name)
 
-    return patched
+    return PatchReport(patched=patched, skipped=skipped, failed=failed)

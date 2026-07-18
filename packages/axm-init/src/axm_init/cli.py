@@ -400,7 +400,7 @@ def _scaffold_member(
         return
 
     # 4. Patch root files
-    patched = patch_all(workspace_root, member_name)
+    report = patch_all(workspace_root, member_name)
 
     if json_output:
         print(  # noqa: T201
@@ -410,7 +410,9 @@ def _scaffold_member(
                     "member": member_name,
                     "path": str(member_dir),
                     "files": [str(f) for f in result.files_created],
-                    "patched_root_files": patched,
+                    "patched_root_files": report.patched,
+                    "skipped_root_files": report.skipped,
+                    "failed_root_files": report.failed,
                 }
             )
         )
@@ -418,9 +420,17 @@ def _scaffold_member(
         print(f"✅ Member '{member_name}' created at {member_dir}")  # noqa: T201
         for f in result.files_created:
             print(f"   📄 {f}")  # noqa: T201
-        if patched:
+        if report.patched:
             print(  # noqa: T201
-                f"   🔧 Patched root files: {', '.join(patched)}"
+                f"   🔧 Patched root files: {', '.join(report.patched)}"
+            )
+        if report.skipped:
+            print(  # noqa: T201
+                f"   ⏭️  Skipped root files: {', '.join(report.skipped)}"
+            )
+        if report.failed:
+            print(  # noqa: T201
+                f"   ⚠️  Failed root files: {', '.join(report.failed)}"
             )
 
 

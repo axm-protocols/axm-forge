@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from axm_init.adapters.workspace_patcher import PatchReport
 from axm_init.tools.scaffold import InitScaffoldTool
 
 # --- merged from test_scaffold_coverage.py ---
@@ -117,7 +118,11 @@ class TestScaffoldTextRendering:
             ),
             patch(
                 "axm_init.adapters.workspace_patcher.patch_all",
-                return_value=["pyproject.toml", "pyproject.toml (testpaths)"],
+                return_value=PatchReport(
+                    patched=["pyproject.toml", "pyproject.toml (testpaths)"],
+                    skipped=[],
+                    failed=[],
+                ),
             ),
         ):
             mock_copier = MagicMock()

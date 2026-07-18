@@ -5,8 +5,12 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from axm.tools.base import ToolResult
+
+if TYPE_CHECKING:
+    from axm_init.adapters.workspace_patcher import PatchReport
 
 from axm_init.core.scaffolder import (
     build_member_data,
@@ -40,20 +44,26 @@ def _render_scaffold_text(
     kind: str,
     files: list[str],
     path: str | None = None,
-    patched: list[str] | None = None,
+    report: PatchReport | None = None,
 ) -> str:
     """Render a scaffold result as compact text.
 
     Header carries the package label, kind and file count; optional ``path``
-    and ``patched`` lines surface member location and patched root files; then
-    one line per top-level dir lists every created file. Nothing is dropped —
-    this is the LLM-facing companion to the structured ToolResult data.
+    and — when a member patch ran — ``patched`` / ``skipped`` / ``failed``
+    lines surface member location and the truthful patch outcome (only real
+    writes appear under ``patched``); then one line per top-level dir lists
+    every created file. Nothing is dropped — this is the LLM-facing companion
+    to the structured ToolResult data.
     """
     lines = [f"init_scaffold | ✓ | {label} ({kind}) | {len(files)} files"]
     if path:
         lines.append(f"path: {path}")
-    if patched:
-        lines.append(f"patched root: {', '.join(patched)}")
+    if report and report.patched:
+        lines.append(f"patched root: {', '.join(report.patched)}")
+    if report and report.skipped:
+        lines.append(f"skipped root: {', '.join(report.skipped)}")
+    if report and report.failed:
+        lines.append(f"failed root: {', '.join(report.failed)}")
     lines.extend(_group_files(files))
     return "\n".join(lines)
 
@@ -330,7 +340,7 @@ class InitScaffoldTool:
                 error=result.message or "Member scaffold failed",
             )
 
-        patched = patch_all(workspace_root, member_name)
+        report = patch_all(workspace_root, member_name)
 
         files = [str(f) for f in result.files_created]
         return ToolResult(
@@ -339,13 +349,15 @@ class InitScaffoldTool:
                 "member": member_name,
                 "path": str(member_dir),
                 "files": files,
-                "patched_root_files": patched,
+                "patched_root_files": report.patched,
+                "skipped_root_files": report.skipped,
+                "failed_root_files": report.failed,
             },
             text=_render_scaffold_text(
                 label=member_name,
                 kind="member",
                 files=files,
                 path=str(member_dir),
-                patched=patched,
+                report=report,
             ),
         )
