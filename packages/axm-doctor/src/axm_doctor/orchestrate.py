@@ -77,7 +77,12 @@ def missing_secrets() -> list[MissingSecret]:
     for group in catalog.groups():
         for spec in group.specs:
             entry = provenance.get(f"{group.id}.{spec.name}")
-            if entry is None or entry.get("layer") != _MISSING:
+            # A None entry (key absent from doctor_data output) means the
+            # resolver has no provenance for this spec: surface it as
+            # missing/unknown, funnelling it through the same missing branch as
+            # an explicit ``layer == _MISSING``. Only a present entry with a
+            # concrete (non-missing) layer is treated as resolved and skipped.
+            if entry is not None and entry.get("layer") != _MISSING:
                 continue
             missing.append(
                 MissingSecret(

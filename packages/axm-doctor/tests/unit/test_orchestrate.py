@@ -55,6 +55,33 @@ def test_missing_secrets_filters_missing(mocker: MockerFixture) -> None:
     assert "value" not in secret.model_dump()
 
 
+def test_missing_secrets_absent_entry_is_missing(mocker: MockerFixture) -> None:
+    """AC1: a spec whose key is absent from doctor_data (entry is None) is
+    surfaced as missing/unknown instead of being silently skipped."""
+    catalog = Catalog(groups=(_group(),))
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    # doctor_data omits the spec's `{group.id}.{spec.name}` key entirely.
+    mocker.patch("axm_doctor.orchestrate.doctor_data", return_value={})
+
+    result = missing_secrets()
+
+    assert [(s.group, s.name) for s in result] == [("research.fred", "api_key")]
+
+
+def test_missing_secrets_layer_missing_is_missing(mocker: MockerFixture) -> None:
+    """AC2: a present entry with layer==_MISSING is still reported missing."""
+    catalog = Catalog(groups=(_group(),))
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    mocker.patch(
+        "axm_doctor.orchestrate.doctor_data",
+        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+    )
+
+    result = missing_secrets()
+
+    assert [(s.group, s.name) for s in result] == [("research.fred", "api_key")]
+
+
 def test_missing_secrets_keeps_present_out(mocker: MockerFixture) -> None:
     """AC1: a spec resolved by a real layer is NOT reported as missing."""
     catalog = Catalog(groups=(_group(),))
