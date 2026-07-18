@@ -165,6 +165,22 @@ class ProjectResult(BaseModel):  # type: ignore[explicit-any]
     workspace_root: Path | None = None
     excluded_checks: list[str] = []
 
+    @property
+    def applicable(self) -> bool:
+        """Whether any weighted check ran (summed check weight > 0).
+
+        ``False`` is a not-applicable (N/A) verdict for the whole run — e.g.
+        ``check --category workspace`` on a standalone project skips every
+        workspace check, leaving nothing to score. Distinct from a real
+        0/100 where checks ran but all failed.
+        """
+        return any(c.weight > 0 for c in self.checks)
+
+    @property
+    def not_applicable(self) -> bool:
+        """Inverse of :attr:`applicable` — True when no weighted checks ran."""
+        return not self.applicable
+
     @classmethod
     def from_checks(
         cls,

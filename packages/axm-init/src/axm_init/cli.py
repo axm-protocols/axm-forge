@@ -515,6 +515,7 @@ def check(
         format_agent,
         format_json,
         format_report,
+        resolve_exit_code,
     )
 
     project_path = Path(path).resolve()
@@ -536,8 +537,9 @@ def check(
     else:
         print(format_report(result, verbose=verbose))  # noqa: T201
 
-    if result.score < 100:
-        raise SystemExit(1)
+    exit_code = resolve_exit_code(result)
+    if exit_code:
+        raise SystemExit(exit_code)
 
 
 @app.command()

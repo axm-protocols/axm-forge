@@ -363,10 +363,19 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
         lines.extend(_format_category_checks(cat_checks, verbose=verbose))
         lines.append("")
 
-    # Score
-    grade_emoji = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
-    emoji = grade_emoji.get(result.grade.value, "")
-    lines.append(f"  Score: {result.score}/100 — Grade {result.grade.value} {emoji}")
+    # Score — a not-applicable run (no weighted checks scored in this
+    # context, e.g. `check --category workspace` on a standalone project)
+    # renders an N/A line, NOT a numeric 0/100 Grade F.
+    if result.not_applicable:
+        lines.append(
+            "  Category not applicable (N/A) — no checks scored in this context"
+        )
+    else:
+        grade_emoji = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
+        emoji = grade_emoji.get(result.grade.value, "")
+        lines.append(
+            f"  Score: {result.score}/100 — Grade {result.grade.value} {emoji}"
+        )
     lines.append("")
 
     # Failures
@@ -374,6 +383,19 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
         lines.extend(_format_failures(result.failures))
 
     return "\n".join(lines)
+
+
+def resolve_exit_code(result: ProjectResult) -> int:
+    """Resolve the CLI process exit code for a check *result*.
+
+    A not-applicable verdict (no weighted checks ran for this context — e.g.
+    a category that does not apply to the project) is a skip/success and
+    exits ``0``. An applicable run exits ``0`` only on a perfect score,
+    otherwise ``1`` — so a real 0/100 Grade F still fails the process.
+    """
+    if result.not_applicable:
+        return 0
+    return 0 if result.score >= 100 else 1
 
 
 def format_json(result: ProjectResult) -> dict[str, object]:
