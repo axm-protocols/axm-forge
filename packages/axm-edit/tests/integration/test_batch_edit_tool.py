@@ -112,7 +112,7 @@ class TestNoRuffSkipsLint:
         monkeypatch: pytest.MonkeyPatch,
         mocker: Any,
     ) -> None:
-        monkeypatch.setattr("axm_edit.services.lint._has_ruff", False)
+        monkeypatch.setattr("axm_edit.services.lint.ruff_available", lambda root: False)
         spy = mocker.patch("subprocess.run", wraps=subprocess.run)
 
         result = tool.execute(
@@ -197,7 +197,7 @@ class TestWarningsInResult:
         py_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("axm_edit.services.lint._has_ruff", False)
+        monkeypatch.setattr("axm_edit.services.lint.ruff_available", lambda root: False)
 
         result = tool.execute(
             path=str(py_project),
@@ -219,7 +219,7 @@ class TestRuffMissingStillApplies:
         py_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("axm_edit.services.lint._has_ruff", False)
+        monkeypatch.setattr("axm_edit.services.lint.ruff_available", lambda root: False)
 
         result = tool.execute(
             path=str(py_project),

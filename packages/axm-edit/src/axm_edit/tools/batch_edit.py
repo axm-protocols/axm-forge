@@ -84,7 +84,7 @@ def _run_ruff(
     Returns:
         Tuple of (auto-fixed diagnostic lines, remaining diagnostic lines).
     """
-    if not _lint._has_ruff:
+    if not _lint.ruff_available(root):
         if warnings is not None:
             warnings.append("ruff not found, lint skipped")
         return [], []
