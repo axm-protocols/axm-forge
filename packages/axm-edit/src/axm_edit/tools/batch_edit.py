@@ -18,8 +18,7 @@ from axm_edit.models.operations import (
     Operation,
     ReplaceOp,
 )
-from axm_edit.services import lint as _lint
-from axm_edit.services.lint import filter_ruff_lines
+from axm_edit.services.lint import filter_ruff_lines, ruff_available
 from axm_edit.services.lint_diff import compute_lint_diffs, extract_rules_by_file
 
 
@@ -84,7 +83,7 @@ def _run_ruff(
     Returns:
         Tuple of (auto-fixed diagnostic lines, remaining diagnostic lines).
     """
-    if not _lint.ruff_available(root):
+    if not ruff_available(root):
         if warnings is not None:
             warnings.append("ruff not found, lint skipped")
         return [], []
