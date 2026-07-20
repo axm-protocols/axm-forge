@@ -64,7 +64,7 @@ dev = [
     "pytest-mock>=3.15.1",
     "ruff==0.15.21",
     "mypy>=2.2.0",
-    "prek>=0.4.9",
+    "prek>=0.4.10",
 ]
 docs = [
     "mkdocs-material>=9.7.6",
