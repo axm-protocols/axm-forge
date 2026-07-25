@@ -1,12 +1,14 @@
 """Single source of truth for serializing an audit's ``score`` and ``grade``.
 
-The machine-facing ``audit --json`` surface must ALWAYS carry a numeric
-``score`` (and the matching ``grade``) whenever a score can be derived — even
-when individual scored metrics come back unmeasured. When *no* scored signal
-exists at all the score is genuinely incalculable: rather than silently emit a
-payload without a ``score`` key, serialization fails loud via
-:class:`ScoreIncalculableError` so the caller (CLI ``--json``) can exit
-non-zero with an explicit error.
+The machine-facing ``audit --json`` surface carries a numeric ``score`` (and the
+matching ``grade``) whenever a score can be *derived* from at least one measured
+scored-category check. When ``AuditResult.quality_score`` is ``None`` the score
+is genuinely **not-applicable** — either no scored-category check ran at all, or
+every scored-category check came back not-applicable (``score=None``, dropped by
+:func:`~axm_audit.models.results.collect_category_scores`). Rather than assume a
+misleading 0/F for that case, serialization signals N/A: the strict surface
+fails loud via :class:`ScoreIncalculableError` (CLI ``--json`` exits non-zero)
+and the tolerant surface returns ``(None, None)``.
 
 Every code path that serializes a score/grade pair routes through
 :func:`resolve_score_grade` (strict) or :func:`score_grade_or_none` (tolerant),
@@ -23,24 +25,20 @@ if TYPE_CHECKING:
     from axm_audit.models.results import AuditResult
 
 __all__ = [
-    "UNMEASURED_ASSUMED_SCORE",
     "ScoreIncalculableError",
     "resolve_score_grade",
     "score_grade_or_none",
 ]
 
-# A scored category that ran but produced no measurable metric cannot be
-# assumed to pass; it floors to 0 (fail-loud, no masking) — mirroring the
-# crash convention in ``models.results.crash_check_result``.
-UNMEASURED_ASSUMED_SCORE: float = 0.0
-
 
 class ScoreIncalculableError(RuntimeError):
-    """Raised when an audit carries no scored signal at all.
+    """Raised when an audit yields no measurable scored signal (N/A).
 
-    Signals that a success payload without a ``score`` must NOT be emitted;
-    the strict callers (``audit --json``) fail loud instead of dropping the
-    key silently.
+    Covers both an audit with no scored-category check at all and one whose
+    scored-category checks are every one not-applicable (``score=None``).
+    Signals that a success payload without a ``score`` must NOT be emitted; the
+    strict callers (``audit --json``) fail loud instead of dropping the key
+    silently or reporting a misleading 0/F.
     """
 
 
@@ -50,23 +48,31 @@ def _has_scored_signal(result: AuditResult) -> bool:
 
 
 def resolve_score_grade(result: AuditResult) -> tuple[float, str]:
-    """Return ``(score, grade)`` as numbers, or raise if incalculable.
+    """Return ``(score, grade)`` as numbers, or raise if genuinely N/A.
 
     Single source of truth for score/grade serialization:
 
     - a computed :attr:`AuditResult.quality_score` is returned verbatim with
       its matching grade;
-    - when scored categories ran but every metric was unmeasured, the score is
-      *assumed* (see :data:`UNMEASURED_ASSUMED_SCORE`) so the payload still
-      carries a number instead of dropping ``score``;
-    - when no scored signal exists at all the score is genuinely incalculable
-      and :class:`ScoreIncalculableError` is raised.
+    - when :attr:`AuditResult.quality_score` is ``None`` the score is
+      not-applicable — either no scored-category check ran, or every one came
+      back not-applicable (``score=None``, dropped by
+      :func:`~axm_audit.models.results.collect_category_scores`). Both resolve
+      to N/A (never an assumed 0/F): :class:`ScoreIncalculableError` is raised,
+      so the tolerant surface can surface N/A and the strict surface fails loud.
+
+    N/A is driven entirely off :attr:`AuditResult.quality_score` being ``None``
+    (which already normalises over the *present* scored categories), so the
+    project level and the category level cannot drift apart.
     """
     score = result.quality_score
     if score is not None:
         return score, grade_for_score(score)
     if _has_scored_signal(result):
-        return UNMEASURED_ASSUMED_SCORE, grade_for_score(UNMEASURED_ASSUMED_SCORE)
+        raise ScoreIncalculableError(
+            "quality score is not-applicable: every scored-category check was "
+            "not-applicable (score=None); nothing to average"
+        )
     raise ScoreIncalculableError(
         "quality score is incalculable: the audit produced no scored-category "
         "checks (nothing to score)"

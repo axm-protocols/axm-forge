@@ -300,6 +300,41 @@ def test_cli_audit_structure_json_incalculable_fails_loud(tmp_path: Path) -> Non
         json.loads(proc.stdout)
 
 
+def test_cli_audit_na_score_human_report_shows_na_not_f(tmp_path: Path) -> None:
+    """AC2: when the audit's scored signal is not-applicable the human report
+    surfaces N/A — it never renders a misleading ``Grade F`` / ``Score: 0``.
+
+    The score-serialization layer resolves N/A to ``(None, None)`` (rather than
+    the old assumed ``0.0``/``"F"``), so ``_format_score`` emits no score line
+    at all instead of a spurious failing grade.
+    """
+    _make_clean_project(tmp_path)
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv binary not found on PATH")
+
+    proc = subprocess.run(  # noqa: S603
+        [
+            uv,
+            "run",
+            "axm-audit",
+            "audit",
+            str(tmp_path),
+            "--category",
+            "structure",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode in (0, 1), proc.stderr
+    # No misleading failing grade / zero score is rendered for an N/A audit.
+    assert "Grade F" not in proc.stdout
+    assert "Score: 0.0/100" not in proc.stdout
+    assert "Score: 0/100" not in proc.stdout
+
+
 def test_cli_help_lists_test_quality() -> None:
     result = subprocess.run(
         ["uv", "run", "axm-audit", "audit", "--help"],  # noqa: S607

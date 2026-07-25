@@ -32,13 +32,23 @@ instead of silently passing with an optimistic grade.
 must not leak that into a payload. All score/grade serialization routes through
 a single source of truth, `axm_audit.score.resolve_score_grade`:
 
-- when scored categories ran but every metric came back **unmeasured**, the
-  score is *assumed* (`UNMEASURED_ASSUMED_SCORE`, floored to 0 — no masking) so
-  the `--json` payload always carries a **numeric** `.score` and its grade;
-- when **no scored signal exists at all** (e.g. `--category structure`, an
-  unscored category), the score is genuinely incalculable: serialization raises
-  `ScoreIncalculableError`, and `audit --json` fails loud — non-zero exit with an
-  explicit stderr message rather than a success JSON missing `.score`.
+- when at least one scored category is **measured**, `.score` is that
+  weight-normalized number and its grade — including the mixed case, where a
+  not-applicable category is simply dropped, so the audit scores exactly as if
+  that category were absent (no 0/F penalty for work that was never measurable);
+- when `quality_score` is `None` the score is **not-applicable** (N/A) — this
+  covers *both* an audit with **no scored signal at all** (e.g. `--category
+  structure`, an unscored category) *and* one whose scored categories are
+  **every one not-applicable** (all `score=None`, dropped by
+  `collect_category_scores`). Neither is assumed to 0/F: serialization raises
+  `ScoreIncalculableError`, so `audit --json` fails loud (non-zero exit with an
+  explicit stderr message rather than a success JSON missing `.score`), and the
+  human report omits the score line entirely instead of printing a misleading
+  `Grade F`.
+
+N/A is driven entirely off `AuditResult.quality_score is None`, so the
+project-level serialization and the category-level weight-normalization can
+never drift apart.
 
 Lax summaries (`format_agent`, `format_test_quality_json`) use the tolerant
 `score_grade_or_none` variant, which returns `None` instead of raising, but
