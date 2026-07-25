@@ -31,6 +31,7 @@ Issues = "https://github.com/axm-protocols/axm-forge/issues"
 
 [project.entry-points."axm.tools"]
 batch_edit     = "axm_edit.tools.batch_edit:BatchEditTool"
+batch_edit_import_guard = "axm_edit.import_guard_tool:BatchEditImportGuardTool"
 batch_rollback = "axm_edit.tools.batch_rollback:BatchRollbackTool"
 read_file      = "axm_edit.tools.read_file:ReadFileTool"
 write_file     = "axm_edit.tools.write_file:WriteFileTool"
