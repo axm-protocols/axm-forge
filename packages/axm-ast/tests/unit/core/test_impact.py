@@ -12,10 +12,12 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from axm_ast.core import impact as impact_mod
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.impact import (
     REEXPORT_WEIGHT,
     ImpactReport,
+    analyze_impact,
     find_definition,
     find_type_refs,
     score_impact,
@@ -230,3 +232,66 @@ def test_find_definition_dotted_unaffected() -> None:
     # Resolved via the dotted (class-body) path, not the plain-name path.
     assert result["module"] == "ui"
     assert result["line"] == 5
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# analyze_impact — opt-in reverse-import-by-module-path (module_level_importers)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def _write_module_importer_pkg(root: Path) -> Path:
+    """Write a tiny package where ``b`` imports the module of ``target``.
+
+    ``b`` does ``import mypkg.m`` but never *calls* ``target`` — a
+    module-level importer invisible to a symbol-level call-graph traversal.
+    """
+    pkg = root / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "m.py").write_text("def target() -> int:\n    return 1\n")
+    (pkg / "b.py").write_text("import mypkg.m\n")
+    return pkg
+
+
+def test_analyze_impact_optin_surfaces_module_importer(tmp_path: Path) -> None:
+    """AC1: opt-in on surfaces a file importing the module (not the symbol)."""
+    pkg = _write_module_importer_pkg(tmp_path)
+
+    result = analyze_impact(pkg, "target", include_module_importers=True)
+
+    assert "b" in result["module_level_importers"]
+    # ``b`` is a module importer, not a symbol caller.
+    assert "b" not in {c["module"] for c in result["callers"]}
+
+
+def test_analyze_impact_optin_off_matches_baseline(tmp_path: Path) -> None:
+    """AC2: opt-in off is byte-for-byte the legacy result (field absent)."""
+    pkg = _write_module_importer_pkg(tmp_path)
+
+    default = analyze_impact(pkg, "target")
+    with_optin = analyze_impact(pkg, "target", include_module_importers=True)
+
+    # The default path never emits the opt-in field...
+    assert "module_level_importers" not in default
+    # ...and the opt-in call differs ONLY by that added field.
+    assert default == {
+        k: v for k, v in with_optin.items() if k != "module_level_importers"
+    }
+
+
+def test_analyze_impact_optin_graph_unavailable_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3: an unavailable import graph falls back silently (no raise)."""
+    pkg = _write_module_importer_pkg(tmp_path)
+
+    def _boom(*_args: object, **_kwargs: object) -> dict[str, list[str]]:
+        raise RuntimeError("import graph unavailable")
+
+    monkeypatch.setattr(impact_mod, "build_import_graph", _boom)
+
+    result = analyze_impact(pkg, "target", include_module_importers=True)
+
+    # Best-effort: field present but empty, and nothing raised.
+    assert result["module_level_importers"] == []
+    assert result["symbol"] == "target"

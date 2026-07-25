@@ -28,7 +28,7 @@ if TYPE_CHECKING:
         WorkspaceInfo,
     )
 
-from axm_ast.core.analyzer import module_dotted_name
+from axm_ast.core.analyzer import build_import_graph, module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
@@ -91,6 +91,11 @@ class ImpactResult(TypedDict, total=False):
     affected_modules: list[str]
     test_files: list[str]
     test_files_by_import: list[str]
+    # OPT-IN only (``analyze_impact(..., include_module_importers=True)``):
+    # modules that import the edited symbol's *module* (or a re-export shim
+    # of it) without referencing the symbol itself — invisible to a
+    # symbol-level call-graph traversal. Absent from the default output.
+    module_level_importers: list[str]
     # Heterogeneous payload from git_coupling (file/strength/co_changes).
     git_coupled: list[Mapping[str, object]]
     cross_package_impact: list[str]
@@ -821,13 +826,75 @@ def _apply_test_filter(result: ImpactResult, effective: str | None) -> None:
         ]
 
 
-def analyze_impact(
+def _find_module_importers(
+    pkg: PackageInfo,
+    definition: DefinitionInfo | None,
+    reexports: list[str],
+) -> list[str]:
+    """Reverse-import-by-module-path: modules importing the symbol's module.
+
+    Inverts the package import graph (built by :func:`build_import_graph`,
+    the existing workspace primitive — no new scanner) to find every module
+    that imports the *module* the edited symbol lives in via ``import pkg.m``
+    or ``from pkg import m``. Such importers never reference the symbol name,
+    so a symbol-level call-graph traversal misses them entirely.
+
+    Re-export shims are followed one hop: for each module that re-exports the
+    symbol (``reexports``), its own importers are included too — a file that
+    imports the shim is a genuine downstream dependent of the symbol's module.
+
+    Args:
+        pkg: Analyzed package info.
+        definition: Resolved definition of the symbol (``None`` → no module
+            to trace, returns ``[]``).
+        reexports: Modules that re-export the symbol (from
+            :func:`find_reexports`) — treated as shims to follow one hop.
+
+    Returns:
+        Sorted list of dotted module names that import the symbol's module
+        (or a re-export shim of it), excluding the defining module itself.
+    """
+    if definition is None:
+        return []
+    target_module = definition["module"]
+    graph = build_import_graph(pkg)
+    reverse: dict[str, set[str]] = {}
+    for src, targets in graph.items():
+        for target in targets:
+            reverse.setdefault(target, set()).add(src)
+    importers = set(reverse.get(target_module, set()))
+    for shim in reexports:
+        importers |= reverse.get(shim, set())
+    importers.discard(target_module)
+    return sorted(importers)
+
+
+def _safe_module_importers(
+    pkg: PackageInfo,
+    definition: DefinitionInfo | None,
+    reexports: list[str],
+) -> list[str]:
+    """Best-effort wrapper around :func:`_find_module_importers` (AC3).
+
+    When the import graph cannot be built (unavailable / malformed), the
+    reverse-import lookup silently falls back to an empty result rather than
+    surfacing an error to the consumer.
+    """
+    try:
+        return _find_module_importers(pkg, definition, reexports)
+    except Exception:  # noqa: BLE001 - best-effort: never crash the consumer
+        logger.debug("Reverse-import lookup unavailable; falling back", exc_info=True)
+        return []
+
+
+def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
     path: Path,
     symbol: str,
     *,
     project_root: Path | None = None,
     exclude_tests: bool = False,
     test_filter: str | None = None,
+    include_module_importers: bool = False,
 ) -> ImpactResult:
     """Full impact analysis for a symbol.
 
@@ -846,6 +913,13 @@ def analyze_impact(
             ``"all"`` keeps everything, ``"related"`` keeps only
             direct test callers.  Takes precedence over
             *exclude_tests* when both are set.
+        include_module_importers: OPT-IN (default ``False``). When ``True``,
+            add a ``module_level_importers`` field listing modules that import
+            the symbol's *module* (or a re-export shim of it) without calling
+            the symbol — dependents a symbol-level traversal misses. Off by
+            default the field is absent and the result is byte-for-byte the
+            legacy output; best-effort, so a missing import graph silently
+            yields an empty list rather than raising.
 
     Returns:
         Complete impact analysis dict.
@@ -925,6 +999,13 @@ def analyze_impact(
 
     effective = _resolve_effective_filter(test_filter, exclude_tests)
     _apply_test_filter(result, effective)
+
+    # OPT-IN reverse-import augmentation. Skipped entirely when off, so the
+    # default result stays byte-for-byte identical to the legacy output (AC2).
+    if include_module_importers:
+        result["module_level_importers"] = _safe_module_importers(
+            pkg, definition, reexports
+        )
 
     return result
 
