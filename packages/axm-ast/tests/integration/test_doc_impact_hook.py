@@ -44,12 +44,18 @@ class TestDocImpactHook:
     """Test the engine hook wrapper for doc impact."""
 
     def test_doc_impact_hook_full_report(self, tmp_path: Path) -> None:
-        """Hook execute with undocumented symbol → metadata contains undocumented."""
+        """Hook execute with undocumented symbol → metadata contains undocumented.
+
+        Contract update (L4): ``secret`` is now docstring-less so it stays a
+        genuine gap under the ``is_documentation_required`` policy; the previous
+        fixture gave it a docstring yet asserted it was flagged (the removed
+        false positive).
+        """
         from axm_ast.hooks.impact import DocImpactHook
 
         root = _make_pkg(
             tmp_path,
-            src_code=('def secret() -> None:\n    """Not in docs."""\n    pass\n'),
+            src_code="def secret() -> None:\n    pass\n",
             readme="# Project\n\nNo mention of secret here.\n",
         )
         hook = DocImpactHook()

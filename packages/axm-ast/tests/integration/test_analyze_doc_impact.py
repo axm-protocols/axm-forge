@@ -54,7 +54,6 @@ class TestAnalyzeDocImpact:
                 "    pass\n"
                 "\n"
                 "def undoc_func() -> None:\n"
-                '    """Not in docs."""\n'
                 "    pass\n"
                 "\n"
                 "def stale_func(a: int, b: int) -> int:\n"
@@ -82,8 +81,12 @@ class TestAnalyzeDocImpact:
         # Documented → has refs
         assert len(result["doc_refs"]["Documented"]) >= 1
 
-        # undoc_func → undocumented
+        # undoc_func (public, no docstring, absent from prose) → undocumented.
+        # Contract update (L4): the fixture's undoc_func no longer carries a
+        # docstring — a docstringed symbol is now considered documented.
         assert "undoc_func" in result["undocumented"]
+        # Documented (docstring + prose ref) → not a gap.
+        assert "Documented" not in result["undocumented"]
 
         # stale_func → stale signature
         assert any(s["symbol"] == "stale_func" for s in result["stale_signatures"])

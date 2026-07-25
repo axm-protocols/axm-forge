@@ -8,7 +8,13 @@ import re
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
+from axm_ast.doc_policy import is_documentation_required
+from axm_ast.models.nodes import ClassInfo, FunctionInfo, ModuleInfo
+
 log = logging.getLogger(__name__)
+
+# A symbol node whose documentation-required status the shared policy can judge.
+type DocSymbolNode = FunctionInfo | ClassInfo | ModuleInfo
 
 __all__ = [
     "DocImpactResult",
@@ -215,18 +221,72 @@ def find_doc_refs(
     return refs
 
 
+def _index_symbol_nodes(root: Path) -> dict[str, DocSymbolNode]:
+    """Map bare symbol names to their parsed axm-ast nodes.
+
+    Uses the canonical axm-ast package extraction (``get_package``) so the
+    docstring signal fed to :func:`is_documentation_required` is exactly what
+    the tree-sitter parser recorded — no bespoke "has docstring" heuristic is
+    introduced here.
+
+    Args:
+        root: Project root directory to analyze.
+
+    Returns:
+        Mapping of bare name to the first node (function, method, or class)
+        seen under that name. Empty when the root cannot be analyzed.
+    """
+    from axm_ast.core.cache import get_package
+
+    try:
+        pkg = get_package(root)
+    except ValueError:
+        return {}
+    index: dict[str, DocSymbolNode] = {}
+    for module in pkg.modules:
+        for fn in module.functions:
+            index.setdefault(fn.name, fn)
+        for cls in module.classes:
+            index.setdefault(cls.name, cls)
+            for method in cls.methods:
+                index.setdefault(method.name, method)
+    return index
+
+
 def find_undocumented(
     doc_refs: dict[str, list[DocRefEntry]],
+    symbol_nodes: dict[str, DocSymbolNode],
 ) -> list[str]:
-    """Return symbols that have no documentation references.
+    """Return public, docstring-less symbols absent from the prose docs.
+
+    A symbol is reported only when it has **no** prose documentation reference
+    *and* the shared :func:`is_documentation_required` policy considers it a
+    real gap — i.e. it is public surface (name not ``_``-prefixed) and carries
+    no docstring. Private/dunder symbols and symbols already documented by a
+    docstring are never reported; this can only ever *shrink* the prose-missing
+    set, never grow it (the output schema is unchanged).
+
+    A symbol absent from ``symbol_nodes`` (unresolvable in the analyzed source)
+    keeps the legacy prose-only verdict, so a genuinely missing symbol is never
+    silently dropped.
 
     Args:
         doc_refs: Output of ``find_doc_refs``.
+        symbol_nodes: Bare-name → parsed node index (see
+            :func:`_index_symbol_nodes`) supplying the docstring/privacy signal.
 
     Returns:
-        List of symbol names with empty references.
+        List of symbol names that are documentation-required gaps.
     """
-    return [sym for sym, refs in doc_refs.items() if not refs]
+    undocumented: list[str] = []
+    for sym, refs in doc_refs.items():
+        if refs:
+            continue
+        node = symbol_nodes.get(sym)
+        if node is not None and not is_documentation_required(node):
+            continue
+        undocumented.append(sym)
+    return undocumented
 
 
 def find_stale_signatures(
@@ -290,8 +350,9 @@ def analyze_doc_impact(
         Dict with ``doc_refs``, ``undocumented``, ``stale_signatures``.
     """
     refs = find_doc_refs(root, symbols)
+    symbol_nodes = _index_symbol_nodes(root)
     return {
         "doc_refs": refs,
-        "undocumented": find_undocumented(refs),
+        "undocumented": find_undocumented(refs, symbol_nodes),
         "stale_signatures": find_stale_signatures(root, symbols),
     }
