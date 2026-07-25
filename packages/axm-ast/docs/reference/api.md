@@ -436,6 +436,7 @@ production `assert`, which `python -O` would strip).
 | `symbols` | `list[str] \| None` | `None` | Batch of symbols; routes to per-symbol analysis and aggregated results |
 | `exclude_tests` | `bool` | `False` | If true, drops test files from caller analysis |
 | `detail` | `str \| None` | `None` | Set to `"compact"` for a markdown-table summary instead of the full dict |
+| `include_module_importers` | `bool` | `False` | **Opt-in**, default off. When true, the single-symbol `data` gains a `module_level_importers` list naming modules that only `import pkg.m` the symbol's *module* (or a re-export shim) without referencing the symbol itself — dependents a symbol-level traversal misses. Off, the `data` and `text` are byte-for-byte the legacy output. Best-effort: inert in workspace mode (`analyze_impact_workspace` does not yet accept the toggle — a documented residual) and silently empty when the import graph is unavailable |
 | `**kwargs` | — | — | `test_filter` (`"none"`, `"all"`, `"related"`) controls test caller filtering |
 
 ### Return value
@@ -444,7 +445,7 @@ production `assert`, which `python -O` would strip).
 
 | Mode | `data` | `text` |
 |---|---|---|
-| Single, full | Impact dict (callers, reexports, score, …) | Rendered via `render_impact_text` when fields permit |
+| Single, full | Impact dict (callers, reexports, score, …); `module_level_importers` only when opted in | Rendered via `render_impact_text` when fields permit |
 | Single, compact | `{}` | Markdown table from `format_impact_compact` |
 | Batch, full | `{"symbols": [report, …]}` | Rendered via `render_impact_batch_text` when fields permit |
 | Batch, compact | `{}` | Markdown table from `format_impact_compact` |
