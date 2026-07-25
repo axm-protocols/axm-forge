@@ -7,7 +7,13 @@ from unittest.mock import patch
 
 import pytest
 
-from axm_ast.models import ClassInfo, FunctionInfo, ParamInfo, VariableInfo
+from axm_ast.models import (
+    ClassInfo,
+    FunctionInfo,
+    FunctionKind,
+    ParamInfo,
+    VariableInfo,
+)
 from axm_ast.tools.inspect_detail import (
     build_detail,
     build_module_detail,
@@ -79,6 +85,7 @@ def sample_fn_ns() -> Any:
         name="my_func",
         line_start=10,
         line_end=20,
+        kind=FunctionKind.FUNCTION,
         docstring="A function.",
         signature="(x: int) -> str",
         return_type="str",
@@ -332,3 +339,47 @@ class TestVariableSourceEdgeCases:
         detail = build_detail(var_info, file="f.py", abs_path="", source=True)
 
         assert "source" not in detail
+
+
+# ---------------------------------------------------------------------------
+# Unit tests — kind reflects the parser-derived FunctionKind (L4 06a5ca28-fb63)
+# ---------------------------------------------------------------------------
+
+
+def _fn(kind: FunctionKind) -> FunctionInfo:
+    """Build a FunctionInfo carrying an explicit FunctionKind."""
+    return FunctionInfo(name="process", line_start=1, line_end=2, kind=kind)
+
+
+def test_function_detail_abstract_kind() -> None:
+    """AC1: an @abstractmethod's real kind flows through, not the literal."""
+    detail = function_detail(_fn(FunctionKind.ABSTRACT), file="f.py")
+    assert detail["kind"] == "abstract"
+
+
+def test_function_detail_free_function_kind() -> None:
+    """AC2: a plain free function still reports 'function' (nominal non-regression)."""
+    detail = function_detail(_fn(FunctionKind.FUNCTION), file="f.py")
+    assert detail["kind"] == "function"
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        (FunctionKind.PROPERTY, "property"),
+        (FunctionKind.CLASSMETHOD, "classmethod"),
+        (FunctionKind.STATICMETHOD, "staticmethod"),
+    ],
+)
+def test_function_detail_decorated_kinds(kind: FunctionKind, expected: str) -> None:
+    """AC3: property / classmethod / staticmethod each surface their own kind."""
+    detail = function_detail(_fn(kind), file="f.py")
+    assert detail["kind"] == expected
+
+
+def test_function_detail_keys_stable_across_kinds() -> None:
+    """AC4: only the VALUE of 'kind' changes — the key set is frozen."""
+    abstract = function_detail(_fn(FunctionKind.ABSTRACT), file="f.py")
+    free = function_detail(_fn(FunctionKind.FUNCTION), file="f.py")
+    assert abstract.keys() == free.keys()
+    assert abstract["kind"] != free["kind"]

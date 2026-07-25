@@ -27,3 +27,8 @@ class ConcreteProcessor(AbstractProcessor):
     def process(self, payload: str) -> str:
         """Return the upper-cased *payload* -- the concrete override."""
         return payload.upper()
+
+
+def free_transform(payload: str) -> str:
+    """Top-level free function -- classified FUNCTION, not a method."""
+    return payload.lower()

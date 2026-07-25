@@ -73,7 +73,7 @@ def function_detail(
     """Build detail dict from a FunctionInfo."""
     detail: dict[str, object] = {
         "name": sym.name,
-        "kind": "function",
+        "kind": sym.kind.value,
         "file": file,
         "start_line": sym.line_start,
         "end_line": sym.line_end,

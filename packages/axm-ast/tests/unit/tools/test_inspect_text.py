@@ -448,3 +448,20 @@ def test_render_function_text_docstring_double_newline() -> None:
     assert "First paragraph." in result
     # Second paragraph should be truncated away
     assert "Second paragraph" not in result
+
+
+def test_render_symbol_text_abstract_falls_back_to_function() -> None:
+    """AC5: kind 'abstract' has no dedicated case in the ``render_symbol_text``
+    match; it must fall through ``case _`` to ``render_function_text``. Locks the
+    dispatch against a future refactor that would silently break abstract-method
+    rendering (L4 06a5ca28-fb63)."""
+    detail: dict[str, Any] = {
+        "name": "process",
+        "kind": "abstract",
+        "file": "abstract_following.py",
+        "start_line": 18,
+        "end_line": 21,
+        "signature": "(self, payload: str) -> str",
+        "docstring": "Transform payload -- abstract.",
+    }
+    assert render_symbol_text(detail) == render_function_text(detail)

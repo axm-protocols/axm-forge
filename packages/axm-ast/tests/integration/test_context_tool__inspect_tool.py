@@ -24,13 +24,12 @@ pytestmark = pytest.mark.integration
 
 _FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "abstract_following.py"
 
-# AC3 -- pin the current limitation. ``ast_inspect`` hardcodes
-# ``kind='function'`` in ``axm_ast.tools.inspect_detail.function_detail`` and
-# never surfaces whether a method is abstract. This pin fails the day the
-# deferred fix lands, keeping the L4 follow-up discoverable.
+# L4 06a5ca28-fb63 regression: ``ast_inspect`` must surface the parser-derived
+# FunctionKind through ``axm_ast.tools.inspect_detail.function_detail`` -- an
+# ``@abstractmethod`` reports ``abstract`` (previously a hardcoded ``function``).
 _KIND_L4_PIN = (
-    "L4: ast_inspect hardcodes kind='function' and does not surface method "
-    "abstractness; pin the observed value so the deferred fix is discoverable."
+    "L4 06a5ca28-fb63: ast_inspect must surface the parser-derived kind; an "
+    "@abstractmethod reports 'abstract', not the old hardcoded 'function'."
 )
 
 
@@ -109,13 +108,27 @@ def test_ast_inspect_follows_abstract_method_to_concrete_override(
     assert detail["start_line"] != abstract.data["symbol"]["start_line"]
 
 
-def test_ast_inspect_does_not_surface_method_abstractness(
+def test_ast_inspect_surfaces_method_abstractness(
     abstract_pkg: _Fixture,
 ) -> None:
-    """AC3: pin today's hardcoded ``function`` kind on a genuinely abstract method."""
+    """AC1/AC6 (L4 06a5ca28-fb63): ast_inspect surfaces the real abstract kind.
+
+    Reversed from the former pin that asserted the hardcoded ``function``
+    default: a genuinely abstract method (ABC + @abstractmethod) must now report
+    ``abstract``. NOT deleted -- this remains the AXM-1464 regression net.
+    """
     result = InspectTool().execute(
         path=abstract_pkg.pkg, symbol="AbstractProcessor.process"
     )
     assert result.success, result.error
-    # The method IS abstract (ABC + @abstractmethod) yet kind is hardcoded.
+    # The method IS abstract (ABC + @abstractmethod) -> real kind surfaced.
+    assert result.data["symbol"]["kind"] == "abstract", _KIND_L4_PIN
+
+
+def test_ast_inspect_free_function_reports_function(
+    abstract_pkg: _Fixture,
+) -> None:
+    """AC2: a top-level free function still reports ``function`` (non-regression)."""
+    result = InspectTool().execute(path=abstract_pkg.pkg, symbol="free_transform")
+    assert result.success, result.error
     assert result.data["symbol"]["kind"] == "function", _KIND_L4_PIN
