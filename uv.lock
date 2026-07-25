@@ -561,6 +561,7 @@ name = "axm-edit"
 source = { editable = "packages/axm-edit" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-ast" },
     { name = "pydantic" },
 ]
 
@@ -584,6 +585,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
+    { name = "axm-ast", editable = "packages/axm-ast" },
     { name = "pydantic", specifier = ">=2.0.0" },
 ]
 
