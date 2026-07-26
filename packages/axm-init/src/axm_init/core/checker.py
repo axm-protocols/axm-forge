@@ -488,10 +488,13 @@ def format_agent_text(result: ProjectResult) -> str:
     passed = sum(1 for c in result.checks if c.passed)
     failures = result.failures
     context = result.context or "package"
-    header = (
-        f"init_check | {result.grade.value} {result.score}/100 | "
-        f"{context} | {passed} ok · {len(failures)} fail"
+    # A not-applicable run (no weighted checks scored in this context) renders
+    # an N/A marker, NOT a numeric 0/100 Grade F — else the LLM reads a real
+    # failure where a dimension simply does not apply.
+    verdict = (
+        "N/A" if result.not_applicable else f"{result.grade.value} {result.score}/100"
     )
+    header = f"init_check | {verdict} | {context} | {passed} ok · {len(failures)} fail"
     if not failures:
         return f"{header}\nAll gold-standard checks passed."
 
