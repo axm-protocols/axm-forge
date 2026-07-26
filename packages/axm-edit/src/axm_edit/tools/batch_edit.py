@@ -6,6 +6,7 @@ Registered as ``batch_edit`` via the ``axm.tools`` entry point.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from axm.tools.base import ToolResult
@@ -19,7 +20,15 @@ from axm_edit.models.operations import (
     ReplaceOp,
 )
 from axm_edit.services.lint import filter_ruff_lines, ruff_available
-from axm_edit.services.lint_diff import compute_lint_diffs, extract_rules_by_file
+from axm_edit.services.lint_diff import (
+    compute_lint_diffs,
+    extract_import_removals,
+    extract_rules_by_file,
+)
+
+# Human-facing label for each dangerous ruff removal code surfaced in the
+# leading alert block. F401 deletes an unused import; F811 drops a redefinition.
+_REMOVAL_LABELS = {"F401": "unused import", "F811": "redefinition of"}
 
 
 def _collect_python_files(root: Path, operations: list[Operation]) -> list[Path]:
@@ -141,16 +150,10 @@ def _snapshot_files(root: Path, py_files: list[Path]) -> dict[str, str]:
     return snapshot
 
 
-def _lint_diffs(
-    root: Path,
-    post_agent: dict[str, str],
-    post_lint: dict[str, str],
-    auto_fixed: list[str],
-    max_ratio: float,
-) -> list[dict[str, object]]:
-    """Compute per-file lint diffs between agent and post-lint snapshots."""
+def _make_path_resolver(root: Path) -> Callable[[str], str]:
+    """Build a resolver mapping a raw ruff path to the *root*-relative key."""
 
-    def _resolve(raw: str, root: Path = root) -> str:
+    def _resolve(raw: str) -> str:
         candidate = Path(raw)
         if candidate.is_absolute():
             try:
@@ -159,7 +162,20 @@ def _lint_diffs(
                 return raw
         return raw
 
-    rules_by_file = extract_rules_by_file(auto_fixed, path_resolver=_resolve)
+    return _resolve
+
+
+def _lint_diffs(
+    root: Path,
+    post_agent: dict[str, str],
+    post_lint: dict[str, str],
+    auto_fixed: list[str],
+    max_ratio: float,
+) -> list[dict[str, object]]:
+    """Compute per-file lint diffs between agent and post-lint snapshots."""
+    rules_by_file = extract_rules_by_file(
+        auto_fixed, path_resolver=_make_path_resolver(root)
+    )
     return compute_lint_diffs(
         post_agent,
         post_lint,
@@ -190,6 +206,18 @@ def _apply_lint(
         data["lint_errors"] = lint_errors
     if lint_warnings:
         data["warnings"] = lint_warnings
+
+    if auto_fixed:
+        removals = extract_import_removals(
+            auto_fixed, path_resolver=_make_path_resolver(root)
+        )
+        flat = [
+            {"name": r.name, "file": r.file, "code": r.code}
+            for file_removals in removals.values()
+            for r in file_removals
+        ]
+        if flat:
+            data["import_removals"] = flat
 
     if lint_diff and auto_fixed:
         post_lint = _snapshot_files(root, py_files)
@@ -260,6 +288,34 @@ def _render_lint_diff(entry: dict[str, object]) -> list[str]:
     return lines
 
 
+def _render_import_alerts(data: dict[str, object]) -> list[str]:
+    """Render one leading ⚠ alert line per dangerous F401/F811 removal.
+
+    Reads the ``import_removals`` entries written by :func:`_apply_lint`
+    (each a ``{"name", "file", "code"}`` dict) and turns them into saillant,
+    self-explanatory warnings naming the symbol, file and ruff code. Returns
+    an empty list when no dangerous removal was recorded, so a clean batch
+    prepends nothing (no false positive).
+    """
+    removals = data.get("import_removals")
+    if not isinstance(removals, list):
+        return []
+    lines: list[str] = []
+    for entry in removals:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "?")
+        file = str(entry.get("file") or "?")
+        code = str(entry.get("code") or "?")
+        label = _REMOVAL_LABELS.get(code, "symbol")
+        lines.append(
+            f"⚠ lint removed {label} `{name}` from {file} ({code})"
+            f" — add `{name}` and its first consumer in the same batch,"
+            f" or this removal will break a later edit"
+        )
+    return lines
+
+
 def render_text(
     result: BatchResult,
     parsed: list[Operation],
@@ -275,6 +331,7 @@ def render_text(
     (fixes, remaining errors, warnings, diffs) is appended. Nothing in
     ``data`` is dropped; only its JSON structure is.
     """
+    alerts = _render_import_alerts(data)
     if result.success:
         s = result.summary
         header = (
@@ -282,11 +339,16 @@ def render_text(
             f" · {s.get('created', 0)} created · {s.get('deleted', 0)} deleted"
             f" · {result.applied} edit{'s' if result.applied != 1 else ''}"
         )
-        lines = [header, *_render_op_lines(parsed), *_render_lint_lines(data)]
+        lines = [
+            *alerts,
+            header,
+            *_render_op_lines(parsed),
+            *_render_lint_lines(data),
+        ]
         return "\n".join(lines)
 
     header = f"batch_edit | ✗ ROLLBACK | {result.error or 'failed'}"
-    lines = [header, *_render_op_lines(parsed)]
+    lines = [*alerts, header, *_render_op_lines(parsed)]
     for d in result.details:
         suffix = f" [expected: {d.expected}]" if d.expected else ""
         loc = f"{d.file}:{d.line}" if d.line is not None else d.file
