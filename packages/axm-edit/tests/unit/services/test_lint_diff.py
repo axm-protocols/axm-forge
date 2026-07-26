@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from axm_edit.services.lint_diff import compute_lint_diffs
+from axm_edit.services.lint_diff import (
+    ImportRemoval,
+    compute_lint_diffs,
+    extract_import_removals,
+)
 
 
 class TestTaggedDiffFormat:
@@ -107,6 +111,65 @@ class TestNoMutationReturnsEmpty:
         result = compute_lint_diffs(post_agent, post_lint, rules)
 
         assert result == []
+
+
+class TestExtractImportRemovals:
+    """AC1-3: isolate F401/F811 removals with import/symbol name + file + code."""
+
+    def test_f401_removal_is_surfaced_with_name(self) -> None:
+        diagnostics = ["pkg/mod.py:1:8: F401 [*] `os` imported but unused"]
+
+        result = extract_import_removals(diagnostics)
+
+        assert list(result) == ["pkg/mod.py"]
+        (removal,) = result["pkg/mod.py"]
+        assert removal == ImportRemoval(name="os", file="pkg/mod.py", code="F401")
+
+    def test_f811_redefinition_is_surfaced_with_name(self) -> None:
+        diagnostics = ["pkg/mod.py:5:1: F811 Redefinition of unused `os` from line 1"]
+
+        result = extract_import_removals(diagnostics)
+
+        (removal,) = result["pkg/mod.py"]
+        assert removal.name == "os"
+        assert removal.file == "pkg/mod.py"
+        assert removal.code == "F811"
+
+    def test_no_f401_or_f811_yields_empty(self) -> None:
+        diagnostics = ["pkg/mod.py:10:89: E501 Line too long (95 > 88)"]
+
+        assert extract_import_removals(diagnostics) == {}
+
+    def test_other_codes_are_excluded(self) -> None:
+        diagnostics = [
+            "pkg/mod.py:10:89: E501 Line too long (95 > 88)",
+            "pkg/mod.py:3:5: F841 Local variable `x` is assigned to but never used",
+        ]
+
+        assert extract_import_removals(diagnostics) == {}
+
+    def test_path_resolver_is_applied_to_keys(self) -> None:
+        diagnostics = ["/abs/pkg/mod.py:1:8: F401 [*] `os` imported but unused"]
+
+        result = extract_import_removals(
+            diagnostics, path_resolver=lambda p: p.rsplit("/", 1)[-1]
+        )
+
+        assert list(result) == ["mod.py"]
+        assert result["mod.py"][0].name == "os"
+
+    def test_mixed_codes_keep_only_dangerous_removals(self) -> None:
+        diagnostics = [
+            "a.py:1:8: F401 [*] `os` imported but unused",
+            "a.py:2:1: E501 Line too long",
+            "b.py:9:1: F811 Redefinition of unused `sys` from line 2",
+        ]
+
+        result = extract_import_removals(diagnostics)
+
+        assert set(result) == {"a.py", "b.py"}
+        assert [r.code for r in result["a.py"]] == ["F401"]
+        assert [r.code for r in result["b.py"]] == ["F811"]
 
 
 class TestFallback:

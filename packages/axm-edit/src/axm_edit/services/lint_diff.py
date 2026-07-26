@@ -5,8 +5,14 @@ from __future__ import annotations
 import difflib
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 
-__all__ = ["compute_lint_diffs", "extract_rules_by_file"]
+__all__ = [
+    "ImportRemoval",
+    "compute_lint_diffs",
+    "extract_import_removals",
+    "extract_rules_by_file",
+]
 
 _DIAG_RE = re.compile(r"^(?P<file>[^:]+):\d+:\d+:\s+(?P<code>[A-Z]+\d+)\b")
 
@@ -37,6 +43,72 @@ def extract_rules_by_file(
             file_key = path_resolver(file_key)
         rules.setdefault(file_key, set()).add(match.group("code"))
     return {f: sorted(codes) for f, codes in rules.items()}
+
+
+_DANGEROUS_CODES = frozenset({"F401", "F811"})
+
+# Isolates the file, ruff code and the back-quoted symbol name from a concise
+# diagnostic line, e.g. ``mod.py:1:8: F401 [*] `os` imported but unused``.
+_REMOVAL_RE = re.compile(
+    r"^(?P<file>[^:]+):\d+:\d+:\s+(?P<code>[A-Z]+\d+)\b[^`]*(?:`(?P<name>[^`]+)`)?"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ImportRemoval:
+    """A dangerous ruff removal surfaced from a lint diff.
+
+    ``F401`` marks an unused import ruff deleted; ``F811`` marks a symbol whose
+    redefinition ruff dropped. ``name`` is the import/symbol identifier, ``file``
+    the (optionally resolved) path and ``code`` the ruff rule that fired.
+    """
+
+    name: str
+    file: str
+    code: str
+
+
+def extract_import_removals(
+    diagnostics: list[str],
+    *,
+    path_resolver: Callable[[str], str] | None = None,
+) -> dict[str, list[ImportRemoval]]:
+    """Filter dangerous F401/F811 removals out of concise ruff diagnostics.
+
+    Reuses :func:`extract_rules_by_file` as the authority on which
+    ``(file, code)`` pairs ruff reported, then enriches each F401/F811 entry
+    with the back-quoted symbol name from the diagnostic message. Pure: no I/O,
+    no ruff re-run — it only classifies the already-collected diagnostics.
+
+    Args:
+        diagnostics: Concise ruff diagnostic lines (same input as
+            :func:`extract_rules_by_file`).
+        path_resolver: Optional callable mapping raw file path to the key used
+            by ``post_agent`` / ``post_lint`` (usually the relative path).
+
+    Returns:
+        ``{file: [ImportRemoval, ...]}`` restricted to F401/F811 removals.
+        Empty when no such removal is present.
+    """
+    rules_by_file = extract_rules_by_file(diagnostics, path_resolver=path_resolver)
+    removals: dict[str, list[ImportRemoval]] = {}
+    for line in diagnostics:
+        match = _REMOVAL_RE.match(line)
+        if match is None:
+            continue
+        code = match.group("code")
+        if code not in _DANGEROUS_CODES:
+            continue
+        file_key = match.group("file")
+        if path_resolver is not None:
+            file_key = path_resolver(file_key)
+        if code not in rules_by_file.get(file_key, []):
+            continue
+        name = match.group("name") or ""
+        removals.setdefault(file_key, []).append(
+            ImportRemoval(name=name, file=file_key, code=code)
+        )
+    return removals
 
 
 def _tagged_plus_minus(pre: str, post: str) -> str:
