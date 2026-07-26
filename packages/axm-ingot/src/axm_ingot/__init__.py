@@ -5,6 +5,7 @@ Canonical shared helpers factored out of duplicated AXM code.
 
 from __future__ import annotations
 
+from axm_ingot.pytest_tally import tally_outcomes
 from axm_ingot.render import (
     compact_table,
     format_count,
@@ -32,5 +33,6 @@ __all__ = [
     "header",
     "labeled_block",
     "resolve_workspace",
+    "tally_outcomes",
     "truncate",
 ]
