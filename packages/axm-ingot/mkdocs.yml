@@ -12,5 +12,6 @@ nav:
   - Reference:
     - Public API: reference/api.md
     - Render primitives: reference/render.md
+    - Duration primitive: reference/duration.md
   - Explanation:
     - Architecture: explanation/architecture.md

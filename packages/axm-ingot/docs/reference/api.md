@@ -97,3 +97,9 @@ A single workspace member. Callers project trivially: `[m.path for m in ...]`
 The compact `ToolResult.text` primitives (`header`, `labeled_block`,
 `compact_table`, `truncate`, `format_count`, `format_size`) are documented on
 their own page: [`axm_ingot.render`](render.md).
+
+## Duration primitive
+
+The short millisecond-duration formatter (`format_duration`) lives in its own
+leaf module and is documented on its own page:
+[`axm_ingot.duration`](duration.md).
