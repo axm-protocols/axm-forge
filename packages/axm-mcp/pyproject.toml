@@ -100,7 +100,7 @@ docs = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm_mcp"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -108,7 +108,7 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20",
 ignore = ["S101", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S108", "PLR2004"]
+"tests_axm_mcp/*" = ["S101", "S108", "PLR2004"]
 "src/axm_mcp/discovery.py" = ["C901", "PLR0915", "BLE001"]
 "src/axm_mcp/wrapping.py" = ["BLE001"]
 
@@ -210,7 +210,7 @@ check_untyped_defs = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests_axm_mcp.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_any_explicit = false
@@ -231,7 +231,7 @@ ignore_missing_imports = true
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_mcp"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -260,7 +260,7 @@ filterwarnings = [
 source = ["axm_mcp"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_*/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

@@ -94,23 +94,28 @@ axm-vault = { workspace = true }
 axm-doctor = { workspace = true }
 
 [tool.pytest.ini_options]
+# Replicated from the per-package configs: a ROOT run is driven by this file.
+pythonpath = [
+    "packages/axm-audit/tests_axm_audit",
+]
+
 import_mode = "importlib"
 testpaths = [
-    "packages/axm/tests",
-    "packages/axm-anvil/tests",
-    "packages/axm-ast/tests",
-    "packages/axm-audit/tests",
-    "packages/axm-edit/tests",
-    "packages/axm-init/tests",
-    "packages/axm-git/tests",
-    "packages/axm-mcp/tests",
-    "packages/axm-smelt/tests",
-    "packages/axm-ingot/tests",
-    "packages/axm-echo/tests",
-    "packages/axm-config/tests",
-    "packages/axm-vault/tests",
-    "packages/axm-doctor/tests",
+    "packages/axm/tests_axm",
+    "packages/axm-anvil/tests_axm_anvil",
+    "packages/axm-ast/tests_axm_ast",
+    "packages/axm-audit/tests_axm_audit",
+    "packages/axm-config/tests_axm_config",
+    "packages/axm-doctor/tests_axm_doctor",
+    "packages/axm-echo/tests_axm_echo",
+    "packages/axm-edit/tests_axm_edit",
+    "packages/axm-git/tests_axm_git",
+    "packages/axm-ingot/tests_axm_ingot",
+    "packages/axm-init/tests_axm_init",
+    "packages/axm-mcp/tests_axm_mcp",
+    "packages/axm-smelt/tests_axm_smelt",
+    "packages/axm-vault/tests_axm_vault",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["PLR2004"]
+"**/tests_*/**" = ["PLR2004"]

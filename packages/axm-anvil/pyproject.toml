@@ -83,7 +83,7 @@ docs = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm_anvil"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -91,7 +91,7 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "S", "T20", "PLR",
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
+"tests_axm_anvil/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_anvil"]
@@ -122,10 +122,10 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 show_error_codes = true
-exclude = ["tests/integration/fixtures/"]
+exclude = ["tests_axm_anvil/integration/fixtures/"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "conftest"]
+module = ["tests_axm_anvil.*", "conftest"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_any_explicit = false
@@ -160,7 +160,7 @@ DEP004 = ["mkdocs_gen_files", "pytest"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_anvil"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -192,7 +192,7 @@ relative_files = true
 # Mirror-exempt façades (see [tool.axm-audit.mirror].exempt_paths): no
 # unit-testable logic — cli.py is a cyclopts wrapper, _version.py is
 # hatch-vcs generated, __main__.py is the entry shim.
-omit = ["*/tests/*", "*/cli.py", "*/_version.py", "*/__main__.py"]
+omit = ["*/tests_*/*", "*/cli.py", "*/_version.py", "*/__main__.py"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

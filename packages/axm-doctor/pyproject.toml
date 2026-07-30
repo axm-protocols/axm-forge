@@ -81,7 +81,7 @@ docs = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm_doctor"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -90,7 +90,7 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/axm_doctor/cli.py" = ["T201"]
-"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
+"tests_axm_doctor/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -123,7 +123,7 @@ check_untyped_defs = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "conftest"]
+module = ["tests_axm_doctor.*", "conftest"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 disallow_any_explicit = false
@@ -160,7 +160,7 @@ exempt_tests = ["test___init__.py"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_doctor"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -187,7 +187,7 @@ markers = [
 source = ["src/axm_doctor"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_*/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"
