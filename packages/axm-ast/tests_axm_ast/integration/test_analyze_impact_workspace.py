@@ -214,3 +214,40 @@ class TestWorkspaceImpact:
         result = analyze_impact_workspace(workspace_root, "helper")
         caller_modules = [c["module"] for c in result["callers"]]
         assert any("pkg_b::" in m for m in caller_modules)
+
+    def test_workspace_tests_include_nested_member_suites(self, tmp_path: Path) -> None:
+        """Workspace impact follows declared nested members to their suites."""
+        from axm_ast.core.impact import analyze_impact_workspace
+
+        workspace = tmp_path / "workspace"
+        packages = workspace / "packages"
+        packages.mkdir(parents=True)
+        (workspace / "pyproject.toml").write_text(
+            '[project]\nname = "workspace"\nversion = "0.1.0"\n'
+            '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        )
+        first = packages / "first-pkg"
+        second = packages / "second-pkg"
+        for member, package_name in (
+            (first, "first_pkg"),
+            (second, "second_pkg"),
+        ):
+            source = member / "src" / package_name
+            source.mkdir(parents=True)
+            (member / "pyproject.toml").write_text(
+                f'[project]\nname = "{member.name}"\nversion = "0.1.0"\n'
+            )
+            (source / "__init__.py").write_text("")
+        (first / "src" / "first_pkg" / "core.py").write_text(
+            "def helper() -> int:\n    return 1\n"
+        )
+        first_test = first / "tests_first_pkg" / "unit" / "test_core.py"
+        second_test = second / "tests_second_pkg" / "unit" / "test_other.py"
+        first_test.parent.mkdir(parents=True)
+        second_test.parent.mkdir(parents=True)
+        first_test.write_text("def test_core() -> None:\n    assert helper() == 1\n")
+        second_test.write_text("def test_other() -> None:\n    assert helper() == 1\n")
+
+        result = analyze_impact_workspace(workspace, "helper")
+
+        assert result["test_files"] == ["test_core.py", "test_other.py"]

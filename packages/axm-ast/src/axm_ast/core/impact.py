@@ -1038,13 +1038,7 @@ def _collect_workspace_tests(
     symbol: str,
 ) -> list[str]:
     """Collect test files referencing a symbol across the workspace."""
-    test_files: list[str] = []
-    for member_dir in ws.root.iterdir():
-        if not member_dir.is_dir():
-            continue
-        for t in map_tests(symbol, member_dir):
-            test_files.append(str(t.name))
-    return sorted(set(test_files))
+    return sorted({test_file.name for test_file in map_tests(symbol, ws.root)})
 
 
 def _add_workspace_git_coupling(
