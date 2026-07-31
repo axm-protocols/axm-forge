@@ -2,26 +2,35 @@
 
 from __future__ import annotations
 
-import shutil
-from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
 from axm_git.core.runner import run_git
-
-_AXM_WORKTREES_DIR = Path("/tmp/axm-worktrees")
+from axm_git.hooks import worktree_add
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_axm_worktrees() -> Generator[None, None, None]:
-    """Remove any /tmp/axm-worktrees/<id> dirs created during the test."""
-    before = set(_AXM_WORKTREES_DIR.iterdir()) if _AXM_WORKTREES_DIR.exists() else set()
-    yield
-    if _AXM_WORKTREES_DIR.exists():
-        for entry in _AXM_WORKTREES_DIR.iterdir():
-            if entry not in before:
-                shutil.rmtree(entry, ignore_errors=True)
+def _isolated_worktree_root(
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Give every test its own worktree root.
+
+    The hook's default root is process-global, so two tests using the same
+    ticket id collide: the second finds the first's directory and skips, or git
+    refuses the branch outright. Sequentially they happen to interleave without
+    overlapping; in parallel six of them break at once.
+
+    Pointing the default at a per-test directory makes the isolation structural
+    rather than a property of execution order -- no test has to remember to pass
+    a root, and none can reach another's.
+    """
+    monkeypatch.setattr(
+        worktree_add,
+        "DEFAULT_WORKTREE_ROOT",
+        tmp_path_factory.mktemp("axm-worktrees"),
+    )
 
 
 @pytest.fixture

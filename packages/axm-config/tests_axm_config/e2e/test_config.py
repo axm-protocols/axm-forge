@@ -19,6 +19,13 @@ def _run(args: list[str], home: Path) -> subprocess.CompletedProcess[str]:
     """Run ``axm-config <args>`` with an isolated HOME, capturing text output."""
     env = dict(os.environ)
     env["HOME"] = str(home)
+    # ``uv run`` writes its own diagnostics to the SAME stderr as the CLI under
+    # test. In particular it warns when ``VIRTUAL_ENV`` points somewhere other
+    # than the project environment — which happens whenever the suite runs from
+    # another venv, e.g. one xdist worker per process. Dropping the inherited
+    # value keeps stderr carrying the CLI's output alone, so an assertion about
+    # the error message is not silently answered by uv's banner.
+    env.pop("VIRTUAL_ENV", None)
     return subprocess.run(
         ["uv", "run", "axm-config", *args],
         cwd=PKG_DIR,
@@ -73,7 +80,12 @@ def test_get_home_in_git_repo_exits_clean(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "Traceback" not in result.stderr
-    assert result.stderr.startswith("error:")
+    # Match the line, not the whole stream: a wrapper may legitimately prepend
+    # its own diagnostics, and the contract is that the CLI reports one clean
+    # ``error:`` line — not that nothing else ever writes to stderr.
+    assert any(line.startswith("error:") for line in result.stderr.splitlines()), (
+        result.stderr
+    )
 
 
 @pytest.mark.e2e
@@ -83,4 +95,6 @@ def test_doctor_invalid_namespace_exits_clean(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "Traceback" not in result.stderr
-    assert result.stderr.startswith("error:")
+    assert any(line.startswith("error:") for line in result.stderr.splitlines()), (
+        result.stderr
+    )
