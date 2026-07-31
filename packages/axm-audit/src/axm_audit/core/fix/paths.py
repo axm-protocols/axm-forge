@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from axm_ingot.suite import is_suite_name
+
 __all__ = [
     "abspath",
     "file_depth_from_project",
@@ -52,10 +54,10 @@ def retier(p: Path, root: Path, target_lvl: str) -> Path:
     """
     rel = p.relative_to(root) if p.is_absolute() else p
     parts = list(rel.parts)
-    if not parts or parts[0] != "tests":
+    if not parts or not is_suite_name(parts[0]):
         return root / Path(*parts)
     if len(parts) == 2:
-        return root / "tests" / target_lvl / parts[1]
+        return root / parts[0] / target_lvl / parts[1]
     parts[1] = target_lvl
     return root / Path(*parts)
 
@@ -85,7 +87,7 @@ def module_path_for_test_file(path: Path, project_path: Path) -> str | None:
     except ValueError:
         return None
     parts = rel.with_suffix("").parts
-    if not parts or parts[0] != "tests":
+    if not parts or not is_suite_name(parts[0]):
         return None
     return ".".join(parts)
 

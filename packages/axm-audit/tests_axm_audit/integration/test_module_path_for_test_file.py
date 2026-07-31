@@ -25,6 +25,18 @@ def test_module_path_dotted_and_outside(tmp_path: Path) -> None:
     assert module_path_for_test_file(outside, project) is None
 
 
+def test_module_path_supports_namespaced_suite(tmp_path: Path) -> None:
+    """Imports from a migrated suite retain the tests_<pkg> module prefix."""
+    project = tmp_path / "axm-audit"
+    test_file = project / "tests_axm_audit" / "unit" / "test_rule.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text("")
+
+    assert module_path_for_test_file(test_file, project) == (
+        "tests_axm_audit.unit.test_rule"
+    )
+
+
 def test_module_path_returns_none_when_outside_tests_dir(tmp_path: Path) -> None:
     """AC2: module_path_for_test_file returns None for in-project non-tests paths."""
     project = tmp_path / "p"

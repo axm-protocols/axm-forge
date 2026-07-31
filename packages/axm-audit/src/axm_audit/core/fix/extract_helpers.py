@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import libcst as cst
+from axm_ingot.suite import resolve_suite_dir
 
 from .cst_rewrite import (
     _dedupe_imports_cst,
@@ -129,8 +130,8 @@ def extract_shared_helpers(project_path: Path) -> list[str]:
 def extract_shared_helpers_once(project_path: Path) -> list[str]:
     """Promote helpers duplicated across a tier into ``tests/<tier>/_helpers.py``."""
     msgs: list[str] = []
-    tests_root = project_path / "tests"
-    if not tests_root.is_dir():
+    tests_root = resolve_suite_dir(project_path)
+    if tests_root is None:
         return msgs
     for tier in ("integration", "e2e", "unit"):
         tier_dir = tests_root / tier

@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
 
 __all__ = [
@@ -321,8 +323,8 @@ def iter_test_files(pkg_root: Path) -> Iterator[tuple[Path, ast.Module | None]]:
     and the test_quality rules must do the same so corpus files don't
     get flagged as pyramid / naming / tautology offenders.
     """
-    tests_dir = pkg_root / "tests"
-    if not tests_dir.exists():
+    tests_dir = resolve_suite_dir(pkg_root)
+    if tests_dir is None:
         return
     fixtures_dir = tests_dir / "fixtures"
     for test_file in sorted(tests_dir.rglob("test_*.py")):

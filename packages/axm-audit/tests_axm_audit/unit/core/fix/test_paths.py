@@ -65,6 +65,15 @@ def test_retier_resolves_tier_component(src: str, expected: str) -> None:
     assert retier(Path(src), Path("/p"), "unit") == Path(expected)
 
 
+def test_retier_preserves_namespaced_suite_root() -> None:
+    """A migrated suite keeps its canonical tests_<pkg> root when re-tiered."""
+    source = Path("/p/tests_axm_audit/test_rule.py")
+
+    assert retier(source, Path("/p"), "unit") == Path(
+        "/p/tests_axm_audit/unit/test_rule.py"
+    )
+
+
 def test_abspath_normalises_relative_and_absolute() -> None:
     """AC2: abspath joins relative paths to project, keeps absolute paths."""
     project = Path("/p")

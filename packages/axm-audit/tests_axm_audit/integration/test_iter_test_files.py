@@ -21,6 +21,16 @@ def test_iter_test_files_yields_tests_recursively(tmp_path: Path) -> None:
     assert paths == sorted(paths)
 
 
+def test_iter_test_files_yields_namespaced_suite(tmp_path: Path) -> None:
+    project = tmp_path / "sample-pkg"
+    suite = project / "tests_sample_pkg" / "unit"
+    suite.mkdir(parents=True)
+    expected = suite / "test_feature.py"
+    expected.write_text("")
+
+    assert [path for path, _tree in iter_test_files(project)] == [expected]
+
+
 def test_iter_test_files_skips_fixtures(tmp_path: Path) -> None:
     """`tests/fixtures/**/test_*.py` is corpus data, not real tests."""
     unit = tmp_path / "tests" / "unit"

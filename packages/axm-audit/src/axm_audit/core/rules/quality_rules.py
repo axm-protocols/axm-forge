@@ -11,6 +11,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_audit.core.rules.base import (
     LINT_PASS_THRESHOLD,
     PASS_THRESHOLD,
@@ -138,11 +140,11 @@ def _get_audit_targets(project_path: Path) -> tuple[list[str], str]:
         ``(targets, checked)`` — e.g. ``(["src", "tests"], "src/ tests/")``.
     """
     src_path = project_path / "src"
-    tests_path = project_path / "tests"
+    tests_path = resolve_suite_dir(project_path)
     targets = [str(src_path)]
-    if tests_path.exists():
+    if tests_path is not None:
         targets.append(str(tests_path))
-    checked = "src/ tests/" if tests_path.exists() else "src/"
+    checked = f"src/ {tests_path.name}/" if tests_path is not None else "src/"
     return targets, checked
 
 
