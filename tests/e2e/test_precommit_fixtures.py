@@ -13,6 +13,7 @@ The test reuses the *real* exclude patterns declared in the workspace-root
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -49,7 +50,13 @@ def test_prek_leaves_snapshot_fixture_byte_intact(tmp_path: Path) -> None:
 
     # Sanity: the real config actually excludes the fixtures paths on both hooks.
     for hook in repo["hooks"]:
-        assert "tests/fixtures/(snapshots|goldens)/" in (hook.get("exclude") or "")
+        # Assert the pattern MATCHES both suite conventions rather than
+        # comparing its source text: suites are named ``tests_<pkg>/`` since the
+        # workspace migration, and a literal comparison would break on any
+        # equivalent rewrite while proving nothing about the actual exclusion.
+        exclude = hook.get("exclude") or ""
+        assert re.search(exclude, "pkg/tests/fixtures/snapshots/x.txt")
+        assert re.search(exclude, "pkg/tests_axm_init/fixtures/goldens/y.txt")
 
     (tmp_path / ".pre-commit-config.yaml").write_text(
         yaml.safe_dump({"repos": [repo]}, sort_keys=False)

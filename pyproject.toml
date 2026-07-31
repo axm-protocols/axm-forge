@@ -115,6 +115,9 @@ testpaths = [
     "packages/axm-mcp/tests_axm_mcp",
     "packages/axm-smelt/tests_axm_smelt",
     "packages/axm-vault/tests_axm_vault",
+    # Workspace-level tests (pre-commit config, uv.lock, workspace render):
+    # they belong to no package, so they need their own entry or they never run.
+    "tests",
 ]
 
 [tool.ruff.lint.per-file-ignores]
