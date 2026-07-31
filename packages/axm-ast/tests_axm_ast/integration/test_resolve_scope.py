@@ -52,3 +52,11 @@ class TestResolveScope:
         result = resolve_scope(tmp_path, test_dir_arg)
         expected = tmp_path / expected_rel if expected_rel else tmp_path
         assert result == expected
+
+    def test_resolves_scope_in_namespaced_suite(self, tmp_path: Path) -> None:
+        """resolve_scope uses the package-specific suite selected by the resolver."""
+        project = tmp_path / "axm-sample"
+        expected = project / "tests_axm_sample" / "httpwrappers"
+        expected.mkdir(parents=True)
+
+        assert resolve_scope(project, "httpwrappers") == expected

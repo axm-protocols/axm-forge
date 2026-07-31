@@ -75,3 +75,16 @@ class TestMapTests:
         )
         test_files = map_tests("helper", tmp_path)
         assert [t.name for t in test_files] == ["test_helper.py"]
+
+    def test_finds_tests_in_namespaced_suite(self, tmp_path: Path) -> None:
+        """Migrated tests_<pkg>/ suites participate in impact analysis."""
+        project = tmp_path / "axm-sample"
+        tests = project / "tests_axm_sample" / "unit" / "core"
+        tests.mkdir(parents=True)
+        (tests / "test_helper.py").write_text(
+            "def test_helper() -> None:\n    helper(1)\n"
+        )
+
+        test_files = map_tests("helper", project)
+
+        assert [t.name for t in test_files] == ["test_helper.py"]

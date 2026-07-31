@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from axm_ingot.suite import is_suite_name, resolve_suite_dir
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
@@ -346,8 +347,8 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
     Returns:
         List of test file paths that reference the symbol.
     """
-    tests_dir = project_root / "tests"
-    if not tests_dir.is_dir():
+    tests_dir = resolve_suite_dir(project_root)
+    if tests_dir is None:
         return []
 
     matching: list[Path] = []
@@ -388,8 +389,8 @@ def _find_test_files_by_import(
     """
     import re
 
-    tests_dir = project_root / "tests"
-    if not tests_dir.is_dir():
+    tests_dir = resolve_suite_dir(project_root)
+    if tests_dir is None:
         return []
 
     # Match import lines:  from <anything>.module_name import ...
@@ -791,7 +792,7 @@ def _is_test_module(module: str) -> bool:
     also matches dotted paths where any segment starts with ``test_``.
     """
     parts = module.split(".")
-    return any(p.startswith("test_") or p == "tests" for p in parts)
+    return any(p.startswith("test_") or is_suite_name(p) for p in parts)
 
 
 def _resolve_effective_filter(

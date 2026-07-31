@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
+from axm_ingot.suite import is_suite_name
 from axm_ingot.uv import parse_workspace_members, resolve_workspace
 
 from axm_ast.core.analyzer import build_import_graph, module_dotted_name
@@ -145,7 +146,7 @@ def _is_python_package(path: Path) -> bool:
     return (path / "__init__.py").exists() or any(path.glob("*.py"))
 
 
-_FLAT_LAYOUT_EXCLUDE = {"tests", "docs", ".venv", ".git", "__pycache__"}
+_FLAT_LAYOUT_EXCLUDE = {"docs", ".venv", ".git", "__pycache__"}
 
 
 def _find_in_src_layout(member_path: Path) -> Path | None:
@@ -165,6 +166,7 @@ def _find_in_flat_layout(member_path: Path) -> Path | None:
         if (
             child.is_dir()
             and child.name not in _FLAT_LAYOUT_EXCLUDE
+            and not is_suite_name(child.name)
             and (child / "__init__.py").exists()
         ):
             return child

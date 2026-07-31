@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from axm.hooks.base import HookResult
+from axm_ingot.suite import is_suite_name, resolve_suite_dir
 
 from axm_ast.hooks._trace_protocol import _TraceFlow
 
@@ -97,11 +98,14 @@ def resolve_scope(base_path: Path, test_dir: str | None) -> Path:
     if test_dir is None:
         return base_path
 
-    # If test_dir already starts with "tests/", use it directly
-    if test_dir.startswith("tests/") or test_dir.startswith("tests\\"):
-        scoped = base_path / test_dir
+    relative = Path(test_dir)
+    if relative.parts and is_suite_name(relative.parts[0]):
+        scoped = base_path / relative
     else:
-        scoped = base_path / "tests" / test_dir
+        suite_dir = resolve_suite_dir(base_path)
+        if suite_dir is None:
+            return base_path
+        scoped = suite_dir / relative
 
     return scoped if scoped.is_dir() else base_path
 

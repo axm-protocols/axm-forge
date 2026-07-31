@@ -180,6 +180,20 @@ def test_member_without_src_flat_layout(tmp_path: Path) -> None:
     assert ws.packages[0].name == "flat_pkg"
 
 
+def test_flat_layout_ignores_namespaced_suite_package(tmp_path: Path) -> None:
+    """A tests_<pkg> package cannot be mistaken for the member source package."""
+    _make_workspace(tmp_path, ["z-pkg"])
+    member = _make_member_package(tmp_path, "z-pkg", src_layout=False)
+    suite = member / "tests_z_pkg"
+    suite.mkdir()
+    (suite / "__init__.py").write_text("", encoding="utf-8")
+
+    ws = analyze_workspace(tmp_path)
+
+    assert len(ws.packages) == 1
+    assert ws.packages[0].name == "z_pkg"
+
+
 def test_single_member_workspace(tmp_path: Path) -> None:
     """Single-member workspace still works."""
     _make_workspace(tmp_path, ["only-pkg"])

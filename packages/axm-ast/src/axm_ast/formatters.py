@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TypedDict
 
+from axm_ingot.suite import is_suite_path
+
 from axm_ast.core.analyzer import build_import_graph
 from axm_ast.docstring_parser import parse_docstring
 from axm_ast.models.nodes import (
@@ -281,8 +283,9 @@ def _is_test_module(mod: ModuleInfo, pkg: PackageInfo) -> bool:
         rel = mod.path.relative_to(pkg.root)
     except ValueError:
         return False
-    parts = rel.parts
-    return "tests" in parts or rel.name.startswith("test_") or rel.name == "conftest.py"
+    return (
+        is_suite_path(rel) or rel.name.startswith("test_") or rel.name == "conftest.py"
+    )
 
 
 def _is_included(name: str, mod: ModuleInfo) -> bool:

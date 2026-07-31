@@ -22,6 +22,8 @@ from itertools import dropwhile
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
+from axm_ingot.suite import is_suite_path, resolve_suite_dir
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -369,7 +371,7 @@ def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
 
 def _is_in_tests_dir(mod_path: Path) -> bool:
     """Check if a module is inside a ``tests/`` directory."""
-    return "tests" in mod_path.parts
+    return is_suite_path(mod_path)
 
 
 def _extract_lazy_imports(mod: ModuleInfo) -> set[str]:
@@ -559,8 +561,8 @@ def _find_tests_dir(pkg_root: Path) -> Path | None:
         parent = search.parent
         if parent == search:
             break
-        candidate = parent / "tests"
-        if candidate.is_dir():
+        candidate = resolve_suite_dir(parent)
+        if candidate is not None:
             return candidate
         search = parent
     return None
