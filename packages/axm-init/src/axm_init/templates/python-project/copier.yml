@@ -106,7 +106,7 @@ _tasks:
     when: "{{ true }}"
   - command: "uv python pin {{ python_min_version }}"
     when: "{{ true }}"
-  - command: "uv add --group dev pytest pytest-cov pytest-mock ruff mypy prek pip-audit"
+  - command: "uv add --group dev pytest pytest-xdist pytest-cov pytest-mock ruff mypy prek pip-audit"
     when: "{{ true }}"
   - command: "uv add --group docs mkdocs-material 'mkdocstrings[python]' mkdocs-gen-files mkdocs-literate-nav"
     when: "{{ true }}"

@@ -52,7 +52,7 @@ def gold_project(tmp_path: Path) -> Path:
         'build-backend = "hatchling.build"\n'
         "\n[dependency-groups]\n"
         "dev = ["
-        '"pytest>=8.0","pytest-cov>=4.0","ruff>=0.8",'
+        '"pytest>=8.0","pytest-xdist>=3.8.0","pytest-cov>=4.0","ruff>=0.8",'
         '"mypy>=1.14","prek>=0.4.4"]\n'
         'docs = ["mkdocs-material>=9.0","mkdocstrings[python]>=0.27",'
         '"mkdocs-gen-files>=0.5","mkdocs-literate-nav>=0.6"]\n'

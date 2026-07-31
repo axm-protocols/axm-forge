@@ -34,6 +34,7 @@ GOLD_PYPROJECT = dedent("""\
     [dependency-groups]
     dev = [
         "pytest>=8.0",
+        "pytest-xdist>=3.8.0",
         "pytest-cov>=4.0",
         "ruff>=0.8",
         "mypy>=1.14",

@@ -15,7 +15,7 @@ from axm_init.models.check import CheckResult
     fix="Create pyproject.toml with [dependency-groups] dev group.",
 )
 def check_dev_deps(project: Path, data: TomlTable) -> CheckResult:
-    """Check 29: dev deps include pytest, ruff, mypy, and a hook runner.
+    """Check 29: dev deps include pytest, xdist, ruff, mypy, and a hook runner.
 
     Tri-state hook-runner detection: ``prek`` passes clean, the legacy
     ``pre-commit`` passes with a soft migration warning, and neither fails.
@@ -24,7 +24,7 @@ def check_dev_deps(project: Path, data: TomlTable) -> CheckResult:
     raw_dev = section(data, "dependency-groups").get("dev", [])
     dev = raw_dev if isinstance(raw_dev, list) else []
     dev_str = " ".join(str(d) for d in dev).lower()
-    base_required = ["pytest", "ruff", "mypy"]
+    base_required = ["pytest", "pytest-xdist", "ruff", "mypy"]
     missing = [d for d in base_required if d not in dev_str]
     has_prek = "prek" in dev_str
     has_precommit = "pre-commit" in dev_str

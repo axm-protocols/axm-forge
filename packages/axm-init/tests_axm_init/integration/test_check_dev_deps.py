@@ -18,6 +18,19 @@ pytestmark = pytest.mark.integration
 
 
 class TestCheckDevDeps:
+    def test_missing_xdist_fails(self, tmp_path: Path) -> None:
+        """The gate runner requires xdist in every target project's dev group."""
+        toml = (
+            '[project]\nname="x"\n[dependency-groups]\n'
+            'dev = ["pytest", "ruff", "mypy", "prek>=0.4.4"]\n'
+        )
+        (tmp_path / "pyproject.toml").write_text(toml)
+
+        result = check_dev_deps(tmp_path)
+
+        assert result.passed is False
+        assert "pytest-xdist" in result.details[0]
+
     def test_prek_satisfies_dev_group(self, tmp_path: Path) -> None:
         """AC1: dev group pinning prek (no pre-commit) passes clean.
 
@@ -26,7 +39,7 @@ class TestCheckDevDeps:
         """
         toml = (
             '[project]\nname="x"\n[dependency-groups]\n'
-            'dev = ["pytest", "ruff", "mypy", "prek>=0.4.4"]\n'
+            'dev = ["pytest", "pytest-xdist", "ruff", "mypy", "prek>=0.4.4"]\n'
         )
         (tmp_path / "pyproject.toml").write_text(toml)
         r = check_dev_deps(tmp_path)
@@ -42,7 +55,7 @@ class TestCheckDevDeps:
         """
         toml = (
             '[project]\nname="x"\n[dependency-groups]\n'
-            'dev = ["pytest", "ruff", "mypy", "pre-commit>=4.0"]\n'
+            'dev = ["pytest", "pytest-xdist", "ruff", "mypy", "pre-commit>=4.0"]\n'
         )
         (tmp_path / "pyproject.toml").write_text(toml)
         r = check_dev_deps(tmp_path)
