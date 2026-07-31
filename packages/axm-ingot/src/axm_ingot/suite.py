@@ -8,6 +8,7 @@ __all__ = [
     "is_suite_name",
     "is_suite_path",
     "resolve_suite_dir",
+    "resolve_suite_dirs",
 ]
 
 _PROJECT_SEPARATOR = re.compile(r"[-.]+")
@@ -41,3 +42,23 @@ def resolve_suite_dir(project_root: str | Path) -> Path | None:
     if legacy.is_dir():
         return legacy
     return None
+
+
+def resolve_suite_dirs(project_root: str | Path) -> tuple[Path, ...]:
+    """Resolve suite roots owned by a project and each uv-workspace member."""
+    from axm_ingot.uv import resolve_workspace
+
+    root = Path(project_root)
+    suites: list[Path] = []
+    if direct := resolve_suite_dir(root):
+        suites.append(direct)
+
+    workspace = resolve_workspace(root)
+    if workspace is None:
+        return tuple(suites)
+
+    for member in workspace.members:
+        suite = resolve_suite_dir(member.path)
+        if suite is not None and suite not in suites:
+            suites.append(suite)
+    return tuple(suites)

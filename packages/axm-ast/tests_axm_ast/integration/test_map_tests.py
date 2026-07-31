@@ -88,3 +88,28 @@ class TestMapTests:
         test_files = map_tests("helper", project)
 
         assert [t.name for t in test_files] == ["test_helper.py"]
+
+    def test_finds_tests_in_workspace_member_suites(self, tmp_path: Path) -> None:
+        """Workspace impact scans every resolved member suite."""
+        workspace = tmp_path / "workspace"
+        (workspace / "packages").mkdir(parents=True)
+        (workspace / "pyproject.toml").write_text(
+            '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        )
+        first = workspace / "packages" / "axm-first"
+        second = workspace / "packages" / "axm-second"
+        for member in (first, second):
+            member.mkdir()
+            (member / "pyproject.toml").write_text(
+                f'[project]\nname = "{member.name}"\nversion = "0.1.0"\n'
+            )
+        first_test = first / "tests_axm_first" / "unit" / "test_helper.py"
+        second_test = second / "tests_axm_second" / "unit" / "test_other.py"
+        first_test.parent.mkdir(parents=True)
+        second_test.parent.mkdir(parents=True)
+        first_test.write_text("def test_helper() -> None:\n    helper(1)\n")
+        second_test.write_text("def test_other() -> None:\n    helper(2)\n")
+
+        test_files = map_tests("helper", workspace)
+
+        assert test_files == [first_test, second_test]

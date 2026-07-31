@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
-from axm_ingot.suite import is_suite_name, resolve_suite_dir
+from axm_ingot.suite import is_suite_name, resolve_suite_dirs
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
@@ -347,12 +347,17 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
     Returns:
         List of test file paths that reference the symbol.
     """
-    tests_dir = resolve_suite_dir(project_root)
-    if tests_dir is None:
+    tests_dirs = resolve_suite_dirs(project_root)
+    if not tests_dirs:
         return []
 
     matching: list[Path] = []
-    for test_file in sorted(tests_dir.rglob("test_*.py")):
+    test_files = sorted(
+        test_file
+        for tests_dir in tests_dirs
+        for test_file in tests_dir.rglob("test_*.py")
+    )
+    for test_file in test_files:
         try:
             content = test_file.read_text(encoding="utf-8")
             if symbol in content:
@@ -389,8 +394,8 @@ def _find_test_files_by_import(
     """
     import re
 
-    tests_dir = resolve_suite_dir(project_root)
-    if tests_dir is None:
+    tests_dirs = resolve_suite_dirs(project_root)
+    if not tests_dirs:
         return []
 
     # Match import lines:  from <anything>.module_name import ...
@@ -402,7 +407,12 @@ def _find_test_files_by_import(
     )
 
     matching: list[Path] = []
-    for test_file in sorted(tests_dir.rglob("test_*.py")):
+    test_files = sorted(
+        test_file
+        for tests_dir in tests_dirs
+        for test_file in tests_dir.rglob("test_*.py")
+    )
+    for test_file in test_files:
         try:
             content = test_file.read_text(encoding="utf-8")
             if pattern.search(content):
