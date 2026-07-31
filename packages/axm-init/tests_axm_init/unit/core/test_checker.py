@@ -27,7 +27,7 @@ class TestCheckDiscovery:
     def test_check_discovery_finds_all(self) -> None:
         """Auto-discovery finds 50 checks across 8 categories."""
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 50
+        assert total == 51
         assert len(ALL_CHECKS) == 8
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
@@ -57,7 +57,7 @@ class TestCheckDiscovery:
     def test_workspace_category_discovered(self) -> None:
         """workspace category exists in ALL_CHECKS with the expected 9 checks."""
         assert "workspace" in ALL_CHECKS
-        assert len(ALL_CHECKS["workspace"]) == 9
+        assert len(ALL_CHECKS["workspace"]) == 10
 
 
 class TestCLILazyImports:
@@ -127,6 +127,16 @@ def test_all_checks_registry_populated() -> None:
     for category, fns in ALL_CHECKS.items():
         assert isinstance(category, str)
         assert all(callable(fn) for fn in fns)
+
+
+def test_workspace_suite_uniqueness_check_is_discovered() -> None:
+    """AC3: automatic discovery registers the uniqueness rule exactly once."""
+    from axm_init.core.checker import ALL_CHECKS, get_check_name
+
+    names = [get_check_name(fn) for fn in ALL_CHECKS["workspace"]]
+
+    assert names.count("workspace.suite_dir_uniqueness") == 1
+    assert len(names) == len(set(names))
 
 
 # --- harmonized failures key in machine serializers ---

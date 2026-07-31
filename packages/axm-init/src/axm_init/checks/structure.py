@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from axm_ingot.suite import canonical_suite_name, resolve_suite_dir
 from axm_ingot.uv import find_workspace_root
 
 from axm_init.models.check import CheckResult
@@ -106,47 +107,55 @@ def check_py_typed(project: Path) -> CheckResult:
 
 
 def check_tests_dir(project: Path) -> CheckResult:
-    """Check 26: tests/ directory with unit/integration/e2e pyramid."""
-    tests = project / "tests"
-    if not tests.is_dir():
+    """Check the resolved test suite has a complete three-level pyramid."""
+    expected_name = canonical_suite_name(project)
+    tests = resolve_suite_dir(project)
+    if tests is None:
         return CheckResult(
             name="structure.tests_dir",
             category="structure",
             passed=False,
             weight=3,
-            message="tests/ directory not found",
+            message=f"{expected_name}/ directory not found",
             details=[],
             fix=(
-                "Create tests/ directory with unit/, integration/, e2e/ subdirectories."
+                f"Create {expected_name}/ directory with unit/, integration/, "
+                "e2e/ subdirectories."
             ),
         )
+
+    suite_name = tests.name
     required = ["unit", "integration", "e2e"]
     missing = [sub for sub in required if not (tests / sub).is_dir()]
     if missing:
-        missing_paths = [f"tests/{sub}/" for sub in missing]
+        missing_paths = [f"{suite_name}/{sub}/" for sub in missing]
         return CheckResult(
             name="structure.tests_dir",
             category="structure",
             passed=False,
             weight=3,
             message=f"Missing test pyramid subdirectories: {', '.join(missing_paths)}",
-            details=[f"Expected: {p}" for p in missing_paths],
+            details=[f"Expected: {path}" for path in missing_paths],
             fix=f"Create missing subdirectories: {', '.join(missing_paths)}",
         )
+
     test_files = list(tests.rglob("test_*.py"))
     if not test_files:
+        pyramid = f"{suite_name}/{{unit,integration,e2e}}/test_*.py"
         return CheckResult(
             name="structure.tests_dir",
             category="structure",
             passed=False,
             weight=3,
-            message="No test files found in tests/",
-            details=["Expected: tests/{unit,integration,e2e}/test_*.py files"],
+            message=f"No test files found in {suite_name}/",
+            details=[f"Expected: {pyramid} files"],
             fix=(
-                "Add test files matching test_*.py pattern under"
-                " tests/unit/, tests/integration/, or tests/e2e/."
+                "Add test files matching test_*.py under "
+                f"{suite_name}/unit/, {suite_name}/integration/, "
+                f"or {suite_name}/e2e/."
             ),
         )
+
     return CheckResult(
         name="structure.tests_dir",
         category="structure",

@@ -20,3 +20,41 @@ from tests_axm_init.integration.test_check_pytest_testpaths import *  # noqa: F4
 from tests_axm_init.integration.test_check_quality_workflow import *  # noqa: F403
 from tests_axm_init.integration.test_check_requires_python_compat import *  # noqa: F403
 from tests_axm_init.integration.test_check_root_name_collision import *  # noqa: F403
+
+
+def test_incomplete_member_suite_coverage_fails(mocker) -> None:
+    """AC2: one covered member cannot mask another member's missing suite."""
+    from pathlib import Path
+
+    from axm_init.checks.workspace import check_pytest_testpaths
+
+    mocker.patch(
+        "axm_init.checks.workspace.load_toml",
+        return_value={
+            "tool": {
+                "uv": {"workspace": {"members": ["packages/*"]}},
+                "pytest": {
+                    "ini_options": {"testpaths": ["packages/pkg-a/tests_pkg_a"]}
+                },
+            }
+        },
+    )
+    members = [Path("packages/pkg-a"), Path("packages/pkg-b")]
+    mocker.patch(
+        "axm_init.checks.workspace._resolve_member_dirs",
+        return_value=members,
+    )
+    resolver = mocker.patch(
+        "axm_init.checks.workspace.resolve_suite_dir",
+        create=True,
+    )
+    resolver.side_effect = [
+        members[0] / "tests_pkg_a",
+        members[1] / "tests_pkg_b",
+    ]
+
+    result = check_pytest_testpaths(Path("."))
+
+    assert result.passed is False
+    rendered = "\n".join([result.message, *result.details, result.fix])
+    assert "pkg-b" in rendered
