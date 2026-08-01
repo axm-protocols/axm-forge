@@ -175,10 +175,18 @@ def parse_collector_errors(
 def parse_json_report(report_path: Path) -> dict[str, object]:
     """Read and parse a pytest-json-report JSON file."""
     try:
-        return cast("dict[str, object]", json.loads(report_path.read_text()))
+        raw_report = json.loads(report_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to parse JSON report: %s", exc)
-        return {}
+        msg = f"Invalid pytest JSON report at {report_path}: {exc}"
+        raise ValueError(msg) from exc
+
+    if not isinstance(raw_report, dict):
+        msg = f"Invalid pytest JSON report at {report_path}: root is not an object"
+        raise ValueError(msg)
+    if not isinstance(raw_report.get("summary"), dict):
+        msg = f"Invalid pytest JSON report at {report_path}: missing object 'summary'"
+        raise ValueError(msg)
+    return cast("dict[str, object]", raw_report)
 
 
 def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]:

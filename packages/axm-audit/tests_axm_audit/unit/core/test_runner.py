@@ -240,6 +240,17 @@ def test_run_tests_passes_explicit_timeout() -> None:
     assert run_in_project.call_args.kwargs.get("timeout", 300) >= 900
 
 
+def test_parse_json_report_rejects_missing_summary(tmp_path: Path) -> None:
+    """Syntactically valid JSON without pytest's summary is not a report."""
+    from axm_audit.core.test_runner import parse_json_report
+
+    report_path = tmp_path / "pytest-report.json"
+    report_path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing object 'summary'"):
+        parse_json_report(report_path)
+
+
 def test_run_tests_normal_run_unaffected() -> None:
     """AC4: a non-timeout run (returncode 0) parses and reports coverage
     exactly as before — regression guard for the happy path.

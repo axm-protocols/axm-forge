@@ -41,11 +41,12 @@ class TestParseJsonReport:
             pytest.param(None, id="missing_file"),
         ],
     )
-    def test_degraded_input_returns_empty_dict(
+    def test_degraded_input_fails_closed(
         self, tmp_path: Path, content: str | None
     ) -> None:
-        """Invalid JSON or missing file both return an empty dict."""
+        """Invalid JSON or a missing file are execution failures, never green."""
         report_file = tmp_path / "report.json"
         if content is not None:
             report_file.write_text(content)
-        assert parse_json_report(report_file) == {}
+        with pytest.raises(ValueError, match="Invalid pytest JSON report"):
+            parse_json_report(report_file)
