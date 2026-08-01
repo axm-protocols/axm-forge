@@ -696,9 +696,11 @@ def score_impact(
 
 
 def _resolve_project_root(path: Path, explicit: Path | None) -> Path:
-    """Infer project root from package path if not given explicitly."""
+    """Infer the test-owning project root without stepping above a real root."""
     if explicit is not None:
         return explicit
+    if resolve_suite_dirs(path):
+        return path
     if path.parent.name == "src":
         return path.parent.parent
     return path.parent

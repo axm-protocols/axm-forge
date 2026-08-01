@@ -14,6 +14,34 @@ from tests_axm_ast.integration._helpers import (
 )
 
 
+def test_project_root_input_uses_its_configured_namespaced_suite(
+    tmp_path: Path,
+) -> None:
+    """A project-root analysis must not infer the parent as its test root."""
+    source = tmp_path / "src" / "runtime_pkg"
+    source.mkdir(parents=True)
+    (source / "__init__.py").write_text("", encoding="utf-8")
+    (source / "greeting.py").write_text(
+        "def greet(name: str) -> str:\n    return f'Hello, {name}.'\n",
+        encoding="utf-8",
+    )
+    suite = tmp_path / "tests_runtime_pkg" / "unit"
+    suite.mkdir(parents=True)
+    (suite / "test_greeting.py").write_text(
+        "from runtime_pkg.greeting import greet\n\n"
+        "def test_greet() -> None:\n    assert greet('Ada') == 'Hello, Ada.'\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_runtime_pkg"]\n',
+        encoding="utf-8",
+    )
+
+    result = analyze_impact(tmp_path, "greet")
+
+    assert result["test_files"] == ["test_greeting.py"]
+
+
 def _find_git_root(start: Path) -> Path | None:
     """Walk up from *start* looking for a `.git` directory."""
     for parent in [start, *start.parents]:

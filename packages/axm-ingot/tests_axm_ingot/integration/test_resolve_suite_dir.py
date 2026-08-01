@@ -18,6 +18,20 @@ def test_resolve_suite_dir_prefers_namespaced_suite(tmp_path: Path) -> None:
     assert resolve_suite_dir(project) == canonical
 
 
+def test_resolve_suite_dir_honors_explicit_pytest_testpaths(tmp_path: Path) -> None:
+    """Configured testpaths wins when repo and import-package names differ."""
+    project = tmp_path / "product-repository"
+    configured = project / "tests_runtime_pkg"
+    configured.mkdir(parents=True)
+    (project / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_runtime_pkg"]\n',
+        encoding="utf-8",
+    )
+
+    assert resolve_suite_dir(project) == configured
+    assert resolve_suite_dirs(project) == (configured,)
+
+
 @pytest.mark.integration
 def test_resolve_suite_dir_falls_back_to_legacy_suite(tmp_path: Path) -> None:
     project = tmp_path / "axm-sample"
