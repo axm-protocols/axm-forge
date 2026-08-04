@@ -895,7 +895,7 @@ def _safe_module_importers(
     """
     try:
         return _find_module_importers(pkg, definition, reexports)
-    except Exception:  # noqa: BLE001 - best-effort: never crash the consumer
+    except Exception:
         logger.debug("Reverse-import lookup unavailable; falling back", exc_info=True)
         return []
 

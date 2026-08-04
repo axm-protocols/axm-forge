@@ -8,7 +8,7 @@ import pytest
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def _make_impact_dict(  # noqa: PLR0913
+def _make_impact_dict(  # noqa: PLR0913, PLR0917
     symbol: str = "foo",
     score: str = "MEDIUM",
     callers: list[dict[str, Any]] | None = None,

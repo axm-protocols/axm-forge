@@ -233,7 +233,7 @@ def _build_failure_data(  # noqa: PLR0913
     }
 
 
-def _process_single_commit(  # noqa: PLR0913
+def _process_single_commit(  # noqa: PLR0913, PLR0917
     spec: dict[str, object],
     index: int,
     identity_args: list[str],

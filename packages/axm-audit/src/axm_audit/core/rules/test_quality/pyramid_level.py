@@ -1022,7 +1022,7 @@ def _apply_heavy_importorskip_signals(
     return bool(heavy_mods)
 
 
-def _apply_r4_conftest(  # noqa: PLR0913
+def _apply_r4_conftest(  # noqa: PLR0913, PLR0917
     node: ast.FunctionDef,
     tree: ast.Module,
     test_file: Path,
@@ -1076,7 +1076,7 @@ class _ScanContext:
     fixtures: dict[str, ast.FunctionDef] | None = None
 
 
-def _build_scan_context(  # noqa: PLR0913
+def _build_scan_context(  # noqa: PLR0913, PLR0917
     test_file: Path,
     tree: ast.Module,
     pkg_root: Path,
@@ -1259,7 +1259,7 @@ def _classify_test_function(ctx: _ScanContext, node: ast.FunctionDef) -> Finding
     )
 
 
-def scan_test_file(  # noqa: PLR0913
+def scan_test_file(  # noqa: PLR0913, PLR0917
     test_file: Path,
     tree: ast.Module,
     pkg_root: Path,

@@ -20,27 +20,10 @@ Homepage = "https://forge.axm-protocols.io"
 Repository = "https://github.com/axm-protocols/axm-forge"
 Documentation = "https://forge.axm-protocols.io"
 
-dependencies = [
-    "axm",
-    "axm-anvil",
-    "axm-ast",
-    "axm-audit",
-    "axm-edit",
-    "axm-init",
-    "axm-git",
-    "axm-mcp",
-    "axm-smelt",
-    "axm-ingot",
-    "axm-echo",
-    "axm-config",
-    "axm-vault",
-    "axm-doctor",
-]
-
 [dependency-groups]
 dev = [
     "prek>=0.4.9",
-    "ruff==0.15.21",
+    "ruff==0.16.1",
     "pytest>=9.1.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",

@@ -284,7 +284,7 @@ class TestScaffoldToolTemplateSelection:
             pytest.param(None, "standalone", "STANDALONE", id="default_standalone"),
         ],
     )
-    def test_scaffold_tool_template_selection(  # noqa: PLR0913
+    def test_scaffold_tool_template_selection(  # noqa: PLR0913, PLR0917
         self,
         scaffold_tool: InitScaffoldTool,
         tmp_path: Path,

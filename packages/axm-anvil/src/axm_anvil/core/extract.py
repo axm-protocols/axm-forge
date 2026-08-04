@@ -51,6 +51,7 @@ def extract_symbols(  # noqa: PLR0913
     source_path: str | Path,
     target_path: str | Path,
     symbol_names: Sequence[str],
+    *,
     dry_run: bool = False,
     workspace_root: Path | None = None,
     shared_helpers: str = "duplicate",

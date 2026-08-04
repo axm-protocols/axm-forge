@@ -108,7 +108,7 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
         result = rule.check(project_path)
         result.category = rule.category
         return result
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         tb = _traceback.format_exc()[-500:]
         logger.warning("Rule %s raised: %s", rule.rule_id, exc, exc_info=True)
         return crash_check_result(

@@ -78,6 +78,7 @@ def test_prek_leaves_snapshot_fixture_byte_intact(tmp_path: Path) -> None:
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        check=False,
     )
 
     # The fixture must survive untouched: exclude short-circuits the hooks.

@@ -113,7 +113,7 @@ def run_tool(
             return data
         logger.warning("Tool '%s' failed: %s", tool_name, result.error)
         return {"error": result.error}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Tool '%s' raised: %s", tool_name, exc, exc_info=True)
         return {"error": str(exc)}
 

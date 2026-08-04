@@ -266,7 +266,7 @@ class TestResolveDir:
         ),
     ],
 )
-def test_inspect_shows_kind(  # noqa: PLR0913
+def test_inspect_shows_kind(  # noqa: PLR0913, PLR0917
     symbol: str,
     kind: str,
     text: str,

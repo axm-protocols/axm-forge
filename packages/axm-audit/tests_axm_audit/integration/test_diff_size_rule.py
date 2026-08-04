@@ -73,7 +73,7 @@ class TestDiffSizeText:
             ),
         ],
     )
-    def test_measure_diff_text_rendering(  # noqa: PLR0913 — pytest fixtures + parametrize args
+    def test_measure_diff_text_rendering(  # noqa: PLR0913, PLR0917 — pytest fixtures + parametrize args
         self,
         rule: DiffSizeRule,
         project_path: Path,

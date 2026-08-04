@@ -752,7 +752,7 @@ def _apply_imports(
     )
 
 
-def _classify_import(  # noqa: PLR0913
+def _classify_import(  # noqa: PLR0913, PLR0917
     name: str,
     info: ImportInfo,
     target_imports: dict[str, ImportInfo],
@@ -873,7 +873,7 @@ def _splice_blocks_after_anchor(
     return base_body + blocks_body, [warning]
 
 
-def _build_target_tree(  # noqa: PLR0913
+def _build_target_tree(  # noqa: PLR0913, PLR0917
     target_tree: cst.Module,
     blocks: list[Block],
     source_imports: dict[str, ImportInfo],
@@ -1105,7 +1105,7 @@ def _sync_dunder_all_trees(
     return new_source_tree, new_target_tree
 
 
-def _build_trees(  # noqa: PLR0913
+def _build_trees(  # noqa: PLR0913, PLR0917
     source_tree: cst.Module,
     target_tree: cst.Module,
     blocks: list[Block],
@@ -1362,7 +1362,7 @@ def _caller_relpath(caller_path: Path, workspace_root: Path) -> str:
         return str(caller_path)
 
 
-def _apply_write(  # noqa: PLR0913
+def _apply_write(  # noqa: PLR0913, PLR0917
     source_path: Path,
     target_path: Path,
     source_text: str,
@@ -1591,7 +1591,7 @@ def _resolve_internal_module(module: str, internal_modules: set[str]) -> str | N
     return None
 
 
-def _block_implied_target_imports(  # noqa: PLR0913
+def _block_implied_target_imports(  # noqa: PLR0913, PLR0917
     blocks: list[Block],
     source_tree: cst.Module,
     new_source_tree: cst.Module,
@@ -1717,7 +1717,7 @@ def _diff_module_imports(
     return GraphEdits(adds=adds, removes=removes)
 
 
-def _compute_graph_edits(  # noqa: PLR0913
+def _compute_graph_edits(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_path: Path,
     target_path: Path,
@@ -1755,7 +1755,7 @@ def _compute_graph_edits(  # noqa: PLR0913
     return _diff_module_imports(ctx, _resolve_caller)
 
 
-def _cycle_check(  # noqa: PLR0913
+def _cycle_check(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_path: Path,
     target_path: Path,
@@ -1814,7 +1814,7 @@ def _cycle_check(  # noqa: PLR0913
     return detect_new_cycle(graph, edits)
 
 
-def _cross_package_cycle_check(  # noqa: PLR0913
+def _cross_package_cycle_check(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_path: Path,
     target_path: Path,
@@ -1869,7 +1869,7 @@ def _namespaced_caller_module(caller_path: Path, workspace_root: Path) -> str | 
     return _pkg_module_name(caller_path.resolve(), pkg_root)
 
 
-def _compute_workspace_graph_edits(  # noqa: PLR0913
+def _compute_workspace_graph_edits(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_module: str,
     target_module: str,
@@ -2172,7 +2172,7 @@ def _string_forward_ref_warnings(
     return scanner.warnings
 
 
-def _resolve_caller_phase(  # noqa: PLR0913
+def _resolve_caller_phase(  # noqa: PLR0913, PLR0917
     reexport: bool,
     root: Path,
     moved_names: Sequence[str],
@@ -2194,6 +2194,7 @@ def move_symbols(  # noqa: PLR0913
     source_path: str | Path,
     target_path: str | Path,
     symbol_names: Sequence[str],
+    *,
     dry_run: bool = False,
     workspace_root: Path | None = None,
     shared_helpers: str = "duplicate",

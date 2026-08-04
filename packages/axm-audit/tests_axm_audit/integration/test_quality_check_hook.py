@@ -44,7 +44,7 @@ def test_quality_check_hook_multi_package_has_violations_true(tmp_path: Path) ->
 
 
 def test_quality_check_hook_multi_package_clean_workspace(tmp_path: Path) -> None:
-    clean = '__all__ = ["f"]\n\ndef f() -> int:\n    return 0\n'
+    clean = '__all__ = ["f"]\n\n\ndef f() -> int:\n    return 0\n'
     _make_pkg(tmp_path, "pkg-a", {"ok.py": clean})
     _make_pkg(tmp_path, "pkg-b", {"ok.py": clean})
 

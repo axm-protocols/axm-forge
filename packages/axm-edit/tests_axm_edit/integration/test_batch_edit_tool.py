@@ -678,9 +678,11 @@ class TestRuffUsesProjectConfig:
         tool: BatchEditTool,
         py_project__from_batch_edit_lint_integration: Path,
     ) -> None:
-        # Create a pyproject.toml that ignores E722 (bare except)
+        # Create a pyproject.toml that ignores the rules this snippet trips
+        # (E722 bare except, S110 try-except-pass) — the point of the test is
+        # that batch_edit honours the project config, whichever rules it names.
         (py_project__from_batch_edit_lint_integration / "pyproject.toml").write_text(
-            '[tool.ruff.lint]\nignore = ["E722"]\n'
+            '[tool.ruff.lint]\nignore = ["E722", "S110"]\n'
         )
         subprocess.run(
             ["git", "add", "."],

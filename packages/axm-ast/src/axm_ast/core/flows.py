@@ -1085,7 +1085,7 @@ def _locate_symbol(
         if with_source:
             source = raw[fr.start_byte : fr.end_byte].decode("utf-8", errors="replace")
         return _SymbolLocation(line=fr.line, source=source)
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Failed to locate symbol %r in %s", symbol, path, exc_info=True)
         return None
 
@@ -1194,7 +1194,7 @@ def _parse_source_safe(path: Path) -> Tree | None:
     try:
         raw = path.read_bytes()
         return parse_source(raw.decode("utf-8", errors="replace"))
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug(
             "Failed to parse %s for re-export resolution",
             path,

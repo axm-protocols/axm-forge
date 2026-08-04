@@ -315,7 +315,7 @@ class EchoCodeTool(AXMTool):
                 top_n=top_n,
                 max_cluster_size=max_cluster_size,
             )
-        except Exception as exc:  # noqa: BLE001 — final tool boundary
+        except Exception as exc:
             logger.warning("EchoCodeTool failed: %s", exc, exc_info=True)
             return ToolResult(
                 success=False,
@@ -603,7 +603,7 @@ class EchoCheckTool(AXMTool):
             return self._run(
                 intention=intention, backend=backend, k=k, threshold=threshold
             )
-        except Exception as exc:  # noqa: BLE001 — final tool boundary
+        except Exception as exc:
             logger.warning("EchoCheckTool failed: %s", exc, exc_info=True)
             return ToolResult(success=False, error=str(exc))
 

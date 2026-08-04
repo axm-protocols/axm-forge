@@ -347,7 +347,7 @@ def _existing_def_names(module: cst.Module) -> set[str]:
     }
 
 
-def _emit_one_fixture(
+def _emit_one_fixture(  # noqa: PLR0917
     state: _EmitState,
     targets: _EmitTargets,
     name: str,
@@ -368,7 +368,7 @@ def _emit_one_fixture(
         strip_def_only(f, name)
 
 
-def _emit_one_helper(
+def _emit_one_helper(  # noqa: PLR0917
     state: _EmitState,
     targets: _EmitTargets,
     name: str,

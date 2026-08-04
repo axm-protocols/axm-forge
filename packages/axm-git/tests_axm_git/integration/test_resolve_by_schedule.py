@@ -125,7 +125,7 @@ class TestResolveBySchedule:
             ),
         ],
     )
-    def test_returns_none(
+    def test_returns_none(  # noqa: PLR0917
         self,
         config,
         axm_workspace_path,

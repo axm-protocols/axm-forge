@@ -273,7 +273,7 @@ def create_app() -> cyclopts.App:
             continue  # an explicit command already claims this name
         try:
             app.command(build_command_for_tool(name, _load(ep)), name=name)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("Failed to auto-register tool '%s'", name, exc_info=True)
 
     return app
@@ -291,7 +291,7 @@ def _try_mount_command(
     try:
         app.command(_load(ep), name=name)
         return True
-    except Exception:  # noqa: BLE001 — a broken package must not sink the CLI
+    except Exception:
         logger.warning("Failed to load command '%s'", name, exc_info=True)
         return False
 
