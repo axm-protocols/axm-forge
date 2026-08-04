@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from axm_ast.core._call_helpers import node_text_safe
 from axm_ast.core.analyzer import module_dotted_name
@@ -25,11 +25,16 @@ from axm_ast.core.callers import find_callers
 from axm_ast.core.parser import parse_file
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from axm_ast.models.calls import CallSite
     from axm_ast.models.nodes import ClassInfo, ModuleInfo, PackageInfo
 
 __all__ = [
+    "CouplingGapsResult",
     "ProtocolCoupledSite",
     "ValueCoupledSite",
+    "analyze_coupling_gaps",
     "find_protocol_coupled",
     "find_value_coupled",
 ]
@@ -379,3 +384,51 @@ def find_value_coupled(pkg: PackageInfo, symbol: str) -> list[ValueCoupledSite]:
             parse_file(mod.path).root_node, mod.path, symbol, literals, sites
         )
     return sites
+
+
+class CouplingGapsResult(TypedDict):
+    """Aggregated lower-bound coupling gaps, keyed per input symbol.
+
+    Groups the three coupling passes into one batchable result so a consumer
+    sees the full picture the reference walk alone misses.  Each collection maps
+    an input symbol to the sites the corresponding pass surfaced for it.
+
+    Attributes:
+        reference_coupled: The reference set — parity with ``find_callers`` for
+            each symbol (the sites ``ast_impact`` already walks).
+        protocol_coupled: Structural Protocol/ABC implementors and consumers.
+        value_coupled: Sites coupled through the symbol's contract literals.
+    """
+
+    reference_coupled: dict[str, list[CallSite]]
+    protocol_coupled: dict[str, list[ProtocolCoupledSite]]
+    value_coupled: dict[str, list[ValueCoupledSite]]
+
+
+def analyze_coupling_gaps(
+    pkg: PackageInfo,
+    symbols: str | Sequence[str],
+) -> CouplingGapsResult:
+    """Compose the reference walk with the two structural passes in one result.
+
+    Aggregates, per input symbol, the reference set (``find_callers``, so parity
+    with the walk ``ast_impact`` performs holds), the structural Protocol/ABC
+    coupling (``find_protocol_coupled``) and the contract-literal coupling
+    (``find_value_coupled``).  Accepts either a single symbol or a batch (list)
+    of symbols, mirroring ``ast_impact``'s ``symbols`` batching; every input is
+    represented as a key in each of the three collections.
+
+    Args:
+        pkg: Analysed package info (tree-sitter backed; no disk read here).
+        symbols: A single symbol name, or a batch of them to aggregate.
+
+    Returns:
+        A :class:`CouplingGapsResult` grouping ``reference_coupled``,
+        ``protocol_coupled`` and ``value_coupled``, each keyed per input symbol.
+    """
+    targets = [symbols] if isinstance(symbols, str) else list(symbols)
+    return {
+        "reference_coupled": {s: find_callers(pkg, s) for s in targets},
+        "protocol_coupled": {s: find_protocol_coupled(pkg, s) for s in targets},
+        "value_coupled": {s: find_value_coupled(pkg, s) for s in targets},
+    }

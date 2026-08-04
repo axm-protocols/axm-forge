@@ -176,3 +176,76 @@ def test_each_site_carries_confidence_label(value_pkg):
     sites = find_value_coupled(value_pkg, "verdict")
     assert len(sites) >= 1
     assert all(getattr(s, "confidence", None) for s in sites)
+
+
+GAPS_CALLER_SRC = """\
+from __future__ import annotations
+
+
+def run() -> str:
+    return verdict(True)
+"""
+
+
+@pytest.fixture
+def gaps_pkg(tmp_path):
+    """Build a real package mixing all three coupling kinds for the aggregator:
+    a Protocol with a structural implementor (protocol coupling on ``Renderer``),
+    a literal-returning ``verdict`` with a branching consumer (value coupling),
+    a direct by-name caller of ``verdict`` (reference coupling), and a plain
+    uncoupled ``helper``."""
+    root = tmp_path / "gaps"
+    root.mkdir()
+    (root / "__init__.py").write_text("")
+    (root / "protocols.py").write_text(PROTOCOL_SRC)
+    (root / "impl.py").write_text(IMPL_SRC)
+    (root / "target.py").write_text(VALUE_TARGET_SRC)
+    (root / "exact_consumer.py").write_text(VALUE_EXACT_SRC)
+    (root / "caller.py").write_text(GAPS_CALLER_SRC)
+    (root / "plain.py").write_text(PLAIN_SRC)
+    return analyze_package(root)
+
+
+def test_result_exposes_three_separate_coupling_collections(gaps_pkg):
+    """AC1: analyze_coupling_gaps returns a CouplingGapsResult exposing
+    reference_coupled, protocol_coupled and value_coupled as three separate,
+    populated collections for a batch that triggers all three coupling kinds."""
+    from axm_ast.core.coupling_gaps import (
+        CouplingGapsResult,
+        analyze_coupling_gaps,
+    )
+
+    result = analyze_coupling_gaps(gaps_pkg, ["Renderer", "verdict"])
+    assert set(result) >= {"reference_coupled", "protocol_coupled", "value_coupled"}
+    assert any(result["reference_coupled"].values())
+    assert any(result["protocol_coupled"].values())
+    assert any(result["value_coupled"].values())
+    assert set(CouplingGapsResult.__annotations__) == {
+        "reference_coupled",
+        "protocol_coupled",
+        "value_coupled",
+    }
+
+
+def test_reference_coupled_reaches_parity_with_find_callers(gaps_pkg):
+    """AC2: reference_coupled for a target matches the find_callers result set,
+    so the reference walk keeps parity with the existing find_callers."""
+    from axm_ast.core.coupling_gaps import analyze_coupling_gaps
+
+    result = analyze_coupling_gaps(gaps_pkg, ["verdict"])
+    expected = find_callers(gaps_pkg, "verdict")
+    assert expected  # caller.py names verdict directly
+    got = {(c.module, c.line, c.symbol) for c in result["reference_coupled"]["verdict"]}
+    exp = {(c.module, c.line, c.symbol) for c in expected}
+    assert got == exp
+
+
+def test_batch_of_symbols_is_aggregated_per_input(gaps_pkg):
+    """AC3: analyze_coupling_gaps accepts a list of symbols and aggregates
+    results per input symbol, mirroring ast_impact's symbols batching."""
+    from axm_ast.core.coupling_gaps import analyze_coupling_gaps
+
+    result = analyze_coupling_gaps(gaps_pkg, ["verdict", "helper"])
+    assert set(result["reference_coupled"]) == {"verdict", "helper"}
+    assert set(result["protocol_coupled"]) == {"verdict", "helper"}
+    assert set(result["value_coupled"]) == {"verdict", "helper"}
