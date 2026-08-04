@@ -13,8 +13,14 @@ export default [
   {
     files: ["src/**/*.ts", "tests/**/*.ts"],
     // TypeScript needs its own parser — espree (the ESLint default) cannot
-    // read type annotations and errors out on the first `: string`.
-    languageOptions: { parser: tseslint.parser },
+    // read type annotations and errors out on the first `: string`. Some rules
+    // (n/no-sync…) require *type information*: without `projectService` eslint
+    // hard-crashes (exit 2) the moment such a rule hits a typed file. The v8
+    // `projectService` wires the nearest tsconfig automatically.
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
     plugins: { sonarjs, n, jsdoc, "import-x": importX },
     rules: {
       // Core hygiene (ruff E/F equivalents).

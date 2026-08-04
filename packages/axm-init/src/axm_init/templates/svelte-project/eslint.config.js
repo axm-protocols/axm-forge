@@ -16,11 +16,23 @@ export default [
   // inside .svelte files the svelte parser delegates <script lang="ts"> to it.
   {
     files: ["src/**/*.ts"],
-    languageOptions: { parser: tseslint.parser },
+    languageOptions: {
+      parser: tseslint.parser,
+      // Typed linting: rules like n/no-sync need type info, else eslint crashes
+      // (exit 2) on the first typed file. projectService wires tsconfig for us.
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
   },
   {
     files: ["src/**/*.svelte"],
-    languageOptions: { parserOptions: { parser: tseslint.parser } },
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+        extraFileExtensions: [".svelte"],
+      },
+    },
   },
   {
     files: ["src/**/*.ts", "src/**/*.svelte"],
