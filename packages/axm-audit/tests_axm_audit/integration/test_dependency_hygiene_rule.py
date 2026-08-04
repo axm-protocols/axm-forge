@@ -149,7 +149,7 @@ def _dep_issue(code: str, module: str, message: str = "") -> dict[str, Any]:
 class TestDep002FalsePositiveFiltered:
     """DEP002 for packages reachable via entry-points or optional-deps."""
 
-    # noqa: entry-point and optional-dep false positives should be filtered
+    # NOTE: entry-point and optional-dep false positives should be filtered
 
     @pytest.mark.parametrize(
         "pyproject_content",

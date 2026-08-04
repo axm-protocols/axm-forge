@@ -104,5 +104,11 @@ testpaths = [
     "tests",
 ]
 
+[tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
+
 [tool.ruff.lint.per-file-ignores]
 "**/tests_*/**" = ["PLR2004"]

@@ -66,6 +66,9 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default; keep the
+# formatter out of hand-written prose docs.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
 src = ["src", "tests"]
@@ -83,6 +86,9 @@ max-complexity = 10
 
 [tool.ruff.lint.pylint]
 max-args = 5
+# PLR0917 (new in ruff 0.16) counts positional args only; keep it in step
+# with max-args so options past the cutoff must be keyword-only.
+max-positional-args = 5
 max-branches = 12
 max-returns = 6
 max-statements = 50

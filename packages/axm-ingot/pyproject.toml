@@ -63,6 +63,10 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
 src = ["src", "tests_axm_ingot"]
