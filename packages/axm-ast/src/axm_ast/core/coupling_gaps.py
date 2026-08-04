@@ -19,13 +19,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from axm_ast.core._call_helpers import node_text_safe
 from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.callers import find_callers
+from axm_ast.core.parser import parse_file
 
 if TYPE_CHECKING:
     from axm_ast.models.nodes import ClassInfo, ModuleInfo, PackageInfo
 
-__all__ = ["ProtocolCoupledSite", "find_protocol_coupled"]
+__all__ = [
+    "ProtocolCoupledSite",
+    "ValueCoupledSite",
+    "find_protocol_coupled",
+    "find_value_coupled",
+]
 
 _PROTOCOL_BASES = frozenset({"Protocol", "ABC", "ABCMeta"})
 
@@ -168,3 +175,207 @@ def find_protocol_coupled(pkg: PackageInfo, symbol: str) -> list[ProtocolCoupled
         *_structural_implementors(pkg, target, method_names),
         *_structural_consumers(pkg, target, method_names),
     ]
+
+
+_EQUALITY_OPS = frozenset({"==", "!="})
+_MEMBERSHIP_OPS = frozenset({"in", "not in"})
+
+
+@dataclass(frozen=True)
+class ValueCoupledSite:
+    """A site coupled to a target through one of its contract literal values.
+
+    Reference-graph analysis is blind to coupling that flows through a literal
+    value: a branch on ``verdict == "pass"``, a membership test against a
+    literal set, or a ``match`` arm.  This surfaces those literal-keyed
+    operational sites tied to the target's declared contract literals.
+
+    Attributes:
+        file: Source file containing the literal-keyed site.
+        line: 1-indexed line of the operational site.
+        why: Human-readable justification for surfacing the site.
+        confidence: Label distinguishing a high-confidence exact match
+            (equality / match arm) from a low-confidence heuristic one
+            (membership in a literal collection).
+    """
+
+    file: Path
+    line: int
+    why: str
+    confidence: str = "high"
+
+
+def _string_value(node: object) -> str | None:
+    """Return the value of a tree-sitter ``string`` *node*, quotes stripped."""
+    if getattr(node, "type", "") != "string":
+        return None
+    for child in getattr(node, "children", []):
+        if getattr(child, "type", "") == "string_content":
+            return node_text_safe(child)
+    raw = node_text_safe(node)
+    return raw.strip("\"'") if raw else None
+
+
+def _collect_string_values(node: object, out: set[str]) -> None:
+    """Accumulate every string-literal value reachable from *node*."""
+    if getattr(node, "type", "") == "string":
+        value = _string_value(node)
+        if value is not None:
+            out.add(value)
+        return
+    for child in getattr(node, "children", []):
+        _collect_string_values(child, out)
+
+
+def _find_definition_node(node: object, symbol: str) -> object | None:
+    """Return the ``def``/``class`` node named *symbol*, or ``None``."""
+    node_type = getattr(node, "type", "")
+    if node_type in ("function_definition", "class_definition"):
+        for child in getattr(node, "children", []):
+            is_name = getattr(child, "type", "") == "identifier"
+            if is_name and node_text_safe(child) == symbol:
+                return node
+    for child in getattr(node, "children", []):
+        found = _find_definition_node(child, symbol)
+        if found is not None:
+            return found
+    return None
+
+
+def _return_literals(def_node: object, out: set[str]) -> None:
+    """Accumulate string literals returned within the target definition."""
+    if getattr(def_node, "type", "") == "return_statement":
+        _collect_string_values(def_node, out)
+    for child in getattr(def_node, "children", []):
+        _return_literals(child, out)
+
+
+def _derive_contract_literals(pkg: PackageInfo, symbol: str) -> set[str]:
+    """Derive the literal values that make up *symbol*'s declared contract."""
+    literals: set[str] = set()
+    for mod in pkg.modules:
+        def_node = _find_definition_node(parse_file(mod.path).root_node, symbol)
+        if def_node is not None:
+            _return_literals(def_node, literals)
+            break
+    return literals
+
+
+def _comparison_kind(node: object) -> str | None:
+    """Classify a ``comparison_operator`` node as equality or membership."""
+    children = getattr(node, "children", [])
+    child_types = {getattr(child, "type", "") for child in children}
+    if child_types & _EQUALITY_OPS:
+        return "equality"
+    if child_types & _MEMBERSHIP_OPS:
+        return "membership"
+    return None
+
+
+def _node_line(node: object) -> int:
+    """1-indexed start line of *node*."""
+    start_point = getattr(node, "start_point", (0, 0))
+    return int(start_point[0]) + 1
+
+
+def _emit_comparison_site(
+    node: object,
+    path: Path,
+    symbol: str,
+    literals: set[str],
+    sites: list[ValueCoupledSite],
+) -> None:
+    """Record a site when a comparison keys on a target contract literal."""
+    kind = _comparison_kind(node)
+    if kind is None:
+        return
+    values: set[str] = set()
+    _collect_string_values(node, values)
+    matched = values & literals
+    if not matched:
+        return
+    sites.append(
+        ValueCoupledSite(
+            file=path,
+            line=_node_line(node),
+            why=(
+                f"site {node_text_safe(node)!r} keys on contract literal(s) "
+                f"{sorted(matched)} of {symbol!r} via {kind} match"
+            ),
+            confidence="high" if kind == "equality" else "low",
+        )
+    )
+
+
+def _emit_case_site(
+    node: object,
+    path: Path,
+    symbol: str,
+    literals: set[str],
+    sites: list[ValueCoupledSite],
+) -> None:
+    """Record a site when a ``match`` arm keys on a target contract literal."""
+    values: set[str] = set()
+    for child in getattr(node, "children", []):
+        if getattr(child, "type", "") == "case_pattern":
+            _collect_string_values(child, values)
+    matched = values & literals
+    if not matched:
+        return
+    sites.append(
+        ValueCoupledSite(
+            file=path,
+            line=_node_line(node),
+            why=(
+                f"match arm keys on contract literal(s) {sorted(matched)} of {symbol!r}"
+            ),
+            confidence="high",
+        )
+    )
+
+
+def _collect_value_sites(
+    node: object,
+    path: Path,
+    symbol: str,
+    literals: set[str],
+    sites: list[ValueCoupledSite],
+) -> None:
+    """Walk *node*, recording every literal-keyed operational site."""
+    node_type = getattr(node, "type", "")
+    if node_type == "comparison_operator":
+        _emit_comparison_site(node, path, symbol, literals, sites)
+    elif node_type == "case_clause":
+        _emit_case_site(node, path, symbol, literals, sites)
+    for child in getattr(node, "children", []):
+        _collect_value_sites(child, path, symbol, literals, sites)
+
+
+def find_value_coupled(pkg: PackageInfo, symbol: str) -> list[ValueCoupledSite]:
+    """Enumerate sites coupled to *symbol* through its contract literal values.
+
+    Derives *symbol*'s declared contract literals (its return literals) and
+    locates the operational sites keyed on them — equality comparisons,
+    membership tests and ``match`` arms.  Matches are scoped to the derived
+    contract literals, so an identical literal that is not part of the
+    contract is not reported.  When *symbol* declares no contract literals,
+    there is nothing to key on and an empty list is returned.
+
+    Args:
+        pkg: Analysed package info (tree-sitter backed; no disk write here).
+        symbol: Name of the target whose literal contract to resolve.
+
+    Returns:
+        A list of :class:`ValueCoupledSite`, each carrying ``file``, ``line``,
+        ``why`` and a ``confidence`` label; empty when no contract literal is
+        derivable for *symbol*.
+    """
+    literals = _derive_contract_literals(pkg, symbol)
+    if not literals:
+        return []
+    sites: list[ValueCoupledSite] = []
+    for mod in pkg.modules:
+        _collect_value_sites(
+            parse_file(mod.path).root_node, mod.path, symbol, literals, sites
+        )
+    return sites

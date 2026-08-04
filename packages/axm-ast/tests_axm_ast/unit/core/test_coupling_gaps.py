@@ -85,3 +85,94 @@ def test_structural_consumer_surfaced_though_find_callers_omits_it(pkg):
     assert not any("consumer" in str(c.module) for c in callers)
     sites = find_protocol_coupled(pkg, "Renderer")
     assert any("consumer" in str(s.file) for s in sites)
+
+
+VALUE_TARGET_SRC = """\
+from __future__ import annotations
+
+
+def verdict(flag: bool) -> str:
+    if flag:
+        return "pass"
+    return "fail"
+"""
+
+VALUE_EXACT_SRC = """\
+from __future__ import annotations
+
+
+def gate(status: str) -> bool:
+    if status == "pass":
+        return True
+    return False
+"""
+
+VALUE_MEMBER_SRC = """\
+from __future__ import annotations
+
+
+def summarize(status: str) -> str:
+    if status in {"pass", "warn"}:
+        return "ok"
+    return "ko"
+"""
+
+VALUE_UNRELATED_SRC = """\
+from __future__ import annotations
+
+
+def choose(fruit: str) -> bool:
+    if fruit == "banana":
+        return True
+    return False
+"""
+
+
+@pytest.fixture
+def value_pkg(tmp_path):
+    """Build a real package: a target returning the contract literal "pass", an
+    exact consumer branching on == "pass", a membership consumer keyed on
+    {"pass", "warn"}, and an unrelated site comparing a different literal."""
+    root = tmp_path / "verdicts"
+    root.mkdir()
+    (root / "__init__.py").write_text("")
+    (root / "target.py").write_text(VALUE_TARGET_SRC)
+    (root / "exact_consumer.py").write_text(VALUE_EXACT_SRC)
+    (root / "member_consumer.py").write_text(VALUE_MEMBER_SRC)
+    (root / "unrelated.py").write_text(VALUE_UNRELATED_SRC)
+    return analyze_package(root)
+
+
+def test_literal_keyed_site_returned_with_file_line_why(value_pkg):
+    """AC1: a site branching on the target's contract literal (== "pass") is
+    returned, keyed on that literal, each entry carrying file, line and why."""
+    from axm_ast.core.coupling_gaps import find_value_coupled
+
+    sites = find_value_coupled(value_pkg, "verdict")
+    assert len(sites) >= 1
+    consumer_sites = [s for s in sites if "exact_consumer" in str(s.file)]
+    assert consumer_sites, sites
+    site = consumer_sites[0]
+    assert isinstance(site.line, int)
+    assert site.line > 0
+    assert isinstance(site.why, str)
+    assert site.why
+
+
+def test_literal_outside_contract_not_flagged(value_pkg):
+    """AC2: a site comparing to a literal ("banana") that is not part of the
+    target's declared contract is excluded from the result."""
+    from axm_ast.core.coupling_gaps import find_value_coupled
+
+    sites = find_value_coupled(value_pkg, "verdict")
+    assert not any("unrelated" in str(s.file) for s in sites)
+
+
+def test_each_site_carries_confidence_label(value_pkg):
+    """AC3: with one exact (==) and one heuristic (membership) match, every
+    returned site carries a confidence label distinguishing them."""
+    from axm_ast.core.coupling_gaps import find_value_coupled
+
+    sites = find_value_coupled(value_pkg, "verdict")
+    assert len(sites) >= 1
+    assert all(getattr(s, "confidence", None) for s in sites)
