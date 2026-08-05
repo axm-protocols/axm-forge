@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,11 @@ _COVERAGE_RUN_TIMEOUT = 900
 
 # Synthetic returncode set by ``run_in_project`` on ``subprocess.TimeoutExpired``.
 _TIMEOUT_RETURNCODE = 124
+
+# How much of a failed subprocess's stderr is quoted when the JSON report is
+# unusable. A failed uv resolution runs to several kilobytes; the cause is in
+# its opening lines, so the head is kept and the rest dropped.
+_STDERR_EXCERPT_CHARS = 1200
 
 # ---------------------------------------------------------------------------
 # Models
@@ -170,6 +176,31 @@ def parse_collector_errors(
             )
         )
     return failures
+
+
+def _subprocess_failure(
+    exc: ValueError,
+    result: subprocess.CompletedProcess[str],
+) -> ValueError:
+    """Enrich an unusable-report error with the subprocess's own diagnostic.
+
+    Returns *exc* untouched when the run exited cleanly — a zero exit with an
+    unreadable report is a genuine report defect, and the subprocess has nothing
+    to add. Otherwise the returncode and the head of ``stderr`` are prepended,
+    since that is where the actual cause lives. The stderr is truncated to
+    :data:`_STDERR_EXCERPT_CHARS`: a failed dependency resolution runs to
+    several kilobytes and must not be dumped whole into an exception message.
+    """
+    if result.returncode == 0:
+        return exc
+    stderr = (result.stderr or "").strip()
+    if len(stderr) > _STDERR_EXCERPT_CHARS:
+        stderr = stderr[:_STDERR_EXCERPT_CHARS] + "\n[... stderr truncated]"
+    detail = f"\nsubprocess stderr:\n{stderr}" if stderr else ""
+    return ValueError(
+        f"pytest exited with code {result.returncode} and left no usable JSON "
+        f"report ({exc}).{detail}"
+    )
 
 
 def parse_json_report(report_path: Path) -> dict[str, object]:
@@ -323,8 +354,15 @@ def run_tests(
             )
             return TestReport(timed_out=True)
 
-        # Parse JSON report
-        report_data = parse_json_report(report_path)
+        # Parse JSON report. A subprocess that died before pytest could write
+        # the report (failed uv resolution, missing plugin, collection crash)
+        # leaves it absent or empty: the bare JSON decode error then describes a
+        # corrupt file and hides the real cause, which only the captured stderr
+        # carries. Re-raise it enriched instead.
+        try:
+            report_data = parse_json_report(report_path)
+        except ValueError as exc:
+            raise _subprocess_failure(exc, result) from exc
 
         # Parse coverage
         total_cov, per_file_cov = (

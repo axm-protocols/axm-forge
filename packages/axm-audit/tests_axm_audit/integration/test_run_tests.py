@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from axm_audit.core.test_runner import (
     run_tests,
 )
@@ -529,3 +531,38 @@ def test_run_tests_injects_pytest_plugins(tmp_path: Path) -> None:
             "pytest-json-report",
             "pytest-cov",
         ]
+
+
+@pytest.mark.integration
+class TestRunTestsSubprocessFailureDiagnostic:
+    """AC1: a failing subprocess with no report surfaces returncode and stderr."""
+
+    def test_failed_subprocess_without_report_surfaces_returncode_and_stderr(
+        self, tmp_path: Path
+    ) -> None:
+        """AC1: the raised error names the returncode and quotes the stderr.
+
+        Reproduces the real incident: a uv resolution conflict makes the
+        subprocess die before pytest starts, so no JSON report is ever written.
+        The old behaviour surfaced only the JSON decode message, which points at
+        a corrupt file instead of the actual cause.
+        """
+        stderr = (
+            "  x No solution found when resolving dependencies:\n"
+            "  |-> Because axm-dag:dev depends on ruff==0.15.15 and\n"
+            "      axm-nexus-workspace:dev depends on ruff==0.16.1, we can\n"
+            "      conclude that they are incompatible.\n"
+        )
+
+        def _side_effect(*_args: object, **_kwargs: object) -> MagicMock:
+            # The report file is deliberately never written.
+            return MagicMock(returncode=2, stdout="", stderr=stderr)
+
+        with patch("axm_audit.core.test_runner.run_in_project") as mock:
+            mock.side_effect = _side_effect
+            with pytest.raises(ValueError) as excinfo:
+                run_tests(tmp_path)
+
+        message = str(excinfo.value)
+        assert "2" in message, message
+        assert "ruff==0.15.15" in message, message

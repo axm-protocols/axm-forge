@@ -325,3 +325,57 @@ class TestRunTestsIgnoresMode:
         # Failures always parsed (was skipped for compact before)
         assert report.failures is not None
         assert len(report.failures) == 1
+
+
+class TestSubprocessFailureDiagnostic:
+    """AC2/AC3: the diagnostic is bounded, and a timeout keeps its own path."""
+
+    def test_oversized_stderr_is_truncated_in_the_raised_message(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        """AC2: a multi-kilobyte stderr is bounded, not dumped whole."""
+        head = "HEAD-MARKER resolution failed\n"
+        tail = "TAIL-MARKER last line of the dump\n"
+        stderr = head + ("filler line of subprocess noise\n" * 400) + tail
+
+        monkeypatch.setattr(
+            "axm_audit.core.test_runner.run_in_project",
+            lambda *a, **kw: MagicMock(returncode=1, stdout="", stderr=stderr),
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            run_tests(tmp_path)
+
+        message = str(excinfo.value)
+        # The diagnostic must quote the head of the stderr...
+        assert "HEAD-MARKER" in message, message[:200]
+        # ...but stay bounded: the tail of a multi-kilobyte dump is dropped.
+        assert "TAIL-MARKER" not in message, message[:200]
+        assert len(message) < len(stderr), message[:200]
+
+    def test_timed_out_run_short_circuits_before_the_new_error_path(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        """AC3: returncode 124 keeps its own path while 1 takes the new one.
+
+        Both branches are asserted in one test so the timeout short-circuit is
+        witnessed *relative to* the new error path: a timeout must still yield
+        ``TestReport(timed_out=True)`` where any other non-zero exit now raises.
+        """
+        monkeypatch.setattr(
+            "axm_audit.core.test_runner.run_in_project",
+            lambda *a, **kw: MagicMock(
+                returncode=124, stdout="", stderr="Command timed out after 300s"
+            ),
+        )
+        report = run_tests(tmp_path)
+        assert report.timed_out is True
+
+        # A non-timeout failure must NOT be reported as a timeout: it raises.
+        monkeypatch.setattr(
+            "axm_audit.core.test_runner.run_in_project",
+            lambda *a, **kw: MagicMock(returncode=1, stdout="", stderr="SENTINEL boom"),
+        )
+        with pytest.raises(ValueError) as excinfo:
+            run_tests(tmp_path)
+        assert "SENTINEL boom" in str(excinfo.value), str(excinfo.value)
