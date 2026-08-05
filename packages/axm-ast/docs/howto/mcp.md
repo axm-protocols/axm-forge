@@ -20,6 +20,7 @@
 | `ast_flows(path, entry?, detail?, max_depth?, cross_module?)` | `axm-ast flows` | Entry point detection and BFS flow tracing |
 | `ast_doc_impact(path, symbols)` | — | Doc refs, undocumented symbols, stale signatures |
 | `ast_file_header(path, file)` | — | Structural header of a file (imports, `__all__`, top-level symbols) without reading the full body |
+| `ast_coupling_gaps(path, symbol?, symbols?)` | `axm-ast coupling-gaps` | Lower-bound coupling report — the structural Protocol/ABC and contract-literal sites the reference-only `ast_impact` walk misses. Omit the symbol to scan the whole public API |
 
 !!! tip "ast_describe detail levels"
     `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only — **default**),
