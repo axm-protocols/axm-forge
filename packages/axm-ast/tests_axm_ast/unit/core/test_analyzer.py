@@ -403,6 +403,62 @@ def test_find_class_by_object(
     assert any(c.name == "MyClass" for c in mod.classes)
 
 
+# ── classify_reference_placement — in-memory PackageInfo ──
+
+
+def test_absent_symbol_is_call_time() -> None:
+    """AC1: a symbol defined nowhere in the package classifies as call_time.
+
+    The new symbol is referenced via a call-time local import (the very
+    convention this primitive exists to support) so the module collects
+    cleanly and REDs inside the body until the helper lands.
+    """
+    from axm_ast.core.analyzer import classify_reference_placement
+
+    mod = _make_module(
+        "pkg.mod",
+        functions=[
+            FunctionInfo(
+                name="existing",
+                kind=FunctionKind.FUNCTION,
+                return_type="str",
+                line_start=1,
+                line_end=2,
+                decorators=[],
+            )
+        ],
+    )
+    pkg = PackageInfo(name="pkg", root=Path("/tmp/pkg"), modules=[mod])
+
+    assert classify_reference_placement(pkg, "Foo") == "call_time"
+
+
+def test_defined_symbol_is_top_level() -> None:
+    """AC2: a symbol defined in the package classifies as top_level.
+
+    Referenced via a call-time local import so the file REDs for the
+    missing-behaviour reason rather than crashing at collection.
+    """
+    from axm_ast.core.analyzer import classify_reference_placement
+
+    mod = _make_module(
+        "pkg.mod",
+        functions=[
+            FunctionInfo(
+                name="Bar",
+                kind=FunctionKind.FUNCTION,
+                return_type="str",
+                line_start=1,
+                line_end=2,
+                decorators=[],
+            )
+        ],
+    )
+    pkg = PackageInfo(name="pkg", root=Path("/tmp/pkg"), modules=[mod])
+
+    assert classify_reference_placement(pkg, "Bar") == "top_level"
+
+
 # ── build_import_graph — real fixture package ──
 
 

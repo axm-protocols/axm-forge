@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "analyze_package",
     "build_import_graph",
+    "classify_reference_placement",
     "find_module_for_symbol",
     "fingerprint_source_tree",
     "module_dotted_name",
@@ -290,6 +291,36 @@ def find_module_for_symbol(
         symbol = symbol.name
 
     return _find_module_by_name(pkg, symbol)
+
+
+def classify_reference_placement(
+    pkg: PackageInfo,
+    symbol: str,
+) -> str:
+    """Classify where a reference to *symbol* should be placed.
+
+    Grounds the decision in real symbol resolution over *pkg* rather than
+    guesswork: a symbol that already exists can be imported at module top
+    level, while a not-yet-created (future) symbol must be referenced at
+    call time (in-body) so a RED test collects cleanly and fails inside the
+    body instead of crashing at collection.
+
+    Resolution delegates to :func:`find_module_for_symbol` (and, as a
+    fallback, :func:`search_symbols`) — no lookup logic is duplicated here.
+
+    Args:
+        pkg: Analyzed package info.
+        symbol: The symbol name to classify.
+
+    Returns:
+        ``"top_level"`` if *symbol* is defined somewhere in *pkg*,
+        ``"call_time"`` otherwise.
+    """
+    if find_module_for_symbol(pkg, symbol) is not None:
+        return "top_level"
+    if any(sym.name == symbol for _, sym in search_symbols(pkg, name=symbol)):
+        return "top_level"
+    return "call_time"
 
 
 def _search_in_module(
