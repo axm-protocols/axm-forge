@@ -24,8 +24,10 @@ __all__ = [
     "MAX_SNIPPET_CHARS",
     "SIMILARITY_THRESHOLD",
     "Candidate",
+    "NearMiss",
     "closest_candidate",
     "explain_difference",
+    "explain_near_miss",
     "render_invisibles",
 ]
 
@@ -42,6 +44,7 @@ _ELLIPSIS = "..."
 _NBSP = chr(0xA0)
 _TRAILING_SPACE_MARKER = "<SP>"
 _END_MARKER = "<END>"
+_NO_CANDIDATE_MESSAGE = "no similar line found near the anchor"
 _MARKERS = {
     "\t": "<TAB>",
     "\r": "<CR>",
@@ -65,6 +68,22 @@ class Candidate:
     line: int
     ratio: float
     text: str
+
+
+@dataclass(frozen=True, slots=True)
+class NearMiss:
+    """A rendered explanation for an anchor that matched nothing.
+
+    Attributes:
+        candidate: the closest window found, ``None`` when none is similar
+            enough; exposed exactly as :func:`closest_candidate` produced it,
+            so ``text`` stays raw and unrendered.
+        message: a single bounded line naming the difference, every invisible
+            or non-ASCII character replaced by its marker.
+    """
+
+    candidate: Candidate | None
+    message: str
 
 
 def _name_char(char: str) -> str:
@@ -190,3 +209,61 @@ def closest_candidate(lines: Sequence[str], old: str) -> Candidate | None:
         if best is None or ratio > best.ratio:
             best = Candidate(line=start + 1, ratio=ratio, text=window)
     return best
+
+
+def _boundary_line(lines: Sequence[str], old: str) -> int | None:
+    """Return the 1-based line whose join with the next one equals ``old``.
+
+    A single-line anchor that swallowed a line break matches two consecutive
+    file lines concatenated; the first of them is the line to report.
+    """
+    if not old or "\n" in old or "\r" in old:
+        return None
+    scanned = lines[:MAX_CANDIDATE_LINES]
+    for index in range(len(scanned) - 1):
+        if scanned[index] + scanned[index + 1] == old:
+            return index + 1
+    return None
+
+
+def _boundary_message(lines: Sequence[str], line: int) -> str:
+    """Explain that the anchor straddles the boundary starting at ``line``."""
+    joined = "\n".join(lines[line - 1 : line + 1])
+    return (
+        f"near miss at line {line}: the anchor spans a line boundary "
+        f"| file {render_invisibles(joined)}"
+    )
+
+
+def _candidate_message(candidate: Candidate, old: str) -> str:
+    """Contrast the anchor with ``candidate``, every invisible named."""
+    return (
+        f"near miss at line {candidate.line}: "
+        f"anchor {render_invisibles(old)} "
+        f"| line {render_invisibles(candidate.text)}"
+    )
+
+
+def explain_near_miss(lines: Sequence[str], old: str) -> NearMiss:
+    """Assemble the near-miss report for an ``old`` anchor that matched nothing.
+
+    Three branches, in order: the anchor swallowed a line break (the message
+    names the first of the two joined lines and carries the ``<LF>`` marker);
+    a similar window exists (the message names its 1-based line and contrasts
+    both sides through :func:`render_invisibles`, so a tab, a trailing space
+    run, a non-breaking space or a Unicode punctuation swap is named instead
+    of being dumped raw); or nothing is similar enough, in which case the
+    candidate is ``None`` and the message says so explicitly.
+
+    The returned candidate is the one :func:`closest_candidate` produced,
+    unchanged, and the message never exceeds ``MAX_DIAGNOSTIC_CHARS``.
+    """
+    candidate = closest_candidate(lines, old)
+    boundary = _boundary_line(lines, old)
+    if boundary is not None:
+        bounded = _truncate(_boundary_message(lines, boundary), MAX_DIAGNOSTIC_CHARS)
+        return NearMiss(candidate=candidate, message=bounded)
+    if candidate is None:
+        return NearMiss(candidate=None, message=_NO_CANDIDATE_MESSAGE)
+    bounded = _truncate(_candidate_message(candidate, old), MAX_DIAGNOSTIC_CHARS)
+    return NearMiss(candidate=candidate, message=bounded)
