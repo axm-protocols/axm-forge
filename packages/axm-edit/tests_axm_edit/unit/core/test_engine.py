@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from axm_edit.core.diagnostics import explain_difference
 from axm_edit.core.engine import _not_found_error
 from axm_edit.models.operations import Edit, ValidationError
 
@@ -174,3 +175,31 @@ def test_ambiguous_match_line_list_is_truncated() -> None:
         assert first_hit in err.error
     assert "(+7 more)" in err.error
     assert "24" not in err.error
+
+
+def test_hinted_miss_appends_the_character_difference() -> None:
+    """AC1: a hinted miss appends the ``explain_difference`` text to the wording."""
+    lines = [
+        "import os",
+        f"value{NBSP}= compute(x)",
+        "return value",
+    ]
+    edit = Edit(line=2, old="value = compute(x)", new="value = compute(y)")
+
+    err = _not_found_error("sample.py", edit, lines)
+
+    assert err.error is not None
+    assert "Content not found at or near hint line" in err.error
+    assert explain_difference(edit.old, lines[1]) in err.error
+
+
+def test_hinted_miss_past_eof_states_the_real_line_count() -> None:
+    """AC2: a hint past the end of the file appends its real line count."""
+    lines = ["alpha", "beta", "gamma"]
+    edit = Edit(line=99, old="delta", new="epsilon")
+
+    err = _not_found_error("sample.py", edit, lines)
+
+    assert err.error is not None
+    assert "Content not found at or near hint line" in err.error
+    assert "3 lines" in err.error

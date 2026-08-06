@@ -18,7 +18,11 @@ from pathlib import Path
 from typing import TypeAlias
 
 from axm_edit.core.checkpoint import create_checkpoint, rollback
-from axm_edit.core.diagnostics import explain_near_miss, format_match_lines
+from axm_edit.core.diagnostics import (
+    explain_difference,
+    explain_near_miss,
+    format_match_lines,
+)
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -38,6 +42,10 @@ logger = logging.getLogger(__name__)
 _resolve_safe = resolve_safe
 
 _MIN_AMBIGUOUS_HITS = 2
+
+# Preserved verbatim: callers (and tests) match on this exact wording. The
+# hint-miss explanation is APPENDED to it, never substituted.
+_HINT_MISS_WORDING = "Content not found at or near hint line"
 
 # ── Resolved edit (after fuzzy search) ────────────────────────────────────
 
@@ -367,12 +375,31 @@ def _all_match_lines(lines: list[str], old: str) -> list[int]:
     return _collect_hits(lines, match_dedented, num_lines)
 
 
+def _hint_miss_message(old: str, actual: str | None, line_count: int) -> str:
+    """Explain a hinted miss on top of the preserved not-found wording.
+
+    :data:`_HINT_MISS_WORDING` is kept verbatim and the explanation is
+    appended: what actually sits at the hint — delegated to
+    :func:`axm_edit.core.diagnostics.explain_difference`, the single owner of
+    the character-level comparison — or, when the hint points past the end of
+    the file, how many lines the file really has.
+    """
+    if actual is None:
+        return (
+            f"{_HINT_MISS_WORDING}: the hint points past the end of the file, "
+            f"which has {line_count} lines"
+        )
+    return f"{_HINT_MISS_WORDING}: {explain_difference(old, actual)}"
+
+
 def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationError:
     """Build the validation error for an unresolved *edit* (no usable match).
 
     Branches on the match count of a hint-less edit so a true zero-match
     miss and a ``>=2`` ambiguous anchor produce distinct, actionable
-    messages. A hinted edit keeps its dedicated near-hint message.
+    messages. A hinted edit keeps its dedicated near-hint message, enriched
+    by :func:`_hint_miss_message` with what actually sits at the hint line
+    (or the file's real line count when the hint points past its end).
 
     On the zero-match branch the report is delegated to
     :func:`axm_edit.core.diagnostics.explain_near_miss`: it owns every
@@ -385,12 +412,13 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
     first few lines and summarises the rest as ``(+N more)``.
     """
     if edit.line is not None:
+        actual = _actual_at(lines, edit.line, _old_line_count(edit.old))
         return ValidationError(
             file=file_rel,
             line=edit.line,
             expected=edit.old,
-            actual=_actual_at(lines, edit.line, _old_line_count(edit.old)),
-            error="Content not found at or near hint line",
+            actual=actual,
+            error=_hint_miss_message(edit.old, actual, len(lines)),
         )
 
     hits = _all_match_lines(lines, edit.old)

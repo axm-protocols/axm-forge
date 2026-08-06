@@ -4,8 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from axm_edit.core.diagnostics import explain_difference
 from axm_edit.core.engine import _validate_replace, batch_apply
 from axm_edit.models.operations import Edit, ReplaceOp
+
+# Built from its code point so the source file stays pure ASCII.
+NBSP = chr(0x00A0)
 
 
 class TestBottomToTop:
@@ -130,3 +134,50 @@ def test_validate_replace_truncates_ambiguous_match_lines(tmp_path: Path) -> Non
     assert "Ambiguous match:" in message
     assert "(+7 more)" in message
     assert "24" not in message
+
+
+@pytest.mark.integration
+def test_hinted_miss_on_a_real_file_reports_the_character_difference(
+    tmp_path: Path,
+) -> None:
+    """AC1: a hinted miss on a real file appends the explain_difference text."""
+    anchor = "value = compute(x)"
+    actual_line = f"value{NBSP}= compute(x)"
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text(f"import os\n{actual_line}\nreturn value\n", encoding="utf-8")
+
+    resolved, errors = _validate_replace(
+        tmp_path,
+        "pkg/mod.py",
+        [Edit(line=2, old=anchor, new="value = compute(y)")],
+    )
+
+    assert resolved == []
+    assert len(errors) == 1
+    message = errors[0].error
+    assert message is not None
+    assert "Content not found at or near hint line" in message
+    assert explain_difference(anchor, actual_line) in message
+
+
+@pytest.mark.integration
+def test_hint_past_eof_on_a_real_file_reports_its_line_count(
+    tmp_path: Path,
+) -> None:
+    """AC2: a hint past the end of a real 3-line file names its line count."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+
+    resolved, errors = _validate_replace(
+        tmp_path,
+        "pkg/mod.py",
+        [Edit(line=99, old="delta", new="epsilon")],
+    )
+
+    assert resolved == []
+    assert len(errors) == 1
+    message = errors[0].error
+    assert message is not None
+    assert "3 lines" in message

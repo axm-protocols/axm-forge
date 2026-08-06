@@ -111,3 +111,41 @@ def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
         assert first_hit in reported, combined
     assert "(+7 more)" in reported, combined
     assert "120" not in reported, combined
+
+
+@pytest.mark.e2e
+def test_batch_edit_reports_the_real_line_count_for_an_out_of_range_hint(
+    tmp_path: Path,
+) -> None:
+    """AC3: an out-of-range hint prints the real line count of the target file."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+
+    operations = [
+        {
+            "op": "replace",
+            "file": "pkg/mod.py",
+            "edits": [{"line": 99, "old": "delta", "new": "epsilon"}],
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+
+    assert proc.returncode != 0, combined
+    assert "3 lines" in combined, combined
