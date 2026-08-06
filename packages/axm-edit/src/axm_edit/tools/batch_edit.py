@@ -316,6 +316,29 @@ def _render_import_alerts(data: dict[str, object]) -> list[str]:
     return lines
 
 
+def _render_error_lines(result: BatchResult) -> list[str]:
+    """Render one ``{file}:{line}: {message}`` line per validation error.
+
+    The locator *prefixes* the line (right after the indentation) so an
+    editor, a quickfix parser (``vim -q``) or a terminal cmd-click resolves
+    the position directly; a leading sigil would defeat all three. It is
+    composed here from the structured :attr:`ValidationError.file` /
+    :attr:`ValidationError.line` fields — never scraped out of ``error``.
+
+    When the engine could not locate the failure (``line is None``) the
+    locator degrades to ``{file}:``: no placeholder ``0``, no ``None``. The
+    engine message is appended verbatim — it was already truncated upstream
+    and must be neither re-rendered nor re-truncated. Errors are emitted in
+    ``result.details`` order, one line each.
+    """
+    lines: list[str] = []
+    for d in result.details:
+        suffix = f" [expected: {d.expected}]" if d.expected else ""
+        locator = f"{d.file}:{d.line}:" if d.line is not None else f"{d.file}:"
+        lines.append(f"  {locator} {d.error or 'validation error'}{suffix}")
+    return lines
+
+
 def render_text(
     result: BatchResult,
     parsed: list[Operation],
@@ -348,11 +371,12 @@ def render_text(
         return "\n".join(lines)
 
     header = f"batch_edit | ✗ ROLLBACK | {result.error or 'failed'}"
-    lines = [*alerts, header, *_render_op_lines(parsed)]
-    for d in result.details:
-        suffix = f" [expected: {d.expected}]" if d.expected else ""
-        loc = f"{d.file}:{d.line}" if d.line is not None else d.file
-        lines.append(f"  ! {loc}: {d.error or 'validation error'}{suffix}")
+    lines = [
+        *alerts,
+        header,
+        *_render_op_lines(parsed),
+        *_render_error_lines(result),
+    ]
     return "\n".join(lines)
 
 
