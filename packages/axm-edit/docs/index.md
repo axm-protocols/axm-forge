@@ -28,6 +28,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 - :material-undo: **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
 - :material-shield-check-outline: **Atomic** — All-or-nothing: validation runs before any file is touched
 - :material-sort-descending: **Bottom-to-top** — Line edits applied in reverse order to avoid line-shift problems
+- :material-magnify-scan: **Near-miss report** — A `replace` anchor that matched nothing names the closest line and marks every invisible difference (`<TAB>`, `<SP>`, `<NBSP>`, `<LF>`) instead of dumping raw text
 
 ## Modules
 
@@ -35,6 +36,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 |---|---|
 | [`axm_edit.core.engine`](reference/api/axm_edit/core/engine.md) | `batch_apply` — validate-then-apply batch engine |
 | [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint.md) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
+| [`axm_edit.core.diagnostics`](reference/api/axm_edit/core/diagnostics.md) | `explain_near_miss`, `closest_candidate`, `render_invisibles` — near-miss report naming the closest window and its invisible characters |
 | [`axm_edit.models.operations`](reference/api/axm_edit/models/operations.md) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`, `rollback_failed`), `RollbackResult` — Pydantic models |
 | [`axm_edit.services.lint`](reference/api/axm_edit/services/lint.md) | `filter_ruff_lines` — keep real ruff diagnostic lines, dropping summary noise (the post-apply lint step) |
 | [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff.md) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
