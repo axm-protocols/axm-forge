@@ -62,3 +62,52 @@ def test_batch_edit_reports_nbsp_near_miss_with_locator(tmp_path: Path) -> None:
     assert proc.returncode != 0, combined
     assert any(line.startswith("pkg/mod.py:4:") for line in lines), combined
     assert "<NBSP>" in combined, combined
+
+
+@pytest.mark.e2e
+def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
+    """AC4: the CLI prints a bounded ``Ambiguous match:`` candidate list."""
+    anchor = "value = compute(x)"
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    # The anchor lands on lines 10, 20, ... 120 (12 occurrences).
+    body_lines: list[str] = []
+    for _ in range(12):
+        body_lines.extend(["filler = 0"] * 9)
+        body_lines.append(anchor)
+    target.write_text("\n".join(body_lines) + "\n", encoding="utf-8")
+
+    operations = [
+        {
+            "op": "replace",
+            "file": "pkg/mod.py",
+            "edits": [{"old": anchor, "new": "value = compute(y)"}],
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    reported = "\n".join(
+        line for line in combined.splitlines() if "Ambiguous match:" in line
+    )
+
+    assert proc.returncode != 0, combined
+    assert reported, combined
+    for first_hit in ("10", "20", "30", "40", "50"):
+        assert first_hit in reported, combined
+    assert "(+7 more)" in reported, combined
+    assert "120" not in reported, combined

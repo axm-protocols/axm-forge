@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 from axm_edit.core.checkpoint import create_checkpoint, rollback
-from axm_edit.core.diagnostics import explain_near_miss
+from axm_edit.core.diagnostics import explain_near_miss, format_match_lines
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -378,6 +378,11 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
     :func:`axm_edit.core.diagnostics.explain_near_miss`: it owns every
     marker, Unicode-naming and truncation decision, so the engine only
     transposes its verdict into the structured ``line``/``actual`` fields.
+
+    The ambiguous branch is bounded the same way: the full hit list stays
+    available in :func:`_all_match_lines`, but its rendering goes through
+    :func:`axm_edit.core.diagnostics.format_match_lines`, which lists the
+    first few lines and summarises the rest as ``(+N more)``.
     """
     if edit.line is not None:
         return ValidationError(
@@ -390,7 +395,7 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
 
     hits = _all_match_lines(lines, edit.old)
     if len(hits) >= _MIN_AMBIGUOUS_HITS:
-        line_list = ", ".join(str(h) for h in hits)
+        line_list = format_match_lines(hits)
         return ValidationError(
             file=file_rel,
             expected=edit.old,

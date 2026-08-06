@@ -156,3 +156,21 @@ def test_long_candidate_stays_bounded() -> None:
     assert err.error is not None
     assert "2" in err.error
     assert len(err.error) <= 400
+
+
+def test_ambiguous_match_line_list_is_truncated() -> None:
+    """AC2: 12 identical anchors list 5 lines plus a ``(+7 more)`` suffix."""
+    anchor = "value = compute(x)"
+    lines = ["import os"]
+    for _ in range(12):
+        lines.append(anchor)
+        lines.append("filler = 0")
+
+    err = _error(lines, anchor)
+
+    assert err.error is not None
+    assert "Ambiguous match:" in err.error
+    for first_hit in ("2", "4", "6", "8", "10"):
+        assert first_hit in err.error
+    assert "(+7 more)" in err.error
+    assert "24" not in err.error

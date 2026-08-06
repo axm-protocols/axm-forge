@@ -95,6 +95,8 @@ What a caller gets back:
 
 Two invariants keep the report usable: the engine strips line terminators before handing the snapshot to the renderer (so `Candidate.text` honours its "terminators excluded" contract), and it never re-appends the raw candidate line — a 10 000-character line is summarised by the renderer, never dumped into the error.
 
+The **ambiguous** branch (an anchor matching ≥ 2 lines) is bounded by the same rule. `_all_match_lines` still returns *every* hit — the count announced in the message stays exact — but the list itself is rendered by `core/diagnostics.py::format_match_lines`, which keeps at most `MAX_LISTED_MATCH_LINES` (5) line numbers and summarises the rest with a ` (+N more)` suffix. An anchor repeated 12 times therefore reports `Ambiguous match: 'old' snippet found on 12 lines (2, 4, 6, 8, 10 (+7 more)); disambiguate with a 'line' hint` instead of an unreadable, token-heavy dump. The bounding happens **once**, at that single construction site: `tools/batch_edit.py::_render_error_lines` forwards `ValidationError.error` verbatim and adds no truncation of its own.
+
 ## Atomicity
 
 - **Checkpoint**: before applying, every path the batch will touch is snapshotted in-process — its prior existence plus original bytes — keyed by resolved relative path (no git involvement)

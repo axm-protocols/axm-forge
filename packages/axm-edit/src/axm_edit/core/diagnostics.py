@@ -21,6 +21,7 @@ from dataclasses import dataclass
 __all__ = [
     "MAX_CANDIDATE_LINES",
     "MAX_DIAGNOSTIC_CHARS",
+    "MAX_LISTED_MATCH_LINES",
     "MAX_SNIPPET_CHARS",
     "SIMILARITY_THRESHOLD",
     "Candidate",
@@ -28,6 +29,7 @@ __all__ = [
     "closest_candidate",
     "explain_difference",
     "explain_near_miss",
+    "format_match_lines",
     "render_invisibles",
 ]
 
@@ -39,6 +41,8 @@ MAX_SNIPPET_CHARS = 120
 MAX_DIAGNOSTIC_CHARS = 400
 #: Minimum similarity ratio below which no candidate is reported at all.
 SIMILARITY_THRESHOLD = 0.7
+#: Hard cap on the number of match line numbers listed in a diagnostic.
+MAX_LISTED_MATCH_LINES = 5
 
 _ELLIPSIS = "..."
 _NBSP = chr(0xA0)
@@ -117,6 +121,28 @@ def _truncate(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - len(_ELLIPSIS)] + _ELLIPSIS
+
+
+def format_match_lines(
+    match_lines: Sequence[int],
+    limit: int = MAX_LISTED_MATCH_LINES,
+) -> str:
+    """Render match line numbers, keeping at most ``limit`` of them.
+
+    The kept numbers are comma-joined in their original order; whatever the
+    sequence holds beyond ``limit`` is summarised by a trailing
+    ``(+N more)`` suffix instead of being dumped. A sequence of ``limit``
+    numbers or fewer renders as the plain comma-joined list, with no suffix.
+
+    Pure by construction: it reads nothing but its arguments, so an anchor
+    repeated hundreds of times still yields a bounded, actionable list.
+    """
+    listed = list(match_lines[:limit])
+    joined = ", ".join(str(number) for number in listed)
+    remaining = len(match_lines) - len(listed)
+    if remaining <= 0:
+        return joined
+    return f"{joined} (+{remaining} more)"
 
 
 def render_invisibles(text: str) -> str:

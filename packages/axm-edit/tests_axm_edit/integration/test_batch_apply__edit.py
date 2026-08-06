@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_edit.core.engine import batch_apply
+from axm_edit.core.engine import _validate_replace, batch_apply
 from axm_edit.models.operations import Edit, ReplaceOp
 
 
@@ -106,3 +106,27 @@ def test_replace_preserves_crlf_multiple_edits(tmp_path: Path) -> None:
 
     assert result.success is True
     assert target.read_bytes() == b"ONE\r\ntwo\r\nTHREE\r\nfour\r\n"
+
+
+@pytest.mark.integration
+def test_validate_replace_truncates_ambiguous_match_lines(tmp_path: Path) -> None:
+    """AC3: a real file repeating the anchor 12 times is summarised."""
+    anchor = "value = compute(x)"
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    body = "import os\n" + f"{anchor}\nfiller = 0\n" * 12
+    target.write_text(body, encoding="utf-8")
+
+    resolved, errors = _validate_replace(
+        tmp_path,
+        "pkg/mod.py",
+        [Edit(old=anchor, new="value = compute(y)")],
+    )
+
+    assert resolved == []
+    assert len(errors) == 1
+    message = errors[0].error
+    assert message is not None
+    assert "Ambiguous match:" in message
+    assert "(+7 more)" in message
+    assert "24" not in message

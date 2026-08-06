@@ -314,3 +314,22 @@ def test_explain_near_miss_truncates_a_very_long_candidate() -> None:
     assert len(report.message) <= MAX_DIAGNOSTIC_CHARS
     assert MAX_DIAGNOSTIC_CHARS == 400
     assert "3" in report.message
+
+
+def test_format_match_lines_truncates_beyond_five_entries() -> None:
+    """AC1: 12 match lines keep the first 5 and summarise the remainder."""
+    hits = [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47]
+
+    rendered = _diagnostics_attr("format_match_lines")(hits)
+
+    assert "3, 7, 11, 15, 19" in rendered
+    assert "(+7 more)" in rendered
+    assert "47" not in rendered
+
+
+def test_format_match_lines_keeps_five_or_fewer_untruncated() -> None:
+    """AC1: five or fewer match lines render as a plain comma-joined list."""
+    rendered = _diagnostics_attr("format_match_lines")([1, 2, 3, 4, 5])
+
+    assert rendered == "1, 2, 3, 4, 5"
+    assert "more)" not in rendered
