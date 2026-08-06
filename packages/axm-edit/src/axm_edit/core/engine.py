@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 from axm_edit.core.checkpoint import create_checkpoint, rollback
+from axm_edit.core.diagnostics import explain_near_miss
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -372,6 +373,11 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
     Branches on the match count of a hint-less edit so a true zero-match
     miss and a ``>=2`` ambiguous anchor produce distinct, actionable
     messages. A hinted edit keeps its dedicated near-hint message.
+
+    On the zero-match branch the report is delegated to
+    :func:`axm_edit.core.diagnostics.explain_near_miss`: it owns every
+    marker, Unicode-naming and truncation decision, so the engine only
+    transposes its verdict into the structured ``line``/``actual`` fields.
     """
     if edit.line is not None:
         return ValidationError(
@@ -393,10 +399,14 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
                 f"({line_list}); disambiguate with a 'line' hint"
             ),
         )
+    near = explain_near_miss([ln.rstrip("\r\n") for ln in lines], edit.old)
+    candidate = near.candidate
     return ValidationError(
         file=file_rel,
+        line=candidate.line if candidate is not None else None,
         expected=edit.old,
-        error="Content not found in file: the 'old' snippet was not located",
+        actual=candidate.text if candidate is not None else None,
+        error=near.message,
     )
 
 

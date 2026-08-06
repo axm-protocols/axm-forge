@@ -15,6 +15,7 @@ src/axm_edit/
 │   └── operations.py        # Pydantic models (Edit, ReplaceOp, CreateOp, DeleteOp, BatchResult)
 ├── core/
 │   ├── engine.py            # Validate-then-apply batch engine
+│   ├── diagnostics.py       # Near-miss renderer (markers, Unicode naming, bounds)
 │   └── checkpoint.py        # Targeted per-path snapshot / rollback (no git)
 ├── services/
 │   ├── lint.py              # filter_ruff_lines — post-apply ruff diagnostic filtering
@@ -74,6 +75,25 @@ When an edit at line 10 replaces 2 lines with 3 lines, every line number after 1
 3. Sorts edits **bottom-to-top** (descending line number)
 4. Applies in that order — upper lines are never shifted by lower edits
 5. Writes the result
+
+## Near-miss diagnostics
+
+When a replace anchor resolves to **zero** matches, the engine no longer returns a flat "content not found" verdict: `_not_found_error` — the single construction site for that error — delegates the explanation to `core/diagnostics.py::explain_near_miss(lines, old)` and only transposes its verdict into the `ValidationError` structure.
+
+The split of responsibility is strict, so there is one renderer and one construction site:
+
+| Layer | Owns |
+|---|---|
+| `core/diagnostics.py` | finding the closest window (`closest_candidate`, similarity ≥ `SIMILARITY_THRESHOLD`), detecting the line-boundary case, and **all** rendering — `<TAB>`, one `<SP>` per trailing space, `<NBSP>`, `<CR>`/`<LF>`, Unicode names (`<EM DASH>`, `<RIGHT SINGLE QUOTATION MARK>`, …) — the whole message bounded by `MAX_DIAGNOSTIC_CHARS` |
+| `core/engine.py` | calling that renderer **only on the zero-match path** (after `_all_match_lines` came back empty, so the matching hot loop keeps its cost) and filling the structured `ValidationError.line` / `.actual` from the returned `Candidate` |
+
+What a caller gets back:
+
+- **near miss found** — `error` names the candidate's 1-based line and the marker for the differing character (the raw character is never echoed), `line` = `Candidate.line`, `actual` = `Candidate.text` (the raw window text, unrendered, so a caller can still diff it itself)
+- **anchor swallowed a line break** — the message names the first of the two joined lines and carries the `<LF>` marker
+- **nothing similar enough** — the message says no similar line was found, and `line` / `actual` stay `None`, which is what distinguishes a genuinely absent anchor from a locatable near miss
+
+Two invariants keep the report usable: the engine strips line terminators before handing the snapshot to the renderer (so `Candidate.text` honours its "terminators excluded" contract), and it never re-appends the raw candidate line — a 10 000-character line is summarised by the renderer, never dumped into the error.
 
 ## Atomicity
 

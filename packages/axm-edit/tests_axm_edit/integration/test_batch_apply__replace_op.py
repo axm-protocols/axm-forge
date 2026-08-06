@@ -87,7 +87,7 @@ def test_ambiguous_old_rejected(tmp_project: Path) -> None:
 
 
 def test_old_not_found(tmp_project: Path) -> None:
-    """old content doesn't exist anywhere → rejected."""
+    """old content doesn't exist anywhere → rejected with a near-miss report."""
     ops = [
         ReplaceOp(
             file="src/foo.py",
@@ -98,7 +98,8 @@ def test_old_not_found(tmp_project: Path) -> None:
     ]
     result = batch_apply(tmp_project, ops)
     assert not result.success
-    assert any("not found" in (d.error or "").lower() for d in result.details)
+    texts = [(d.error or "").lower() for d in result.details]
+    assert any("no similar line" in t or "near miss" in t for t in texts)
 
 
 @pytest.mark.parametrize(
@@ -713,7 +714,7 @@ def test_replace_space_indented_block_unchanged(tmp_path: Path) -> None:
 
 
 def test_replace_zero_match_reports_not_found(tmp_path: Path) -> None:
-    """A zero-match replace reports not-found, never 'ambiguous'."""
+    """A zero-match replace reports the near-miss verdict, never 'ambiguous'."""
     target = tmp_path / "sample.txt"
     target.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
 
@@ -728,7 +729,9 @@ def test_replace_zero_match_reports_not_found(tmp_path: Path) -> None:
     detail = result.details[0]
     assert detail.error is not None
     text = detail.error.lower()
-    assert "not" in text and "found" in text
+    # No line is similar enough: the anchor is genuinely absent.
+    assert "no similar line" in text
+    assert detail.line is None
     assert "ambiguous" not in text
     # File untouched.
     assert target.read_text(encoding="utf-8") == "alpha\nbeta\ngamma\n"
