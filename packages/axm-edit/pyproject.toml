@@ -161,6 +161,17 @@ disallow_subclassing_any = false
 exempt_paths = ["core/engine.py", "core/checkpoint.py"]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# axm-audit — near-threshold advisory (pilot opt-in, warn-only)
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-edit is the pilot package for the `near_threshold` advisory: several
+# functions sit exactly at ruff's reference arity, so a single added parameter
+# trips PLR0913. The advisory surfaces that proximity BEFORE the edit. It reads
+# the thresholds from ruff (falling back to ruff's defaults) — do NOT pin them
+# here.
+[tool.axm-audit.complexity]
+near_threshold = true
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.deptry]
