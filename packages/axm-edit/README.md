@@ -21,6 +21,7 @@ The agent spends 70% of its budget on mechanics.
 ## Features
 
 - 🔧 **`batch_edit`** — Replace, create, and delete files in a single atomic operation
+- 🧪 **`batch_edit_check`** — Read-only preflight of a batch: diagnostics without touching the disk
 - 📖 **`read_file`** — Read file content with optional line-range support
 - 🔍 **`search_files`** — Grep-like search across project files (literal or regex)
 - 📂 **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
@@ -113,6 +114,36 @@ Fails if file exists (unless `"overwrite": true`).
 ```json
 {"op": "delete", "file": "src/old.py"}
 ```
+
+### `batch_edit_check`
+
+Read-only preflight of a `batch_edit` operation set. It runs the same validation
+rules as `batch_edit` (broken `old` anchors, `create` on an existing file,
+unknown edit keys, path traversal) and reports what would go wrong — **read-only**:
+no disk write is ever performed, not a single file is created, modified or deleted.
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Project root the batch would be applied to |
+| `operations` | `list[Op]` | — | Same operation list as `batch_edit` |
+
+```json
+{
+    "path": "/my/project",
+    "operations": [
+        {
+            "op": "replace",
+            "file": "src/foo.py",
+            "edits": [{"line": 3, "old": "import bar", "new": "import baz"}]
+        },
+        {"op": "create", "file": "src/new.py", "content": "x = 1\n"}
+    ]
+}
+```
+
+Returns `data["ok"]` (`true` when nothing is wrong) and `data["diagnostics"]`,
+one entry per problem found. Since nothing is written, it is safe to call it as
+often as needed before committing to a real `batch_edit`.
 
 ### `read_file`
 
