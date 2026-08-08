@@ -22,6 +22,7 @@ The agent spends 70% of its budget on mechanics.
 
 - 🔧 **`batch_edit`** — Replace, create, and delete files in a single atomic operation
 - 🧪 **`batch_edit_check`** — Read-only preflight of a batch: diagnostics without touching the disk
+- 🔬 **`file_bytes`** — Read-only byte-level report on a file: sha256, literal non-ASCII vs textual escape sequences
 - 📖 **`read_file`** — Read file content with optional line-range support
 - 🔍 **`search_files`** — Grep-like search across project files (literal or regex)
 - 📂 **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
@@ -144,6 +145,26 @@ no disk write is ever performed, not a single file is created, modified or delet
 Returns `data["ok"]` (`true` when nothing is wrong) and `data["diagnostics"]`,
 one entry per problem found. Since nothing is written, it is safe to call it as
 often as needed before committing to a real `batch_edit`.
+
+### `file_bytes`
+
+Byte-exact report on a file **already written to disk** — **read-only**: the
+file is opened once in binary mode, no disk write is ever performed and no
+metadata is changed. `path` is the **absolute** path to the file.
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | — | Absolute path to the file to inspect |
+| `expected` | `str?` | `None` | Content the caller believes it wrote |
+| `expect_escaped` | `bool` | `False` | Whether escape sequences are expected verbatim on disk |
+| `encoding` | `str` | `"utf-8"` | Decoding used for the report (only `utf-8`) |
+
+Returns `data["verdict"]` — one of `ok`, `mismatch`,
+`literal_where_escaped_expected`, `escaped_where_literal_expected`,
+`decode_error` — plus `data["sha256"]`, `data["size_bytes"]`, the bounded
+occurrence lists with their `*_total` counters, `data["mismatch"]` (offset and
+ASCII-only reprs of the first divergence) and an actionable `data["hint"]`.
+Undecodable bytes are a diagnostic (`encoding_ok: false`), not an error.
 
 ### `read_file`
 

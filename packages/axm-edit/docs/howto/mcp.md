@@ -19,6 +19,7 @@
 | `search_files` | Grep-like search across project files (literal or regex) |
 | `run_command` | Execute an arbitrary shell command with timeout (denylist is best-effort, **not** a sandbox) |
 | `list_dir` | List files and directories with metadata |
+| `file_bytes` | Byte-level report on a file already on disk (sha256, size, verdict) — read-only, it never writes |
 
 ## Usage
 
@@ -51,6 +52,19 @@ Read-only inspection mirrors the editing tools:
 search_files(path="/project", pattern="deprecated_func", include=["*.py"])
 read_file(path="/project/src/core.py")
 ```
+
+After a write routed through MCP, `file_bytes` reports what the file *really*
+contains — the JSON transport decodes the payload once, so an escape sequence
+sent as an argument can land on disk as the literal character it denotes:
+
+```
+file_bytes(path="/project/src/core.py", expected="<what you believe you wrote>", expect_escaped=False)
+```
+
+It returns `data["verdict"]` (`ok`, `mismatch`, `literal_where_escaped_expected`,
+`escaped_where_literal_expected`, `decode_error`), `data["sha256"]`,
+`data["size_bytes"]` and an actionable `data["hint"]`. The call is strictly
+read-only: the file is opened once in binary mode and never modified.
 
 ## Entry Points
 

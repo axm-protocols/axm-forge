@@ -19,6 +19,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 ## Features
 
 - :material-file-edit-outline: **`batch_edit`** — Replace, create, and delete files in a single atomic operation with automatic ruff --fix
+- :material-magnify-scan: **`file_bytes`** — Read-only byte-level report on a file: sha256, size and a verdict separating literal non-ASCII from textual escape sequences
 - :material-book-open-variant: **`read_file`** — Read file content with optional line-range support
 - :material-file-search-outline: **`search_files`** — Grep-like search across project files (literal or regex)
 - :material-pencil-outline: **`write_file`** — Write (create or overwrite) a single file
@@ -40,13 +41,13 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 | [`axm_edit.models.operations`](reference/api/axm_edit/models/operations.md) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`, `rollback_failed`), `RollbackResult` — Pydantic models |
 | [`axm_edit.services.lint`](reference/api/axm_edit/services/lint.md) | `filter_ruff_lines` — keep real ruff diagnostic lines, dropping summary noise (the post-apply lint step) |
 | [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff.md) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
-| [`axm_edit.tools`](reference/api/axm_edit/tools/index.md) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool` |
+| [`axm_edit.tools`](reference/api/axm_edit/tools/index.md) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool`, `FileBytesTool` |
 
 ## Learn More
 
 - [Getting Started](tutorials/getting-started.md) — Install and use all tools in 5 minutes
 - [How-To Guides](howto/index.md) — Task-oriented recipes
-- [MCP Tools Reference](reference/cli.md) — The eight tools at a glance
+- [MCP Tools Reference](reference/cli.md) — Every tool at a glance
 - [API Reference](reference/api/axm_edit/index.md) — Full module documentation
 - [Architecture](explanation/architecture.md) — Design decisions and module layout
 

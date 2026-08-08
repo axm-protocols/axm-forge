@@ -39,6 +39,7 @@ edit_file      = "axm_edit.tools.edit_file:EditFileTool"
 search_files   = "axm_edit.tools.search_files:SearchFilesTool"
 run_command    = "axm_edit.tools.run_command:RunCommandTool"
 list_dir       = "axm_edit.tools.list_dir:ListDirTool"
+file_bytes     = "axm_edit.tools.file_bytes:FileBytesTool"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

@@ -17,6 +17,7 @@ method is the single entry point.
 | `search_files` | `SearchFilesTool` | Grep-like search across project files (literal or regex). |
 | `run_command` | `RunCommandTool` | Execute an **arbitrary** shell command with timeout (denylist is a best-effort guardrail, **not** a sandbox). |
 | `list_dir` | `ListDirTool` | List files and directories with metadata. |
+| `file_bytes` | `FileBytesTool` | Byte-level report on a file already on disk: sha256, size, literal non-ASCII vs textual escapes, divergence from an expected content. **Read-only** — it never writes. |
 
 ## Python API
 
