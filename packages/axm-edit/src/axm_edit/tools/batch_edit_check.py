@@ -6,9 +6,9 @@ Mirrors the shape of :mod:`axm_edit.tools.batch_edit`: a module-level
 ``ToolResult(success=False, error=...)``.
 
 No code path here opens a file for writing, creates a directory, or calls
-``batch_apply`` / ``create_checkpoint``: rule evaluation is fully delegated
-to the read-only check layers of :mod:`axm_edit.core.precheck` and
-:mod:`axm_edit.core.precheck_fs`.
+``batch_apply`` / ``create_checkpoint``: rule evaluation and ordering are
+fully delegated to the shared read-only core
+:mod:`axm_edit.core.preflight`.
 """
 
 from __future__ import annotations
@@ -18,8 +18,10 @@ from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_edit.core.precheck import check_edit_keys
-from axm_edit.core.precheck_fs import run_fs_checks
+from axm_edit.core.preflight import (
+    collect_preflight_diagnostics,
+    partition_diagnostics,
+)
 from axm_edit.models.check import CheckDiagnostic
 from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp
 
@@ -30,6 +32,27 @@ type CheckOperation = ReplaceOp | CreateOp | DeleteOp
 _EMPTY_RENDER = "batch_edit_check | ✓ | 0 diagnostic(s)"
 
 
+def _summary_line(diagnostics: Sequence[CheckDiagnostic]) -> str:
+    """Render the blocking verdict of *diagnostics* as a single line.
+
+    Args:
+        diagnostics: Diagnostics to partition, in batch order.
+
+    Returns:
+        ``"blocking: yes (N errors, M warnings)"`` when at least one
+        diagnostic blocks the batch, ``"blocking: no (0 errors, M
+        warnings)"`` otherwise. The verdict comes from
+        :func:`~axm_edit.core.preflight.partition_diagnostics`, never from
+        a severity comparison spelled out here.
+    """
+    report = partition_diagnostics(diagnostics)
+    verdict = "yes" if report.blocking else "no"
+    return (
+        f"blocking: {verdict} ({len(report.errors)} errors,"
+        f" {len(report.warnings)} warnings)"
+    )
+
+
 def render_text(diagnostics: Sequence[CheckDiagnostic]) -> str:
     """Render a diagnostic set as the compact text consumed by the CLI.
 
@@ -37,12 +60,13 @@ def render_text(diagnostics: Sequence[CheckDiagnostic]) -> str:
         diagnostics: Diagnostics to render, in batch order.
 
     Returns:
-        ``"batch_edit_check | ✓ | 0 diagnostic(s)"`` when *diagnostics*
-        is empty; otherwise a header plus one line per diagnostic carrying
-        its ``code``, its ``message`` and its ``hint``.
+        A header — ``"batch_edit_check | ✓ | 0 diagnostic(s)"`` when
+        *diagnostics* is empty — plus one line per diagnostic carrying its
+        ``code``, its ``message`` and its ``hint``, and a final
+        ``"blocking: …"`` summary line.
     """
     if not diagnostics:
-        return _EMPTY_RENDER
+        return f"{_EMPTY_RENDER}\n{_summary_line(diagnostics)}"
 
     lines = [f"batch_edit_check | ✗ | {len(diagnostics)} diagnostic(s)"]
     for diagnostic in diagnostics:
@@ -52,6 +76,7 @@ def render_text(diagnostics: Sequence[CheckDiagnostic]) -> str:
         )
         if diagnostic.hint:
             lines.append(f"      hint: {diagnostic.hint}")
+    lines.append(_summary_line(diagnostics))
     return "\n".join(lines)
 
 
@@ -125,57 +150,38 @@ def _parse_check_operations(
     return parsed
 
 
-def _unknown_edit_key_diagnostics(
-    raw_ops: Sequence[Mapping[str, object]],
-) -> list[CheckDiagnostic]:
-    """Report the edit keys sanitized away before model validation.
-
-    Args:
-        raw_ops: Operations as authored, in batch order.
-
-    Returns:
-        One ``UNKNOWN_EDIT_KEY`` diagnostic per offending edit, else ``[]``.
-    """
-    diagnostics: list[CheckDiagnostic] = []
-    for index, raw in enumerate(raw_ops):
-        file = raw.get("file")
-        edits = raw.get("edits")
-        if raw.get("op") != "replace" or not isinstance(file, str) or not file:
-            continue
-        if not isinstance(edits, list):
-            continue
-        for edit in edits:
-            if isinstance(edit, Mapping):
-                diagnostics.extend(check_edit_keys(index, file, edit))
-    return diagnostics
-
-
 def _collect_diagnostics(
     root: Path,
     raw_ops: Sequence[Mapping[str, object]],
 ) -> list[CheckDiagnostic]:
     """Run every read-only check over *raw_ops* under *root*.
 
+    The rules and their ordering belong to
+    :func:`~axm_edit.core.preflight.collect_preflight_diagnostics`: this
+    layer only rejects a malformed batch up front, so a bad ``op``
+    discriminator still surfaces as a tool-level error instead of a
+    diagnostic.
+
     Args:
         root: Project root the batch would be applied to.
         raw_ops: Operations as authored, in batch order.
 
     Returns:
-        Every diagnostic found, sorted by increasing ``op_index``.
+        Every diagnostic found, in the core's per-operation order.
+
+    Raises:
+        ValueError: When an entry carries an unknown ``op`` discriminator
+            or fails model validation.
     """
-    parsed = _parse_check_operations(raw_ops)
-    diagnostics = [
-        *_unknown_edit_key_diagnostics(raw_ops),
-        *run_fs_checks(root, parsed),
-    ]
-    return sorted(diagnostics, key=lambda diagnostic: diagnostic.op_index)
+    _parse_check_operations(raw_ops)
+    return collect_preflight_diagnostics(root, raw_ops)
 
 
 class BatchEditCheckTool(AXMTool):
     """Validate a ``batch_edit`` operation set without touching the disk.
 
-    Orchestration and shaping layer only: the rules live in
-    :mod:`axm_edit.core.precheck` / :mod:`axm_edit.core.precheck_fs`.
+    Orchestration and shaping layer only: the rules, their ordering and
+    the blocking verdict live in :mod:`axm_edit.core.preflight`.
     """
 
     expose_directly = False
@@ -207,8 +213,10 @@ class BatchEditCheckTool(AXMTool):
             kwargs: Ignored extra arguments (MCP forward-compatibility).
 
         Returns:
-            ``ToolResult(success=True)`` with ``data["ok"]`` and the
-            serialised ``data["diagnostics"]`` when the check could run;
+            ``ToolResult(success=True)`` with ``data["ok"]``, the
+            serialised ``data["diagnostics"]`` and the severity partition
+            ``data["blocking"]`` / ``data["error_count"]`` /
+            ``data["warning_count"]`` when the check could run;
             ``ToolResult(success=False, error=...)`` when the tool itself
             failed (missing root, malformed operations). Never raises.
         """
@@ -228,8 +236,15 @@ class BatchEditCheckTool(AXMTool):
         except (OSError, ValueError, TypeError) as exc:
             return ToolResult(success=False, error=str(exc))
 
+        report = partition_diagnostics(diagnostics)
         payload: list[dict[str, object]] = [
-            diagnostic.model_dump() for diagnostic in diagnostics
+            diagnostic.model_dump() for diagnostic in report.diagnostics
         ]
-        data: dict[str, object] = {"ok": not diagnostics, "diagnostics": payload}
+        data: dict[str, object] = {
+            "ok": not diagnostics,
+            "diagnostics": payload,
+            "blocking": report.blocking,
+            "error_count": len(report.errors),
+            "warning_count": len(report.warnings),
+        }
         return ToolResult(success=True, data=data, text=render_text(diagnostics))

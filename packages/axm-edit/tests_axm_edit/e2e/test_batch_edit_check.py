@@ -75,3 +75,38 @@ def test_batch_edit_check_reports_zero_diagnostics_on_valid_operations(
 
     assert proc.returncode == 0, combined
     assert "0 diagnostic(s)" in combined, combined
+
+
+@pytest.mark.e2e
+def test_batch_edit_check_prints_the_blocking_summary_line(tmp_path: Path) -> None:
+    """AC4: a batch with an unknown edit key prints `blocking: yes`."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("value = 1\n", encoding="utf-8")
+
+    operations: list[dict[str, object]] = [
+        {
+            "op": "replace",
+            "file": "pkg/mod.py",
+            "edits": [{"old": "value = 1", "new": "value = 2", "replace_all": True}],
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit_check",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+
+    assert "blocking: yes" in proc.stdout, combined

@@ -143,8 +143,15 @@ no disk write is ever performed, not a single file is created, modified or delet
 ```
 
 Returns `data["ok"]` (`true` when nothing is wrong) and `data["diagnostics"]`,
-one entry per problem found. Since nothing is written, it is safe to call it as
-often as needed before committing to a real `batch_edit`.
+one entry per problem found, emitted in **operation order** (the batch's own
+order, then rule family) — plus the machine-readable severity partition
+`data["blocking"]` (`true` as soon as one diagnostic is an error),
+`data["error_count"]` and `data["warning_count"]`. The rendered text ends with
+the matching summary line, `blocking: yes (N errors, M warnings)` or
+`blocking: no (0 errors, M warnings)`, so an agent never has to re-parse the
+diagnostic lines to know whether the batch would be rejected. Since nothing is
+written, it is safe to call it as often as needed before committing to a real
+`batch_edit`.
 
 ### `file_bytes`
 

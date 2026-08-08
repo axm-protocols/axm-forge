@@ -70,3 +70,62 @@ class TestRenderText:
         text = render_text([])
 
         assert "0 diagnostic(s)" in text
+
+    def test_render_text_appends_a_blocking_summary_when_an_error_is_present(
+        self,
+    ) -> None:
+        """AC3: an error diagnostic makes the last line announce blocking."""
+        diagnostics = [
+            CheckDiagnostic(
+                op_index=0,
+                file="pkg/mod.py",
+                severity="error",
+                code="ANCHOR_NOT_FOUND",
+                message="Anchor not found in 'pkg/mod.py': 'value = 404'.",
+                hint="Re-read the file and copy the anchor verbatim.",
+            ),
+            CheckDiagnostic(
+                op_index=1,
+                file="pkg/legacy.py",
+                severity="warning",
+                code="LINE_LENGTH_DEFAULT_MISMATCH",
+                message="Line 1 is 108 chars: over the 88-char default.",
+                hint="batch_edit lints with ruff's 88-char default.",
+            ),
+        ]
+
+        text = render_text(diagnostics)
+        lines = text.splitlines()
+
+        assert "ANCHOR_NOT_FOUND" in text
+        assert "LINE_LENGTH_DEFAULT_MISMATCH" in text
+        assert lines[-1] == "blocking: yes (1 errors, 1 warnings)"
+
+    def test_render_text_reports_a_non_blocking_summary_for_warnings_only(
+        self,
+    ) -> None:
+        """AC3: a warning-only diagnostic list renders `blocking: no`."""
+        diagnostics = [
+            CheckDiagnostic(
+                op_index=0,
+                file="pkg/mod.py",
+                severity="warning",
+                code="ANCHOR_AMBIGUOUS",
+                message="Anchor found 2 times in 'pkg/mod.py': 'value'.",
+                hint="Extend the anchor with surrounding context.",
+            ),
+            CheckDiagnostic(
+                op_index=1,
+                file="pkg/legacy.py",
+                severity="warning",
+                code="LINE_LENGTH_DEFAULT_MISMATCH",
+                message="Line 1 is 108 chars: over the 88-char default.",
+                hint="batch_edit lints with ruff's 88-char default.",
+            ),
+        ]
+
+        text = render_text(diagnostics)
+        lines = text.splitlines()
+
+        assert "ANCHOR_AMBIGUOUS" in text
+        assert lines[-1] == "blocking: no (0 errors, 2 warnings)"
