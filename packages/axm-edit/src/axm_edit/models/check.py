@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["CheckDiagnostic", "Severity"]
+__all__ = ["CheckDiagnostic", "PreflightReport", "Severity"]
 
 Severity = Literal["error", "warning"]
 """Closed set of diagnostic severities."""
@@ -43,5 +43,35 @@ class CheckDiagnostic(BaseModel):  # type: ignore[explicit-any]  # pydantic synt
     code: str = Field(..., min_length=1, description="Stable diagnostic code")
     message: str = Field(..., description="Human-readable explanation")
     hint: str = Field(default="", description="Actionable remediation hint")
+
+    model_config = {"extra": "forbid"}
+
+
+class PreflightReport(BaseModel):  # type: ignore[explicit-any]
+    """A partitioned preflight verdict over a single batch.
+
+    Attributes:
+        diagnostics: Every diagnostic collected, in the order given.
+        errors: The blocking subset, in input order.
+        warnings: The non-blocking subset, in input order.
+        blocking: True iff at least one diagnostic blocks the batch.
+    """
+
+    diagnostics: list[CheckDiagnostic] = Field(
+        default_factory=list,
+        description="Every diagnostic collected for the batch, in order",
+    )
+    errors: list[CheckDiagnostic] = Field(
+        default_factory=list,
+        description="Blocking diagnostics, in input order",
+    )
+    warnings: list[CheckDiagnostic] = Field(
+        default_factory=list,
+        description="Non-blocking diagnostics, in input order",
+    )
+    blocking: bool = Field(
+        default=False,
+        description="True iff at least one diagnostic blocks the batch",
+    )
 
     model_config = {"extra": "forbid"}
