@@ -16,12 +16,16 @@ src/axm_edit/
 ├── core/
 │   ├── engine.py            # Validate-then-apply batch engine
 │   ├── diagnostics.py       # Near-miss renderer (markers, Unicode naming, bounds)
+│   ├── precheck.py          # Pure in-memory rules (edit keys, anchor shape)
+│   ├── precheck_fs.py       # Filesystem-resolving rules (anchors on disk, create targets, line length)
+│   ├── preflight.py         # Shared read-only preflight: merges + partitions the rules
 │   └── checkpoint.py        # Targeted per-path snapshot / rollback (no git)
 ├── services/
 │   ├── lint.py              # filter_ruff_lines — post-apply ruff diagnostic filtering
 │   └── lint_diff.py         # compute_lint_diffs / extract_rules_by_file — tagged lint diffs
 ├── tools/
 │   ├── batch_edit.py         # BatchEditTool (AXMTool protocol)
+│   ├── batch_edit_check.py   # BatchEditCheckTool — dry-run surface over core/preflight.py
 │   ├── batch_rollback.py     # BatchRollbackTool (AXMTool protocol)
 │   ├── read_file.py          # ReadFileTool (AXMTool protocol)
 │   ├── write_file.py         # WriteFileTool (AXMTool protocol)
@@ -107,6 +111,17 @@ The **hinted** branch (an edit carrying a `line` hint whose anchor is not found 
 - **Best-effort apply with automatic rollback**: atomicity is *announced at validation*, not at the OS level. Once validation passes the apply phase is best-effort: **any** exception raised mid-apply — anchor drift, a `write_text`/`unlink`/`mkdir` failure, a permission error — triggers a rollback to the pre-apply checkpoint and returns `BatchResult(success=False)` with the error. If the rollback itself cannot fully restore every snapshotted path (a filesystem error while undoing), that is surfaced via `BatchResult.rollback_failed=True`
 - **Rollback is a strict inverse**: `rollback` (and the `batch_rollback` tool) restores **only** the snapshotted paths (rewrite original bytes, remove files that were absent before, recreate deleted files) and touches nothing else — no `git checkout`/`clean`/`stash`. It is best-effort: every captured path is attempted even if an earlier one fails, and the outcome is returned as a `RollbackResult` (`restored` / `unrestored` path lists, plus `ok`) so a partial rollback is detectable. Directory pruning is also strict: only the directories the **batch itself created** (recorded in the snapshot) are removed when empty — a pre-existing empty directory that merely contained a batch-created file is never deleted
 
+## Preflight: the gate before the gate
+
+`batch_apply` is the *last* line of defence, not the first. `BatchEditTool.execute` now runs `core/preflight.py::collect_preflight_diagnostics` + `partition_diagnostics` on the batch **as authored**, before parsing, before `create_checkpoint` and before `batch_apply` — the exact same core call `batch_edit_check` makes, so the dry-run tool and the mutating tool always report the same diagnostics in the same order.
+
+- **Blocking (`severity="error"`)** — an unknown edit key, an anchor absent from the file on disk, a `create` on an existing path: `execute` returns `ToolResult(success=False)` immediately. Nothing is written, renamed or snapshotted, so the payload carries **no checkpoint at all** and the rendered header reads `batch_edit | ✗ PREFLIGHT | …` instead of `✗ ROLLBACK` (nothing was applied, so nothing was rolled back).
+- **Non-blocking (`severity="warning"`)** — an ambiguous anchor, a line over ruff's 88-char default but within the project's configured `line-length`: the batch proceeds normally and the warnings ride along in the result.
+- **Payload** — every run exposes `data["preflight"]` = `{diagnostics, errors, warnings, blocking}`, each entry a serialised `CheckDiagnostic` (`op_index`, `file`, `severity`, `code`, `message`, `hint`). It is deliberately **nested**: `data["warnings"]` already carries the post-apply ruff messages, and the two channels must not be confused.
+- **Rendering** — blocking errors and warnings render the same way, `[severity] op#N file: CODE — message` plus a `hint:` line, so a refused batch and an applied-with-warnings batch read identically.
+
+Wiring the preflight in does **not** relax the engine: `batch_apply`'s own validation, its anchor re-verification and its rollback stay exactly as they are — they still guard the window between the preflight verdict and the splice.
+
 ## Encoding & line endings
 
 - **EOL preservation**: a replace reads the file with universal-newline translation for anchor matching, but the original end-of-line style (`\r\n` vs `\n`) is detected up front and **restored on write**. Editing one line of a CRLF file leaves every untouched line as `\r\n` — only the spliced region changes — and an LF file stays LF. `CreateOp` content is written verbatim, so its embedded newlines are preserved as-authored.
@@ -120,6 +135,7 @@ The **hinted** branch (an edit carrying a `line` hint whose anchor is not found 
 | `../` blocked | No path traversal |
 | `old` required for replace | No blind modifications |
 | Validation before write | Fail-fast, 0 files corrupted |
+| Preflight before checkpoint | A contract error (unknown edit key, absent anchor, `create` on an existing path) refuses the batch before any snapshot or write — the mutating path enforces the same rules as the dry-run tool |
 | `old` re-checked at apply time | Closes the validate→apply TOCTOU window; a drifted file aborts instead of a wrong-location splice |
 | Targeted path snapshot | Rollback restores only what the batch touched, never destroys unrelated work |
 | `agent_hint` on tools | LLM-optimized description propagates to MCP — agents see what each tool does without parsing docstrings |

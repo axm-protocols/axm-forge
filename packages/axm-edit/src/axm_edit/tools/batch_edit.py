@@ -7,11 +7,17 @@ from __future__ import annotations
 
 import subprocess
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from axm.tools.base import ToolResult
 
 from axm_edit.core.engine import batch_apply
+from axm_edit.core.preflight import (
+    collect_preflight_diagnostics,
+    partition_diagnostics,
+)
+from axm_edit.models.check import PreflightReport
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -29,6 +35,79 @@ from axm_edit.services.lint_diff import (
 # Human-facing label for each dangerous ruff removal code surfaced in the
 # leading alert block. F401 deletes an unused import; F811 drops a redefinition.
 _REMOVAL_LABELS = {"F401": "unused import", "F811": "redefinition of"}
+
+
+@dataclass(frozen=True)
+class _LintOptions:
+    """The ruff-lint knobs of a single ``batch_edit`` call.
+
+    Grouped in one value object so the apply helper keeps a signature the
+    preflight report can join without growing an argument list.
+    """
+
+    enabled: bool
+    diff: bool
+    diff_max_ratio: float
+
+
+def _preflight(root: Path, raw_ops: list[dict[str, object]]) -> PreflightReport:
+    """Run the shared read-only preflight over the batch, as authored.
+
+    This is the exact core call ``batch_edit_check`` makes, so both surfaces
+    report the same diagnostics in the same order for one batch. Strictly
+    read-only: nothing is written, renamed or checkpointed here.
+
+    Args:
+        root: Project root the batch would be applied to.
+        raw_ops: Operations as authored, before schema validation.
+
+    Returns:
+        The partitioned report. A batch the core cannot even parse yields an
+        empty report: its canonical error is raised (and shaped) by
+        :func:`_parse_operations` right after.
+    """
+    try:
+        diagnostics = collect_preflight_diagnostics(root, raw_ops)
+    except (OSError, ValueError, TypeError):
+        return PreflightReport()
+    return partition_diagnostics(diagnostics)
+
+
+def _preflight_payload(report: PreflightReport) -> dict[str, object]:
+    """Serialise *report* into the nested ``data["preflight"]`` entry.
+
+    Nested on purpose: ``data["warnings"]`` already carries the ruff
+    messages of :func:`_apply_lint`, and the two channels must not mix.
+    """
+    return {
+        "diagnostics": [item.model_dump() for item in report.diagnostics],
+        "errors": [item.model_dump() for item in report.errors],
+        "warnings": [item.model_dump() for item in report.warnings],
+        "blocking": report.blocking,
+    }
+
+
+def _blocked_result(report: PreflightReport) -> ToolResult:
+    """Shape the refusal of a batch the preflight blocked, before any write.
+
+    No checkpoint identifier is exposed because none was taken: the batch
+    stops before ``create_checkpoint`` and ``batch_apply``.
+    """
+    data: dict[str, object] = {
+        "preflight": _preflight_payload(report),
+        "applied": 0,
+        "details": [],
+    }
+    error = (
+        f"Preflight blocked the batch: {len(report.errors)} error(s),"
+        " nothing was written."
+    )
+    return ToolResult(
+        success=False,
+        data=data,
+        error=error,
+        text=render_text(BatchResult(success=False, error=error), [], data),
+    )
 
 
 def _collect_python_files(root: Path, operations: list[Operation]) -> list[Path]:
@@ -339,6 +418,61 @@ def _render_error_lines(result: BatchResult) -> list[str]:
     return lines
 
 
+def _diagnostic_hint(entry: dict[str, object]) -> str:
+    """Return the remediation advice of a serialised diagnostic, if any.
+
+    ``hint`` is the canonical key of
+    :class:`~axm_edit.models.check.CheckDiagnostic`; ``remediation`` is
+    accepted as a synonym so a payload spelled either way still renders its
+    advice instead of silently dropping it.
+    """
+    for key in ("hint", "remediation"):
+        value = entry.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def _render_preflight_diagnostic(entry: dict[str, object]) -> list[str]:
+    """Render one diagnostic as a located line plus its remediation line."""
+    lines = [
+        f"  [{entry.get('severity', 'error')}] op#{entry.get('op_index', '?')}"
+        f" {entry.get('file', '?')}: {entry.get('code', '?')}"
+        f" — {entry.get('message', '')}"
+    ]
+    hint = _diagnostic_hint(entry)
+    if hint:
+        lines.append(f"      hint: {hint}")
+    return lines
+
+
+def _render_preflight_lines(data: dict[str, object]) -> list[str]:
+    """Render every preflight diagnostic carried by ``data["preflight"]``.
+
+    Blocking errors and non-blocking warnings render identically — each
+    names its file, its operation index and its remediation — so a refused
+    batch and an applied-with-warnings batch read the same way.
+    """
+    report = data.get("preflight")
+    if not isinstance(report, dict):
+        return []
+    diagnostics = report.get("diagnostics")
+    if not isinstance(diagnostics, list):
+        return []
+    return [
+        line
+        for entry in diagnostics
+        if isinstance(entry, dict)
+        for line in _render_preflight_diagnostic(entry)
+    ]
+
+
+def _preflight_blocking(data: dict[str, object]) -> bool:
+    """Whether ``data["preflight"]`` reports a batch-blocking verdict."""
+    report = data.get("preflight")
+    return isinstance(report, dict) and bool(report.get("blocking"))
+
+
 def render_text(
     result: BatchResult,
     parsed: list[Operation],
@@ -355,6 +489,7 @@ def render_text(
     ``data`` is dropped; only its JSON structure is.
     """
     alerts = _render_import_alerts(data)
+    preflight = _render_preflight_lines(data)
     if result.success:
         s = result.summary
         header = (
@@ -366,15 +501,18 @@ def render_text(
             *alerts,
             header,
             *_render_op_lines(parsed),
+            *preflight,
             *_render_lint_lines(data),
         ]
         return "\n".join(lines)
 
-    header = f"batch_edit | ✗ ROLLBACK | {result.error or 'failed'}"
+    label = "PREFLIGHT" if _preflight_blocking(data) else "ROLLBACK"
+    header = f"batch_edit | ✗ {label} | {result.error or 'failed'}"
     lines = [
         *alerts,
         header,
         *_render_op_lines(parsed),
+        *preflight,
         *_render_error_lines(result),
     ]
     return "\n".join(lines)
@@ -383,12 +521,15 @@ def render_text(
 def _run_batch(
     root: Path,
     parsed: list[Operation],
-    *,
-    lint: bool,
-    lint_diff: bool,
-    lint_diff_max_ratio: float,
+    report: PreflightReport,
+    options: _LintOptions,
 ) -> ToolResult:
-    """Apply *parsed* ops under *root*, optionally lint, and build the result."""
+    """Apply *parsed* ops under *root*, optionally lint, and build the result.
+
+    *report* is the non-blocking preflight verdict already computed on the
+    same batch: it is carried into ``data["preflight"]`` without touching
+    any pre-existing payload key.
+    """
     result = batch_apply(root, parsed)
 
     data: dict[str, object] = {
@@ -398,17 +539,18 @@ def _run_batch(
         "details": [d.model_dump(exclude_none=True) for d in result.details]
         if result.details
         else [],
+        "preflight": _preflight_payload(report),
     }
 
-    if result.success and lint:
+    if result.success and options.enabled:
         py_files = _collect_python_files(root, parsed)
         if py_files:
             _apply_lint(
                 root,
                 py_files,
                 data,
-                lint_diff=lint_diff,
-                lint_diff_max_ratio=lint_diff_max_ratio,
+                lint_diff=options.diff,
+                lint_diff_max_ratio=options.diff_max_ratio,
             )
 
     return ToolResult(
@@ -417,6 +559,29 @@ def _run_batch(
         error=result.error,
         text=render_text(result, parsed, data),
     )
+
+
+def _prepare_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
+    """Parse *raw_ops*, re-raising a schema failure as a caller-facing error.
+
+    Keeps the ``Invalid operations: …`` wording of the parse failure while
+    letting :meth:`BatchEditTool.execute` funnel every failure mode through
+    a single ``except`` clause.
+
+    Args:
+        raw_ops: Operations as authored, in batch order.
+
+    Returns:
+        The parsed operations, in the same order.
+
+    Raises:
+        ValueError: When an entry does not match the operation schema.
+    """
+    try:
+        return _parse_operations(raw_ops)
+    except (ValueError, TypeError) as exc:
+        msg = f"Invalid operations: {exc}"
+        raise ValueError(msg) from exc
 
 
 def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
@@ -480,9 +645,12 @@ class BatchEditTool:
             lint_diff_max_ratio: Fallback threshold (diff / file size).
 
         Returns:
-            ToolResult with applied counts and the ``checkpoint`` snapshot
+            ToolResult with applied counts, the ``checkpoint`` snapshot
             payload (a JSON string, not a SHA) to pass back to
-            ``batch_rollback``.
+            ``batch_rollback``, and the ``preflight`` report (diagnostics,
+            warnings and blocking verdict). A blocking preflight refuses the
+            batch before any checkpoint or write, so the payload then
+            carries no checkpoint at all.
         """
         raw_operations: list[dict[str, object]] = operations or []
 
@@ -493,24 +661,24 @@ class BatchEditTool:
             )
 
         try:
-            parsed = _parse_operations(raw_operations)
-        except (ValueError, TypeError) as exc:
-            return ToolResult(success=False, error=f"Invalid operations: {exc}")
-
-        try:
             root = Path(path).resolve()
             if not root.is_dir():
                 return ToolResult(
                     success=False,
                     error=f"Path is not a directory: {path}",
                 )
-
+            report = _preflight(root, raw_operations)
+            if report.blocking:
+                return _blocked_result(report)
             return _run_batch(
                 root,
-                parsed,
-                lint=lint,
-                lint_diff=lint_diff,
-                lint_diff_max_ratio=lint_diff_max_ratio,
+                _prepare_operations(raw_operations),
+                report,
+                _LintOptions(
+                    enabled=lint,
+                    diff=lint_diff,
+                    diff_max_ratio=lint_diff_max_ratio,
+                ),
             )
         except (OSError, ValueError, TypeError) as exc:
             return ToolResult(success=False, error=str(exc))

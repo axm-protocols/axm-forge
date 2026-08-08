@@ -9,7 +9,7 @@ method is the single entry point.
 
 | Tool | Class | Purpose |
 |---|---|---|
-| `batch_edit` | `BatchEditTool` | Replace / create / delete files in one atomic, validated batch (with `ruff --fix`). |
+| `batch_edit` | `BatchEditTool` | Replace / create / delete files in one atomic, validated batch (with `ruff --fix`). A blocking preflight refuses the batch before any write; the diagnostics come back under `data["preflight"]`. |
 | `batch_rollback` | `BatchRollbackTool` | Restore the exact paths a batch touched from its `batch_edit` snapshot. |
 | `read_file` | `ReadFileTool` | Read file content, optional line range, line-numbered output. |
 | `write_file` | `WriteFileTool` | Write (create or overwrite) a single file. |

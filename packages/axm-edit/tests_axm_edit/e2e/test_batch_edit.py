@@ -27,7 +27,7 @@ def _axm_binary() -> Path:
 
 @pytest.mark.e2e
 def test_batch_edit_reports_nbsp_near_miss_with_locator(tmp_path: Path) -> None:
-    """AC4: the CLI exits non-zero and prints a locator-prefixed line + <NBSP>."""
+    """AC6: the preflight refuses the near-miss anchor, naming file and anchor."""
     target = tmp_path / "pkg" / "mod.py"
     target.parent.mkdir(parents=True)
     # Line 4 differs from the requested ``old`` only by a U+00A0.
@@ -60,8 +60,9 @@ def test_batch_edit_reports_nbsp_near_miss_with_locator(tmp_path: Path) -> None:
     lines = [line.lstrip() for line in combined.splitlines()]
 
     assert proc.returncode != 0, combined
-    assert any(line.startswith("pkg/mod.py:4:") for line in lines), combined
-    assert "<NBSP>" in combined, combined
+    assert any(line.startswith("[error] op#0 pkg/mod.py:") for line in lines), combined
+    assert "ANCHOR_NOT_FOUND" in combined, combined
+    assert "'value = 1'" in combined, combined
 
 
 @pytest.mark.e2e
@@ -117,7 +118,7 @@ def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
 def test_batch_edit_reports_the_real_line_count_for_an_out_of_range_hint(
     tmp_path: Path,
 ) -> None:
-    """AC3: an out-of-range hint prints the real line count of the target file."""
+    """AC6: an anchor absent from the target file is refused before any write."""
     target = tmp_path / "pkg" / "mod.py"
     target.parent.mkdir(parents=True)
     target.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
@@ -148,4 +149,53 @@ def test_batch_edit_reports_the_real_line_count_for_an_out_of_range_hint(
     combined = proc.stdout + proc.stderr
 
     assert proc.returncode != 0, combined
-    assert "3 lines" in combined, combined
+    assert "ANCHOR_NOT_FOUND" in combined, combined
+    assert "'delta'" in combined, combined
+    assert target.read_text(encoding="utf-8") == "alpha\nbeta\ngamma\n", combined
+
+
+@pytest.mark.e2e
+def test_batch_edit_refuses_an_unknown_edit_key_and_leaves_the_file_untouched(
+    tmp_path: Path,
+) -> None:
+    """AC6: the CLI refuses `replace_all` with an actionable, keyed message."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("value = 1\n", encoding="utf-8")
+    before = target.read_bytes()
+
+    operations = [
+        {
+            "op": "replace",
+            "file": "pkg/mod.py",
+            "edits": [{"old": "value = 1", "new": "value = 2", "replace_all": True}],
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    keys_line = [
+        line
+        for line in combined.splitlines()
+        if all(key in line for key in ("old", "new", "line"))
+    ]
+
+    assert proc.returncode != 0, combined
+    assert "replace_all" in combined, combined
+    # The refusal must be actionable: a line naming the accepted edit keys.
+    assert keys_line, f"accepted edit keys must be listed: {combined}"
+    assert target.read_bytes() == before, combined

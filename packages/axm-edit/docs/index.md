@@ -28,6 +28,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 - :material-console: **`run_command`** — Execute shell commands with timeout and output truncation
 - :material-undo: **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
 - :material-shield-check-outline: **Atomic** — All-or-nothing: validation runs before any file is touched
+- :material-airplane-check: **Preflight** — `batch_edit` runs the same read-only checks as `batch_edit_check` *before* any checkpoint or write: a contract error (unknown edit key, missing anchor, `create` on an existing path) refuses the batch with an actionable remediation, and every diagnostic is returned under `data["preflight"]`
 - :material-sort-descending: **Bottom-to-top** — Line edits applied in reverse order to avoid line-shift problems
 - :material-magnify-scan: **Near-miss report** — A `replace` anchor that matched nothing names the closest line and marks every invisible difference (`<TAB>`, `<SP>`, `<NBSP>`, `<LF>`) instead of dumping raw text
 

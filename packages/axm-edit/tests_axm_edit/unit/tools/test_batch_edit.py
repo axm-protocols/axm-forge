@@ -279,3 +279,65 @@ class TestRenderErrorLocators:
         assert len(located) == 2, text
         assert located[0].startswith("a/x.py:4:")
         assert located[1].startswith("b/y.py:11:")
+
+
+class TestRenderPreflightReport:
+    """AC2, AC3: ``render_text`` surfaces the preflight report."""
+
+    def test_blocked_preflight_names_file_op_index_and_remediation(self) -> None:
+        """AC2: a blocking diagnostic renders file, op index and remediation."""
+        result = BatchResult(success=False, error="Preflight blocked")
+        parsed = [ReplaceOp(file="pkg/mod.py", edits=[Edit(old="x", new="y")])]
+        data: dict[str, object] = {
+            "preflight": {
+                "blocking": True,
+                "diagnostics": [
+                    {
+                        "severity": "error",
+                        "file": "pkg/mod.py",
+                        "op_index": 0,
+                        "code": "unknown_edit_key",
+                        "message": "Unknown edit key `replace_all`",
+                        "remediation": "Accepted edit keys: old, new, line",
+                    }
+                ],
+                "warnings": [],
+            }
+        }
+
+        text = render_text(result, parsed, data)
+        lines = [line.strip() for line in text.splitlines()]
+
+        assert "Unknown edit key `replace_all`" in text, text
+        assert "Accepted edit keys: old, new, line" in text, text
+        assert any("pkg/mod.py" in line and "0" in line for line in lines), text
+        # A blocked batch applied nothing: no success summary line.
+        assert "✓" not in text, text
+
+    def test_preflight_warnings_render_next_to_the_applied_summary(self) -> None:
+        """AC3: a non-blocking warning is rendered with the applied summary."""
+        result = BatchResult(
+            success=True,
+            applied=1,
+            summary={"modified": 1, "created": 0, "deleted": 0},
+        )
+        warning = {
+            "severity": "warning",
+            "file": "mod.py",
+            "op_index": 0,
+            "code": "line_too_long",
+            "message": "new line exceeds 88 characters",
+        }
+        data: dict[str, object] = {
+            "preflight": {
+                "blocking": False,
+                "diagnostics": [warning],
+                "warnings": [warning],
+            }
+        }
+
+        text = render_text(result, [], data)
+
+        assert "batch_edit | ✓" in text, text
+        assert "1 modified" in text, text
+        assert "new line exceeds 88 characters" in text, text
