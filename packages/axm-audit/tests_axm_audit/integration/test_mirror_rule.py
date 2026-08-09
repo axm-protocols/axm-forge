@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -939,3 +940,52 @@ def test_no_exempt_tests_key_is_noop(tmp_path: Path) -> None:
     # No exempt_tests -> orphan still flagged as before.
     assert "tests/unit/conformance/test_dispatchers.py" in result.details["orphan"]
     assert result.details["exempt_tests"] == []
+
+
+def _make_namespaced_mirror_project(
+    tmp_path: Path, *, exempt: str | None = None, root: str = "tests_pkg"
+) -> Path:
+    pkg = tmp_path / "src" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (pkg / "covered.py").write_text("def covered():\n    return 1\n")
+    (pkg / "lonely.py").write_text("def lonely():\n    return 2\n")
+    unit = tmp_path / root / "unit"
+    unit.mkdir(parents=True)
+    (unit / "test_covered.py").write_text("def test_covered(): pass\n")
+    pyproject = '[tool.pytest.ini_options]\ntestpaths = ["tests_pkg"]\n'
+    if exempt is not None:
+        pyproject += f'\n[tool.axm-audit.mirror]\nexempt_paths = ["{exempt}"]\n'
+    (tmp_path / "pyproject.toml").write_text(pyproject)
+    return tmp_path
+
+
+def test_mirror_untested_set_exact_under_namespaced_suite(tmp_path: Path) -> None:
+    """AC3: under a namespaced suite, only the unmirrored module is untested."""
+    project = _make_namespaced_mirror_project(tmp_path)
+    result = MirrorRule().check(project)
+    assert result.details is not None
+    assert set(result.details["missing"]) == {"lonely.py"}
+
+
+def test_mirror_proposed_path_rooted_at_namespaced_suite(tmp_path: Path) -> None:
+    """AC4: proposed test path for the unmirrored module is rooted at the suite."""
+    project = _make_namespaced_mirror_project(tmp_path)
+    result = MirrorRule().check(project)
+    assert result.fix_hint is not None
+    tokens = [
+        tok for tok in re.split(r"[\s,]+", result.fix_hint) if "test_lonely" in tok
+    ]
+    assert tokens
+    for tok in tokens:
+        parts = Path(tok).parts
+        assert parts[0] == "tests_pkg", tok
+        assert "tests" not in parts, tok
+
+
+def test_mirror_exemption_honored_under_namespaced_suite(tmp_path: Path) -> None:
+    """AC6: mirror exemption covering the unmirrored module clears all untested."""
+    project = _make_namespaced_mirror_project(tmp_path, exempt="lonely.py")
+    result = MirrorRule().check(project)
+    assert result.details is not None
+    assert result.details["missing"] == []

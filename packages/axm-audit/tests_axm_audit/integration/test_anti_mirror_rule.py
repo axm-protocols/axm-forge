@@ -381,3 +381,25 @@ class TestAntiMirrorRuleIntegration:
         assert result.passed is False
         assert result.details is not None
         assert "tests/integration/test_foo.py" in result.details["anti_mirror"]
+
+
+def test_anti_mirror_walks_namespaced_integration_tier(tmp_path: Path) -> None:
+    """AC5: anti-mirror violation under the namespaced integration tier is flagged."""
+    from axm_audit.core.rules.practices.anti_mirror import AntiMirrorRule
+
+    pkg = tmp_path / "src" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (pkg / "foo.py").write_text("x = 1\n")
+    integration = tmp_path / "tests_pkg" / "integration"
+    integration.mkdir(parents=True)
+    (integration / "test_foo.py").write_text("def test_x(): pass\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_pkg"]\n'
+    )
+
+    result = AntiMirrorRule().check(tmp_path)
+
+    assert result.details is not None
+    assert result.details["anti_mirror"]
+    assert any("test_foo.py" in entry for entry in result.details["anti_mirror"])

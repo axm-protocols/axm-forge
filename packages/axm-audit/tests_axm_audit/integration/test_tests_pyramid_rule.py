@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import textwrap
 from pathlib import Path
 
@@ -154,3 +155,62 @@ def test_pyramid_fails_when_tests_dir_missing(tmp_path: Path) -> None:
     result = TestsPyramidRule().check(project)
     assert result.passed is False
     assert "tests" in (result.message or "").lower()
+
+
+PYPROJECT_NAMESPACED = textwrap.dedent(
+    """
+    [project]
+    name = "pkg"
+    version = "0.1.0"
+
+    [project.scripts]
+    pkg = "pkg.cli:main"
+
+    [tool.pytest.ini_options]
+    testpaths = ["tests_pkg"]
+    markers = [
+        "integration: integration tests",
+        "e2e: end-to-end tests",
+    ]
+    """
+).strip()
+
+
+def _make_namespaced_pyramid_project(
+    tmp_path: Path, *, tiers: tuple[str, ...], root: str = "tests_pkg"
+) -> Path:
+    (tmp_path / "pyproject.toml").write_text(PYPROJECT_NAMESPACED)
+    for tier in tiers:
+        d = tmp_path / root / tier
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"test_{tier}.py").write_text("def test_placeholder(): pass\n")
+    src = tmp_path / "src" / "pkg"
+    src.mkdir(parents=True, exist_ok=True)
+    (src / "__init__.py").write_text("")
+    (src / "core.py").write_text("def core():\n    return 1\n")
+    return tmp_path
+
+
+@pytest.mark.integration
+def test_pyramid_accepts_full_namespaced_suite(tmp_path: Path) -> None:
+    """AC1: complete namespaced suite (testpaths) yields no missing-dir finding."""
+    project = _make_namespaced_pyramid_project(
+        tmp_path, tiers=("unit", "integration", "e2e")
+    )
+    result = TestsPyramidRule().check(project)
+    assert result.passed is True
+
+
+@pytest.mark.integration
+def test_pyramid_diagnostic_rooted_at_namespaced_suite(tmp_path: Path) -> None:
+    """AC2: diagnostic dir paths are first-segment-rooted at the namespaced suite."""
+    project = _make_namespaced_pyramid_project(tmp_path, tiers=("unit", "integration"))
+    result = TestsPyramidRule().check(project)
+    assert result.passed is False
+    blob = f"{result.message or ''} {result.fix_hint or ''}"
+    cited = [tok for tok in re.split(r"[\s,]+", blob) if "/" in tok]
+    assert cited
+    for tok in cited:
+        parts = Path(tok).parts
+        assert parts[0] == "tests_pkg", tok
+        assert "tests" not in parts, tok
