@@ -204,6 +204,14 @@ def find_doc_refs(
 ) -> dict[str, list[DocRefEntry]]:
     """Find documentation references for given symbols.
 
+    The hit is **purely lexical**: a reference is recorded when the bare
+    symbol name appears between backticks or in a Markdown heading of a doc
+    file. Nothing else is interpreted — prose outside those two forms, and
+    the body of a fenced code block, establish no semantic link.
+
+    The returned entries are pages to read, never a non-regression oracle:
+    a stable output does not prove the prose still describes the code.
+
     Args:
         root: Project root directory.
         symbols: Symbol names to search for in docs.
@@ -270,6 +278,12 @@ def find_undocumented(
     keeps the legacy prose-only verdict, so a genuinely missing symbol is never
     silently dropped.
 
+    The prose signal it consumes is **purely lexical**: ``find_doc_refs`` only
+    matches the bare name between backticks or in a Markdown heading, and never
+    reads the meaning of a fenced code block. A single name-drop of the symbol
+    therefore suffices to drop it from this list, without any real prose being
+    written. See :func:`analyze_doc_impact` for the canonical caveat.
+
     Args:
         doc_refs: Output of ``find_doc_refs``.
         symbol_nodes: Bare-name → parsed node index (see
@@ -297,6 +311,12 @@ def find_stale_signatures(
 
     Compares ``def`` / ``class`` signatures in doc code blocks
     against actual AST signatures.
+
+    The scope is strictly a fenced code block: a signature written in plain
+    prose, in an indented block or in an inline span is never extracted. The
+    comparison itself is a lexical string equality, so a reformatted but
+    semantically equivalent signature still reads as stale, and a stale
+    signature outside a fenced code block is invisible here.
 
     Args:
         root: Project root directory.
@@ -341,6 +361,19 @@ def analyze_doc_impact(
 
     Combines doc refs, undocumented detection, and stale
     signature detection.
+
+    Caveat (canonical) — all three signals rest on a **purely lexical**
+    matching, never a semantic one. A symbol counts as mentioned when its
+    bare name appears between backticks or in a Markdown heading, and a
+    documented signature is only compared inside a fenced code block. No
+    meaning is read: a purely semantic change leaves this output identical
+    byte for byte, and a bare name-drop of the symbol anywhere in the prose
+    is enough to remove it from ``undocumented``.
+
+    Read the result as a list of pages to read, not a proof that the
+    documentation is correct or up to date. Never use it as a non-regression
+    oracle: an unchanged output proves nothing about the prose still telling
+    the truth — a human review remains the only verdict on doc correctness.
 
     Args:
         root: Project root directory.
