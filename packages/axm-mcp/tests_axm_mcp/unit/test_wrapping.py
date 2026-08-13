@@ -190,6 +190,114 @@ def test_wrapper_plain_branch_unchanged(mock_log: MagicMock) -> None:
     assert out == {"status": "ok", "val": 42}
 
 
+def test_write_contract_denies_out_of_scope_direct_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """The common direct wrapper refuses a batch target outside its prefix."""
+    import json
+
+    monkeypatch.setenv(
+        "AXM_WRITE_CONTRACT",
+        json.dumps(
+            {
+                "execution_root": str(tmp_path),
+                "allowed_prefixes": [str(tmp_path / "src")],
+            }
+        ),
+    )
+    wrapper = _capture_wrapper(
+        "batch_edit",
+        FakeTool(FakeToolResult(success=True, text="executed")),
+    )
+
+    result = wrapper(
+        path=str(tmp_path),
+        operations=[{"op": "create", "file": "docs/out.py", "content": ""}],
+    )
+
+    assert isinstance(result, dict)
+    assert result["success"] is False
+    assert "docs/out.py" in str(result["error"])
+
+
+def test_write_contract_allows_in_scope_direct_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """The same wrapper still executes a batch wholly inside its prefix."""
+    import json
+
+    monkeypatch.setenv(
+        "AXM_WRITE_CONTRACT",
+        json.dumps(
+            {
+                "execution_root": str(tmp_path),
+                "allowed_prefixes": [str(tmp_path / "src")],
+            }
+        ),
+    )
+    wrapper = _capture_wrapper(
+        "batch_edit",
+        FakeTool(FakeToolResult(success=True, text="executed")),
+    )
+
+    result = wrapper(
+        path=str(tmp_path),
+        operations=[{"op": "create", "file": "src/in.py", "content": ""}],
+    )
+
+    assert result == "executed"
+
+
+def test_write_contract_denies_out_of_scope_facade_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+) -> None:
+    """ToolCatalog, and therefore axm_call, uses the same scoped wrapper."""
+    import json
+
+    from axm_mcp.facade.catalog import ToolCatalog
+
+    monkeypatch.setenv(
+        "AXM_WRITE_CONTRACT",
+        json.dumps(
+            {
+                "execution_root": str(tmp_path),
+                "allowed_prefixes": [str(tmp_path / "src")],
+            }
+        ),
+    )
+    tools: dict[str, Any] = {
+        "batch_edit": FakeTool(FakeToolResult(success=True, text="executed"))
+    }
+    catalog = ToolCatalog(tools)
+
+    result = catalog.call(
+        "batch_edit",
+        {
+            "path": str(tmp_path),
+            "operations": [{"op": "create", "file": "docs/out.py", "content": ""}],
+        },
+    )
+
+    assert "success: False" in result
+    assert "docs/out.py" in result
+
+
+def test_malformed_write_contract_fails_wrapper_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A malformed transported contract fails closed before serving tools."""
+    monkeypatch.setenv("AXM_WRITE_CONTRACT", "{not-json")
+
+    with pytest.raises(ValueError, match="AXM_WRITE_CONTRACT"):
+        _capture_wrapper(
+            "batch_edit",
+            FakeTool(FakeToolResult(success=True, text="executed")),
+        )
+
+
 @patch("axm_mcp.wrapping.log_external_step")
 def test_wrapper_text_tracing(mock_log: MagicMock) -> None:
     """When text is set and tracing is active, log_external_step receives the text."""

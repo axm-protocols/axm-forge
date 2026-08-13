@@ -315,12 +315,22 @@ def build_wrappers(name: str, tool: ToolEntry) -> tuple[_SyncWrapper, _AnyWrappe
         trace/flatten/exception contract and the async wrapper adds the HTTP
         ``to_thread`` offload plus the optional per-key lock.
     """
+    from axm.tools.write_scope import decide_write_access, write_contract_from_env
+
+    write_contract = write_contract_from_env()
     is_plain = callable(tool) and not hasattr(tool, "execute")
     # Protocol tools already trace via orchestrator.run_tool()
     ctx = _WrapperCtx(name=name, should_trace=not name.startswith("protocol_"))
-    sync_wrapper = (
+    base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
     )
+
+    def sync_wrapper(**kwargs: object) -> dict[str, object] | str:
+        decision = decide_write_access(write_contract, name, kwargs)
+        if not decision.allowed:
+            return {"success": False, "error": decision.reason}
+        return base_sync_wrapper(**kwargs)
+
     exec_doc = getattr(getattr(tool, "execute", tool), "__doc__", None)
     sync_wrapper.__doc__ = exec_doc or f"Execute {name} tool."
     async_wrapper = _wrap_with_lock(sync_wrapper, name)
