@@ -47,6 +47,7 @@ from .paths import (
 from .tests_ast import (
     _movable_units_at_top_level,
     _string_literal_fixtures_in_unit,
+    _unit_arg_fixtures,
     marker_fixtures_in_unit,
     top_level_test_classes,
 )
@@ -447,18 +448,6 @@ def _recover_anchor_fixtures(
             anchor_path, anchor_path, anchor_path.parent.parent.parent
         )
     return msgs
-
-
-def _unit_arg_fixtures(node: ast.FunctionDef | ast.ClassDef) -> set[str]:
-    """Return the fixture-arg names of a test unit (class methods or function)."""
-    if isinstance(node, ast.ClassDef):
-        return {
-            a.arg
-            for m in node.body
-            if isinstance(m, ast.FunctionDef)
-            for a in m.args.args
-        }
-    return {a.arg for a in node.args.args}
 
 
 def _fixtures_referenced_by(tree: ast.Module, unit_names: set[str]) -> set[str]:

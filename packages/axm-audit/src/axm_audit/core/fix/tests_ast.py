@@ -609,6 +609,18 @@ def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
     return out
 
 
+def _unit_arg_fixtures(node: ast.FunctionDef | ast.ClassDef) -> set[str]:
+    """Return fixture-argument names consumed by one movable test unit."""
+    if isinstance(node, ast.ClassDef):
+        return {
+            argument.arg
+            for method in node.body
+            if isinstance(method, ast.FunctionDef)
+            for argument in method.args.args
+        }
+    return {argument.arg for argument in node.args.args}
+
+
 def _needed_fixtures_for_moving_units(
     source_tree: ast.Module, moving_unit_names: list[str]
 ) -> set[str]:
@@ -621,6 +633,7 @@ def _needed_fixtures_for_moving_units(
             continue
         needed |= marker_fixtures_in_unit(node)
         needed |= _string_literal_fixtures_in_unit(node)
+        needed |= _unit_arg_fixtures(node)
     return needed
 
 

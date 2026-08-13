@@ -658,6 +658,11 @@ def test_execute_split_recovers_anchor_fixture_lost_to_sibling(
     compile(body_a, str(target_a), "exec")
     proc = _subprocess_import(target_a, pkg)
     assert proc.returncode == 0, f"{target_a.name} import failed: {proc.stderr}"
+    body_b = target_b.read_text()
+    assert "def shared_fx():" in body_b, f"shared_fx not copied into sibling\n{body_b}"
+    compile(body_b, str(target_b), "exec")
+    proc_b = _subprocess_import(target_b, pkg)
+    assert proc_b.returncode == 0, f"{target_b.name} import failed: {proc_b.stderr}"
 
 
 def test_execute_split_recovers_anchor_fixture_with_its_dependency(
@@ -711,3 +716,11 @@ def test_execute_split_recovers_anchor_fixture_with_its_dependency(
     compile(body_a, str(target_a), "exec")
     proc = _subprocess_import(target_a, pkg)
     assert proc.returncode == 0, f"{target_a.name} import failed: {proc.stderr}"
+    body_b = target_b.read_text()
+    assert "def shared_fx():" in body_b
+    assert "def _helper():" in body_b, (
+        f"_helper dependency not copied into sibling\n{body_b}"
+    )
+    compile(body_b, str(target_b), "exec")
+    proc_b = _subprocess_import(target_b, pkg)
+    assert proc_b.returncode == 0, f"{target_b.name} import failed: {proc_b.stderr}"
