@@ -101,7 +101,7 @@ class DocGateTool(AXMTool):
             return ToolResult(success=False, error=str(exc))
 
         output = (completed.stdout or "") + (completed.stderr or "")
-        findings = parse_mkdocs_output(output)
+        findings = [] if completed.returncode == 0 else parse_mkdocs_output(output)
         if completed.returncode != 0 and not findings:
             detail = output.strip() or "no output captured"
             return ToolResult(

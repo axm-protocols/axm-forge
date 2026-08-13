@@ -53,3 +53,54 @@ def test_clean_output_with_no_warning_returns_empty_list() -> None:
         "INFO    -  Documentation built in 0.42 seconds"
     )
     assert parse_mkdocs_output(output) == []
+
+
+def test_mixed_log_keeps_only_canonical_diagnostics() -> None:
+    """AC2: mixed output retains only canonical mkdocs diagnostic records."""
+    output = "\n".join(
+        [
+            (
+                "WARNING -  Doc file 'index.md' contains a link 'missing.md' "
+                "which is not found among the documentation files."
+            ),
+            (
+                "WARNING -  Sponsor banner contains a link 'support.md' "
+                "which is not found among the documentation files."
+            ),
+            (
+                "WARNING -  Doc file 'guide.md' contains a link "
+                "'other.md#missing' but the page does not contain an anchor "
+                "'#missing'."
+            ),
+            "ERROR -  Theme link preview mentions an unrecognized anchor.",
+            (
+                "WARNING -  Doc file 'api.md' contains a bad reference "
+                "'sym.func' that could not be resolved."
+            ),
+            "WARNING -  Sponsor reference could not be resolved.",
+        ]
+    )
+
+    result = parse_mkdocs_output(output)
+
+    assert [finding.kind for finding in result] == [
+        FindingKind.dead_link,
+        FindingKind.missing_anchor,
+        FindingKind.bad_reference,
+    ]
+
+
+def test_noncanonical_warning_and_error_lines_are_ignored() -> None:
+    """AC3: diagnostic vocabulary alone does not constitute a finding."""
+    output = "\n".join(
+        [
+            (
+                "WARNING -  Sponsor banner contains a link 'support.md' "
+                "which is not found among the documentation files."
+            ),
+            "ERROR -  Theme link preview mentions an unrecognized anchor.",
+            "WARNING -  Sponsor reference could not be resolved.",
+        ]
+    )
+
+    assert parse_mkdocs_output(output) == []

@@ -8,6 +8,8 @@ __all__ = ["parse_mkdocs_output"]
 
 _QUOTED = re.compile(r"'([^']*)'")
 
+_DIAGNOSTIC = re.compile(r"^(?:WARNING|ERROR)\s+-\s+Doc file '[^']+'(?:\s|$)")
+
 # Ordered keyword -> kind table. Order matters: a missing-anchor line also
 # mentions "link", and an unknown-extension line also mentions "links", so the
 # more specific keywords must be probed before the generic "link" fallback.
@@ -40,7 +42,7 @@ def parse_mkdocs_output(output: str) -> list[DocGateFinding]:
     findings: list[DocGateFinding] = []
     for raw in output.splitlines():
         line = raw.strip()
-        if "WARNING" not in line and "ERROR" not in line:
+        if _DIAGNOSTIC.match(line) is None:
             continue
         kind = _classify(line.lower())
         if kind is None:

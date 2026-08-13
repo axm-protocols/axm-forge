@@ -1,0 +1,4 @@
+INFO    -  Building documentation...
+WARNING -  Doc file 'index.md' contains a link 'missing-page.md' which is not found among the documentation files.
+WARNING -  Sponsor banner contains a link 'support.md' which is not found among the documentation files.
+ERROR   -  Aborted with a strict-mode link failure.
