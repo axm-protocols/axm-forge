@@ -375,6 +375,21 @@ def analyze_doc_impact(
     oracle: an unchanged output proves nothing about the prose still telling
     the truth — a human review remains the only verdict on doc correctness.
 
+    Limits — what this tool does not detect:
+
+    1. A **semantic** change at unchanged name. Rewrite what a symbol means
+       without touching its name and every signal stays identical, byte for
+       byte: nothing here reports the prose that now lies.
+    2. A bare **name-drop** counted as documentation. A single backticked
+       mention, even in an unrelated sentence, is enough to drop the symbol
+       from ``undocumented`` — presence is not coverage.
+    3. ``undocumented`` is not a non-regression **oracle**. An empty or
+       unchanged result proves nothing about documentation drift.
+
+    When the semantics of a symbol change while its name does not, re-read by
+    hand every page listed in ``doc_refs``: that manual pass is the one thing
+    this tool cannot do for you. See ``docs/explanation/doc_impact_limits.md``.
+
     Args:
         root: Project root directory.
         symbols: Symbol names to analyze.

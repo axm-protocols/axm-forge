@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.docs import (
     discover_docs,
+    extract_headings,
 )
 
 
@@ -315,3 +318,77 @@ class TestEdgeCases:
         assert result["pages"] == []
         assert result["readme"] is not None
         assert result["mkdocs"] is not None
+
+
+# ─── Published limits page (doc_impact) ──────────────────────────────────────
+
+_PACKAGE_ROOT = Path(__file__).parents[2]
+_LIMITS_PAGE = "explanation/doc_impact_limits.md"
+_LIMITS_TITLE = "Limites — ce que cet outil ne détecte pas"
+
+
+def _limits_section() -> str:
+    """Return the lowercased body of the limits section of the published page."""
+    page = _PACKAGE_ROOT / "docs" / _LIMITS_PAGE
+    lines = page.read_text(encoding="utf-8").splitlines()
+    starts = [
+        i for i, line in enumerate(lines) if line.lstrip("#").strip() == _LIMITS_TITLE
+    ]
+    assert starts, f"heading {_LIMITS_TITLE!r} not found in docs/{_LIMITS_PAGE}"
+    start = starts[0]
+    level = len(lines[start]) - len(lines[start].lstrip("#"))
+    body: list[str] = []
+    for line in lines[start + 1 :]:
+        hashes = len(line) - len(line.lstrip("#"))
+        if line.startswith("#") and hashes <= level:
+            break
+        body.append(line)
+    return "\n".join(body).lower()
+
+
+@pytest.mark.integration
+def test_limits_page_is_discovered_with_expected_title() -> None:
+    """AC2: discover_docs surfaces the limits page under its exact title."""
+    result = discover_docs(_PACKAGE_ROOT, detail="full", pages=None)
+
+    page = next(
+        (p for p in result["pages"] if p["path"].endswith(_LIMITS_PAGE)),
+        None,
+    )
+    assert page is not None, f"{_LIMITS_PAGE} not discovered under docs/"
+
+    headings = extract_headings(page["content"])
+    assert any(h["text"] == _LIMITS_TITLE for h in headings)
+
+
+@pytest.mark.integration
+def test_limits_section_states_the_three_consequences() -> None:
+    """AC3: the section spells out the three consequences of lexical matching."""
+    body = _limits_section()
+
+    for needle in (
+        "sémantique",
+        "inchangée",
+        "name-drop",
+        "undocumented",
+        "oracle",
+        "non-régression",
+    ):
+        assert needle in body, f"missing {needle!r} in the limits section"
+
+
+@pytest.mark.integration
+def test_limits_section_gives_the_prescriptive_rule() -> None:
+    """AC4: the section says what to do when semantics change at same name."""
+    body = _limits_section()
+
+    assert "chaque page" in body
+    assert "à la main" in body
+
+
+@pytest.mark.integration
+def test_limits_page_is_declared_in_mkdocs_nav() -> None:
+    """AC5: the page is declared in mkdocs.yml, hence not orphaned."""
+    mkdocs = (_PACKAGE_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+
+    assert _LIMITS_PAGE in mkdocs

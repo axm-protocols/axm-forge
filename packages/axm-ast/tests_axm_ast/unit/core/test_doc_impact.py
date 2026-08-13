@@ -70,3 +70,25 @@ def test_find_stale_signatures_documents_fenced_block_scope() -> None:
 
     assert "fenced code block" in text
     assert "signature" in text
+
+
+# ─── Limits section (canonical docstring) ────────────────────────────────────
+
+_LIMITS_HEADING = "Limits — what this tool does not detect:"
+
+
+def test_analyze_doc_impact_declares_limits_section() -> None:
+    """AC1: the canonical docstring carries the explicit Limits section.
+
+    The section names the three consequences of the purely lexical matching:
+    a semantic change at unchanged name, a bare name-drop counted as
+    documentation, and ``undocumented`` not being a non-regression oracle.
+    """
+    doc = analyze_doc_impact.__doc__ or ""
+    text = doc.lower()
+
+    assert _LIMITS_HEADING in doc
+    assert "semantic" in text
+    assert "name-drop" in text
+    assert "undocumented" in text
+    assert "oracle" in text

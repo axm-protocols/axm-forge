@@ -39,3 +39,4 @@ nav:
     - Architecture: explanation/architecture.md
     - Output Formats: explanation/formats.md
     - Cross-Module Resolution: explanation/cross_module_resolution.md
+    - doc_impact Limits: explanation/doc_impact_limits.md
