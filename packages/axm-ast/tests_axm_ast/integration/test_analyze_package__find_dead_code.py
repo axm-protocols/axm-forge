@@ -1374,6 +1374,126 @@ class TestReturnValueRefs:
         assert "that_func" not in dead
 
 
+@pytest.mark.integration
+def test_readme_reference_enriches_but_does_not_revive_candidate(
+    tmp_path: Path,
+) -> None:
+    """AC1: a root README reference annotates but does not revive dead code."""
+    pkg_path = _make_pkg(
+        tmp_path,
+        {
+            "__init__.py": "",
+            "core.py": "def readme_only():\n    return 'dead'\n",
+            "README.md": "Use `readme_only` in older integrations.\n",
+        },
+    )
+
+    dead = find_dead_code(analyze_package(pkg_path))
+    candidate = next(symbol for symbol in dead if symbol.name == "readme_only")
+
+    assert candidate.documentation_references == ["README.md"]
+    assert candidate.requires_documentation_update is True
+
+
+@pytest.mark.integration
+def test_nested_docs_references_are_complete_unique_and_sorted(
+    tmp_path: Path,
+) -> None:
+    """AC2: all nested docs paths are unique, sorted, and do not imply liveness."""
+    pkg_path = _make_pkg(
+        tmp_path,
+        {
+            "__init__.py": "",
+            "core.py": "def docs_only():\n    return 'dead'\n",
+            "docs/z-last.md": "`docs_only`\n",
+            "docs/api/a-first.md": "# `docs_only`\n\nSee `docs_only`.\n",
+        },
+    )
+
+    dead = find_dead_code(analyze_package(pkg_path))
+    candidate = next(symbol for symbol in dead if symbol.name == "docs_only")
+
+    assert candidate.documentation_references == [
+        "docs/api/a-first.md",
+        "docs/z-last.md",
+    ]
+    assert candidate.requires_documentation_update is True
+
+
+@pytest.mark.integration
+def test_documentation_scan_preserves_source_and_test_liveness(
+    tmp_path: Path,
+) -> None:
+    """AC3, AC5: docs enrich only dead candidates after liveness is decided."""
+    project_root = tmp_path / "project"
+    src_pkg = project_root / "src" / "mypkg"
+    src_pkg.mkdir(parents=True)
+    (src_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (src_pkg / "core.py").write_text(
+        "def source_live():\n    return 'source'\n\n"
+        "def test_live():\n    return 'test'\n\n"
+        "def documentation_only():\n    return 'docs'\n\n"
+        "def unreferenced():\n    return 'dead'\n",
+        encoding="utf-8",
+    )
+    (src_pkg / "main.py").write_text(
+        "from .core import source_live\n\ndef run():\n    return source_live()\n",
+        encoding="utf-8",
+    )
+    tests_dir = project_root / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_core.py").write_text(
+        "from mypkg.core import test_live\n\n"
+        "def test_public_behavior():\n    assert test_live() == 'test'\n",
+        encoding="utf-8",
+    )
+    (project_root / "README.md").write_text(
+        "Legacy example: `documentation_only`.\n",
+        encoding="utf-8",
+    )
+    docs_dir = project_root / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "migration.md").write_text(
+        "Remove `documentation_only` after migration.\n",
+        encoding="utf-8",
+    )
+
+    dead = find_dead_code(analyze_package(src_pkg))
+    by_name = {symbol.name: symbol for symbol in dead}
+
+    assert "source_live" not in by_name
+    assert "test_live" not in by_name
+    assert "documentation_only" in by_name
+    assert "unreferenced" in by_name
+    assert by_name["documentation_only"].documentation_references == [
+        "README.md",
+        "docs/migration.md",
+    ]
+    assert by_name["documentation_only"].requires_documentation_update is True
+
+
+@pytest.mark.integration
+def test_candidate_without_documentation_match_has_empty_metadata(
+    tmp_path: Path,
+) -> None:
+    """AC4: a dead candidate absent from docs has empty coordination metadata."""
+    pkg_path = _make_pkg(
+        tmp_path,
+        {
+            "__init__.py": "",
+            "core.py": "def absent_from_docs():\n    return 'dead'\n",
+            "README.md": "This page documents `some_other_api`.\n",
+            "docs/guide.md": "Use `another_api`.\n",
+        },
+    )
+
+    dead = find_dead_code(analyze_package(pkg_path))
+    candidate = next(symbol for symbol in dead if symbol.name == "absent_from_docs")
+
+    assert candidate.documentation_references == []
+    assert candidate.requires_documentation_update is False
+
+
 _AXM_AST_ROOT = Path(__file__).resolve().parents[2]
 # The suite lives in ``tests_<pkg>`` (a unique module path per package —
 # homonymous ``tests.conftest`` modules made the workspace suite

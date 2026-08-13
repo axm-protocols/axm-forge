@@ -86,3 +86,39 @@ def test_format_results() -> None:
     assert "baz" in output
     assert "/a/b.py" in output
     assert "/a/c.py" in output
+
+
+def test_documented_dead_symbol_renders_coordination_notice() -> None:
+    """AC3, AC6: documented dead code requires a coordinated docs update."""
+    symbol = DeadSymbol(
+        name="retired_api",
+        module_path="src/sample/core.py",
+        line=12,
+        kind="function",
+        documentation_references=["README.md", "docs/api/retired.md"],
+    )
+
+    output = format_dead_code([symbol])
+
+    assert symbol.requires_documentation_update is True
+    assert "README.md" in output
+    assert "docs/api/retired.md" in output
+    assert "update or remove" in output.lower()
+
+
+def test_unreferenced_dead_symbol_preserves_legacy_rendering() -> None:
+    """AC4: undocumented dead code keeps empty metadata and legacy output."""
+    symbol = DeadSymbol(
+        name="foo",
+        module_path="/a/b.py",
+        line=10,
+        kind="function",
+    )
+
+    output = format_dead_code([symbol])
+
+    assert symbol.documentation_references == []
+    assert symbol.requires_documentation_update is False
+    assert output == (
+        "💀 1 dead symbol(s) found:\n\n  📄 /a/b.py\n    L  10  function    foo\n"
+    )

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from itertools import dropwhile
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
@@ -51,6 +51,16 @@ class DeadSymbol:
     module_path: str
     line: int
     kind: str  # "function", "method", "class"
+    documentation_references: list[str] = field(default_factory=list)
+    requires_documentation_update: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Keep the coordination signal derived from documentation metadata."""
+        object.__setattr__(
+            self,
+            "requires_documentation_update",
+            bool(self.documentation_references),
+        )
 
 
 # ─── Exemptions ──────────────────────────────────────────────────────────────
@@ -898,6 +908,28 @@ def find_dead_code(
         dead.extend(_scan_classes(mod, pkg, ctx))
 
     dead.sort(key=lambda d: (d.module_path, d.line))
+
+    # Documentation coordinates removal work; it never participates in liveness.
+    if dead:
+        from axm_ast.core.doc_impact import find_doc_refs
+
+        documentation_root = pkg.root
+        if documentation_root.parent.name == "src":
+            documentation_root = documentation_root.parent.parent
+        elif documentation_root.name == "src":
+            documentation_root = documentation_root.parent
+
+        doc_refs = find_doc_refs(documentation_root, [symbol.name for symbol in dead])
+        dead = [
+            replace(
+                symbol,
+                documentation_references=sorted(
+                    {Path(ref["file"]).as_posix() for ref in doc_refs[symbol.name]}
+                ),
+            )
+            for symbol in dead
+        ]
+
     return dead
 
 
@@ -950,6 +982,13 @@ def format_dead_code(results: list[DeadSymbol]) -> str:
         parts.append(f"  📄 {mod_path}")
         for sym in symbols:
             parts.append(f"    L{sym.line:>4d}  {sym.kind:<10s}  {sym.name}")
+            if sym.requires_documentation_update:
+                parts.append(
+                    "      📚 Documentation references: coordinate update or remove"
+                )
+                parts.extend(
+                    f"        - {path}" for path in sym.documentation_references
+                )
         parts.append("")
 
     return "\n".join(parts)
