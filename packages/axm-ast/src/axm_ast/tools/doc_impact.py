@@ -17,6 +17,13 @@ class DocImpactTool(AXMTool):
     """Analyze documentation impact for symbols.
 
     Registered as ``ast_doc_impact`` via axm.tools entry point.
+
+    Caveat — the matching is purely lexical, never semantic: a symbol counts
+    as mentioned when its bare name appears between backticks or in a
+    Markdown heading, and a bare name-drop anywhere in the prose is enough
+    to clear it from ``undocumented``. Read the output as a list of
+    pages to read, not a proof that the documentation is correct or up
+    to date.
     """
 
     @property
@@ -33,6 +40,13 @@ class DocImpactTool(AXMTool):
         **kwargs: object,
     ) -> ToolResult:
         """Analyze doc impact for symbols.
+
+        Caveat — the matching is purely lexical, never semantic: a symbol
+        counts as mentioned when its bare name appears between backticks or
+        in a Markdown heading, and a bare name-drop anywhere in the prose is
+        enough to clear it from ``undocumented``. Read the output as a list
+        of pages to read, not a proof that the documentation is correct or
+        up to date.
 
         Args:
             path: Project root directory.

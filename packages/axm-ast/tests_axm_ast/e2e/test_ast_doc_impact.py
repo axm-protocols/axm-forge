@@ -81,3 +81,26 @@ def test_doc_impact_reports_only_real_gap(mixed_pkg: Path) -> None:
 
     # Only the genuine public docstring-less symbol survives.
     assert undocumented == ["real_gap"]
+
+
+def _axm_bin() -> str:
+    """Locate the ``axm`` console script next to the running interpreter."""
+    candidate = Path(sys.executable).with_name("axm")
+    return str(candidate) if candidate.exists() else "axm"
+
+
+def test_doc_impact_help_surfaces_lexical_caveat() -> None:
+    """AC4: ``axm ast_doc_impact --help`` exposes the lexical caveat, exit code 0."""
+    package_root = Path(__file__).resolve().parents[2]
+    proc = subprocess.run(
+        [_axm_bin(), "ast_doc_impact", "--help"],
+        cwd=str(package_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    help_text = (proc.stdout + proc.stderr).lower()
+    assert "lexical" in help_text
+    assert "pages to read" in help_text
