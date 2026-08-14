@@ -12,7 +12,9 @@ question: "{{ research_question }}"
 type: "{{ type }}"
 repro_level: "{{ reproduction_level }}"
 {%- if type == 'hypothesis_testing' %}
-falsifier: ""
+falsifier:
+  spec: "TODO: state the observation that would refute the hypothesis."
+  conditions: []
 {%- endif %}
 inputs: []
 steps: []

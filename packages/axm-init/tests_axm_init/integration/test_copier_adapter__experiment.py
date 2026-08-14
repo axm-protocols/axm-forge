@@ -97,6 +97,28 @@ def _relative_files(root: Path) -> list[str]:
     )
 
 
+# The falsifier sub-contract, transcribed by hand from the experiment contract
+# 1.0.0 (no axm-lab import: that package is unresolvable from axm-forge CI).
+# ``falsifier`` is required and non-null iff the type is hypothesis_testing,
+# absent or null otherwise, and when present it is the mapping
+# ``{spec: "<non-empty str>", conditions: []}`` with extra keys forbidden.
+FALSIFIER_KEYS = frozenset({"spec", "conditions"})
+
+
+def _assert_falsifier_contract(document: dict[str, Any], exp_type: str) -> None:
+    """Assert the rendered manifest honours the falsifier sub-contract."""
+    falsifier = document.get("falsifier")
+    assert (falsifier is not None) is (exp_type == "hypothesis_testing"), document
+    if falsifier is None:
+        return
+    assert isinstance(falsifier, dict), falsifier
+    assert set(falsifier.keys()) == set(FALSIFIER_KEYS), sorted(falsifier)
+    spec = falsifier["spec"]
+    assert isinstance(spec, str), spec
+    assert spec.strip() != "", repr(spec)
+    assert falsifier["conditions"] == [], falsifier["conditions"]
+
+
 def _manifest(root: Path) -> dict[str, Any]:
     """Return the parsed contract manifest rendered at the experiment root."""
     raw = (root / MANIFEST).read_text(encoding="utf-8")
@@ -165,3 +187,52 @@ def test_render_keeps_the_analysis_directory_marker_only(tmp_path: Path) -> None
     analysis = root / "analysis"
     assert analysis.is_dir(), _relative_files(root)
     assert sorted(entry.name for entry in analysis.iterdir()) == [".gitkeep"]
+
+
+def test_hypothesis_testing_manifest_renders_a_falsifier_mapping(
+    tmp_path: Path,
+) -> None:
+    """AC1: falsifier is a mapping carrying a non-empty string spec."""
+    root = _render(
+        tmp_path / "render",
+        {"type": "hypothesis_testing", "repro_level": "exact"},
+    )
+    assert (root / MANIFEST).is_file(), _relative_files(root)
+    document = _manifest(root)
+    falsifier = document["falsifier"]
+    assert isinstance(falsifier, dict), falsifier
+    spec = falsifier["spec"]
+    assert isinstance(spec, str), spec
+    assert spec.strip() != "", repr(spec)
+
+
+def test_hypothesis_testing_falsifier_keys_are_spec_and_conditions(
+    tmp_path: Path,
+) -> None:
+    """AC2: falsifier keys equal {spec, conditions} and conditions is []."""
+    root = _render(
+        tmp_path / "render",
+        {"type": "hypothesis_testing", "repro_level": "exact"},
+    )
+    falsifier = _manifest(root)["falsifier"]
+    assert isinstance(falsifier, dict), falsifier
+    assert set(falsifier.keys()) == {"spec", "conditions"}, sorted(falsifier)
+    assert falsifier["conditions"] == [], falsifier["conditions"]
+
+
+@pytest.mark.parametrize(
+    "exp_type", ["hypothesis_testing", "descriptive", "exploratory"]
+)
+def test_manifest_falsifier_honours_the_contract_for_every_type(
+    tmp_path: Path, exp_type: str
+) -> None:
+    """AC3: the structural validator passes for the three experiment types."""
+    root = _render(
+        tmp_path / "render",
+        {"type": exp_type, "repro_level": "exact"},
+    )
+    document = _manifest(root)
+    assert document["type"] == exp_type
+    _assert_falsifier_contract(document, exp_type)
+    if exp_type != "hypothesis_testing":
+        assert document.get("falsifier") is None, document["falsifier"]
