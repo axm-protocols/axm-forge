@@ -24,6 +24,7 @@ from axm_edit.models.operations import (
     DeleteOp,
     Operation,
     ReplaceOp,
+    RewriteOp,
 )
 from axm_edit.services.lint import filter_ruff_lines, ruff_available
 from axm_edit.services.lint_diff import (
@@ -311,7 +312,8 @@ def _render_op_lines(parsed: list[Operation]) -> list[str]:
     """Render one ``{sigil} {file}`` line per operation, op order preserved.
 
     ``~`` marks a replace (with its edit count), ``+`` a create, ``-`` a
-    delete. Every operated-on file is listed verbatim, so the reader sees
+    delete and ``»`` a whole-file rewrite. Every operated-on file is listed
+    verbatim, so the reader sees
     exactly which path each op touched — information the count-only
     ``summary`` in ``data`` does not carry.
     """
@@ -324,6 +326,8 @@ def _render_op_lines(parsed: list[Operation]) -> list[str]:
             lines.append(f"+ {op.file}")
         elif isinstance(op, DeleteOp):
             lines.append(f"- {op.file}")
+        elif isinstance(op, RewriteOp):
+            lines.append(f"» {op.file} (rewrite)")
     return lines
 
 
@@ -584,6 +588,53 @@ def _prepare_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
         raise ValueError(msg) from exc
 
 
+_REWRITE_WIRE_KEY = "checksum"
+_REWRITE_FIELD_KEY = "expected_checksum"
+
+
+def _normalised_rewrite(raw: dict[str, object]) -> dict[str, object]:
+    """Carry a rewrite digest under the payload key the preflight declares.
+
+    :class:`~axm_edit.models.operations.RewriteOp` names the digest field
+    ``expected_checksum`` while the preflight declares the payload key
+    ``checksum``, so an agent may legitimately author either spelling.
+    Normalising once, before the preflight runs, keeps both layers seeing the
+    shape they declare. Every non-rewrite operation is returned untouched.
+
+    Args:
+        raw: One operation mapping, as authored.
+
+    Returns:
+        The same mapping when there is nothing to normalise, else a copy
+        carrying the digest under ``checksum``.
+    """
+    if raw.get("op") != "rewrite":
+        return raw
+    if _REWRITE_WIRE_KEY in raw or _REWRITE_FIELD_KEY not in raw:
+        return raw
+    normalised = {k: v for k, v in raw.items() if k != _REWRITE_FIELD_KEY}
+    normalised[_REWRITE_WIRE_KEY] = raw[_REWRITE_FIELD_KEY]
+    return normalised
+
+
+def _rewrite_from_raw(raw: dict[str, object]) -> RewriteOp:
+    """Validate a raw ``rewrite`` mapping into its :class:`RewriteOp` model.
+
+    Accepts the digest under either the wire key ``checksum`` or the model
+    field name ``expected_checksum``.
+
+    Args:
+        raw: The rewrite mapping, as authored.
+
+    Returns:
+        The validated operation.
+    """
+    payload = {k: v for k, v in raw.items() if k != _REWRITE_WIRE_KEY}
+    if _REWRITE_WIRE_KEY in raw:
+        payload[_REWRITE_FIELD_KEY] = raw[_REWRITE_WIRE_KEY]
+    return RewriteOp.model_validate(payload)
+
+
 def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
     """Parse raw dicts into typed Operation models.
 
@@ -598,6 +649,8 @@ def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
             parsed.append(CreateOp.model_validate(raw))
         elif op_type == "delete":
             parsed.append(DeleteOp.model_validate(raw))
+        elif op_type == "rewrite":
+            parsed.append(_rewrite_from_raw(raw))
         else:
             msg = f"Unknown operation type: {op_type}"
             raise ValueError(msg)
@@ -607,7 +660,8 @@ def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
 class BatchEditTool:
     """Atomic batch file editing for AI agents.
 
-    Replaces, creates, and deletes files in a single atomic operation.
+    Replaces, rewrites, creates, and deletes files in a single atomic
+    operation.
     Registered as ``batch_edit`` via axm.tools entry point.
     """
 
@@ -639,7 +693,10 @@ class BatchEditTool:
 
         Args:
             path: Project root directory.
-            operations: List of operation dicts with ``op`` discriminator.
+            operations: List of operation dicts with ``op`` discriminator —
+                ``replace``, ``create``, ``delete`` or ``rewrite`` (a
+                whole-file replacement carrying the exact bytes, guarded by
+                the ``expected_checksum`` of the current ones).
             lint: Run ruff --fix on changed Python files after apply.
             lint_diff: Surface per-file diffs of post-lint mutations.
             lint_diff_max_ratio: Fallback threshold (diff / file size).
@@ -652,7 +709,9 @@ class BatchEditTool:
             batch before any checkpoint or write, so the payload then
             carries no checkpoint at all.
         """
-        raw_operations: list[dict[str, object]] = operations or []
+        raw_operations: list[dict[str, object]] = [
+            _normalised_rewrite(raw) for raw in operations or []
+        ]
 
         if not raw_operations:
             return ToolResult(

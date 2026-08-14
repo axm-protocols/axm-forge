@@ -91,3 +91,28 @@ def test_readme_documents_batch_edit_check_read_only_contract() -> None:
     assert _NO_WRITE_RE.search(section) is not None, (
         "the `batch_edit_check` section never states that no disk write occurs"
     )
+
+
+def test_readme_documents_the_rewrite_operation() -> None:
+    """AC7: the README documents the rewrite op, its keys and the closed create."""
+    text = _readme_text()
+
+    assert "rewrite" in text.lower(), "README.md never mentions the rewrite operation"
+    documented = [
+        fence
+        for fence in _FENCE_RE.findall(text)
+        if "rewrite" in fence
+        and all(key in fence for key in ("file", "content", "expected_checksum"))
+    ]
+    assert documented, (
+        "no code fence documents the rewrite op with its three required keys "
+        "(file, content, expected_checksum)"
+    )
+    assert re.search(r"sha256", text, re.IGNORECASE) is not None, (
+        "the README never states that expected_checksum is the sha256 digest "
+        "of the current bytes"
+    )
+    assert re.search(r"overwrite", text, re.IGNORECASE) is not None, (
+        "the README never states that a create on an existing target stays "
+        "fail-closed, with no overwrite flag"
+    )

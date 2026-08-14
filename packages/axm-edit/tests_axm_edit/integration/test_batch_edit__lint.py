@@ -11,6 +11,7 @@ crash surfaced.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -111,3 +112,39 @@ class TestNoRuffSkipsLintCleanly:
         # A clean, probe-driven skip — never a false 'ruff crashed'.
         warnings = result.data.get("warnings", []) if result.data else []
         assert not any("ruff crashed" in w for w in warnings)
+
+
+@pytest.mark.integration
+class TestRewrittenFileIsLinted:
+    """AC5: a rewritten Python file joins the post-apply lint set."""
+
+    def test_rewritten_file_is_linted_post_apply(
+        self, tool: BatchEditTool, project: Path, mocker: Any
+    ) -> None:
+        """AC5: the rewrite target reaches the ruff pass and a lint report is built."""
+        target = project / "hello.py"
+        checksum = hashlib.sha256(target.read_bytes()).hexdigest()
+        mocker.patch("axm_edit.tools.batch_edit.ruff_available", return_value=True)
+        run_ruff = mocker.patch(
+            "axm_edit.tools.batch_edit._run_ruff", return_value=([], [])
+        )
+
+        result = tool.execute(
+            path=str(project),
+            operations=[
+                {
+                    "op": "rewrite",
+                    "file": "hello.py",
+                    "content": "import os\n\nx = 2\n",
+                    "expected_checksum": checksum,
+                }
+            ],
+        )
+
+        assert result.success, result.error
+        assert target.read_text() == "import os\n\nx = 2\n"
+        assert run_ruff.call_count == 1, run_ruff.call_args_list
+        linted = run_ruff.call_args.args[1]
+        assert target.resolve() in linted, linted
+        assert result.data is not None
+        assert "lint" in result.data

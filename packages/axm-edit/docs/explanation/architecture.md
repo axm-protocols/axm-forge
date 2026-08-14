@@ -4,7 +4,7 @@ Design decisions and module layout for `axm-edit`.
 
 ## Design: 1 Tool, 1 JSON
 
-The core design choice is a **single `batch_edit` tool** that handles replace, create, and delete operations in one atomic call. A refactor that modifies, creates, and deletes files in the same operation requires just 1 tool call instead of N.
+The core design choice is a **single `batch_edit` tool** that handles replace, rewrite, create, and delete operations in one atomic call. A refactor that modifies, creates, and deletes files in the same operation requires just 1 tool call instead of N.
 
 ## Module layout
 
@@ -129,6 +129,14 @@ The preflight core also classifies the checksum-guarded `rewrite` operation
 (`{op, file, content, checksum}`), and `batch_edit_check` parses it through the
 very same parser the core uses — so an agent is told a rewrite will be refused
 **before** it attempts it, in the exact words the apply path would use:
+
+One spelling detail is absorbed at the tool boundary: `RewriteOp` names the
+digest field `expected_checksum` while the preflight core declares the payload
+key `checksum`. `BatchEditTool.execute` therefore normalises the batch once —
+`tools/batch_edit.py::_normalised_rewrite` — **before** the preflight runs, so a
+rewrite authored with either spelling reaches both the diagnostics and the
+parsed model, and no rule, severity or verdict is duplicated to accommodate it.
+`batch_edit_check` keeps declaring `checksum` only.
 
 - **Payload shape** — `core/precheck.py::check_rewrite_keys` reads the mapping
   *as authored* (no path resolved, no file read) and blocks on

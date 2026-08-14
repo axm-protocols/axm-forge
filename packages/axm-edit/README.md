@@ -20,7 +20,7 @@ The agent spends 70% of its budget on mechanics.
 
 ## Features
 
-- 🔧 **`batch_edit`** — Replace, create, and delete files in a single atomic operation
+- 🔧 **`batch_edit`** — Replace, rewrite, create, and delete files in a single atomic operation
 - 🧪 **`batch_edit_check`** — Read-only preflight of a batch: diagnostics without touching the disk
 - 🔬 **`file_bytes`** — Read-only byte-level report on a file: sha256, literal non-ASCII vs textual escape sequences
 - 📖 **`read_file`** — Read file content with optional line-range support
@@ -78,14 +78,14 @@ Atomic batch file operations.
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `path` | `str` | `"."` | Project root directory |
-| `operations` | `list[Op]` | — | List of replace/create/delete operations |
+| `operations` | `list[Op]` | — | List of replace/create/delete/rewrite operations |
 | `lint` | `bool` | `True` | Run `ruff --fix` on changed Python files after apply |
 | `lint_diff` | `bool` | `True` | Surface per-file `lint_diffs` hunks of post-lint mutations |
 | `lint_diff_max_ratio` | `float` | `0.5` | Fallback to `file_reread_recommended` when `len(diff) > ratio * len(post)` |
 
 When `lint_diff=True` and ruff/harness_fix mutates any Python file, `ToolResult.data["lint_diffs"]` lists one entry per file: `{"file", "rules": [ruff codes], "diff": "@L<n>\n-old\n+new..."}`. On large rewrites the entry drops `diff` and carries `"diff_skipped": "file_reread_recommended"`.
 
-**3 operation types:**
+**4 operation types:**
 
 #### `replace` — modify lines in an existing file
 
@@ -108,7 +108,35 @@ All line numbers reference the **original** file. The engine sorts edits bottom-
 {"op": "create", "file": "src/new.py", "content": "\"\"\"New module.\"\"\"\n"}
 ```
 
-Fails if file exists (unless `"overwrite": true`).
+Fails if the file already exists — **fail-closed, there is no `overwrite`
+flag**. To replace an existing file, use `rewrite` and hand back the digest of
+the bytes you read.
+
+#### `rewrite` — replace an existing file in full
+
+```json
+{
+    "op": "rewrite",
+    "file": "src/foo.py",
+    "content": "\"\"\"Rewritten module.\"\"\"\nvalue = 1\n",
+    "expected_checksum":
+        "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+}
+```
+
+Three required keys — `file`, `content` and `expected_checksum` (the preflight
+tool `batch_edit_check` names that same key `checksum`; `batch_edit` accepts
+either spelling and normalises it). The digest is
+mandatory: it is the **sha256** hex digest of the file bytes **as currently on
+disk** (read the file, hash it, pass it back). A stale digest is a hard
+refusal, so a concurrent modification is never silently clobbered — and, here
+too, there is deliberately no `overwrite` escape hatch.
+
+`rewrite` carries the exact bytes of `content`: no anchor resolution, no quote
+normalisation, no re-indentation. That makes it the safe way to replace a
+triple-quote-heavy module that anchor-based `replace` cannot address. The
+rewritten file joins the post-apply `ruff --fix` pass like any other touched
+Python file.
 
 #### `delete` — remove a file
 

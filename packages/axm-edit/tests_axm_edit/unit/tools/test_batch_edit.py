@@ -12,9 +12,16 @@ from axm_edit.models.operations import (
     DeleteOp,
     Edit,
     ReplaceOp,
+    RewriteOp,
     ValidationError,
 )
-from axm_edit.tools.batch_edit import BatchEditTool, _apply_lint, render_text
+from axm_edit.tools.batch_edit import (
+    BatchEditTool,
+    _apply_lint,
+    _parse_operations,
+    _render_op_lines,
+    render_text,
+)
 
 
 def _ok_result() -> BatchResult:
@@ -341,3 +348,51 @@ class TestRenderPreflightReport:
         assert "batch_edit | ✓" in text, text
         assert "1 modified" in text, text
         assert "new line exceeds 88 characters" in text, text
+
+
+class TestParseRewriteOperation:
+    """AC1: the ``rewrite`` discriminator parses into a ``RewriteOp``."""
+
+    def test_raw_rewrite_mapping_parses_into_a_single_rewrite_op(self) -> None:
+        """AC1: one raw rewrite mapping yields one RewriteOp carrying its fields."""
+        digest = "a" * 64
+        raw: list[dict[str, object]] = [
+            {
+                "op": "rewrite",
+                "file": "pkg/mod.py",
+                "content": "value = 2\n",
+                "expected_checksum": digest,
+            }
+        ]
+
+        parsed = _parse_operations(raw)
+
+        assert len(parsed) == 1
+        op = parsed[0]
+        assert isinstance(op, RewriteOp)
+        assert op.file == "pkg/mod.py"
+        assert op.content == "value = 2\n"
+        assert op.expected_checksum == digest
+
+
+class TestRenderRewriteOpLine:
+    """AC2: a ``RewriteOp`` renders one dedicated summary line."""
+
+    def test_rendered_op_line_names_the_rewrite_and_its_file(self) -> None:
+        """AC2: exactly one line, holding the rewrite keyword and the path."""
+        op = RewriteOp(
+            file="pkg/mod.py",
+            content="value = 2\n",
+            expected_checksum="b" * 64,
+        )
+
+        lines = _render_op_lines([op])
+
+        assert len(lines) == 1, lines
+        line = lines[0]
+        assert "rewrite" in line.lower(), line
+        assert "pkg/mod.py" in line, line
+        # Distinct from the create / delete / replace line shapes.
+        assert not line.startswith("+ "), line
+        assert not line.startswith("- "), line
+        assert not line.startswith("~ "), line

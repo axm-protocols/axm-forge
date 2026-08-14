@@ -11,7 +11,7 @@
 
 | MCP Tool | Purpose |
 |---|---|
-| `batch_edit` | Replace / create / delete files in one atomic, validated batch (with `ruff --fix`) — the flagship tool |
+| `batch_edit` | Replace / rewrite / create / delete files in one atomic, validated batch (with `ruff --fix`) — the flagship tool |
 | `batch_rollback` | Restore the exact paths a batch touched from its `batch_edit` snapshot |
 | `read_file` | Read file content, optional line range, line-numbered output |
 | `write_file` | Write (create or overwrite) a single file |

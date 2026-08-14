@@ -47,7 +47,7 @@ for match in result.data["matches"]:
 
 ## Step 3: Batch edit
 
-Replace, create, and delete files in a single atomic call:
+Replace, rewrite, create, and delete files in a single atomic call:
 
 ```python
 from axm_edit.tools.batch_edit import BatchEditTool

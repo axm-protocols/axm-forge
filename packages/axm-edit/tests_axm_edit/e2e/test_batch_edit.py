@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -199,3 +200,42 @@ def test_batch_edit_refuses_an_unknown_edit_key_and_leaves_the_file_untouched(
     # The refusal must be actionable: a line naming the accepted edit keys.
     assert keys_line, f"accepted edit keys must be listed: {combined}"
     assert target.read_bytes() == before, combined
+
+
+@pytest.mark.e2e
+def test_batch_edit_applies_a_rewrite_operation(tmp_path: Path) -> None:
+    """AC6: a digest-matching rewrite exits 0 and lands the new bytes."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("value = 1\n", encoding="utf-8")
+    new_body = "value = 2\nother = 3\n"
+    checksum = hashlib.sha256(target.read_bytes()).hexdigest()
+
+    operations = [
+        {
+            "op": "rewrite",
+            "file": "pkg/mod.py",
+            "content": new_body,
+            "expected_checksum": checksum,
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+
+    assert proc.returncode == 0, combined
+    assert target.read_text(encoding="utf-8") == new_body, combined
