@@ -81,7 +81,7 @@ Business logic independent of I/O:
 | Module | Key Symbols | Purpose |
 |---|---|---|
 | `checker.py` | `CheckEngine`, `SKIP_BY_CONTEXT`, `REDIRECT_BY_CONTEXT`, `validate_context_tables()`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output. Every result is re-stamped with the *canonical* check name — `get_check_name()`'s `category.function_name_without_check_` form — so context skips (`SKIP_BY_CONTEXT`), member redirects (`REDIRECT_BY_CONTEXT`), `[tool.axm-init].exclude` matching, and the displayed name all key off one string |
-| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace/member), and resolution |
+| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace/member/paper), and resolution. The `paper` type resolves the bundled `paper-submodule` template, which renders in two flavours keyed on its `has_package` answer: *autonomous* (ships its own `src/` package plus a `[tool.axm-lab]` pyproject marker) or *satellite* (no pyproject and no `src/` at all — marked structurally by `PLAN.md` + `paper/` + `experiments/`, the exact triple `detect_context()` keys on). The template declares no Copier `_tasks`, so it renders under the nominal `trust_template=False` path, and re-declares the full `_exclude` block since Copier replaces (not extends) its default list |
 | `reserver.py` | `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow (the `ReserveResult` model lives in `models/results.py`) |
 
 ### 3. Checks (`checks/`)

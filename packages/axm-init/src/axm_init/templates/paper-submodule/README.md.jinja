@@ -1,0 +1,20 @@
+# {{ title }}
+
+- Slug: `{{ paper_name }}`
+- Author: {{ author }}
+{% if has_package %}- Flavour: autonomous paper — embedded package `{{ package_name }}` under `src/`
+{% else %}- Flavour: satellite paper — companion of an existing library, no embedded package
+{% endif %}
+## Layout
+
+| Path | Role |
+|---|---|
+| `PLAN.md` | intention of the paper (YAML front-matter + prose) |
+| `paper/main.tex` | LaTeX main source |
+| `paper/references.bib` | bibliography |
+| `paper/Makefile` | build the PDF |
+| `experiments/` | experiment runs (the index is generated, never scaffolded) |
+
+## Build
+
+    make -C paper

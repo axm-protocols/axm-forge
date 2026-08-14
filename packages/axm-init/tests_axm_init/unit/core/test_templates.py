@@ -25,6 +25,18 @@ class TestTemplateTypeUnit:
         assert path.name == "python-project"
 
 
+class TestPaperTemplateTypeUnit:
+    # The paper template type is part of the enum surface.
+
+    def test_paper_member_value(self) -> None:
+        # AC1: the enum exposes a PAPER member valued ``paper``.
+        assert TemplateType.PAPER.value == "paper"
+
+    def test_paper_member_is_listed(self) -> None:
+        # AC1: PAPER is a first-class member of the template-type enum.
+        assert "paper" in {member.value for member in TemplateType}
+
+
 # --- tests.* override relaxation tests ---
 
 
