@@ -116,7 +116,14 @@ The `experiment` kind:
    slugified `--name`: `experiments/01-baseline/`, then `experiments/02-…`
 3. Renders the experiment scaffold flat inside it — `manifest.yaml` (the 1.0.0
    experiment contract, complete before any script runs), `inputs/`, `scripts/`,
-   `outputs/`, `analysis/`, `figures/`
+   `outputs/`, `analysis/analysis.md` and `figures/figures.yaml`
+
+> **Note:** `figures/figures.yaml` is the figure declaration the experiment
+> contract reads — it ships as an empty declaration with a commented skeleton
+> naming the `id`, `caption`, `script` and `reads` keys. `analysis/analysis.md`
+> is the end-of-experiment reading, filled once the outputs exist; the metrics
+> file beside it (`analysis/metrics.yaml`) is emitted by the run, never
+> scaffolded.
 
 > **Note:** the index belongs to the tool, never to the template — re-running
 > the command always allocates the next free slot.

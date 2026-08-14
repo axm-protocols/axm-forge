@@ -61,6 +61,10 @@ LEGACY_TEMPLATE_SPELLINGS = ("experiment_kind", "hypothesis-testing")
 EXPERIMENT_TYPES = frozenset({"hypothesis_testing", "descriptive", "exploratory"})
 REPRO_LEVELS = frozenset({"exact", "tolerance", "attested"})
 
+# The figure declaration contract: the scaffolded skeleton must name these four
+# keys (commented example entry) while declaring no figure of its own.
+FIGURE_KEYS = ("id", "caption", "script", "reads")
+
 # The minimal answer set: only the questions carrying no default. The kind and
 # the reproduction level are deliberately left to the template's own defaults,
 # so a default render is what the contract assertions below observe.
@@ -181,12 +185,56 @@ def test_render_writes_no_metrics_json_anywhere(tmp_path: Path) -> None:
     assert offenders == [], _relative_files(root)
 
 
-def test_render_keeps_the_analysis_directory_marker_only(tmp_path: Path) -> None:
-    """AC2: the analysis directory survives and holds the .gitkeep marker only."""
+def test_render_writes_the_analysis_note_and_no_metrics_file(tmp_path: Path) -> None:
+    """AC3: analysis/analysis.md is rendered and analysis/ holds no metrics file."""
     root = _render(tmp_path / "render")
     analysis = root / "analysis"
     assert analysis.is_dir(), _relative_files(root)
-    assert sorted(entry.name for entry in analysis.iterdir()) == [".gitkeep"]
+    present = sorted(entry.name for entry in analysis.rglob("*") if entry.is_file())
+    assert (analysis / "analysis.md").is_file(), present
+    metrics = [name for name in present if name.startswith("metrics.")]
+    assert metrics == []
+
+
+def test_render_writes_the_figures_declaration_not_the_prose_note(
+    tmp_path: Path,
+) -> None:
+    """AC1: the render writes figures/figures.yaml and never figures/FIGURES.md."""
+    root = _render(tmp_path / "render")
+    rendered = _relative_files(root)
+    assert (root / "figures" / "figures.yaml").is_file(), rendered
+    leftovers = [path for path in rendered if path.endswith("FIGURES.md")]
+    assert leftovers == []
+
+
+def test_rendered_figures_declaration_is_an_empty_yaml_skeleton(
+    tmp_path: Path,
+) -> None:
+    """AC2: figures.yaml parses empty and its text names the four contract keys."""
+    root = _render(tmp_path / "render")
+    raw = (root / "figures" / "figures.yaml").read_text(encoding="utf-8")
+    document = yaml.safe_load(raw)
+    assert document is None or document == [], document
+    missing = [key for key in FIGURE_KEYS if key not in raw]
+    assert missing == [], raw
+
+
+@pytest.mark.parametrize(
+    "exp_type", ["hypothesis_testing", "descriptive", "exploratory"]
+)
+def test_manifest_falsifier_honours_the_contract_for_every_type(
+    tmp_path: Path, exp_type: str
+) -> None:
+    """AC3: the structural validator passes for the three experiment types."""
+    root = _render(
+        tmp_path / "render",
+        {"type": exp_type, "repro_level": "exact"},
+    )
+    document = _manifest(root)
+    assert document["type"] == exp_type
+    _assert_falsifier_contract(document, exp_type)
+    if exp_type != "hypothesis_testing":
+        assert document.get("falsifier") is None, document["falsifier"]
 
 
 def test_hypothesis_testing_manifest_renders_a_falsifier_mapping(
@@ -218,21 +266,3 @@ def test_hypothesis_testing_falsifier_keys_are_spec_and_conditions(
     assert isinstance(falsifier, dict), falsifier
     assert set(falsifier.keys()) == {"spec", "conditions"}, sorted(falsifier)
     assert falsifier["conditions"] == [], falsifier["conditions"]
-
-
-@pytest.mark.parametrize(
-    "exp_type", ["hypothesis_testing", "descriptive", "exploratory"]
-)
-def test_manifest_falsifier_honours_the_contract_for_every_type(
-    tmp_path: Path, exp_type: str
-) -> None:
-    """AC3: the structural validator passes for the three experiment types."""
-    root = _render(
-        tmp_path / "render",
-        {"type": exp_type, "repro_level": "exact"},
-    )
-    document = _manifest(root)
-    assert document["type"] == exp_type
-    _assert_falsifier_contract(document, exp_type)
-    if exp_type != "hypothesis_testing":
-        assert document.get("falsifier") is None, document["falsifier"]

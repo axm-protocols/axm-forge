@@ -1,0 +1,28 @@
+# Analysis — {{ experiment_id }}
+
+The reading of the experiment, written once the outputs exist: what the
+measurements establish, never what they were expected to show. The
+measurements themselves are a *constat* emitted by the run beside this
+reading (`analysis/metrics.yaml`, the name axm-lab reads) — never scaffolded,
+never hand-written.
+
+## Constat
+
+TODO — what the outputs show, before any interpretation.
+
+## Answer to the question
+
+> {{ research_question }}
+
+TODO — the answer the measurements support.
+{%- if type == 'hypothesis_testing' %}
+
+## Verdict on the pre-registration
+
+TODO — whether the falsifier frozen in `freeze/model_spec.json` fired, under
+the conditions it declared.
+{%- endif %}
+
+## Limits
+
+TODO — what this experiment does not establish.

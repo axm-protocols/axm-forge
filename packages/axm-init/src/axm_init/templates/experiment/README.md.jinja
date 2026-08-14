@@ -18,8 +18,8 @@
 | `inputs/SOURCES.md` | Where every input comes from, and under what licence |
 | `scripts/` | The code that turns inputs into outputs |
 | `outputs/` | The raw measurements produced by the scripts |
-| `analysis/` | Empty at scaffold time — receives the end-of-experiment constat |
-| `figures/FIGURES.md` | The figures index — one entry per rendered figure |
+| `analysis/analysis.md` | The end-of-experiment reading of the outputs |
+| `figures/figures.yaml` | The figures declaration — one entry per rendered figure |
 {%- if type == 'hypothesis_testing' %}
 | `freeze/model_spec.json` | The pre-registered specification, frozen before measuring |
 {%- endif %}
@@ -40,12 +40,11 @@ prediction has to be pre-registered before measuring.
 
 ## Analysis
 
-`analysis/` ships empty on purpose — only the `.gitkeep` marker keeps the
-directory of the convention alive. Metrics are a *constat* produced once the
-experiment has run, never an intention declared at scaffold time, so no metrics
-document is scaffolded here. The end-of-experiment artefact is
-`analysis/metrics.yaml` — the name axm-lab reads — written when the outputs
-exist, with its prose reading beside it.
+`analysis/analysis.md` ships as a declarative skeleton — the reading of the
+experiment, filled once the outputs exist. Metrics are a *constat* produced by
+the run, never an intention declared at scaffold time, so no metrics document
+is scaffolded here: `analysis/metrics.yaml` — the name axm-lab reads — is
+machine-emitted beside the reading when the outputs exist.
 
 ## Validation split
 

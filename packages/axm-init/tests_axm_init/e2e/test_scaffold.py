@@ -62,3 +62,38 @@ class TestScaffoldExperimentCli:
         assert not any(f.endswith("experiment.yaml") for f in files), files
         unresolved = [f for f in files if not (experiment_dir / f).is_file()]
         assert unresolved == []
+
+    def test_experiment_cli_renders_figures_yaml_and_analysis_note(
+        self, tmp_path: Path
+    ) -> None:
+        """AC4: the CLI render writes figures.yaml + analysis.md, no FIGURES.md.
+
+        The same four facts as the integration render, observed black box
+        through the scaffold subprocess and the tree its payload reports.
+        """
+        paper = _run(["scaffold", str(tmp_path), "--kind", "paper", *IDENTITY])
+        assert paper.returncode == 0, paper.stderr
+
+        proc = _run(
+            [
+                "scaffold",
+                str(tmp_path),
+                "--kind",
+                "experiment",
+                "--json",
+                *IDENTITY,
+            ]
+        )
+        assert proc.returncode == 0, proc.stderr
+
+        payload = json.loads(proc.stdout)
+        experiment_dir = Path(str(payload["path"]))
+        rendered = sorted(
+            p.relative_to(experiment_dir).as_posix()
+            for p in experiment_dir.rglob("*")
+            if p.is_file()
+        )
+        assert (experiment_dir / "figures" / "figures.yaml").is_file(), rendered
+        assert [f for f in rendered if f.endswith("FIGURES.md")] == []
+        assert (experiment_dir / "analysis" / "analysis.md").is_file(), rendered
+        assert [f for f in rendered if f.startswith("analysis/metrics.")] == []
