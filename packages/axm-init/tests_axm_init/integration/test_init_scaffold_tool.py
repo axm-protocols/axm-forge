@@ -136,3 +136,72 @@ class TestScaffoldToolMemberMode:
 
         assert tool_result.success is False
         assert "workspace" in (tool_result.error or "").lower()
+
+
+EXPERIMENT_IDENTITY = {
+    "org": "test-org",
+    "author": "Test Author",
+    "email": "test@example.com",
+}
+
+
+def _scaffold_paper_then_experiment(tmp_path: Path) -> Any:
+    # Render a real paper, then a real experiment inside it (no mocks).
+    tool = InitScaffoldTool()
+    paper = tool.execute(path=str(tmp_path), kind="paper", **EXPERIMENT_IDENTITY)
+    assert paper.success is True, paper.error
+    experiment = tool.execute(
+        path=str(tmp_path), kind="experiment", **EXPERIMENT_IDENTITY
+    )
+    assert experiment.success is True, experiment.error
+    return experiment
+
+
+def _rendered_files(experiment_dir: Path) -> set[str]:
+    # Every file actually written under the produced experiment directory.
+    return {
+        p.relative_to(experiment_dir).as_posix()
+        for p in experiment_dir.rglob("*")
+        if p.is_file()
+    }
+
+
+@pytest.mark.integration
+class TestExperimentManifestContract:
+    # The experiment scaffold reports the manifest.yaml contract file, named
+    # exactly as it lands inside the experiment directory it reports.
+
+    def test_reported_files_name_manifest_inside_the_produced_tree(
+        self, tmp_path: Path
+    ) -> None:
+        """AC1: the reported list names manifest.yaml, never experiment.yaml.
+
+        The reported names are the files the template rendered into the
+        reported experiment directory, so each one must resolve there.
+        """
+        experiment = _scaffold_paper_then_experiment(tmp_path)
+
+        assert experiment.data is not None
+        files = [str(f) for f in experiment.data["files"]]
+        experiment_dir = Path(str(experiment.data["path"]))
+        assert any(Path(f).name == "manifest.yaml" for f in files), files
+        assert not any(Path(f).name == "experiment.yaml" for f in files), files
+        unresolved = [f for f in files if not (experiment_dir / f).is_file()]
+        assert unresolved == []
+
+    def test_scaffolded_tree_holds_manifest_and_matches_the_report(
+        self, tmp_path: Path
+    ) -> None:
+        """AC2: manifest.yaml sits at the experiment root, no experiment.yaml.
+
+        The tool's reported file list and the tree on disk must agree — the
+        report is exactly the set of files rendered under the experiment root.
+        """
+        experiment = _scaffold_paper_then_experiment(tmp_path)
+
+        assert experiment.data is not None
+        experiment_dir = Path(str(experiment.data["path"]))
+        assert (experiment_dir / "manifest.yaml").is_file()
+        assert list(tmp_path.rglob("experiment.yaml")) == []
+        reported = {str(f) for f in experiment.data["files"]}
+        assert reported == _rendered_files(experiment_dir)

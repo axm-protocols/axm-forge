@@ -112,6 +112,11 @@ free zero-padded index followed by the slug (`experiments/01-baseline/`, then
 created at scaffold time, before any script runs, and appears in the `files`
 list under `--json`.
 
+Every entry of that `files` list is named relative to the payload's own `path`
+(the experiment directory the scaffold produced), so joining `path` with an
+entry always resolves on disk — `manifest.yaml`, `inputs/SOURCES.md`, … The
+`paper` kind follows the same rule against the paper root it reports.
+
 ---
 
 ## `reserve` — Reserve Package Name on PyPI

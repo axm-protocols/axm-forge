@@ -480,7 +480,8 @@ class InitScaffoldTool:
             description: Experiment title / research question fallback.
 
         Returns:
-            ToolResult with the created files list, relative to the paper.
+            ToolResult with the created files list, relative to the reported
+            experiment directory (the tree the template actually rendered).
         """
         from axm_init.adapters.copier import CopierAdapter, CopierConfig
         from axm_init.checks._workspace import ProjectContext, detect_context
@@ -521,8 +522,7 @@ class InitScaffoldTool:
                 error=result.message or "Experiment scaffold failed",
             )
 
-        prefix = experiment_dir.relative_to(target_path).as_posix()
-        files = [f"{prefix}/{f}" for f in result.files_created]
+        files = sorted(str(f) for f in result.files_created)
         kind = TemplateType.EXPERIMENT.value
         return ToolResult(
             success=True,
