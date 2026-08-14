@@ -11,7 +11,7 @@ import ast
 import re
 import tomllib
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -23,6 +23,7 @@ from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
 __all__ = [
     "analyze_imports",
     "canonical_filename",
+    "cli_binaries_from_pyproject",
     "cli_invocation_tuple",
     "collect_pkg_contract_classes",
     "collect_pkg_public_symbols",
@@ -41,6 +42,7 @@ __all__ = [
     "is_import_smoke_test",
     "iter_test_files",
     "iter_test_funcs",
+    "load_cli_binaries",
     "load_project_scripts",
     "target_matches_io",
     "test_invokes_in_package_script",
@@ -1203,6 +1205,47 @@ def load_project_scripts(pkg_root: Path) -> set[str]:
     if not isinstance(scripts, dict):
         return set()
     return {name for name in scripts if isinstance(name, str)}
+
+
+def cli_binaries_from_pyproject(data: Mapping[str, object]) -> set[str]:
+    """Return the CLI binaries a parsed pyproject document exposes.
+
+    Union of the ``[project.scripts]`` keys and the generic ``axm`` binary,
+    the latter added only when the package declares a non-empty
+    ``[project.entry-points."axm.tools"]`` table (its keys are tool names,
+    never binaries). A document declaring neither table widens nothing.
+    """
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return set()
+    binaries: set[str] = set()
+    scripts = project.get("scripts")
+    if isinstance(scripts, dict):
+        binaries.update(name for name in scripts if isinstance(name, str))
+    entry_points = project.get("entry-points")
+    if isinstance(entry_points, dict):
+        tools = entry_points.get("axm.tools")
+        if isinstance(tools, dict) and tools:
+            binaries.add("axm")
+    return binaries
+
+
+def load_cli_binaries(pkg_root: Path) -> set[str]:
+    """Return the CLI binaries declared by the package at ``pkg_root``.
+
+    Thin I/O reader delegating the derivation to
+    :func:`cli_binaries_from_pyproject`; a missing or unreadable pyproject
+    yields an empty set.
+    """
+    pyproject = pkg_root / "pyproject.toml"
+    if not pyproject.exists():
+        return set()
+    try:
+        with pyproject.open("rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError):
+        return set()
+    return cli_binaries_from_pyproject(data)
 
 
 def has_in_package_subprocess_invocation(

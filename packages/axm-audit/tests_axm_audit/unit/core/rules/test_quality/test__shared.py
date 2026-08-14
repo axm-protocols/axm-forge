@@ -7,6 +7,7 @@ import textwrap
 
 import pytest
 
+from axm_audit.core.rules.test_quality import _shared
 from axm_audit.core.rules.test_quality._shared import (
     detect_real_io,
     extract_mock_targets,
@@ -435,3 +436,48 @@ def test_file_has_module_marker_with_reason(code: str, expected: bool) -> None:
     """Module-level markers are detected with or without a reason argument."""
     tree = ast.parse(textwrap.dedent(code))
     assert file_has_module_marker(tree, "no_package_symbol_ok") is expected
+
+
+# AC1 / AC2 / AC3 - cli_binaries_from_pyproject (pure derivation, no I/O)
+# ---------------------------------------------------------------------
+
+
+def _derive_cli_binaries(data: dict[str, object]) -> set[str]:
+    # Reach the new pure helper through the module namespace so the missing
+    # symbol surfaces as a call-phase assertion on this ticket's contract
+    # rather than a module-level collection error.
+    derive = getattr(_shared, "cli_binaries_from_pyproject", None)
+    assert derive is not None, "cli_binaries_from_pyproject is not implemented"
+    binaries: set[str] = derive(data)
+    return binaries
+
+
+def test_cli_binaries_from_pyproject_axm_tools_only() -> None:
+    # AC1: an axm.tools-only parsed document yields the generic axm binary,
+    # and never the tool names themselves.
+    data: dict[str, object] = {
+        "project": {
+            "entry-points": {"axm.tools": {"audit": "axm_audit.tools:AuditTool"}}
+        }
+    }
+    assert _derive_cli_binaries(data) == {"axm"}
+
+
+def test_cli_binaries_from_pyproject_unions_scripts_and_axm() -> None:
+    # AC2: project.scripts keys and the axm binary are unioned when both
+    # tables are declared in the parsed document.
+    data: dict[str, object] = {
+        "project": {
+            "scripts": {"axm-audit": "axm_audit.cli:main"},
+            "entry-points": {"axm.tools": {"audit": "axm_audit.tools:AuditTool"}},
+        }
+    }
+    assert _derive_cli_binaries(data) == {"axm-audit", "axm"}
+
+
+def test_cli_binaries_from_pyproject_no_default_widening() -> None:
+    # AC3: neither table declared - and an empty axm.tools table - derive no
+    # binary at all (no default widening).
+    assert _derive_cli_binaries({"project": {"name": "pkg"}}) == set()
+    empty_tools: dict[str, object] = {"project": {"entry-points": {"axm.tools": {}}}}
+    assert _derive_cli_binaries(empty_tools) == set()
