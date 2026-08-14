@@ -26,6 +26,7 @@ graph TD
         DepsChecks["deps checks"]
         ChangelogChecks["changelog checks"]
         WorkspaceChecks["workspace checks"]
+        PaperChecks["paper checks"]
     end
 
     subgraph "Adapters"
@@ -53,6 +54,7 @@ graph TD
     CheckEngine --> DepsChecks
     CheckEngine --> ChangelogChecks
     CheckEngine --> WorkspaceChecks
+    CheckEngine --> PaperChecks
     Reserver --> PyPI
     Reserver --> Copier
     Templates --> Copier
@@ -86,7 +88,7 @@ Business logic independent of I/O:
 
 ### 3. Checks (`checks/`)
 
-49 checks across 8 categories, each a pure function `(Path) → CheckResult`:
+Checks across 9 categories, each a pure function `(Path) → CheckResult`. The registry is discovered dynamically (`_discover_checks()` walks `checks/` with `pkgutil`), so a new public module under `checks/` IS a new category — no registration:
 
 | Module | Category | # Checks |
 |---|---|---|
@@ -98,7 +100,8 @@ Business logic independent of I/O:
 | `structure.py` | structure | 7 |
 | `deps.py` | deps | 2 |
 | `changelog.py` | changelog | 2 |
-| `workspace.py` | workspace | 9 |
+| `workspace.py` | workspace | 10 |
+| `paper.py` | paper | 2 | Paper invariants, run only in the `PAPER` context: `check_paper_structure` (`paper/`, `experiments/`, `README.md`) and `check_plan_present` (`plan.md` opening with a `---` YAML front-matter block, parsed by the pure `_parse_front_matter` helper) |
 | `_workspace.py` | *(internal)* | Context detection: `detect_context()` resolves four `ProjectContext` shapes — `paper`, `workspace`, `member`, `standalone`. The paper branch is evaluated FIRST, keyed on an explicit `[tool.axm-lab]` pyproject section OR (for a satellite paper carrying no pyproject) the full structural triple `PLAN*.md` + `paper/` + `experiments/`, all three required, so a paper nested in a uv workspace stays a paper instead of inheriting the Python-packaging rulebook. Plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result |
 
 ### 4. Adapters (`adapters/`)
@@ -145,4 +148,5 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | Pure check functions | Each check is `(Path) → CheckResult`, easy to test and extend |
 | Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |
 | Context-keyed skip/redirect tables | `SKIP_BY_CONTEXT` / `REDIRECT_BY_CONTEXT` map every `ProjectContext` to a frozenset of check ids — a new context is a new row, not a new branch. `validate_context_tables()` runs at `CheckEngine` construction, so an id no discovered check declares raises `ValueError` up front instead of being a silently inert skip |
+| A paper is graded only on paper invariants | `SKIP_BY_CONTEXT[PAPER]` is *derived*, not hand-listed: `_known_check_ids() - _PAPER_CHECKS`. Every Python-packaging id (Trusted Publishing, CI matrix, Diataxis nav, mkdocs, dependabot, `py.typed`, lock file, classifiers, coverage, ruff/mypy config) is therefore skipped on a paper, and a packaging check added later is skipped the day it lands. Symmetrically the two `paper.*` ids sit in the standalone, workspace and member rows |
 | Parallel check execution | `ThreadPoolExecutor` — checks are I/O-bound and independent |

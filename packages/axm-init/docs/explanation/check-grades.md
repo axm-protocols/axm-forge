@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-init check` scores your project against the AXM gold standard — a set of 49 checks derived from the best practices embedded in the project template and CI configurations.
+`axm-init check` scores your project against the AXM gold standard — checks derived from the best practices embedded in the project template and CI configurations. A **paper** (an `[tool.axm-lab]` project) is not a Python distribution and is graded on its own invariants instead: see [paper](#paper-10-pts).
 
 ## Grade Scale
 
@@ -24,12 +24,14 @@ Score = round(earned points / weight of executed checks × 100)
 ```
 
 The denominator is **dynamic**. The check engine selects which checks run from the
-project context (standalone, workspace, member) — a `WORKSPACE` adds the 19 workspace
+project context (standalone, workspace, member, paper) — a `WORKSPACE` adds the 19 workspace
 points, while a member skips the checks listed in `SKIP_BY_CONTEXT[MEMBER]` (e.g. CI and the
-docs-group/`gen_ref_pages` checks, since those are owned by the monorepo root). The
-result is always normalized to 0–100 and mapped to a grade using the boundaries above.
+docs-group/`gen_ref_pages` checks, since those are owned by the monorepo root). A `PAPER`
+skips the **whole** Python-packaging rulebook and is scored on the two `paper.*` checks
+alone. The result is always normalized to 0–100 and mapped to a grade using the
+boundaries above.
 
-## The 8 Categories
+## The 9 Categories
 
 ### pyproject (29 pts)
 
@@ -141,8 +143,28 @@ Workspace-specific checks — only run when the project context is `WORKSPACE`:
 | `workspace.quality_workflow` | 2 | `.github/workflows/axm-quality.yml` with per-package audit |
 
 !!! note "Context-aware"
-    Workspace checks are automatically skipped for standalone projects and workspace members.
-    The check engine detects project context (standalone, member, workspace) from `[tool.uv.workspace]`.
+    Workspace checks are automatically skipped for standalone projects, workspace members and papers.
+    The check engine detects the project context (standalone, member, workspace, paper) from
+    `[tool.uv.workspace]` and the paper markers.
+
+### paper (10 pts)
+
+A paper — an `[tool.axm-lab]` project, or a satellite paper recognised by its
+`paper/` + `experiments/` + `PLAN*.md` triple — carries none of a package's
+invariants, so it is scored on its own:
+
+| Check | Weight | What It Verifies |
+|-------|--------|------------------|
+| `paper.paper_structure` | 5 | `paper/`, `experiments/` and `README.md` all present (a failure names every missing entry) |
+| `paper.plan_present` | 5 | `plan.md` at the paper root opens with a `---` delimited YAML front-matter block |
+
+!!! note "A paper skips the packaging rulebook"
+    The two `paper.*` checks run **only** when the detected context is `PAPER`; they are
+    skipped for standalone projects, workspace roots and members. Conversely a paper skips
+    every packaging check — `SKIP_BY_CONTEXT[PAPER]` is derived as *everything that is not a*
+    `paper.*` *check* — so its report carries no Trusted Publishing, CI-matrix, mkdocs,
+    dependabot, lock-file, classifiers, coverage or ruff/mypy finding, and its score stays
+    meaningful.
 
 ## Improving Your Score
 

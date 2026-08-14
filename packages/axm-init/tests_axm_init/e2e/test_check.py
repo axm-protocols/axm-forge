@@ -146,6 +146,42 @@ def _collect_contexts(node: object, acc: set[str]) -> None:
             _collect_contexts(value, acc)
 
 
+def _paper_project(root: Path) -> Path:
+    """Hand-build a paper: axm-lab marker, paper tree, plan with front-matter."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "paper-x"\nversion = "0.1.0"\n\n'
+        '[tool.axm-lab]\nslug = "paper-x"\n'
+    )
+    (root / "paper").mkdir()
+    (root / "experiments").mkdir()
+    (root / "README.md").write_text("# Paper X\n")
+    (root / "plan.md").write_text("---\ntitle: Paper X\nstatus: draft\n---\n\n# Plan\n")
+    return root
+
+
+def test_check_on_a_paper_reports_no_packaging_failure(tmp_path: Path) -> None:
+    """AC4: the CLI report on a paper holds no packaging failure.
+
+    Deliberately makes no claim about the exit code: a paper may still fail a
+    paper-specific check, and the exit code encodes overall grade.
+    """
+    project = _paper_project(tmp_path / "paper-x")
+
+    proc = _run_check(str(project), "--json")
+    payload = json.loads(proc.stdout)
+
+    failures = payload.get("failures", [])
+    names = {
+        entry["name"]
+        for entry in failures
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    }
+    packaging = sorted(name for name in names if not name.startswith("paper."))
+
+    assert packaging == []
+
+
 def test_check_json_report_exposes_the_paper_context(tmp_path: Path) -> None:
     """AC2: the CLI report on an axm-lab project exposes the paper context."""
     (tmp_path / "pyproject.toml").write_text(

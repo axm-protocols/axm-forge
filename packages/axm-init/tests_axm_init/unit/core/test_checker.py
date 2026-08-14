@@ -27,9 +27,10 @@ class TestCheckDiscovery:
 
     def test_check_discovery_finds_all(self) -> None:
         """Auto-discovery finds 50 checks across 8 categories."""
+        # AC6: the paper module adds two checks in a ninth category.
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 51
-        assert len(ALL_CHECKS) == 8
+        assert total == 53
+        assert len(ALL_CHECKS) == 9
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
         """Auto-discovery picks up the wheel-doc-shipping check (AXM-1715)."""
@@ -48,6 +49,7 @@ class TestCheckDiscovery:
             "deps",
             "changelog",
             "workspace",
+            "paper",
         }
         assert set(ALL_CHECKS.keys()) == expected
 
@@ -385,3 +387,23 @@ def test_validate_context_tables_accepts_shipped_tables() -> None:
     validate = _validate_fn()
 
     assert validate() is None
+
+
+# --- paper checks are context-scoped -------------------------------------
+
+PAPER_CHECK_IDS = frozenset({"paper.paper_structure", "paper.plan_present"})
+
+
+def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
+    """AC6: both paper ids sit in the standalone/workspace/member skip sets."""
+    skip_table = _skip_table()
+
+    for context in (
+        ProjectContext.STANDALONE,
+        ProjectContext.WORKSPACE,
+        ProjectContext.MEMBER,
+    ):
+        assert PAPER_CHECK_IDS <= set(skip_table[context])
+
+    assert PAPER_CHECK_IDS & set(skip_table[ProjectContext.PAPER]) == set()
+    assert PAPER_CHECK_IDS <= {get_check_name(fn) for fn in _all_check_fns()}

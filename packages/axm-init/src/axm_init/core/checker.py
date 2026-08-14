@@ -221,13 +221,22 @@ _MEMBER_REDIRECTS: frozenset[str] = frozenset(
     }
 )
 
+# A paper's own invariants: meaningless in every non-paper context.
+_PAPER_CHECKS: frozenset[str] = _category_check_ids("paper")
+
+# Every Python-packaging check id — i.e. everything that is NOT a paper
+# check. Derived from the registry instead of hand-listed, so a packaging
+# check added later is skipped on a paper the day it lands.
+_PACKAGING_CHECKS: frozenset[str] = _known_check_ids() - _PAPER_CHECKS
+
 # Checks skipped entirely, per detected project context.
 SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
-    ProjectContext.STANDALONE: _WORKSPACE_ONLY_CHECKS,
-    ProjectContext.WORKSPACE: _WORKSPACE_ROOT_SKIPS,
-    ProjectContext.MEMBER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS,
-    # A paper is not a Python distribution: it inherits the member skips.
-    ProjectContext.PAPER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS,
+    ProjectContext.STANDALONE: _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS,
+    ProjectContext.WORKSPACE: _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS,
+    ProjectContext.MEMBER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS | _PAPER_CHECKS,
+    # A paper is not a Python distribution: the whole packaging rulebook is
+    # out, only the paper's own invariants are graded.
+    ProjectContext.PAPER: _PACKAGING_CHECKS,
 }
 
 # Checks run against the workspace root instead, per detected context.
