@@ -7,12 +7,20 @@ from pathlib import Path
 import pytest
 
 from axm_init.checks._workspace import ProjectContext
+from axm_init.checks.docs import check_mkdocs_exists
 from axm_init.checks.experiment import (
     check_experiment_files,
     check_experiment_structure,
 )
+from axm_init.checks.pyproject import check_pyproject_exists
+from axm_init.checks.structure import (
+    check_py_typed,
+    check_src_layout,
+    check_tests_dir,
+)
 from axm_init.core import checker
 from axm_init.core.checker import CheckEngine, _discover_checks, get_check_name
+from axm_init.tools.scaffold import InitScaffoldTool
 
 pytestmark = pytest.mark.integration
 
@@ -155,3 +163,77 @@ def test_experiment_checks_never_run_outside_an_experiment(
     for project in projects:
         result = CheckEngine(project).run()
         assert ids.isdisjoint({c.name for c in result.checks}), project
+
+
+SCAFFOLD_IDENTITY = {
+    "org": "DemoOrg",
+    "author": "Demo Author",
+    "email": "demo@example.com",
+}
+
+
+def _packaging_check_ids() -> set[str]:
+    # Canonical ids of the five Python-packaging checks.
+    return {
+        name
+        for fn in (
+            check_pyproject_exists,
+            check_src_layout,
+            check_py_typed,
+            check_tests_dir,
+            check_mkdocs_exists,
+        )
+        if (name := get_check_name(fn)) is not None
+    }
+
+
+@pytest.fixture()
+def experiment_path(tmp_path: Path) -> Path:
+    # A real experiment folder, scaffolded inside a real paper on disk.
+    paper = tmp_path / "demo-paper"
+    paper.mkdir()
+    tool = InitScaffoldTool()
+    bootstrap = tool.execute(
+        path=str(paper),
+        kind="paper",
+        name="demo-paper",
+        **SCAFFOLD_IDENTITY,
+    )
+    assert bootstrap.success, bootstrap.error
+    made = tool.execute(
+        path=str(paper),
+        kind="experiment",
+        name="baseline",
+        **SCAFFOLD_IDENTITY,
+    )
+    assert made.success, made.error
+    assert isinstance(made.data, dict)
+    return Path(str(made.data["path"]))
+
+
+def test_packaging_checks_never_fail_for_an_experiment(
+    experiment_path: Path,
+) -> None:
+    # AC2: on an experiment the packaging checks are skipped, never failed.
+    engine = CheckEngine(experiment_path)
+    assert engine.context == ProjectContext.EXPERIMENT
+
+    result = engine.run()
+    packaging = _packaging_check_ids()
+
+    assert packaging.isdisjoint({f.name for f in result.failures})
+    for check in result.checks:
+        if check.name in packaging:
+            assert check.passed, check.message
+
+
+def test_experiment_form_checks_run_and_pass(experiment_path: Path) -> None:
+    # AC3: the two form checks execute and pass on an experiment folder,
+    # while the packaging rulebook does not run at all.
+    result = CheckEngine(experiment_path).run()
+    executed = {check.name: check for check in result.checks}
+    form_ids = _experiment_check_ids()
+
+    assert form_ids <= set(executed)
+    assert all(executed[name].passed for name in form_ids), result.failures
+    assert _packaging_check_ids().isdisjoint(executed)

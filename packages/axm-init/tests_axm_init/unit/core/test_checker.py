@@ -9,10 +9,22 @@ from pathlib import Path
 import pytest
 
 from axm_init.checks._workspace import ProjectContext
+from axm_init.checks.docs import check_mkdocs_exists
+from axm_init.checks.experiment import (
+    check_experiment_files,
+    check_experiment_structure,
+)
+from axm_init.checks.pyproject import check_pyproject_exists
+from axm_init.checks.structure import (
+    check_py_typed,
+    check_src_layout,
+    check_tests_dir,
+)
 from axm_init.core import checker
 from axm_init.core.checker import (
     ALL_CHECKS,
     CheckEngine,
+    _known_check_ids,
     format_agent,
     format_json,
     format_report,
@@ -411,14 +423,51 @@ def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
     assert PAPER_CHECK_IDS <= {get_check_name(fn) for fn in _all_check_fns()}
 
 
-# --- experiment context placeholder --------------------------------------
+# --- experiment context: the packaging rulebook is switched off ----------
+#
+# The experiment entry of the context table is no longer an empty
+# placeholder: it must carry the Python-packaging check ids so init_check
+# stops reproaching pyproject.toml / src/ / py.typed / a tests directory /
+# mkdocs.yml to a folder that holds a manifest, while sparing the two
+# experiment FORM checks so those actually run.
 
 
-def test_skip_by_context_keys_the_experiment_member_as_empty_placeholder() -> None:
-    """AC5: the EXPERIMENT key exists, holds no id, and validation stays green."""
-    skip_table = _skip_table()
-    experiment = ProjectContext.EXPERIMENT
+def _experiment_form_check_ids() -> set[str]:
+    """Canonical ids of the two experiment form checks."""
+    return {
+        name
+        for fn in (check_experiment_structure, check_experiment_files)
+        if (name := get_check_name(fn)) is not None
+    }
 
-    assert experiment in skip_table
-    assert set(skip_table[experiment]) == set()
+
+def _packaging_check_ids() -> set[str]:
+    """Canonical ids of the five Python-packaging checks."""
+    return {
+        name
+        for fn in (
+            check_pyproject_exists,
+            check_src_layout,
+            check_py_typed,
+            check_tests_dir,
+            check_mkdocs_exists,
+        )
+        if (name := get_check_name(fn)) is not None
+    }
+
+
+def test_experiment_skip_entry_is_non_empty_and_only_known_ids() -> None:
+    """AC1: the EXPERIMENT entry holds ids, all declared by the registry."""
+    entry = set(_skip_table()[ProjectContext.EXPERIMENT])
+
+    assert entry, "SKIP_BY_CONTEXT[EXPERIMENT] must switch off the packaging rules"
+    assert entry <= _known_check_ids()
     assert _validate_fn()() is None
+
+
+def test_experiment_skip_entry_spares_the_two_form_checks() -> None:
+    """AC3: the packaging ids are skipped, the form check ids never are."""
+    entry = set(_skip_table()[ProjectContext.EXPERIMENT])
+
+    assert _packaging_check_ids() <= entry
+    assert _experiment_form_check_ids().isdisjoint(entry)

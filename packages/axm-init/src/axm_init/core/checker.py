@@ -252,9 +252,14 @@ SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     # form checks belong to the experiment folders nested under it, not to
     # the paper root.
     ProjectContext.PAPER: _PACKAGING_CHECKS | _EXPERIMENT_CHECKS,
-    # Placeholder row: the experiment context is detected but routes no skip
-    # yet — the skip content is the routing ticket's deliverable.
-    ProjectContext.EXPERIMENT: frozenset(),
+    # An experiment folder is not a Python distribution either: it holds a
+    # manifest, not a pyproject.toml / src/ / py.typed / test pyramid /
+    # mkdocs.yml. The whole packaging rulebook is out, and so are the paper
+    # invariants (they belong to the paper root above it) — only the two
+    # experiment FORM checks are graded. Both operands come from the
+    # registry-derived sets, so a check added or renamed later is routed (or
+    # rejected by ``validate_context_tables``) instead of drifting.
+    ProjectContext.EXPERIMENT: _PACKAGING_CHECKS | _PAPER_CHECKS,
 }
 
 # Checks run against the workspace root instead, per detected context.
@@ -264,7 +269,8 @@ REDIRECT_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     ProjectContext.MEMBER: _MEMBER_REDIRECTS,
     # Like a member, a paper delegates CI/tooling to its workspace root.
     ProjectContext.PAPER: _MEMBER_REDIRECTS,
-    # Placeholder row, same rationale as the skip table above.
+    # Nothing to redirect: every redirectable id is a packaging check, and
+    # the experiment context skips the packaging rulebook outright.
     ProjectContext.EXPERIMENT: frozenset(),
 }
 
