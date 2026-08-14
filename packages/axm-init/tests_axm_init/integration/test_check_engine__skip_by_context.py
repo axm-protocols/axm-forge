@@ -7,6 +7,10 @@ from pathlib import Path
 import pytest
 
 from axm_init.checks._workspace import ProjectContext
+from axm_init.checks.experiment import (
+    check_experiment_files,
+    check_experiment_structure,
+)
 from axm_init.core import checker
 from axm_init.core.checker import CheckEngine, _discover_checks, get_check_name
 
@@ -77,3 +81,77 @@ def test_module_source_drops_the_legacy_constants() -> None:
 
     for legacy in ("SKIP_FOR_WORKSPACE", "SKIP_FOR_MEMBER", "REDIRECT_FOR_MEMBER"):
         assert legacy not in source, f"{legacy} still defined in {checker.__file__}"
+
+
+def _experiment_check_ids() -> set[str]:
+    # Canonical ids of the two experiment form checks.
+    ids: set[str] = set()
+    for fn in (check_experiment_structure, check_experiment_files):
+        name = get_check_name(fn)
+        assert name is not None
+        ids.add(name)
+    return ids
+
+
+def _make_standalone(tmp_path: Path) -> Path:
+    # A bare standalone package on disk.
+    solo = tmp_path / "solo"
+    solo.mkdir()
+    (solo / "pyproject.toml").write_text('[project]\nname = "solo"\n')
+    return solo
+
+
+def _make_workspace_root(tmp_path: Path) -> Path:
+    # A bare uv workspace root on disk.
+    root = tmp_path / "wsroot"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "wsroot"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+    )
+    return root
+
+
+def _make_paper(tmp_path: Path) -> Path:
+    # A paper folder on disk (no experiment manifest at its root).
+    paper = tmp_path / "paper_proj"
+    (paper / "paper").mkdir(parents=True)
+    (paper / "experiments").mkdir()
+    (paper / "README.md").write_text("# paper\n")
+    (paper / "PIPELINE.md").write_text("# pipeline\n")
+    (paper / "PLAN.md").write_text("---\ntitle: demo\n---\n\n# plan\n")
+    return paper
+
+
+def test_experiment_checks_are_skipped_for_every_non_experiment_context() -> None:
+    # AC3: both experiment ids sit in the skip entry of every other context.
+    table = _skip_table()
+    ids = _experiment_check_ids()
+
+    for context in ProjectContext:
+        if context is ProjectContext.EXPERIMENT:
+            continue
+        assert ids <= set(table[context]), context
+
+    assert ids.isdisjoint(table[ProjectContext.EXPERIMENT])
+
+
+def test_experiment_checks_never_run_outside_an_experiment(
+    tmp_path: Path,
+    member_path: Path,
+) -> None:
+    # AC3: standalone, workspace, member and paper never see them at all.
+    ids = _experiment_check_ids()
+    discovered = {
+        get_check_name(fn) for fns in _discover_checks().values() for fn in fns
+    }
+    assert ids <= discovered
+
+    projects = (
+        _make_standalone(tmp_path),
+        _make_workspace_root(tmp_path),
+        member_path,
+        _make_paper(tmp_path),
+    )
+    for project in projects:
+        result = CheckEngine(project).run()
+        assert ids.isdisjoint({c.name for c in result.checks}), project

@@ -27,10 +27,11 @@ class TestCheckDiscovery:
 
     def test_check_discovery_finds_all(self) -> None:
         """Auto-discovery finds 50 checks across 8 categories."""
-        # AC6: the paper module adds two checks in a ninth category.
+        # AC6: the paper module adds two checks in a ninth category, and the
+        # experiment module two more in a tenth one.
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 53
-        assert len(ALL_CHECKS) == 9
+        assert total == 55
+        assert len(ALL_CHECKS) == 10
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
         """Auto-discovery picks up the wheel-doc-shipping check (AXM-1715)."""
@@ -50,6 +51,7 @@ class TestCheckDiscovery:
             "changelog",
             "workspace",
             "paper",
+            "experiment",
         }
         assert set(ALL_CHECKS.keys()) == expected
 

@@ -24,14 +24,14 @@ Score = round(earned points / weight of executed checks × 100)
 ```
 
 The denominator is **dynamic**. The check engine selects which checks run from the
-project context (standalone, workspace, member, paper) — a `WORKSPACE` adds the 19 workspace
+project context (standalone, workspace, member, paper, experiment) — a `WORKSPACE` adds the 19 workspace
 points, while a member skips the checks listed in `SKIP_BY_CONTEXT[MEMBER]` (e.g. CI and the
 docs-group/`gen_ref_pages` checks, since those are owned by the monorepo root). A `PAPER`
 skips the **whole** Python-packaging rulebook and is scored on the two `paper.*` checks
 alone. The result is always normalized to 0–100 and mapped to a grade using the
 boundaries above.
 
-## The 9 Categories
+## The 10 Categories
 
 ### pyproject (29 pts)
 
@@ -165,6 +165,24 @@ invariants, so it is scored on its own:
     `paper.*` *check* — so its report carries no Trusted Publishing, CI-matrix, mkdocs,
     dependabot, lock-file, classifiers, coverage or ruff/mypy finding, and its score stays
     meaningful.
+
+### experiment (10 pts)
+
+An experiment folder — a directory whose root `manifest.yaml` declares both
+`contract_version` and `id` — is graded on the **form** its scaffold must carry:
+
+| Check | Weight | What It Verifies |
+|-------|--------|------------------|
+| `experiment.experiment_structure` | 5 | `inputs/`, `scripts/`, `outputs/`, `analysis/` and `figures/` all present (a failure names exactly the missing directories) |
+| `experiment.experiment_files` | 5 | `manifest.yaml` and `README.md` at the experiment root — existence only (a failure names exactly the missing file(s)) |
+
+!!! note "Form here, substance elsewhere"
+    Neither check reads the **content** of `manifest.yaml`: a freshly scaffolded
+    experiment whose manifest still holds `TODO` placeholders passes both. Manifest
+    validity, input hashing, DAG coherence, freeze anteriority and metrics are the job
+    of axm-lab's `experiment_check` — axm-init never duplicates them. Symmetrically the
+    two `experiment.*` ids are skipped for standalone projects, workspace roots, members
+    and papers, so a Python package is never reproached an experiment check.
 
 ## Improving Your Score
 

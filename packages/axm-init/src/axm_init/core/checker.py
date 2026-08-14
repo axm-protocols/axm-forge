@@ -224,19 +224,34 @@ _MEMBER_REDIRECTS: frozenset[str] = frozenset(
 # A paper's own invariants: meaningless in every non-paper context.
 _PAPER_CHECKS: frozenset[str] = _category_check_ids("paper")
 
-# Every Python-packaging check id — i.e. everything that is NOT a paper
-# check. Derived from the registry instead of hand-listed, so a packaging
-# check added later is skipped on a paper the day it lands.
-_PACKAGING_CHECKS: frozenset[str] = _known_check_ids() - _PAPER_CHECKS
+# An experiment folder's own form invariants: meaningless everywhere else,
+# so every NON-experiment context skips the whole ``experiment`` category.
+# Derived from the registry, never hand-listed.
+_EXPERIMENT_CHECKS: frozenset[str] = _category_check_ids("experiment")
+
+# Every Python-packaging check id — i.e. everything that is neither a paper
+# nor an experiment check. Derived from the registry instead of hand-listed,
+# so a packaging check added later is skipped on a paper the day it lands.
+_PACKAGING_CHECKS: frozenset[str] = (
+    _known_check_ids() - _PAPER_CHECKS - _EXPERIMENT_CHECKS
+)
 
 # Checks skipped entirely, per detected project context.
 SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
-    ProjectContext.STANDALONE: _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS,
-    ProjectContext.WORKSPACE: _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS,
-    ProjectContext.MEMBER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS | _PAPER_CHECKS,
+    ProjectContext.STANDALONE: (
+        _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+    ),
+    ProjectContext.WORKSPACE: (
+        _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+    ),
+    ProjectContext.MEMBER: (
+        _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+    ),
     # A paper is not a Python distribution: the whole packaging rulebook is
-    # out, only the paper's own invariants are graded.
-    ProjectContext.PAPER: _PACKAGING_CHECKS,
+    # out, only the paper's own invariants are graded — and an experiment's
+    # form checks belong to the experiment folders nested under it, not to
+    # the paper root.
+    ProjectContext.PAPER: _PACKAGING_CHECKS | _EXPERIMENT_CHECKS,
     # Placeholder row: the experiment context is detected but routes no skip
     # yet — the skip content is the routing ticket's deliverable.
     ProjectContext.EXPERIMENT: frozenset(),

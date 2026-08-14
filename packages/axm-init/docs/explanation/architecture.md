@@ -27,6 +27,7 @@ graph TD
         ChangelogChecks["changelog checks"]
         WorkspaceChecks["workspace checks"]
         PaperChecks["paper checks"]
+        ExperimentChecks["experiment checks"]
     end
 
     subgraph "Adapters"
@@ -55,6 +56,7 @@ graph TD
     CheckEngine --> ChangelogChecks
     CheckEngine --> WorkspaceChecks
     CheckEngine --> PaperChecks
+    CheckEngine --> ExperimentChecks
     Reserver --> PyPI
     Reserver --> Copier
     Templates --> Copier
@@ -88,7 +90,7 @@ Business logic independent of I/O:
 
 ### 3. Checks (`checks/`)
 
-Checks across 9 categories, each a pure function `(Path) → CheckResult`. The registry is discovered dynamically (`_discover_checks()` walks `checks/` with `pkgutil`), so a new public module under `checks/` IS a new category — no registration:
+Checks across 10 categories, each a pure function `(Path) → CheckResult`. The registry is discovered dynamically (`_discover_checks()` walks `checks/` with `pkgutil`), so a new public module under `checks/` IS a new category — no registration:
 
 | Module | Category | # Checks |
 |---|---|---|
@@ -102,6 +104,7 @@ Checks across 9 categories, each a pure function `(Path) → CheckResult`. The r
 | `changelog.py` | changelog | 2 |
 | `workspace.py` | workspace | 10 |
 | `paper.py` | paper | 2 | Paper invariants, run only in the `PAPER` context: `check_paper_structure` (`paper/`, `experiments/`, `README.md`, `PIPELINE.md` — the provenance document of the shared data cohort, rendered at the paper root by the `paper-submodule` template in both flavours) and `check_plan_present` (`PLAN.md` opening with a `---` YAML front-matter block, parsed by the pure `_parse_front_matter` helper) |
+| `experiment.py` | experiment | 2 | Experiment FORM invariants, run only in the `EXPERIMENT` context: `check_experiment_structure` (`inputs/`, `scripts/`, `outputs/`, `analysis/`, `figures/` all present) and `check_experiment_files` (`manifest.yaml` + `README.md` at the root, existence only). Both name EXACTLY the missing entries, computed by the pure filesystem-free `_missing_entries(required, present)` helper, and NEITHER opens the manifest — a freshly scaffolded experiment whose manifest still holds TODO placeholders passes. Substance (contract validity, input hashing, DAG coherence, freeze anteriority, metrics) belongs to axm-lab's `experiment_check` and is deliberately never duplicated here, so axm-init carries no dependency toward axm-lab |
 | `_workspace.py` | *(internal)* | Context detection: `detect_context()` resolves five `ProjectContext` shapes — `experiment`, `paper`, `workspace`, `member`, `standalone`. The experiment branch is evaluated FIRST, keyed on a root `manifest.yaml` whose parsed document is a mapping declaring BOTH `contract_version` and `id` (invalid YAML, a non-mapping document, a mapping missing either key, or an unreadable file all mean *not an experiment* — the predicate never raises), so an experiment nested inside a paper itself nested in a uv workspace stays an experiment. The marker logic is split in two, mirroring the paper shape: a pure predicate over the YAML text and a thin filesystem wrapper reading the root manifest. The paper branch is evaluated next, keyed on an explicit `[tool.axm-lab]` pyproject section OR (for a satellite paper carrying no pyproject) the full structural triple `PLAN*.md` + `paper/` + `experiments/`, all three required, so a paper nested in a uv workspace stays a paper instead of inheriting the Python-packaging rulebook. Plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result |
 
 ### 4. Adapters (`adapters/`)
@@ -147,6 +150,6 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Pure check functions | Each check is `(Path) → CheckResult`, easy to test and extend |
 | Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |
-| Context-keyed skip/redirect tables | `SKIP_BY_CONTEXT` / `REDIRECT_BY_CONTEXT` map every `ProjectContext` to a frozenset of check ids — a new context is a new row, not a new branch. `validate_context_tables()` runs at `CheckEngine` construction, so an id no discovered check declares raises `ValueError` up front instead of being a silently inert skip. The `experiment` context lands as an EMPTY placeholder row in BOTH tables: detection ships first and routes no skip yet, so the tables stay total over the enum and startup validation stays green |
-| A paper is graded only on paper invariants | `SKIP_BY_CONTEXT[PAPER]` is *derived*, not hand-listed: `_known_check_ids() - _PAPER_CHECKS`. Every Python-packaging id (Trusted Publishing, CI matrix, Diataxis nav, mkdocs, dependabot, `py.typed`, lock file, classifiers, coverage, ruff/mypy config) is therefore skipped on a paper, and a packaging check added later is skipped the day it lands. Symmetrically the two `paper.*` ids sit in the standalone, workspace and member rows |
+| Context-keyed skip/redirect tables | `SKIP_BY_CONTEXT` / `REDIRECT_BY_CONTEXT` map every `ProjectContext` to a frozenset of check ids — a new context is a new row, not a new branch. `validate_context_tables()` runs at `CheckEngine` construction, so an id no discovered check declares raises `ValueError` up front instead of being a silently inert skip. The `experiment` context keeps an EMPTY row in BOTH tables — what an experiment itself skips is the routing ticket's deliverable — while the two `experiment.*` ids are unioned into every OTHER context's skip row, derived from the registry via `_category_check_ids("experiment")` so startup validation stays green |
+| A paper is graded only on paper invariants | `SKIP_BY_CONTEXT[PAPER]` is *derived*, not hand-listed: `_known_check_ids() - _PAPER_CHECKS - _EXPERIMENT_CHECKS`. Every Python-packaging id (Trusted Publishing, CI matrix, Diataxis nav, mkdocs, dependabot, `py.typed`, lock file, classifiers, coverage, ruff/mypy config) is therefore skipped on a paper, and a packaging check added later is skipped the day it lands. Symmetrically the two `paper.*` ids sit in the standalone, workspace and member rows, and the two `experiment.*` ids sit in all four non-experiment rows (the paper row included) |
 | Parallel check execution | `ThreadPoolExecutor` — checks are I/O-bound and independent |
