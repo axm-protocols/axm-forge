@@ -36,9 +36,9 @@ research_question:
 
 experiment_kind:
   type: str
-  help: "Nature of the experiment (hypothesis-testing pre-registers a freeze)"
+  help: "Nature of the experiment (hypothesis_testing pre-registers a freeze)"
   choices:
-    - hypothesis-testing
+    - hypothesis_testing
     - descriptive
     - exploratory
   default: descriptive

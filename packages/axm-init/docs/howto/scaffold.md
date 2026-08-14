@@ -111,8 +111,8 @@ The `experiment` kind:
    anything**, so a mistyped path never leaves debris
 2. Names the directory itself, with the next free zero-padded index and the
    slugified `--name`: `experiments/01-baseline/`, then `experiments/02-…`
-3. Renders the experiment scaffold flat inside it — `experiment.yaml` (the
-   manifest, complete before any script runs), `inputs/`, `scripts/`,
+3. Renders the experiment scaffold flat inside it — `manifest.yaml` (the 1.0.0
+   experiment contract, complete before any script runs), `inputs/`, `scripts/`,
    `outputs/`, `analysis/`, `figures/`
 
 > **Note:** the index belongs to the tool, never to the template — re-running

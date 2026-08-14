@@ -14,18 +14,18 @@
 
 | Path | Role |
 |---|---|
-| `experiment.yaml` | The manifest — declared before any script runs |
+| `manifest.yaml` | The manifest — the 1.0.0 contract, declared before any script runs |
 | `inputs/SOURCES.md` | Where every input comes from, and under what licence |
 | `scripts/` | The code that turns inputs into outputs |
 | `outputs/` | The raw measurements produced by the scripts |
 | `analysis/metrics.json` | The machine-readable metrics extracted from outputs |
 | `analysis/ANALYSIS.md` | The prose reading of those metrics |
 | `figures/FIGURES.md` | The figures index — one entry per rendered figure |
-{%- if experiment_kind == 'hypothesis-testing' %}
+{%- if experiment_kind == 'hypothesis_testing' %}
 | `freeze/model_spec.json` | The pre-registered specification, frozen before measuring |
 {%- endif %}
 
-{% if experiment_kind == 'hypothesis-testing' -%}
+{% if experiment_kind == 'hypothesis_testing' -%}
 ## Pre-registration
 
 `freeze/model_spec.json` is filled and **committed before** the first
@@ -35,7 +35,7 @@ antecedence by git genealogy, so a git-ignored freeze would destroy the proof.
 ## No freeze
 
 A `{{ experiment_kind }}` experiment states no falsifiable hypothesis, so it
-carries no `freeze/` directory. Switch the kind to `hypothesis-testing` when a
+carries no `freeze/` directory. Switch the kind to `hypothesis_testing` when a
 prediction has to be pre-registered before measuring.
 {%- endif %}
 

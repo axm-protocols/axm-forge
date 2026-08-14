@@ -107,8 +107,10 @@ axm-init scaffold my-paper --kind experiment --name baseline \\
 
 The experiment directory is named by the CLI, never by the template: the next
 free zero-padded index followed by the slug (`experiments/01-baseline/`, then
-`experiments/02-…`). Its `experiment.yaml` manifest is created at scaffold time,
-before any script runs, and appears in the `files` list under `--json`.
+`experiments/02-…`). Its `manifest.yaml` — the 1.0.0 experiment contract, keyed
+`contract_version` / `id` / `title` / `question` / `type` / `repro_level` — is
+created at scaffold time, before any script runs, and appears in the `files`
+list under `--json`.
 
 ---
 
