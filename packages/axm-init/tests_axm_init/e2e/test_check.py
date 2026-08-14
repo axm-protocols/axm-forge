@@ -215,3 +215,32 @@ def test_check_json_report_names_the_canonical_plan_document(tmp_path: Path) -> 
     assert "paper.plan_present" in names
     assert "PLAN.md" in blob
     assert "plan.md" not in blob
+
+
+def test_check_json_report_names_the_missing_provenance_document(
+    tmp_path: Path,
+) -> None:
+    # AC1: on a paper carrying no provenance document, the CLI exits non-zero
+    # and its paper-structure failure entry names PIPELINE.md.
+    root = tmp_path / "paper-p"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "paper-p"\n\n[tool.axm-lab]\nslug = "paper-p"\n'
+    )
+    (root / "paper").mkdir()
+    (root / "experiments").mkdir()
+    (root / "README.md").write_text("# Paper P\n")
+    (root / "PLAN.md").write_text("---\ntitle: Paper P\nstatus: draft\n---\n\n# Plan\n")
+
+    proc = _run_check(str(root), "--json")
+    payload = json.loads(proc.stdout)
+    failures = payload.get("failures", [])
+    structure = [
+        entry
+        for entry in failures
+        if isinstance(entry, dict) and entry.get("name") == "paper.paper_structure"
+    ]
+
+    assert proc.returncode != 0
+    assert structure, payload
+    assert "PIPELINE.md" in json.dumps(structure)

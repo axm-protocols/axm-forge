@@ -94,8 +94,9 @@ axm-init scaffold my-paper --kind paper \\
   --description "Attention study"
 ```
 
-Renders `PLAN.md`, `README.md`, `paper/` (LaTeX source + bibliography) and the
-`experiments/` root the tool owns. `--description` becomes the paper title;
+Renders `PLAN.md`, `PIPELINE.md` (the data-provenance skeleton), `README.md`,
+`paper/` (LaTeX source + bibliography) and the `experiments/` root the tool
+owns. `--description` becomes the paper title;
 `--name` (or the directory name) is slugified into the paper slug.
 
 **Experiment example** (`--kind experiment`, run against a scaffolded paper):

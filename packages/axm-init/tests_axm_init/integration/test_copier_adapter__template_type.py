@@ -37,6 +37,7 @@ PACKAGE_GOLDEN: frozenset[str] = frozenset(
         ".gitignore",
         "README.md",
         "PLAN.md",
+        "PIPELINE.md",
         "pyproject.toml",
         "src/attention_study/__init__.py",
         "paper/main.tex",

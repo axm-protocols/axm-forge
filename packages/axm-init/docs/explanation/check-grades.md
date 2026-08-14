@@ -155,7 +155,7 @@ invariants, so it is scored on its own:
 
 | Check | Weight | What It Verifies |
 |-------|--------|------------------|
-| `paper.paper_structure` | 5 | `paper/`, `experiments/` and `README.md` all present (a failure names every missing entry) |
+| `paper.paper_structure` | 5 | `paper/`, `experiments/`, `README.md` and `PIPELINE.md` all present (a failure names every missing entry, in its message and in its fix) |
 | `paper.plan_present` | 5 | `PLAN.md` at the paper root opens with a `---` delimited YAML front-matter block |
 
 !!! note "A paper skips the packaging rulebook"

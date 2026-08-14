@@ -65,6 +65,7 @@ def check_paper_structure(project: Path) -> CheckResult:
         ("paper/", (project / "paper").is_dir()),
         ("experiments/", (project / "experiments").is_dir()),
         ("README.md", (project / "README.md").is_file()),
+        ("PIPELINE.md", (project / "PIPELINE.md").is_file()),
     )
     missing = [label for label, present in entries if not present]
     if missing:
@@ -73,16 +74,23 @@ def check_paper_structure(project: Path) -> CheckResult:
             category="paper",
             passed=False,
             weight=5,
-            message=f"Paper layout missing {len(missing)} entry(ies)",
+            message=(
+                f"Paper layout missing {len(missing)} entry(ies): {', '.join(missing)}"
+            ),
             details=[f"Missing: {', '.join(missing)}"],
-            fix="Create paper/, experiments/ and README.md at the paper root.",
+            fix=(
+                "Create paper/, experiments/, README.md and PIPELINE.md "
+                "at the paper root."
+            ),
         )
     return CheckResult(
         name="paper.paper_structure",
         category="paper",
         passed=True,
         weight=5,
-        message="Paper layout complete (paper/, experiments/, README.md)",
+        message=(
+            "Paper layout complete (paper/, experiments/, README.md, PIPELINE.md)"
+        ),
         details=[],
         fix="",
     )

@@ -47,7 +47,23 @@ def test_paper_structure_passes_on_a_complete_tree(tmp_path: Path) -> None:
     (tmp_path / "paper").mkdir()
     (tmp_path / "experiments").mkdir()
     (tmp_path / "README.md").write_text("# Paper\n")
+    (tmp_path / "PIPELINE.md").write_text("# Pipeline\n")
 
     result = check_paper_structure(tmp_path)
 
     assert result.passed is True
+
+
+def test_paper_structure_fails_and_names_the_provenance_document(
+    tmp_path: Path,
+) -> None:
+    # AC1: an otherwise complete paper root missing the provenance document
+    # fails, and both the message and the fix name PIPELINE.md.
+    (tmp_path / "paper").mkdir()
+    (tmp_path / "experiments").mkdir()
+    (tmp_path / "README.md").write_text("# Paper\n")
+
+    result = check_paper_structure(tmp_path)
+
+    assert result.passed is False
+    assert "PIPELINE.md" in f"{result.message} {result.fix}"

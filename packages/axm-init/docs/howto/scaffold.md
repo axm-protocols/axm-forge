@@ -92,6 +92,9 @@ axm-init scaffold my-paper --kind paper \\
 The `paper` kind renders the paper submodule:
 
 - `PLAN.md` — the paper plan
+- `PIPELINE.md` — where the data cohort comes from, what it covers and the
+  command that reproduces it (skeleton to fill in; `paper.paper_structure`
+  fails while it is absent)
 - `README.md`
 - `paper/` — `main.tex`, `references.bib` and its `Makefile`
 - `experiments/` — the root every experiment lands in
