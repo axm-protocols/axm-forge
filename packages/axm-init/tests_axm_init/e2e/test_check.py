@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import textwrap
 from pathlib import Path
@@ -81,3 +82,52 @@ def test_check_failing_applicable_category_exits_one(tmp_path: Path) -> None:
     assert "0/100" in combined
     assert "Grade F" in combined
     assert proc.returncode == 1
+
+
+def _member_skip_ids() -> frozenset[str]:
+    """The member entry of the skip table the check engine must expose."""
+    from axm_init.checks._workspace import ProjectContext
+    from axm_init.core import checker
+
+    table = getattr(checker, "SKIP_BY_CONTEXT", None)
+    assert table is not None, "axm_init.core.checker must expose SKIP_BY_CONTEXT"
+    return frozenset(table[ProjectContext.MEMBER])
+
+
+def _collect_names(node: object, acc: set[str]) -> None:
+    """Collect every name string reachable in a parsed JSON payload."""
+    if isinstance(node, dict):
+        name = node.get("name")
+        if isinstance(name, str):
+            acc.add(name)
+        for value in node.values():
+            _collect_names(value, acc)
+    elif isinstance(node, list):
+        for value in node:
+            _collect_names(value, acc)
+
+
+def test_check_json_report_omits_member_skipped_ids(tmp_path: Path) -> None:
+    """AC5: the CLI report on a member names no id of the member skip table."""
+    from axm_init.core.checker import ALL_CHECKS, get_check_name
+
+    skipped = _member_skip_ids()
+
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    (ws_root / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+    )
+    member = ws_root / "packages" / "foo"
+    member.mkdir(parents=True)
+    (member / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+
+    proc = _run_check(str(member), "--json")
+    payload = json.loads(proc.stdout)
+    names: set[str] = set()
+    _collect_names(payload, names)
+
+    discovered = {get_check_name(fn) for fns in ALL_CHECKS.values() for fn in fns}
+
+    assert names & skipped == set()
+    assert names & (discovered - skipped)

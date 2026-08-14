@@ -23,45 +23,21 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Checks to skip for workspace roots (they are package-level concerns).
-SKIP_FOR_WORKSPACE: frozenset[str] = frozenset(
-    {
-        "structure.src_layout",
-        "structure.py_typed",
-        "structure.tests_dir",
-        "pyproject.pyproject_urls",
-        "pyproject.pyproject_classifiers",
-        "pyproject.pyproject_mypy",
-        "pyproject.pyproject_ruff",
-        "deps.dev_deps",
-        "deps.docs_group",
-        "pyproject.pyproject_pytest",
-        "pyproject.pyproject_coverage",
-        "docs.diataxis_nav",
-    }
-)
-
-# CI/tooling checks that should be redirected to workspace root for members.
-REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
-    {
-        "ci.ci_workflow_exists",
-        "ci.trusted_publishing",
-        "ci.dependabot",
-        "ci.ci_lint_job",
-        "ci.ci_security_job",
-        "ci.ci_test_job",
-        "tooling.precommit_exists",
-        "tooling.precommit_ruff",
-        "tooling.precommit_mypy",
-        "tooling.precommit_conventional",
-        "tooling.precommit_basic",
-        "tooling.makefile",
-        "tooling.precommit_installed",
-        "structure.license_file",
-        "structure.python_version",
-        "structure.contributing",
-    }
-)
+__all__ = [
+    "ALL_CHECKS",
+    "REDIRECT_BY_CONTEXT",
+    "SKIP_BY_CONTEXT",
+    "VALID_CATEGORIES",
+    "CheckEngine",
+    "format_agent",
+    "format_agent_text",
+    "format_json",
+    "format_report",
+    "get_check_name",
+    "resolve_exit_code",
+    "stamp_canonical_name",
+    "validate_context_tables",
+]
 
 
 def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
@@ -94,7 +70,8 @@ def get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
 
     This is THE single source of truth for check naming. The convention is
     ``category.function_name_without_check_`` (the module name is the
-    category). The same string is used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*``
+    category). The same string is used by the context tables
+    ``SKIP_BY_CONTEXT`` / ``REDIRECT_BY_CONTEXT``
     (pre-run, on the function), by ``[tool.axm-init].exclude`` matching
     (post-run, on the result), and as the displayed ``CheckResult.name`` —
     so a name shown in the report can always be excluded by config.
@@ -162,7 +139,57 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 VALID_CATEGORIES = set(ALL_CHECKS.keys())
 
 
-SKIP_FOR_MEMBER: frozenset[str] = frozenset(
+# --- Context-keyed skip / redirect tables --------------------------------
+#
+# ONE table per decision, keyed by ProjectContext: a fourth context is a new
+# row, never a new branch in the engine. Every id is checked against the
+# discovered check ids by :func:`validate_context_tables`, called from the
+# engine constructor — a typo is a hard error, not a silently inert skip.
+
+
+def _known_check_ids() -> frozenset[str]:
+    """Return every canonical check id declared by the discovery registry."""
+    return frozenset(
+        name
+        for fns in ALL_CHECKS.values()
+        for fn in fns
+        if (name := get_check_name(fn)) is not None
+    )
+
+
+def _category_check_ids(category: str) -> frozenset[str]:
+    """Return the canonical check ids registered under *category*."""
+    return frozenset(
+        name
+        for fn in ALL_CHECKS.get(category, [])
+        if (name := get_check_name(fn)) is not None
+    )
+
+
+# Checks that only make sense on a workspace root: every other context skips
+# the whole ``workspace`` category.
+_WORKSPACE_ONLY_CHECKS: frozenset[str] = _category_check_ids("workspace")
+
+# Package-level concerns a workspace root does not carry.
+_WORKSPACE_ROOT_SKIPS: frozenset[str] = frozenset(
+    {
+        "structure.src_layout",
+        "structure.py_typed",
+        "structure.tests_dir",
+        "pyproject.pyproject_urls",
+        "pyproject.pyproject_classifiers",
+        "pyproject.pyproject_mypy",
+        "pyproject.pyproject_ruff",
+        "deps.dev_deps",
+        "deps.docs_group",
+        "pyproject.pyproject_pytest",
+        "pyproject.pyproject_coverage",
+        "docs.diataxis_nav",
+    }
+)
+
+# Docs/deps concerns owned by the workspace root, not by each of its members.
+_MEMBER_SKIPS: frozenset[str] = frozenset(
     {
         "docs.gen_ref_pages",
         "docs.plugins",
@@ -172,11 +199,69 @@ SKIP_FOR_MEMBER: frozenset[str] = frozenset(
     }
 )
 
+# CI/tooling checks a member delegates to its workspace root.
+_MEMBER_REDIRECTS: frozenset[str] = frozenset(
+    {
+        "ci.ci_workflow_exists",
+        "ci.trusted_publishing",
+        "ci.dependabot",
+        "ci.ci_lint_job",
+        "ci.ci_security_job",
+        "ci.ci_test_job",
+        "tooling.precommit_exists",
+        "tooling.precommit_ruff",
+        "tooling.precommit_mypy",
+        "tooling.precommit_conventional",
+        "tooling.precommit_basic",
+        "tooling.makefile",
+        "tooling.precommit_installed",
+        "structure.license_file",
+        "structure.python_version",
+        "structure.contributing",
+    }
+)
+
+# Checks skipped entirely, per detected project context.
+SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
+    ProjectContext.STANDALONE: _WORKSPACE_ONLY_CHECKS,
+    ProjectContext.WORKSPACE: _WORKSPACE_ROOT_SKIPS,
+    ProjectContext.MEMBER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS,
+}
+
+# Checks run against the workspace root instead, per detected context.
+REDIRECT_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
+    ProjectContext.STANDALONE: frozenset(),
+    ProjectContext.WORKSPACE: frozenset(),
+    ProjectContext.MEMBER: _MEMBER_REDIRECTS,
+}
+
+
+def validate_context_tables() -> None:
+    """Check every context-table id against the discovered check registry.
+
+    Raises:
+        ValueError: if a table holds an id no registered check declares —
+            the message names every offending id.
+    """
+    known = _known_check_ids()
+    unknown = sorted(
+        check_id
+        for table in (SKIP_BY_CONTEXT, REDIRECT_BY_CONTEXT)
+        for ids in table.values()
+        for check_id in ids
+        if check_id not in known
+    )
+    if unknown:
+        listed = ", ".join(repr(check_id) for check_id in unknown)
+        msg = f"Unknown check id(s) in the context tables: {listed}"
+        raise ValueError(msg)
+
 
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
     def __init__(self, project_path: Path, *, category: str | None = None) -> None:
+        validate_context_tables()
         self.project_path = project_path.resolve()
         self.category = category
         self.context = detect_context(self.project_path)
@@ -186,22 +271,14 @@ class CheckEngine:
         """Check if a check name matches any exclusion prefix."""
         return any(check_name.startswith(prefix) for prefix in exclusions)
 
-    def _should_skip(self, check_name: str | None, category: str) -> bool:
+    def _should_skip(self, check_name: str | None) -> bool:
         """Return True if the check should be skipped for context reasons."""
-        if category == "workspace" and self.context != ProjectContext.WORKSPACE:
-            return True
-        if (
-            self.context == ProjectContext.WORKSPACE
-            and check_name in SKIP_FOR_WORKSPACE
-        ):
-            return True
-        return self.context == ProjectContext.MEMBER and check_name in SKIP_FOR_MEMBER
+        return check_name in SKIP_BY_CONTEXT.get(self.context, frozenset())
 
     def _should_redirect(self, check_name: str | None) -> bool:
         """Return True if the check should be redirected to workspace root."""
         return (
-            self.context == ProjectContext.MEMBER
-            and check_name in REDIRECT_FOR_MEMBER
+            check_name in REDIRECT_BY_CONTEXT.get(self.context, frozenset())
             and self.workspace_root is not None
         )
 
@@ -213,7 +290,7 @@ class CheckEngine:
 
         Skip and redirect decisions key off the canonical
         ``category.fn_name`` name (:func:`get_check_name`, the same
-        convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*``). Exclusions
+        convention used by the context tables). Exclusions
         are NOT handled here: they match against ``CheckResult.name`` after
         the check runs — but that name is now re-stamped with the SAME
         canonical value (see :func:`stamp_canonical_name`), so excluding by
@@ -221,10 +298,10 @@ class CheckEngine:
         """
         all_fns: list[Callable[[Path], CheckResult]] = []
 
-        for _category, fns in checks_to_run.items():
+        for fns in checks_to_run.values():
             for fn in fns:
                 check_name = get_check_name(fn)
-                if self._should_skip(check_name, _category):
+                if self._should_skip(check_name):
                     continue
                 if self._should_redirect(check_name):
                     all_fns.append(_redirect_to_root(fn, self.workspace_root))  # type: ignore[arg-type]
@@ -242,7 +319,7 @@ class CheckEngine:
 
         Exclusion matching keys off ``CheckResult.name`` — which ``run`` has
         already re-stamped to the canonical :func:`get_check_name` form, the
-        same convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*`` and shown
+        same convention used by the context tables and shown
         in the report. Excluding by the displayed name therefore actually
         skips the check. Excluded checks become auto-pass results carrying
         that same canonical name.

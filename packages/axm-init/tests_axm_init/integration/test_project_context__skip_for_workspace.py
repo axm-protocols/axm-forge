@@ -3,7 +3,17 @@
 from pathlib import Path
 
 from axm_init.checks._workspace import ProjectContext
+from axm_init.core import checker
 from axm_init.core.checker import CheckEngine
+
+
+def _skip_table() -> dict[ProjectContext, frozenset[str]]:
+    """The context-keyed skip table the check engine must expose (AC1)."""
+    table: dict[ProjectContext, frozenset[str]] | None = getattr(
+        checker, "SKIP_BY_CONTEXT", None
+    )
+    assert table is not None, "axm_init.core.checker must expose SKIP_BY_CONTEXT"
+    return table
 
 
 class TestEngineWorkspace:
@@ -24,9 +34,7 @@ class TestEngineWorkspace:
 
         result = engine.run()
         check_names = {c.name for c in result.checks}
-        from axm_init.core.checker import SKIP_FOR_WORKSPACE
-
-        for skip_name in SKIP_FOR_WORKSPACE:
+        for skip_name in _skip_table()[ProjectContext.WORKSPACE]:
             assert skip_name not in check_names, (
                 f"{skip_name} should be skipped for workspace"
             )

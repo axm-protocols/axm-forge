@@ -4,7 +4,18 @@ from pathlib import Path
 
 import pytest
 
+from axm_init.checks._workspace import ProjectContext
+from axm_init.core import checker
 from axm_init.core.checker import CheckEngine
+
+
+def _skip_table() -> dict[ProjectContext, frozenset[str]]:
+    """The context-keyed skip table the check engine must expose (AC1)."""
+    table: dict[ProjectContext, frozenset[str]] | None = getattr(
+        checker, "SKIP_BY_CONTEXT", None
+    )
+    assert table is not None, "axm_init.core.checker must expose SKIP_BY_CONTEXT"
+    return table
 
 
 @pytest.fixture()
@@ -23,17 +34,15 @@ def member_path(tmp_path: Path) -> Path:
 
 def test_member_skip_does_not_skip_unrelated_check(member_path: Path) -> None:
     """Docs-category checks not in SKIP_FOR_MEMBER still run for member."""
-    from axm_init.core.checker import SKIP_FOR_MEMBER
+    skipped = _skip_table()[ProjectContext.MEMBER]
 
     engine = CheckEngine(member_path)
     result = engine.run()
     docs_checks = {
-        c.name
-        for c in result.checks
-        if c.category == "docs" and c.name not in SKIP_FOR_MEMBER
+        c.name for c in result.checks if c.category == "docs" and c.name not in skipped
     }
     assert docs_checks, (
-        "member should still run at least one docs check not in SKIP_FOR_MEMBER"
+        "member should still run at least one docs check not in the skip table"
     )
 
 
@@ -41,7 +50,7 @@ def test_workspace_root_unchanged(
     gold_project__from_check_engine_run_and_format: Path,
 ) -> None:
     """Workspace root keeps diataxis_nav skip; other SKIP_FOR_MEMBER run."""
-    from axm_init.core.checker import SKIP_FOR_MEMBER, SKIP_FOR_WORKSPACE
+    skip_table = _skip_table()
 
     pyproject = gold_project__from_check_engine_run_and_format / "pyproject.toml"
     content = pyproject.read_text()
@@ -52,5 +61,7 @@ def test_workspace_root_unchanged(
     result = engine.run()
     check_names = {c.name for c in result.checks}
     assert "docs.diataxis_nav" not in check_names
-    for name in SKIP_FOR_MEMBER - SKIP_FOR_WORKSPACE - {"docs.diataxis_nav"}:
+    member_ids = skip_table[ProjectContext.MEMBER]
+    workspace_ids = skip_table[ProjectContext.WORKSPACE]
+    for name in member_ids - workspace_ids - {"docs.diataxis_nav"}:
         assert name in check_names, f"workspace root must still run {name}"

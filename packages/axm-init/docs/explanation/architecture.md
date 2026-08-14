@@ -80,7 +80,7 @@ Business logic independent of I/O:
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output. Every result is re-stamped with the *canonical* check name — `get_check_name()`'s `category.function_name_without_check_` form — so context skips (`SKIP_FOR_*`), member redirects (`REDIRECT_FOR_*`), `[tool.axm-init].exclude` matching, and the displayed name all key off one string |
+| `checker.py` | `CheckEngine`, `SKIP_BY_CONTEXT`, `REDIRECT_BY_CONTEXT`, `validate_context_tables()`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output. Every result is re-stamped with the *canonical* check name — `get_check_name()`'s `category.function_name_without_check_` form — so context skips (`SKIP_BY_CONTEXT`), member redirects (`REDIRECT_BY_CONTEXT`), `[tool.axm-init].exclude` matching, and the displayed name all key off one string |
 | `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace/member), and resolution |
 | `reserver.py` | `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow (the `ReserveResult` model lives in `models/results.py`) |
 
@@ -144,4 +144,5 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Pure check functions | Each check is `(Path) → CheckResult`, easy to test and extend |
 | Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |
+| Context-keyed skip/redirect tables | `SKIP_BY_CONTEXT` / `REDIRECT_BY_CONTEXT` map every `ProjectContext` to a frozenset of check ids — a new context is a new row, not a new branch. `validate_context_tables()` runs at `CheckEngine` construction, so an id no discovered check declares raises `ValueError` up front instead of being a silently inert skip |
 | Parallel check execution | `ThreadPoolExecutor` — checks are I/O-bound and independent |

@@ -25,7 +25,7 @@ Score = round(earned points / weight of executed checks × 100)
 
 The denominator is **dynamic**. The check engine selects which checks run from the
 project context (standalone, workspace, member) — a `WORKSPACE` adds the 19 workspace
-points, while a member skips the checks listed in `SKIP_FOR_MEMBER` (e.g. CI and the
+points, while a member skips the checks listed in `SKIP_BY_CONTEXT[MEMBER]` (e.g. CI and the
 docs-group/`gen_ref_pages` checks, since those are owned by the monorepo root). The
 result is always normalized to 0–100 and mapped to a grade using the boundaries above.
 

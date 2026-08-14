@@ -6,11 +6,12 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
+from axm_init.checks._workspace import ProjectContext
+from axm_init.core import checker
 from axm_init.core.checker import (
     ALL_CHECKS,
-    REDIRECT_FOR_MEMBER,
-    SKIP_FOR_MEMBER,
-    SKIP_FOR_WORKSPACE,
     CheckEngine,
     format_agent,
     format_json,
@@ -113,9 +114,9 @@ def test_all_checks_no_coverage_upload():
 
 def test_redirect_for_member_no_coverage_upload():
     """REDIRECT_FOR_MEMBER must not contain ci.ci_coverage_upload after removal."""
-    from axm_init.core.checker import REDIRECT_FOR_MEMBER
+    member_redirects = _redirect_table()[ProjectContext.MEMBER]
 
-    assert "ci.ci_coverage_upload" not in REDIRECT_FOR_MEMBER
+    assert "ci.ci_coverage_upload" not in member_redirects
 
 
 def test_all_checks_registry_populated() -> None:
@@ -242,7 +243,8 @@ def test_skip_redirect_sets_unchanged_after_unification() -> None:
     constant entry must equal ``get_check_name(fn)`` for some discovered fn.
     """
     canonical_names = {get_check_name(fn) for fn in _all_check_fns()}
-    for entry in SKIP_FOR_WORKSPACE | SKIP_FOR_MEMBER | REDIRECT_FOR_MEMBER:
+    tabled = set().union(*_skip_table().values(), *_redirect_table().values())
+    for entry in tabled:
         assert entry in canonical_names, (
             f"{entry!r} no longer resolves to a discovered check — "
             "a check was accidentally un-skipped/un-redirected"
@@ -296,3 +298,90 @@ def test_format_json_and_agent_null_score_grade_when_not_applicable(
     assert json_out["grade"] is None
     assert agent_out["score"] is None
     assert agent_out["grade"] is None
+
+
+# --- context-keyed skip / redirect tables --------------------------------
+
+
+def _context_table(name: str) -> dict[ProjectContext, frozenset[str]]:
+    """Return the context-keyed table *name* the check engine must expose."""
+    table: dict[ProjectContext, frozenset[str]] | None = getattr(checker, name, None)
+    assert table is not None, f"axm_init.core.checker must expose {name}"
+    return table
+
+
+def _skip_table() -> dict[ProjectContext, frozenset[str]]:
+    """The context-keyed skip table (AC1)."""
+    return _context_table("SKIP_BY_CONTEXT")
+
+
+def _redirect_table() -> dict[ProjectContext, frozenset[str]]:
+    """The context-keyed redirect table (AC2)."""
+    return _context_table("REDIRECT_BY_CONTEXT")
+
+
+def _canonical_ids() -> set[str | None]:
+    """Every canonical check id currently registered by discovery."""
+    return {get_check_name(fn) for fn in _all_check_fns()}
+
+
+def _validate_fn() -> Callable[[], object]:
+    """The table validator the check engine must expose (AC3)."""
+    validate: Callable[[], object] | None = getattr(
+        checker, "validate_context_tables", None
+    )
+    assert validate is not None, (
+        "axm_init.core.checker must expose validate_context_tables"
+    )
+    return validate
+
+
+def test_skip_by_context_holds_the_golden_id_sets() -> None:
+    """AC1: SKIP_BY_CONTEXT maps every context to a frozenset of real ids."""
+    skip_table = _skip_table()
+
+    assert set(skip_table) == set(ProjectContext)
+    workspace_ids = skip_table[ProjectContext.WORKSPACE]
+    member_ids = skip_table[ProjectContext.MEMBER]
+    assert isinstance(workspace_ids, frozenset)
+    assert isinstance(member_ids, frozenset)
+    assert "docs.diataxis_nav" in workspace_ids
+    assert "docs.diataxis_nav" in member_ids
+    assert set(workspace_ids) <= _canonical_ids()
+    assert set(member_ids) <= _canonical_ids()
+
+
+def test_redirect_by_context_holds_the_member_ids() -> None:
+    """AC2: REDIRECT_BY_CONTEXT redirects only for the member context."""
+    redirect_table = _redirect_table()
+
+    assert set(redirect_table) == set(ProjectContext)
+    member_ids = redirect_table[ProjectContext.MEMBER]
+    assert isinstance(member_ids, frozenset)
+    assert member_ids
+    assert set(member_ids) <= _canonical_ids()
+    assert "ci.ci_coverage_upload" not in member_ids
+    assert redirect_table[ProjectContext.STANDALONE] == frozenset()
+
+
+def test_validate_context_tables_rejects_unregistered_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: an id no check declares raises ValueError naming that id."""
+    validate = _validate_fn()
+    bogus = "docs.no_such_check_id"
+    table: dict[ProjectContext, frozenset[str]] = dict.fromkeys(
+        ProjectContext, frozenset()
+    )
+    table[ProjectContext.MEMBER] = frozenset({bogus})
+    monkeypatch.setattr(checker, "SKIP_BY_CONTEXT", table, raising=False)
+
+    with pytest.raises(ValueError, match=bogus):
+        validate()
+
+
+def test_validate_context_tables_accepts_shipped_tables() -> None:
+    """AC3: the shipped tables validate and the call returns None."""
+    validate = _validate_fn()
+
+    assert validate() is None
