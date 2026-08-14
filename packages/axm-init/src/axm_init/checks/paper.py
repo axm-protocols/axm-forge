@@ -23,6 +23,12 @@ _FRONT_MATTER_DELIMITER = "---"
 #: Plan document, relative to the paper root.
 _PLAN_FILENAME = "PLAN.md"
 
+#: Experiment registry, generated from the manifests — never hand-written.
+_INDEX_FILENAME = "INDEX.md"
+
+#: Marker naming an experiment folder inside ``experiments/``.
+_MANIFEST_FILENAME = "manifest.yaml"
+
 
 def _parse_front_matter(text: str) -> dict[str, str] | None:
     """Parse the YAML front-matter block of *text*, if it carries one.
@@ -52,8 +58,36 @@ def _parse_front_matter(text: str) -> dict[str, str] | None:
     return None
 
 
+def _holds_an_experiment(project: Path) -> bool:
+    """Return True when ``experiments/`` holds at least one experiment folder.
+
+    An experiment folder is one carrying a ``manifest.yaml`` — the same marker
+    the project-context detection uses, so both agree on what counts.
+
+    Args:
+        project: Paper root directory.
+
+    Returns:
+        ``True`` if at least one experiment folder is present.
+    """
+    experiments = project / "experiments"
+    if not experiments.is_dir():
+        return False
+    return any(
+        (folder / _MANIFEST_FILENAME).is_file()
+        for folder in experiments.iterdir()
+        if folder.is_dir()
+    )
+
+
 def check_paper_structure(project: Path) -> CheckResult:
-    """Check: the paper carries paper/, experiments/ and a README.
+    """Check: the paper carries the entries its topology requires.
+
+    Four entries are unconditional (``paper/``, ``experiments/``,
+    ``README.md``, ``PIPELINE.md``). ``INDEX.md`` is conditional: it is
+    *generated* from the experiment manifests, so a paper with no experiment
+    yet carries none legitimately — but once experiments exist, its absence
+    means the registry was never produced.
 
     Args:
         project: Paper root directory.
@@ -61,12 +95,14 @@ def check_paper_structure(project: Path) -> CheckResult:
     Returns:
         A failed ``CheckResult`` naming every missing entry, or a passed one.
     """
-    entries = (
+    entries = [
         ("paper/", (project / "paper").is_dir()),
         ("experiments/", (project / "experiments").is_dir()),
         ("README.md", (project / "README.md").is_file()),
         ("PIPELINE.md", (project / "PIPELINE.md").is_file()),
-    )
+    ]
+    if _holds_an_experiment(project):
+        entries.append(("INDEX.md", (project / _INDEX_FILENAME).is_file()))
     missing = [label for label, present in entries if not present]
     if missing:
         return CheckResult(
@@ -79,8 +115,13 @@ def check_paper_structure(project: Path) -> CheckResult:
             ),
             details=[f"Missing: {', '.join(missing)}"],
             fix=(
-                "Create paper/, experiments/, README.md and PIPELINE.md "
-                "at the paper root."
+                f"Generate {_INDEX_FILENAME} from the experiment manifests "
+                "(experiment_index)."
+                if missing == [_INDEX_FILENAME]
+                else (
+                    "Create paper/, experiments/, README.md and PIPELINE.md "
+                    "at the paper root."
+                )
             ),
         )
     return CheckResult(
@@ -88,9 +129,7 @@ def check_paper_structure(project: Path) -> CheckResult:
         category="paper",
         passed=True,
         weight=5,
-        message=(
-            "Paper layout complete (paper/, experiments/, README.md, PIPELINE.md)"
-        ),
+        message=(f"Paper layout complete ({', '.join(label for label, _ in entries)})"),
         details=[],
         fix="",
     )
