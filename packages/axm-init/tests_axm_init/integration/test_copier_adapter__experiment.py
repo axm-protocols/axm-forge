@@ -54,6 +54,10 @@ LEGACY_KEYS = frozenset(
     }
 )
 
+# Spellings retired by the manifest rename: neither the legacy answer name nor
+# the hyphenated value may survive in any shipped template entry name.
+LEGACY_TEMPLATE_SPELLINGS = ("experiment_kind", "hypothesis-testing")
+
 EXPERIMENT_TYPES = frozenset({"hypothesis_testing", "descriptive", "exploratory"})
 REPRO_LEVELS = frozenset({"exact", "tolerance", "attested"})
 
@@ -67,15 +71,17 @@ MINIMAL_ANSWERS: dict[str, str] = {
 }
 
 
-def _render(destination: Path) -> Path:
+def _render(destination: Path, extra: dict[str, str] | None = None) -> Path:
     """Render the experiment template with its defaults into *destination*."""
     source = Path(get_template_path(TemplateType.EXPERIMENT))
     destination.mkdir(parents=True, exist_ok=True)
+    answers = dict(MINIMAL_ANSWERS)
+    answers.update(extra or {})
     result = CopierAdapter().copy(
         CopierConfig(
             template_path=source,
             destination=destination,
-            data=dict(MINIMAL_ANSWERS),
+            data=answers,
             defaults=True,
             overwrite=True,
         )
@@ -124,3 +130,21 @@ def test_manifest_values_use_the_canonical_vocabularies(tmp_path: Path) -> None:
     assert document["contract_version"] == "1.0.0"
     assert document["type"] in EXPERIMENT_TYPES
     assert document["repro_level"] in REPRO_LEVELS
+
+
+def test_hypothesis_testing_render_creates_the_freeze_directory(tmp_path: Path) -> None:
+    """AC1: answering type=hypothesis_testing renders the freeze/ directory."""
+    root = _render(tmp_path / "render", {"type": "hypothesis_testing"})
+    assert (root / "freeze").is_dir(), _relative_files(root)
+
+
+def test_shipped_template_tree_has_no_legacy_answer_spelling() -> None:
+    """AC2: no entry name in the shipped template carries the legacy spelling."""
+    template_root = Path(get_template_path(TemplateType.EXPERIMENT))
+    assert template_root.is_dir(), str(template_root)
+    offenders = sorted(
+        entry.relative_to(template_root).as_posix()
+        for entry in template_root.rglob("*")
+        if any(spelling in entry.name for spelling in LEGACY_TEMPLATE_SPELLINGS)
+    )
+    assert offenders == []

@@ -34,7 +34,9 @@ research_question:
   type: str
   help: "The question this experiment answers, in one sentence"
 
-experiment_kind:
+# The answer is named ``type``: it is the very contract key the manifest
+# renders, so the Copier answer and the rendered key carry one single spelling.
+type:
   type: str
   help: "Nature of the experiment (hypothesis_testing pre-registers a freeze)"
   choices:

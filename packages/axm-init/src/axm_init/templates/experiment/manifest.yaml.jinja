@@ -9,9 +9,9 @@ contract_version: "1.0.0"
 id: "{{ experiment_id }}"
 title: "{{ experiment_title }}"
 question: "{{ research_question }}"
-type: "{{ experiment_kind }}"
+type: "{{ type }}"
 repro_level: "{{ reproduction_level }}"
-{%- if experiment_kind == 'hypothesis_testing' %}
+{%- if type == 'hypothesis_testing' %}
 falsifier: ""
 {%- endif %}
 inputs: []

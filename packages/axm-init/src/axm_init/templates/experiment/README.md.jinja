@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Identifier | `{{ experiment_id }}` |
-| Kind | `{{ experiment_kind }}` |
+| Kind | `{{ type }}` |
 | Reproduction level | `{{ reproduction_level }}` |
 
 ## Question
@@ -21,11 +21,11 @@
 | `analysis/metrics.json` | The machine-readable metrics extracted from outputs |
 | `analysis/ANALYSIS.md` | The prose reading of those metrics |
 | `figures/FIGURES.md` | The figures index — one entry per rendered figure |
-{%- if experiment_kind == 'hypothesis_testing' %}
+{%- if type == 'hypothesis_testing' %}
 | `freeze/model_spec.json` | The pre-registered specification, frozen before measuring |
 {%- endif %}
 
-{% if experiment_kind == 'hypothesis_testing' -%}
+{% if type == 'hypothesis_testing' -%}
 ## Pre-registration
 
 `freeze/model_spec.json` is filled and **committed before** the first
@@ -34,7 +34,7 @@ antecedence by git genealogy, so a git-ignored freeze would destroy the proof.
 {%- else -%}
 ## No freeze
 
-A `{{ experiment_kind }}` experiment states no falsifiable hypothesis, so it
+A `{{ type }}` experiment states no falsifiable hypothesis, so it
 carries no `freeze/` directory. Switch the kind to `hypothesis_testing` when a
 prediction has to be pre-registered before measuring.
 {%- endif %}
