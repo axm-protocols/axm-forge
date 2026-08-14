@@ -94,3 +94,16 @@ def test_workspace_mypy_hook_is_local_per_package() -> None:
     assert "uv run --package" in content
     assert "mypy" in content
     assert "pass_filenames: false" in content
+
+
+def test_experiment_copier_declares_the_exclusion_block() -> None:
+    """AC6: the experiment copier.yml re-declares the full exclusion block.
+
+    Copier resets ``_exclude`` to its defaults as soon as a template omits it,
+    which lets template-side caches leak into the render. The block copied
+    from python-project must therefore be re-declared verbatim here.
+    """
+    content = _read(TemplateType.EXPERIMENT, "copier.yml")
+    assert "_exclude:" in content
+    for noise in ("__pycache__", ".mypy_cache", ".ruff_cache", ".DS_Store"):
+        assert noise in content, f"exclusion block must cover {noise}"

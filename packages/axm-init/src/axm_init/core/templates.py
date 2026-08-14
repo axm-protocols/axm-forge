@@ -35,6 +35,7 @@ class TemplateType(StrEnum):
     WORKSPACE = "workspace"
     MEMBER = "member"
     PAPER = "paper"
+    EXPERIMENT = "experiment"
 
 
 _TEMPLATE_DIRS: dict[TemplateType, str] = {
@@ -42,6 +43,7 @@ _TEMPLATE_DIRS: dict[TemplateType, str] = {
     TemplateType.WORKSPACE: "uv-workspace",
     TemplateType.MEMBER: "workspace-member",
     TemplateType.PAPER: "paper-submodule",
+    TemplateType.EXPERIMENT: "experiment",
 }
 
 

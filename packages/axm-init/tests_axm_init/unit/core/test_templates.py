@@ -37,6 +37,18 @@ class TestPaperTemplateTypeUnit:
         assert "paper" in {member.value for member in TemplateType}
 
 
+class TestExperimentTemplateTypeUnit:
+    # The experiment template type is part of the enum surface.
+
+    def test_experiment_member_value(self) -> None:
+        # AC1: the enum exposes an EXPERIMENT member valued ``experiment``.
+        assert TemplateType.EXPERIMENT.value == "experiment"
+
+    def test_experiment_member_is_listed(self) -> None:
+        # AC1: EXPERIMENT is a first-class member of the template-type enum.
+        assert "experiment" in {member.value for member in TemplateType}
+
+
 # --- tests.* override relaxation tests ---
 
 

@@ -62,6 +62,17 @@ def test_paper_template_path_resolves_to_named_directory() -> None:
     assert config.read_text(encoding="utf-8").strip()
 
 
+@pytest.mark.integration
+def test_experiment_template_path_resolves_to_named_directory() -> None:
+    # AC1: EXPERIMENT resolves to a real ``experiment`` dir with copier.yml.
+    path = Path(get_template_path(TemplateType.EXPERIMENT))
+    assert path.name == "experiment"
+    assert path.is_dir()
+    config = path / "copier.yml"
+    assert config.is_file()
+    assert config.read_text(encoding="utf-8").strip()
+
+
 class TestWorkspaceTemplateStructure:
     """Verify workspace template includes all required files."""
 
