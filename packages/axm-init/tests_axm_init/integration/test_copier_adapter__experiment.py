@@ -148,3 +148,20 @@ def test_shipped_template_tree_has_no_legacy_answer_spelling() -> None:
         if any(spelling in entry.name for spelling in LEGACY_TEMPLATE_SPELLINGS)
     )
     assert offenders == []
+
+
+def test_render_writes_no_metrics_json_anywhere(tmp_path: Path) -> None:
+    """AC1: a rendered experiment holds no metrics.json in its whole tree."""
+    root = _render(tmp_path / "render")
+    offenders = sorted(
+        path.relative_to(root).as_posix() for path in root.rglob("metrics.json")
+    )
+    assert offenders == [], _relative_files(root)
+
+
+def test_render_keeps_the_analysis_directory_marker_only(tmp_path: Path) -> None:
+    """AC2: the analysis directory survives and holds the .gitkeep marker only."""
+    root = _render(tmp_path / "render")
+    analysis = root / "analysis"
+    assert analysis.is_dir(), _relative_files(root)
+    assert sorted(entry.name for entry in analysis.iterdir()) == [".gitkeep"]
