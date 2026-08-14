@@ -91,6 +91,55 @@ class TestDeleteOp:
         assert op.file == "old.py"
 
 
+class TestRewriteOp:
+    RW_FILE = "src/foo.py"
+    RW_CONTENT = "new body\n"
+    RW_DIGEST = "a" * 64
+
+    def test_accepts_complete_payload(self) -> None:
+        # AC1: a full payload round-trips its four declared fields.
+        from axm_edit.models.operations import RewriteOp
+
+        op = RewriteOp(
+            op="rewrite",
+            file=self.RW_FILE,
+            content=self.RW_CONTENT,
+            expected_checksum=self.RW_DIGEST,
+        )
+        assert op.model_dump() == {
+            "op": "rewrite",
+            "file": self.RW_FILE,
+            "content": self.RW_CONTENT,
+            "expected_checksum": self.RW_DIGEST,
+        }
+
+    def test_expected_checksum_is_mandatory(self) -> None:
+        # AC1: omitting expected_checksum is refused by the model.
+        from axm_edit.models.operations import RewriteOp
+
+        with pytest.raises(ValidationError) as excinfo:
+            RewriteOp(  # type: ignore[call-arg]
+                op="rewrite",
+                file=self.RW_FILE,
+                content=self.RW_CONTENT,
+            )
+        assert "expected_checksum" in str(excinfo.value)
+
+    def test_rejects_overwrite_escape_hatch(self) -> None:
+        # AC4: an unknown overwrite key is refused, by name.
+        from axm_edit.models.operations import RewriteOp
+
+        with pytest.raises(ValidationError) as excinfo:
+            RewriteOp(  # type: ignore[call-arg]
+                op="rewrite",
+                file=self.RW_FILE,
+                content=self.RW_CONTENT,
+                expected_checksum=self.RW_DIGEST,
+                overwrite=True,
+            )
+        assert "overwrite" in str(excinfo.value)
+
+
 class TestBatchResult:
     """Tests for the BatchResult model."""
 
