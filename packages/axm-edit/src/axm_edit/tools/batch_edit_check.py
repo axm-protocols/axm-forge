@@ -18,16 +18,23 @@ from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_edit.core.precheck_fs import parse_rewrite_op
 from axm_edit.core.preflight import (
     collect_preflight_diagnostics,
     partition_diagnostics,
 )
 from axm_edit.models.check import CheckDiagnostic
-from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp
+from axm_edit.models.operations import (
+    CreateOp,
+    DeleteOp,
+    Edit,
+    ReplaceOp,
+    RewriteOp,
+)
 
 __all__ = ["BatchEditCheckTool", "render_text"]
 
-type CheckOperation = ReplaceOp | CreateOp | DeleteOp
+type CheckOperation = ReplaceOp | CreateOp | DeleteOp | RewriteOp
 
 _EMPTY_RENDER = "batch_edit_check | ✓ | 0 diagnostic(s)"
 
@@ -128,8 +135,10 @@ def _parse_check_operations(
         raw_ops: Operations as authored, in batch order.
 
     Returns:
-        One :class:`ReplaceOp` / :class:`CreateOp` / :class:`DeleteOp` per
-        entry, in the same order.
+        One :class:`ReplaceOp` / :class:`CreateOp` / :class:`DeleteOp` /
+        :class:`RewriteOp` per entry, in the same order. The ``rewrite``
+        payload goes through the very parser the shared preflight core uses,
+        so both surfaces accept exactly the same batch.
 
     Raises:
         ValueError: When an entry carries an unknown ``op`` discriminator
@@ -144,6 +153,8 @@ def _parse_check_operations(
             parsed.append(CreateOp.model_validate(dict(raw)))
         elif op_type == "delete":
             parsed.append(DeleteOp.model_validate(dict(raw)))
+        elif op_type == "rewrite":
+            parsed.append(parse_rewrite_op(raw))
         else:
             msg = f"Unknown operation type: {op_type}"
             raise ValueError(msg)

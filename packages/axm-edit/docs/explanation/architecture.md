@@ -12,13 +12,14 @@ The core design choice is a **single `batch_edit` tool** that handles replace, c
 src/axm_edit/
 ├── __init__.py              # Package root
 ├── models/
-│   └── operations.py        # Pydantic models (Edit, ReplaceOp, CreateOp, DeleteOp, BatchResult)
+│   └── operations.py        # Pydantic models (Edit, ReplaceOp, CreateOp, DeleteOp, RewriteOp, BatchResult)
 ├── core/
 │   ├── engine.py            # Validate-then-apply batch engine
 │   ├── diagnostics.py       # Near-miss renderer (markers, Unicode naming, bounds)
-│   ├── precheck.py          # Pure in-memory rules (edit keys, anchor shape)
-│   ├── precheck_fs.py       # Filesystem-resolving rules (anchors on disk, create targets, line length)
+│   ├── precheck.py          # Pure in-memory rules (edit keys, anchor shape, rewrite payload keys)
+│   ├── precheck_fs.py       # Filesystem-resolving rules (anchors on disk, create targets, rewrite targets, line length)
 │   ├── preflight.py         # Shared read-only preflight: merges + partitions the rules
+│   ├── rewrite.py           # Pure rewrite-target predicate shared by the dry run and the apply path
 │   └── checkpoint.py        # Targeted per-path snapshot / rollback (no git)
 ├── services/
 │   ├── lint.py              # filter_ruff_lines — post-apply ruff diagnostic filtering
@@ -120,6 +121,33 @@ The **hinted** branch (an edit carrying a `line` hint whose anchor is not found 
 - **Payload** — every run exposes `data["preflight"]` = `{diagnostics, errors, warnings, blocking}`, each entry a serialised `CheckDiagnostic` (`op_index`, `file`, `severity`, `code`, `message`, `hint`). It is deliberately **nested**: `data["warnings"]` already carries the post-apply ruff messages, and the two channels must not be confused.
 - **Rendering** — blocking errors and warnings render the same way, `[severity] op#N file: CODE — message` plus a `hint:` line, so a refused batch and an applied-with-warnings batch read identically.
 
+### Rewrite operations
+
+The preflight core also classifies the checksum-guarded `rewrite` operation
+(`{op, file, content, checksum}`), and `batch_edit_check` parses it through the
+very same parser the core uses — so an agent is told a rewrite will be refused
+**before** it attempts it, in the exact words the apply path would use:
+
+- **Payload shape** — `core/precheck.py::check_rewrite_keys` reads the mapping
+  *as authored* (no path resolved, no file read) and blocks on
+  `rewrite_unknown_key` for any key outside `file`, `content` and `checksum`
+  (`overwrite` in particular is **not** an escape hatch), and on
+  `rewrite_checksum_required` when no digest is declared.
+- **On-disk target** — `core/precheck_fs.py::check_rewrite_targets` observes the
+  facts once (does it exist, is it a regular file, the sha256 of the bytes on
+  disk) and hands them to the shared predicate
+  `core/rewrite.py::classify_rewrite_target`. Its returned code **is** the
+  diagnostic code — `rewrite_target_missing`, `rewrite_target_not_regular`,
+  `rewrite_checksum_stale` — so the dry run and the apply path can never drift
+  on what a valid rewrite target is. The final path component is deliberately
+  **not** followed, so a symlinked target is reported as non-regular instead of
+  being mistaken for the regular file it points at.
+
+All four codes are blocking. They carry the same `CheckDiagnostic` shape as every
+other rule, so they ride the existing `merge_diagnostics` ordering and the
+existing `partition_diagnostics` verdict — no ordering, severity or verdict logic
+is duplicated for them.
+
 Wiring the preflight in does **not** relax the engine: `batch_apply`'s own validation, its anchor re-verification and its rollback stay exactly as they are — they still guard the window between the preflight verdict and the splice.
 
 ## Encoding & line endings
@@ -138,4 +166,5 @@ Wiring the preflight in does **not** relax the engine: `batch_apply`'s own valid
 | Preflight before checkpoint | A contract error (unknown edit key, absent anchor, `create` on an existing path) refuses the batch before any snapshot or write — the mutating path enforces the same rules as the dry-run tool |
 | `old` re-checked at apply time | Closes the validate→apply TOCTOU window; a drifted file aborts instead of a wrong-location splice |
 | Targeted path snapshot | Rollback restores only what the batch touched, never destroys unrelated work |
+| `rewrite` guarded by a checksum | The preflight classifies the target through the single shared predicate before anything is attempted: an absent target, a symlink/directory, or a digest that no longer matches the bytes on disk refuses the batch — a concurrent modification is detected instead of being silently clobbered, and there is no `overwrite` escape hatch |
 | `agent_hint` on tools | LLM-optimized description propagates to MCP — agents see what each tool does without parsing docstrings |

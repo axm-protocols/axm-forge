@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import cast
 
-from axm_edit.core.precheck import check_edit_keys
+from axm_edit.core.precheck import check_edit_keys, check_rewrite_keys
 from axm_edit.core.precheck_fs import run_fs_checks
 from axm_edit.models.check import CheckDiagnostic, PreflightReport
 from axm_edit.models.operations import Edit
@@ -35,6 +35,8 @@ _UNKNOWN_SEVERITY_BLOCKS = True
 """Fail-closed verdict for a severity token absent from the mapping."""
 
 _UNKNOWN_FILE = "<unknown>"
+
+_REWRITE_OP = "rewrite"
 
 
 def _sort_key(diagnostic: CheckDiagnostic) -> tuple[int, str, str]:
@@ -107,14 +109,26 @@ def _check_unknown_edit_keys(
     ]
 
 
+def _check_rewrite_keys(
+    raw_ops: Sequence[Mapping[str, object]],
+) -> list[CheckDiagnostic]:
+    """Run the rewrite payload-shape rule on the raw, pre-validation batch."""
+    return [
+        diagnostic
+        for index, raw_op in enumerate(raw_ops)
+        if raw_op.get("op") == _REWRITE_OP
+        for diagnostic in check_rewrite_keys(index, _op_file(raw_op), raw_op)
+    ]
+
+
 def collect_preflight_diagnostics(
     root: Path,
     raw_ops: Sequence[Mapping[str, object]],
 ) -> list[CheckDiagnostic]:
     """Collect every preflight diagnostic for a raw batch, without writing.
 
-    Merges the unknown-edit-key rule (which needs the payload *as authored*)
-    with the static and filesystem rules of
+    Merges the key rules that need the payload *as authored* (unknown edit
+    keys, rewrite payload shape) with the static and filesystem rules of
     :func:`~axm_edit.core.precheck_fs.run_fs_checks`.
 
     Args:
@@ -125,8 +139,13 @@ def collect_preflight_diagnostics(
         Every diagnostic, ordered by ``(op_index, rule family, message)``.
     """
     unknown_keys = _check_unknown_edit_keys(raw_ops)
+    rewrite_keys = _check_rewrite_keys(raw_ops)
     sanitised = [_sanitised_op(raw_op) for raw_op in raw_ops]
-    return merge_diagnostics(unknown_keys, run_fs_checks(root, sanitised))
+    return merge_diagnostics(
+        unknown_keys,
+        rewrite_keys,
+        run_fs_checks(root, sanitised),
+    )
 
 
 def _is_blocking(severity: str) -> bool:

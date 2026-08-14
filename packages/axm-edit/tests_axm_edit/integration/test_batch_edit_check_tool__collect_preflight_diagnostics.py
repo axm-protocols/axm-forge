@@ -7,11 +7,13 @@ private pipeline delegates to ``axm_edit.core.preflight``.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import cast
 
 import pytest
 
+from axm_edit.core.preflight import collect_preflight_diagnostics
 from axm_edit.tools.batch_edit_check import BatchEditCheckTool
 
 pytestmark = pytest.mark.integration
@@ -124,3 +126,46 @@ def test_payload_exposes_blocking_and_severity_counts(project: Path) -> None:
         "ANCHOR_NOT_FOUND",
         "LINE_LENGTH_DEFAULT_MISMATCH",
     ]
+
+
+def test_check_tool_and_preflight_agree_on_a_rewrite_batch(
+    project: Path,
+) -> None:
+    """AC4: both paths emit the identical ordered (code, file) sequence.
+
+    One stale rewrite (digest taken before the file was mutated) and one
+    valid rewrite in the same batch: the tool payload must repeat, in the
+    same order, exactly what ``collect_preflight_diagnostics`` returns.
+    """
+    stale_target = project / "pkg" / "mod.py"
+    stale_digest = hashlib.sha256(stale_target.read_bytes()).hexdigest()
+    stale_target.write_text("value = 99\n", encoding="utf-8")
+    fresh_target = project / "pkg" / "legacy.py"
+    fresh_digest = hashlib.sha256(fresh_target.read_bytes()).hexdigest()
+    raw_ops: list[dict[str, object]] = [
+        {
+            "op": "rewrite",
+            "file": "pkg/mod.py",
+            "content": "value = 3\n",
+            "checksum": stale_digest,
+        },
+        {
+            "op": "rewrite",
+            "file": "pkg/legacy.py",
+            "content": "legacy = False\n",
+            "checksum": fresh_digest,
+        },
+    ]
+
+    result = BatchEditCheckTool().execute(path=str(project), operations=raw_ops)
+    expected = [
+        (item.code.upper(), item.file)
+        for item in collect_preflight_diagnostics(project, raw_ops)
+    ]
+
+    assert result.success is True
+    observed = [
+        (str(item["code"]).upper(), item["file"]) for item in _diagnostics(result.data)
+    ]
+    assert observed == expected
+    assert expected == [("REWRITE_CHECKSUM_STALE", "pkg/mod.py")]

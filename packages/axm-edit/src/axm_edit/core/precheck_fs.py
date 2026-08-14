@@ -19,9 +19,26 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from axm_edit.core.precheck import StaticOperation, run_static_checks
+from axm_edit.core.precheck import (
+    REWRITE_CHECKSUM_KEY,
+    StaticOperation,
+    run_static_checks,
+)
+from axm_edit.core.rewrite import (
+    REWRITE_CHECKSUM_STALE,
+    REWRITE_TARGET_MISSING,
+    REWRITE_TARGET_NOT_REGULAR,
+    classify_rewrite_target,
+    compute_checksum,
+)
 from axm_edit.models.check import CheckDiagnostic
-from axm_edit.models.operations import CreateOp, DeleteOp, Operation, ReplaceOp
+from axm_edit.models.operations import (
+    CreateOp,
+    DeleteOp,
+    Operation,
+    ReplaceOp,
+    RewriteOp,
+)
 from axm_edit.services.line_length import DEFAULT_LINE_LENGTH, resolve_line_length
 from axm_edit.utils import is_binary, resolve_safe
 
@@ -29,6 +46,8 @@ __all__ = [
     "check_anchors_on_disk",
     "check_create_targets",
     "check_line_length",
+    "check_rewrite_targets",
+    "parse_rewrite_op",
     "run_fs_checks",
 ]
 
@@ -53,13 +72,72 @@ _LINE_LENGTH_HINT = (
     "reflowed even though the project allows it."
 )
 
+_REWRITE_MESSAGES: dict[str, str] = {
+    REWRITE_TARGET_MISSING: "`rewrite` targets {file!r}, which does not exist.",
+    REWRITE_TARGET_NOT_REGULAR: (
+        "`rewrite` targets {file!r}, which is not a regular file."
+    ),
+    REWRITE_CHECKSUM_STALE: (
+        "`rewrite` targets {file!r}, whose content changed since the declared "
+        "checksum was taken."
+    ),
+}
+_REWRITE_HINTS: dict[str, str] = {
+    REWRITE_TARGET_MISSING: (
+        "A `rewrite` only replaces an existing file: use a `create`, or fix the path."
+    ),
+    REWRITE_TARGET_NOT_REGULAR: (
+        "Only a regular file can be rewritten: target the real file, not a "
+        "symlink or a directory."
+    ),
+    REWRITE_CHECKSUM_STALE: (
+        "Re-read the file, recompute its sha256 digest and resubmit: a stale "
+        "digest is a hard refusal, there is no overwrite escape hatch."
+    ),
+}
+
+
+def _as_text(value: object) -> str:
+    """Return *value* when it is a string, else the empty string."""
+    return value if isinstance(value, str) else ""
+
+
+def parse_rewrite_op(raw: Mapping[str, object]) -> RewriteOp:
+    """Normalise a raw ``rewrite`` payload into its canonical model.
+
+    Deliberately lenient — the payload-shape verdict belongs to
+    :func:`~axm_edit.core.precheck.check_rewrite_keys`, so a rewrite that
+    omits its ``checksum`` still surfaces that diagnostic instead of aborting
+    the whole read-only pass with a validation error.
+
+    Args:
+        raw: Rewrite mapping as authored, before validation.
+
+    Returns:
+        A :class:`~axm_edit.models.operations.RewriteOp` whose missing or
+        ill-typed members are normalised to the empty string.
+    """
+    return RewriteOp.model_construct(
+        op="rewrite",
+        file=_as_text(raw.get("file")),
+        content=_as_text(raw.get("content")),
+        expected_checksum=_as_text(raw.get(REWRITE_CHECKSUM_KEY)),
+    )
+
+
+def _parse_raw(raw: Mapping[str, object]) -> StaticOperation:
+    """Validate one raw payload, routing ``rewrite`` to its own parser."""
+    if raw.get("op") == "rewrite":
+        return parse_rewrite_op(raw)
+    return _OPERATION_ADAPTER.validate_python(raw)
+
 
 def _parse(operations: Sequence[FsOperation]) -> list[StaticOperation]:
     """Normalise raw payload mappings into parsed operation models."""
     return [
         op
-        if isinstance(op, CreateOp | ReplaceOp | DeleteOp)
-        else _OPERATION_ADAPTER.validate_python(op)
+        if isinstance(op, CreateOp | ReplaceOp | DeleteOp | RewriteOp)
+        else _parse_raw(op)
         for op in operations
     ]
 
@@ -106,6 +184,81 @@ def check_create_targets(
         for index, op in enumerate(_parse(operations))
         if isinstance(op, CreateOp) and _exists(root, op.file)
     ]
+
+
+def _observe_target(root: Path, relative: str) -> tuple[bool, bool, str | None]:
+    """Observe the on-disk facts of *relative* under *root*, read-only.
+
+    The final path component is inspected WITHOUT being followed, so a
+    symlinked target is observed as a symlink instead of as the regular file
+    it points at.
+
+    Args:
+        root: Project root the batch would be applied to.
+        relative: Relative path targeted by the rewrite.
+
+    Returns:
+        The ``(exists, is_regular, actual_checksum)`` triple consumed by
+        :func:`~axm_edit.core.rewrite.classify_rewrite_target`.
+    """
+    if resolve_safe(root, relative) is None:
+        return (False, False, None)
+    candidate = root / relative
+    exists = candidate.exists() or candidate.is_symlink()
+    if not exists or candidate.is_symlink() or not candidate.is_file():
+        return (exists, False, None)
+    try:
+        return (True, True, compute_checksum(candidate.read_bytes()))
+    except OSError:
+        return (True, True, None)
+
+
+def check_rewrite_targets(
+    root: Path,
+    operations: Sequence[FsOperation],
+) -> list[CheckDiagnostic]:
+    """Classify every ``rewrite`` target against the file actually on disk.
+
+    The verdict is NOT decided here: the observed facts are handed to
+    :func:`~axm_edit.core.rewrite.classify_rewrite_target` — the single
+    predicate the apply path shares — and its returned code IS the diagnostic
+    code, so the dry run and the apply can never drift apart.
+
+    Args:
+        root: Project root the batch would be applied to.
+        operations: Operations in batch order (models or raw payloads).
+
+    Returns:
+        One blocking diagnostic per refused rewrite target
+        (``rewrite_target_missing``, ``rewrite_target_not_regular`` or
+        ``rewrite_checksum_stale``), else ``[]``.
+    """
+    diagnostics: list[CheckDiagnostic] = []
+    for index, op in enumerate(_parse(operations)):
+        if not isinstance(op, RewriteOp) or not op.file:
+            continue
+        if not op.expected_checksum:
+            continue
+        exists, is_regular, actual = _observe_target(root, op.file)
+        code = classify_rewrite_target(
+            exists=exists,
+            is_regular=is_regular,
+            actual_checksum=actual,
+            expected_checksum=op.expected_checksum,
+        )
+        if code is None:
+            continue
+        diagnostics.append(
+            CheckDiagnostic(
+                op_index=index,
+                file=op.file,
+                severity="error",
+                code=code,
+                message=_REWRITE_MESSAGES[code].format(file=op.file),
+                hint=_REWRITE_HINTS[code],
+            )
+        )
+    return diagnostics
 
 
 def _check_anchors(
@@ -262,6 +415,7 @@ def run_fs_checks(
     diagnostics = [
         *check_create_targets(root, parsed),
         *check_anchors_on_disk(root, parsed),
+        *check_rewrite_targets(root, parsed),
         *_check_line_lengths(parsed, limit),
         *run_static_checks(parsed, contents),
     ]

@@ -148,3 +148,28 @@ def test_collect_preflight_diagnostics_performs_no_write(tmp_path: Path) -> None
     assert _snapshot(tmp_path) == before
     assert not (tmp_path / "fresh.py").exists()
     assert (tmp_path / "doomed.py").read_text(encoding="utf-8") == "gone = True\n"
+
+
+def test_rewrite_unknown_key_is_reported_on_a_real_root(tmp_path: Path) -> None:
+    """AC3: an out-of-schema rewrite key surfaces through the preflight."""
+    _write(tmp_path, "mod.py", "value = 1\n")
+    digest = hashlib.sha256((tmp_path / "mod.py").read_bytes()).hexdigest()
+    raw_ops: list[dict[str, object]] = [
+        {
+            "op": "rewrite",
+            "file": "mod.py",
+            "content": "value = 2\n",
+            "checksum": digest,
+            "overwrite": True,
+        }
+    ]
+
+    diagnostics = collect_preflight_diagnostics(tmp_path, raw_ops)
+
+    unknown = [
+        item for item in diagnostics if item.code.upper() == "REWRITE_UNKNOWN_KEY"
+    ]
+    assert len(unknown) == 1
+    assert unknown[0].op_index == 0
+    assert unknown[0].file == "mod.py"
+    assert "overwrite" in unknown[0].message

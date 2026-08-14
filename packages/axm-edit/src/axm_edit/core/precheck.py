@@ -11,16 +11,24 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 
 from axm_edit.models.check import CheckDiagnostic
-from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp
+from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp, RewriteOp
 
 __all__ = [
     "check_anchor_quotes",
     "check_anchor_whole_line",
     "check_edit_keys",
+    "check_rewrite_keys",
     "run_static_checks",
 ]
 
-StaticOperation = ReplaceOp | CreateOp | DeleteOp
+REWRITE_UNKNOWN_KEY = "rewrite_unknown_key"
+REWRITE_CHECKSUM_REQUIRED = "rewrite_checksum_required"
+REWRITE_CHECKSUM_KEY = "checksum"
+
+_REWRITE_DECLARED_KEYS = ("file", "content", REWRITE_CHECKSUM_KEY)
+_REWRITE_ALLOWED_KEYS = ("op", *_REWRITE_DECLARED_KEYS)
+
+StaticOperation = ReplaceOp | CreateOp | DeleteOp | RewriteOp
 """Any already-parsed batch operation accepted by the static checks."""
 
 _TRIPLE_QUOTES = ('"""', "'''")
@@ -59,6 +67,74 @@ def check_edit_keys(
             hint="An edit accepts only the Edit schema keys; drop the extras.",
         )
     ]
+
+
+def _declared_checksum(raw_op: Mapping[str, object]) -> str:
+    """Return the checksum declared by *raw_op*, or ``""`` when absent."""
+    value = raw_op.get(REWRITE_CHECKSUM_KEY)
+    return value if isinstance(value, str) else ""
+
+
+def check_rewrite_keys(
+    op_index: int,
+    file: str,
+    raw_op: Mapping[str, object],
+) -> list[CheckDiagnostic]:
+    """Report the payload-shape faults of a raw ``rewrite`` operation.
+
+    Pure by construction: the mapping is inspected exactly as authored, no
+    path is resolved and no file is read. The on-disk verdict belongs to
+    :func:`~axm_edit.core.precheck_fs.check_rewrite_targets`.
+
+    Args:
+        op_index: 0-indexed position of the operation in the batch.
+        file: Relative path targeted by the operation.
+        raw_op: Rewrite mapping as authored, before validation.
+
+    Returns:
+        A ``rewrite_unknown_key`` diagnostic naming every out-of-schema key,
+        a ``rewrite_checksum_required`` one when no checksum is declared, and
+        ``[]`` when the payload holds exactly ``file``, ``content`` and
+        ``checksum``.
+    """
+    diagnostics: list[CheckDiagnostic] = []
+    unknown = sorted(key for key in raw_op if key not in _REWRITE_ALLOWED_KEYS)
+    if unknown:
+        diagnostics.append(
+            CheckDiagnostic(
+                op_index=op_index,
+                file=file,
+                severity="error",
+                code=REWRITE_UNKNOWN_KEY,
+                message=(
+                    f"unknown rewrite key(s): {', '.join(unknown)} — "
+                    f"allowed keys are: {', '.join(_REWRITE_DECLARED_KEYS)}"
+                ),
+                hint=(
+                    "A `rewrite` accepts only `file`, `content` and "
+                    "`checksum`; drop the extras."
+                ),
+            )
+        )
+    if not _declared_checksum(raw_op):
+        diagnostics.append(
+            CheckDiagnostic(
+                op_index=op_index,
+                file=file,
+                severity="error",
+                code=REWRITE_CHECKSUM_REQUIRED,
+                message=(
+                    "a `rewrite` must declare `checksum`, the sha256 hex "
+                    "digest of the file bytes it read"
+                ),
+                hint=(
+                    "Read the file, digest its bytes and pass the result as "
+                    "`checksum`: a stale digest is a hard refusal and there "
+                    "is no overwrite escape hatch."
+                ),
+            )
+        )
+    return diagnostics
 
 
 def check_anchor_quotes(op_index: int, file: str, old: str) -> list[CheckDiagnostic]:
