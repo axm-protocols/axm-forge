@@ -55,3 +55,23 @@ def standalone_project(tmp_path: Path) -> Path:
     """A standalone package (no workspace)."""
     (tmp_path / "pyproject.toml").write_text(STANDALONE_TOML)
     return tmp_path
+
+
+def test_project_context_exposes_a_paper_member() -> None:
+    """AC1: the enum gains a PAPER member valued ``paper`` (four members)."""
+    assert ProjectContext.PAPER.value == "paper"
+    assert len(list(ProjectContext)) == 4
+
+
+def test_context_tables_key_the_paper_member() -> None:
+    """AC5: skip and redirect tables key PAPER and validation still passes."""
+    from axm_init.core.checker import (
+        REDIRECT_BY_CONTEXT,
+        SKIP_BY_CONTEXT,
+        validate_context_tables,
+    )
+
+    validate_context_tables()
+
+    assert ProjectContext.PAPER in SKIP_BY_CONTEXT
+    assert ProjectContext.PAPER in REDIRECT_BY_CONTEXT

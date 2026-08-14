@@ -131,3 +131,30 @@ def test_check_json_report_omits_member_skipped_ids(tmp_path: Path) -> None:
 
     assert names & skipped == set()
     assert names & (discovered - skipped)
+
+
+def _collect_contexts(node: object, acc: set[str]) -> None:
+    """Collect every ``context`` string reachable in a parsed JSON payload."""
+    if isinstance(node, dict):
+        context = node.get("context")
+        if isinstance(context, str):
+            acc.add(context)
+        for value in node.values():
+            _collect_contexts(value, acc)
+    elif isinstance(node, list):
+        for value in node:
+            _collect_contexts(value, acc)
+
+
+def test_check_json_report_exposes_the_paper_context(tmp_path: Path) -> None:
+    """AC2: the CLI report on an axm-lab project exposes the paper context."""
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "paper-x"\n\n[tool.axm-lab]\nslug = "paper-x"\n'
+    )
+
+    proc = _run_check(str(tmp_path), "--json")
+    payload = json.loads(proc.stdout)
+    contexts: set[str] = set()
+    _collect_contexts(payload, contexts)
+
+    assert "paper" in contexts

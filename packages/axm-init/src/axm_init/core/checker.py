@@ -226,6 +226,8 @@ SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     ProjectContext.STANDALONE: _WORKSPACE_ONLY_CHECKS,
     ProjectContext.WORKSPACE: _WORKSPACE_ROOT_SKIPS,
     ProjectContext.MEMBER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS,
+    # A paper is not a Python distribution: it inherits the member skips.
+    ProjectContext.PAPER: _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS,
 }
 
 # Checks run against the workspace root instead, per detected context.
@@ -233,6 +235,8 @@ REDIRECT_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     ProjectContext.STANDALONE: frozenset(),
     ProjectContext.WORKSPACE: frozenset(),
     ProjectContext.MEMBER: _MEMBER_REDIRECTS,
+    # Like a member, a paper delegates CI/tooling to its workspace root.
+    ProjectContext.PAPER: _MEMBER_REDIRECTS,
 }
 
 

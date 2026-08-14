@@ -99,7 +99,7 @@ Business logic independent of I/O:
 | `deps.py` | deps | 2 |
 | `changelog.py` | changelog | 2 |
 | `workspace.py` | workspace | 9 |
-| `_workspace.py` | *(internal)* | Context detection: `detect_context()`, plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result |
+| `_workspace.py` | *(internal)* | Context detection: `detect_context()` resolves four `ProjectContext` shapes — `paper`, `workspace`, `member`, `standalone`. The paper branch is evaluated FIRST, keyed on an explicit `[tool.axm-lab]` pyproject section OR (for a satellite paper carrying no pyproject) the full structural triple `PLAN*.md` + `paper/` + `experiments/`, all three required, so a paper nested in a uv workspace stays a paper instead of inheriting the Python-packaging rulebook. Plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result |
 
 ### 4. Adapters (`adapters/`)
 
