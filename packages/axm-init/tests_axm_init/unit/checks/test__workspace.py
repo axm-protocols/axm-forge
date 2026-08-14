@@ -60,7 +60,7 @@ def standalone_project(tmp_path: Path) -> Path:
 def test_project_context_exposes_a_paper_member() -> None:
     """AC1: the enum gains a PAPER member valued ``paper`` (four members)."""
     assert ProjectContext.PAPER.value == "paper"
-    assert len(list(ProjectContext)) == 4
+    assert len(list(ProjectContext)) == 5
 
 
 def test_context_tables_key_the_paper_member() -> None:
@@ -75,3 +75,32 @@ def test_context_tables_key_the_paper_member() -> None:
 
     assert ProjectContext.PAPER in SKIP_BY_CONTEXT
     assert ProjectContext.PAPER in REDIRECT_BY_CONTEXT
+
+
+def test_project_context_exposes_an_experiment_member() -> None:
+    """AC1: the enum gains an EXPERIMENT member valued ``experiment``."""
+    assert ProjectContext.EXPERIMENT.value == "experiment"
+    assert "experiment" in {ctx.value for ctx in ProjectContext}
+
+
+def test_experiment_manifest_marker_accepts_both_declared_keys() -> None:
+    """AC2: a mapping declaring contract_version AND id is a manifest marker."""
+    from axm_init.checks._workspace import _is_experiment_manifest
+
+    assert _is_experiment_manifest("contract_version: 1\nid: 01-demo\n") is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("id: x", id="missing_contract_version"),
+        pytest.param("contract_version: 1", id="missing_id"),
+        pytest.param("- a\n- b", id="not_a_mapping"),
+        pytest.param("::", id="invalid_yaml"),
+    ],
+)
+def test_experiment_manifest_marker_rejects_partial_and_malformed(text: str) -> None:
+    """AC3: partial mapping, non-mapping and invalid YAML are not markers."""
+    from axm_init.checks._workspace import _is_experiment_manifest
+
+    assert _is_experiment_manifest(text) is False

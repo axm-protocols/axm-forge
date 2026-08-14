@@ -11,6 +11,7 @@ import logging
 from enum import StrEnum
 from pathlib import Path
 
+import yaml
 from axm_ingot.uv import find_workspace_root as _ingot_find_workspace_root
 from axm_ingot.uv import resolve_workspace
 
@@ -38,6 +39,7 @@ class ProjectContext(StrEnum):
     WORKSPACE = "workspace"
     MEMBER = "member"
     PAPER = "paper"
+    EXPERIMENT = "experiment"
 
 
 def _load_pyproject(path: Path) -> dict[str, object] | None:
@@ -70,6 +72,53 @@ def _has_paper_structure(path: Path) -> bool:
         and (path / "paper").is_dir()
         and (path / "experiments").is_dir()
     )
+
+
+_EXPERIMENT_MANIFEST = "manifest.yaml"
+_EXPERIMENT_MANIFEST_KEYS = ("contract_version", "id")
+
+
+def _is_experiment_manifest(text: str) -> bool:
+    """Return True when *text* is an experiment manifest document.
+
+    Pure predicate over the YAML text (no I/O): the document is a marker
+    only when it parses to a mapping declaring BOTH ``contract_version``
+    and ``id``. Invalid YAML, a non-mapping document and a partial mapping
+    all mean "not an experiment" — the predicate never raises.
+
+    Args:
+        text: Raw YAML content of a candidate manifest.
+
+    Returns:
+        ``True`` if the parsed mapping declares both marker keys.
+    """
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return False
+    if not isinstance(document, dict):
+        return False
+    return all(key in document for key in _EXPERIMENT_MANIFEST_KEYS)
+
+
+def _is_experiment(path: Path) -> bool:
+    """Return True when *path* carries a valid experiment manifest.
+
+    Thin filesystem wrapper over :func:`_is_experiment_manifest`: reads the
+    root ``manifest.yaml`` and swallows an unreadable/missing file into
+    ``False``.
+
+    Args:
+        path: Project root directory to inspect.
+
+    Returns:
+        ``True`` if the root manifest holds the experiment marker.
+    """
+    try:
+        text = (path / _EXPERIMENT_MANIFEST).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _is_experiment_manifest(text)
 
 
 def _is_paper(path: Path, data: TomlTable | None) -> bool:
@@ -120,6 +169,10 @@ def detect_context(path: Path) -> ProjectContext:
 
     Detection logic:
 
+    0. If *path* holds an experiment ``manifest.yaml`` marker →
+       ``EXPERIMENT`` (see :func:`_is_experiment`). Evaluated FIRST so an
+       experiment nested inside a paper inside a uv workspace stays an
+       experiment.
     1. If *path* carries a paper marker → ``PAPER`` (see :func:`_is_paper`).
        Evaluated FIRST so a paper nested inside a uv workspace stays a
        paper instead of inheriting the Python-packaging rulebook.
@@ -136,6 +189,10 @@ def detect_context(path: Path) -> ProjectContext:
         The detected ``ProjectContext``.
     """
     data = _load_pyproject(path)
+
+    # Case 0a: this path is an experiment (before the paper/workspace cascade)
+    if _is_experiment(path):
+        return ProjectContext.EXPERIMENT
 
     # Case 0: this path is a paper (checked before the workspace cascade)
     if _is_paper(path, data):

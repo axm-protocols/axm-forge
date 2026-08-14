@@ -244,3 +244,20 @@ def test_check_json_report_names_the_missing_provenance_document(
     assert proc.returncode != 0
     assert structure, payload
     assert "PIPELINE.md" in json.dumps(structure)
+
+
+def test_check_json_report_exposes_the_experiment_context(tmp_path: Path) -> None:
+    """AC2: the CLI report on an experiment folder exposes the experiment context."""
+    root = tmp_path / "01-demo"
+    root.mkdir()
+    (root / "manifest.yaml").write_text("contract_version: 1\nid: 01-demo\n")
+    (root / "README.md").write_text("# 01-demo\n")
+    for name in ("inputs", "scripts", "outputs", "logs", "figures"):
+        (root / name).mkdir()
+
+    proc = _run_check(str(root), "--json")
+    payload = json.loads(proc.stdout)
+    contexts: set[str] = set()
+    _collect_contexts(payload, contexts)
+
+    assert "experiment" in contexts

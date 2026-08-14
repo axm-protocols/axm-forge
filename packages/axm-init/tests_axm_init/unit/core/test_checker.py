@@ -407,3 +407,16 @@ def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
 
     assert PAPER_CHECK_IDS & set(skip_table[ProjectContext.PAPER]) == set()
     assert PAPER_CHECK_IDS <= {get_check_name(fn) for fn in _all_check_fns()}
+
+
+# --- experiment context placeholder --------------------------------------
+
+
+def test_skip_by_context_keys_the_experiment_member_as_empty_placeholder() -> None:
+    """AC5: the EXPERIMENT key exists, holds no id, and validation stays green."""
+    skip_table = _skip_table()
+    experiment = ProjectContext.EXPERIMENT
+
+    assert experiment in skip_table
+    assert set(skip_table[experiment]) == set()
+    assert _validate_fn()() is None

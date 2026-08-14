@@ -237,6 +237,9 @@ SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     # A paper is not a Python distribution: the whole packaging rulebook is
     # out, only the paper's own invariants are graded.
     ProjectContext.PAPER: _PACKAGING_CHECKS,
+    # Placeholder row: the experiment context is detected but routes no skip
+    # yet — the skip content is the routing ticket's deliverable.
+    ProjectContext.EXPERIMENT: frozenset(),
 }
 
 # Checks run against the workspace root instead, per detected context.
@@ -246,6 +249,8 @@ REDIRECT_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     ProjectContext.MEMBER: _MEMBER_REDIRECTS,
     # Like a member, a paper delegates CI/tooling to its workspace root.
     ProjectContext.PAPER: _MEMBER_REDIRECTS,
+    # Placeholder row, same rationale as the skip table above.
+    ProjectContext.EXPERIMENT: frozenset(),
 }
 
 
