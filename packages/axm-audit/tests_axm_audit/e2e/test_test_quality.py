@@ -349,3 +349,74 @@ def test_cli_distinguishes_declared_script_e2e_from_plumbing_subprocess(
     assert plumbing_entry.get("detected_level") != "e2e", (
         f"plumbing file still detected as e2e: {plumbing_entry}"
     )
+
+
+AXM_TOOLS_ONLY_PYPROJECT = textwrap.dedent(
+    """\
+    [project]
+    name = "toolsonly_pkg"
+    version = "0.0.0"
+    requires-python = ">=3.12"
+
+    [project.entry-points."axm.tools"]
+    demo = "toolsonly_pkg.tools:DemoTool"
+
+    [build-system]
+    requires = ["hatchling"]
+    build-backend = "hatchling.build"
+    """
+)
+
+AXM_TOOLS_ONLY_CLI_TEST = textwrap.dedent(
+    """\
+    import subprocess
+
+
+    def test_cli_runs(tmp_path):
+        result = subprocess.run(
+            ["axm", "audit", str(tmp_path)], capture_output=True, check=False
+        )
+        assert result.returncode in (0, 1)
+    """
+)
+
+
+def _write_axm_tools_only_fixture(root: Path) -> Path:
+    """Write an axm.tools-only package whose ``tests/e2e`` drives the CLI."""
+    (root / "pyproject.toml").write_text(AXM_TOOLS_ONLY_PYPROJECT)
+    src = root / "src" / "toolsonly_pkg"
+    src.mkdir(parents=True)
+    (src / "__init__.py").write_text("")
+    (src / "tools.py").write_text("class DemoTool:\n    pass\n")
+    e2e = root / "tests" / "e2e"
+    e2e.mkdir(parents=True)
+    (root / "tests" / "__init__.py").write_text("")
+    (e2e / "__init__.py").write_text("")
+    test_file = e2e / "test_cli.py"
+    test_file.write_text(AXM_TOOLS_ONLY_CLI_TEST)
+    return test_file
+
+
+@pytest.mark.e2e
+def test_cli_test_quality_no_pyramid_gap_for_axm_tools_only_package(
+    tmp_path: Path,
+) -> None:
+    """AC3: `test-quality` reports no pyramid gap for an axm.tools-only pkg."""
+    test_file = _write_axm_tools_only_fixture(tmp_path)
+
+    proc = subprocess.run(  # noqa: S603
+        [_UV_BIN, "run", "axm-audit", "test-quality", str(tmp_path), "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=PROJECT_ROOT,
+    )
+
+    assert proc.returncode in (0, 1), proc.stderr
+    payload = json.loads(proc.stdout)
+    mismatches = [
+        m
+        for m in payload.get("pyramid_mismatches", [])
+        if str(m.get("test", "")).split("::", 1)[0] == str(test_file)
+    ]
+    assert mismatches == [], f"unexpected pyramid mismatch: {mismatches}"

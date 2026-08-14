@@ -118,11 +118,17 @@ contains a writer attribute call like `.write_text`, R5 cannot neutralize it,
 even under `@patch("module.open")`. This prevents a misplaced patch decorator
 from lying about real I/O.
 
-Subprocess detection is narrowed to package-owned entry points when the package
-declares `[project.scripts]`: runner prefixes such as `uv run` are peeled until
-a declared script is found, and `python -m package.module` matches the module
-alias derived from that script name. Plumbing commands such as `git`, `pip`,
-`uv venv`, and `python -c` do not force `e2e` classification on their own.
+Subprocess detection is narrowed to package-owned entry points, resolved by
+`load_cli_binaries`: the union of the `[project.scripts]` keys and the generic
+`axm` binary, the latter added only when the package declares a **non-empty**
+`[project.entry-points."axm.tools"]` table (whose keys are tool names, never
+binaries). An `axm.tools`-only package therefore resolves `{axm}`, so its
+black-box `subprocess.run(["axm", <tool>, ...])` test classifies `e2e`. Runner
+prefixes such as `uv run` are peeled until a resolved binary is found, and
+`python -m <binary>` / `python -m <binary>.module` match the binary's
+hyphen→underscore module alias. A package declaring neither table resolves no
+binary at all and gets no `e2e` classification — plumbing commands such as
+`git`, `pip`, `uv venv`, and `python -c` never force `e2e` on their own.
 
 ### Classification branches
 
@@ -364,11 +370,17 @@ output) that the project deliberately encodes as pytest.
 
 ### Single source of truth
 
-`[project.scripts]` resolution and the permissive argv reconstruction
-live in `axm_audit.core.rules.test_quality._shared`
-(`load_project_scripts`, `has_in_package_subprocess_invocation` and
-their private helpers). Both `NoPackageSymbolRule` and `PyramidLevelRule`
-consume them — no duplicate definitions.
+Binary resolution and the permissive argv reconstruction live in
+`axm_audit.core.rules.test_quality._shared` (`load_project_scripts`,
+`load_cli_binaries` / `cli_binaries_from_pyproject`,
+`has_in_package_subprocess_invocation` and their private helpers). Both
+`NoPackageSymbolRule` and `PyramidLevelRule` consume the same matcher — no
+duplicate definitions — but they differ on the *resolver*: this rule reads the
+strict `[project.scripts]` set via `load_project_scripts`, while
+`PyramidLevelRule` uses the CLI-scoped `load_cli_binaries` (scripts ∪ `axm`
+for `axm.tools` packages). The widened resolution stays confined to the
+pyramid call site; `load_project_scripts` keeps its narrow contract for
+`FileNamingRule` and the fix pipeline.
 
 ## File-Naming
 

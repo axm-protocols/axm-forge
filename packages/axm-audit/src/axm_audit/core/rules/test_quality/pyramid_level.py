@@ -44,6 +44,7 @@ from axm_audit.core.rules.test_quality._shared import (
     get_pkg_prefixes,
     has_in_package_subprocess_invocation,
     iter_test_files,
+    load_cli_binaries,
     load_project_scripts,
     target_matches_io,
     test_invokes_inline_python_script,
@@ -1111,7 +1112,7 @@ def _build_scan_context(  # noqa: PLR0913, PLR0917
         file_has_subprocess=file_has_subprocess,
         file_signals=file_signals,
         file_heavy_importorskip=file_heavy_importorskip,
-        project_scripts=load_project_scripts(pkg_root),
+        project_scripts=load_cli_binaries(pkg_root),
         helpers=_collect_helpers(tree),
     )
 
