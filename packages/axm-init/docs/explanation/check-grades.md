@@ -156,7 +156,7 @@ invariants, so it is scored on its own:
 | Check | Weight | What It Verifies |
 |-------|--------|------------------|
 | `paper.paper_structure` | 5 | `paper/`, `experiments/` and `README.md` all present (a failure names every missing entry) |
-| `paper.plan_present` | 5 | `plan.md` at the paper root opens with a `---` delimited YAML front-matter block |
+| `paper.plan_present` | 5 | `PLAN.md` at the paper root opens with a `---` delimited YAML front-matter block |
 
 !!! note "A paper skips the packaging rulebook"
     The two `paper.*` checks run **only** when the detected context is `PAPER`; they are

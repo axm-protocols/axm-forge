@@ -194,3 +194,24 @@ def test_check_json_report_exposes_the_paper_context(tmp_path: Path) -> None:
     _collect_contexts(payload, contexts)
 
     assert "paper" in contexts
+
+
+def test_check_json_report_names_the_canonical_plan_document(tmp_path: Path) -> None:
+    """AC3: on a paper carrying no plan file, the JSON report names PLAN.md
+    and never the lowercase form."""
+    root = tmp_path / "paper-z"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "paper-z"\n\n[tool.axm-lab]\nslug = "paper-z"\n'
+    )
+
+    proc = _run_check(str(root), "--json")
+    payload = json.loads(proc.stdout)
+    names: set[str] = set()
+    _collect_names(payload, names)
+    blob = json.dumps(payload)
+
+    assert proc.returncode != 0
+    assert "paper.plan_present" in names
+    assert "PLAN.md" in blob
+    assert "plan.md" not in blob

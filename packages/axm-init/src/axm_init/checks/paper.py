@@ -21,7 +21,7 @@ __all__ = ["check_paper_structure", "check_plan_present"]
 _FRONT_MATTER_DELIMITER = "---"
 
 #: Plan document, relative to the paper root.
-_PLAN_FILENAME = "plan.md"
+_PLAN_FILENAME = "PLAN.md"
 
 
 def _parse_front_matter(text: str) -> dict[str, str] | None:
@@ -95,7 +95,7 @@ def check_plan_present(project: Path) -> CheckResult:
         project: Paper root directory.
 
     Returns:
-        A failed ``CheckResult`` when ``plan.md`` is missing or carries no
+        A failed ``CheckResult`` when ``PLAN.md`` is missing or carries no
         non-empty YAML front-matter, a passed one otherwise.
     """
     path = project / _PLAN_FILENAME

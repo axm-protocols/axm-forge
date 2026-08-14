@@ -101,7 +101,7 @@ Checks across 9 categories, each a pure function `(Path) → CheckResult`. The r
 | `deps.py` | deps | 2 |
 | `changelog.py` | changelog | 2 |
 | `workspace.py` | workspace | 10 |
-| `paper.py` | paper | 2 | Paper invariants, run only in the `PAPER` context: `check_paper_structure` (`paper/`, `experiments/`, `README.md`) and `check_plan_present` (`plan.md` opening with a `---` YAML front-matter block, parsed by the pure `_parse_front_matter` helper) |
+| `paper.py` | paper | 2 | Paper invariants, run only in the `PAPER` context: `check_paper_structure` (`paper/`, `experiments/`, `README.md`) and `check_plan_present` (`PLAN.md` opening with a `---` YAML front-matter block, parsed by the pure `_parse_front_matter` helper) |
 | `_workspace.py` | *(internal)* | Context detection: `detect_context()` resolves four `ProjectContext` shapes — `paper`, `workspace`, `member`, `standalone`. The paper branch is evaluated FIRST, keyed on an explicit `[tool.axm-lab]` pyproject section OR (for a satellite paper carrying no pyproject) the full structural triple `PLAN*.md` + `paper/` + `experiments/`, all three required, so a paper nested in a uv workspace stays a paper instead of inheriting the Python-packaging rulebook. Plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result |
 
 ### 4. Adapters (`adapters/`)
