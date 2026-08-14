@@ -15,6 +15,7 @@ from pathlib import Path
 
 __all__ = [
     "build_member_data",
+    "next_experiment_index",
     "read_workspace_name",
     "resolve_workspace_root",
 ]
@@ -83,3 +84,29 @@ def read_workspace_name(workspace_root: Path) -> str:
             root_data = tomllib.load(f)
         return str(root_data.get("project", {}).get("name", workspace_root.name))
     return workspace_root.name
+
+
+def next_experiment_index(experiments_dir: Path) -> int:
+    """Return the next free experiment index inside *experiments_dir*.
+
+    The index belongs to the scaffolding layer, never to the copier template:
+    an experiment directory is named ``{index:02d}-{slug}``, so the next free
+    index is one past the highest index already present. A missing or empty
+    ``experiments/`` directory yields ``1``.
+
+    Args:
+        experiments_dir: The paper's ``experiments/`` directory.
+
+    Returns:
+        The next free one-based index.
+    """
+    if not experiments_dir.is_dir():
+        return 1
+    highest = 0
+    for entry in experiments_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        head = entry.name.split("-", 1)[0]
+        if head.isdigit():
+            highest = max(highest, int(head))
+    return highest + 1

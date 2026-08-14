@@ -214,6 +214,13 @@ def scaffold(
             help="Scaffold a member sub-package with this name",
         ),
     ] = None,
+    kind: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--kind", "-k"],
+            help=("Scaffold kind: standalone, workspace, member, paper or experiment"),
+        ),
+    ] = None,
     check_pypi: Annotated[
         bool,
         cyclopts.Parameter(name=["--check-pypi"], help="Check PyPI availability"),
@@ -237,6 +244,28 @@ def scaffold(
 
     target_path = Path(path).resolve()
     project_name = name or target_path.name
+
+    if kind is not None and kind in ("paper", "experiment"):
+        _scaffold_via_tool(
+            path=path,
+            kind=kind,
+            name=name,
+            org=org,
+            author=author,
+            email=email,
+            license_type=license,
+            description=description,
+            json_output=json_output,
+        )
+        return
+
+    workspace, member = _resolve_kind_flags(
+        kind,
+        workspace=workspace,
+        member=member,
+        name=name,
+        json_output=json_output,
+    )
 
     if check_pypi:
         _check_pypi_availability(project_name, json_output=json_output)
@@ -311,6 +340,75 @@ def _build_scaffold_data(
         "author_name": author,
         "author_email": email,
     }
+
+
+def _resolve_kind_flags(
+    kind: str | None,
+    *,
+    workspace: bool,
+    member: str | None,
+    name: str | None,
+    json_output: bool,
+) -> tuple[bool, str | None]:
+    """Map ``--kind`` onto the legacy ``--workspace`` / ``--member`` flags.
+
+    The kind vocabulary is owned by the tool (``SCAFFOLD_KINDS``); the CLI
+    only validates against it and translates.
+    """
+    from axm_init.tools.scaffold import SCAFFOLD_KINDS
+
+    if kind is None:
+        return workspace, member
+    if kind not in SCAFFOLD_KINDS:
+        _fail(
+            f"Unknown --kind '{kind}' (expected one of {', '.join(SCAFFOLD_KINDS)})",
+            json_output=json_output,
+        )
+    if kind == "workspace":
+        return True, member
+    if kind == "member":
+        return workspace, member or name
+    return workspace, member
+
+
+def _scaffold_via_tool(
+    *,
+    path: str,
+    kind: str,
+    name: str | None,
+    org: str,
+    author: str,
+    email: str,
+    license_type: str,
+    description: str,
+    json_output: bool,
+) -> None:
+    """Delegate a paper / experiment scaffold to :class:`InitScaffoldTool`.
+
+    The tool is the single implementation — this wrapper only renders its
+    ToolResult for the terminal.
+    """
+    from axm_init.tools.scaffold import InitScaffoldTool
+
+    result = InitScaffoldTool().execute(
+        path=path,
+        kind=kind,
+        name=name,
+        org=org,
+        author=author,
+        email=email,
+        license=license_type,
+        description=description,
+    )
+    if not result.success:
+        _fail(result.error or f"{kind} scaffold failed", json_output=json_output)
+
+    payload: dict[str, object] = {"success": True}
+    payload.update(result.data or {})
+    if json_output:
+        print(json.dumps(payload))  # noqa: T201
+    else:
+        print(result.text or f"✅ {kind} scaffolded")  # noqa: T201
 
 
 def _fail(msg: str, *, json_output: bool) -> NoReturn:

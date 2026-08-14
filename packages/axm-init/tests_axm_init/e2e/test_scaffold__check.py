@@ -51,3 +51,63 @@ def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
     assert check.returncode == 0, check.stderr
     report = json.loads(check.stdout)
     assert report["score"] == 100, report.get("failures", report)
+
+
+def _run_scaffold(*args: str) -> subprocess.CompletedProcess[str]:
+    """Run ``axm-init scaffold`` as a subprocess with the shared identity."""
+    return subprocess.run(
+        [
+            "uv",
+            "run",
+            "axm-init",
+            "scaffold",
+            *args,
+            "--org",
+            "DemoOrg",
+            "--author",
+            "Demo Author",
+            "--email",
+            "demo@example.com",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_scaffold_paper_into_empty_directory(tmp_path: Path) -> None:
+    """AC1: ``scaffold --kind paper`` exits 0 and writes the plan file."""
+    paper = tmp_path / "demo-paper"
+    paper.mkdir()
+
+    scaffold = _run_scaffold(str(paper), "--kind", "paper", "--json")
+
+    assert scaffold.returncode == 0, scaffold.stderr
+    plans = [p for p in paper.rglob("*.md") if "plan" in p.name.lower()]
+    assert plans, sorted(str(p.relative_to(paper)) for p in paper.rglob("*"))
+
+
+def test_scaffold_experiment_inside_paper_json(tmp_path: Path) -> None:
+    """AC5: ``scaffold --kind experiment --json`` exits 0 and lists the manifest."""
+    paper = tmp_path / "demo-paper"
+    paper.mkdir()
+    bootstrap = _run_scaffold(str(paper), "--kind", "paper")
+    assert bootstrap.returncode == 0, bootstrap.stderr
+
+    experiment = _run_scaffold(
+        str(paper),
+        "--kind",
+        "experiment",
+        "--name",
+        "baseline",
+        "--json",
+    )
+
+    assert experiment.returncode == 0, experiment.stderr
+    payload = json.loads(experiment.stdout)
+    files = payload.get("files", [])
+    # The manifest ships under its template-owned name, ``experiment.yaml``.
+    assert any(
+        "manifest" in str(f).lower() or str(f).endswith("experiment.yaml")
+        for f in files
+    ), payload

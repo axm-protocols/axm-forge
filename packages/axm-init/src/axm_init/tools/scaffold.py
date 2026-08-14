@@ -21,6 +21,60 @@ from axm_init.core.scaffolder import (
 __all__ = ["InitScaffoldTool", "read_workspace_name"]
 
 
+SCAFFOLD_KINDS: tuple[str, ...] = (
+    "standalone",
+    "workspace",
+    "member",
+    "paper",
+    "experiment",
+)
+
+_SLUG_ALPHA = "abcdefghijklmnopqrstuvwxyz"
+_SLUG_ALLOWED = _SLUG_ALPHA + "0123456789"
+
+
+def _read_kind(kwargs: dict[str, object]) -> str | None:
+    """Read the declared scaffold ``kind`` from *kwargs*, or ``None``."""
+    value = kwargs.get("kind")
+    return value if isinstance(value, str) and value else None
+
+
+def _apply_kind_flags(
+    kind: str | None,
+    *,
+    workspace: bool,
+    member: str | None,
+    name: str | None,
+) -> tuple[bool, str | None]:
+    """Map the declared *kind* onto the legacy workspace/member flags."""
+    if kind == "workspace":
+        return True, member
+    if kind == "member":
+        return workspace, member or name
+    return workspace, member
+
+
+def _slugify(value: str) -> str:
+    """Return *value* as a template-safe slug matching ``^[a-z][a-z0-9-]*$``."""
+    cleaned = "".join(c if c in _SLUG_ALLOWED else "-" for c in value.strip().lower())
+    slug = "-".join(part for part in cleaned.split("-") if part) or "untitled"
+    return slug if slug[0] in _SLUG_ALPHA else f"x-{slug}"
+
+
+def _ensure_experiments_root(paper_root: Path) -> list[str]:
+    """Create the paper's ``experiments/`` root and return the files created.
+
+    The experiments root belongs to this tool — it names and indexes every
+    experiment directory — never to the paper template, which renders flat.
+    """
+    experiments = paper_root / "experiments"
+    experiments.mkdir(parents=True, exist_ok=True)
+    placeholder = experiments / ".gitkeep"
+    if not placeholder.exists():
+        placeholder.write_text("")
+    return ["experiments/.gitkeep"]
+
+
 def _group_files(files: list[str]) -> list[str]:
     """Group created files by top-level dir, listing basenames inline.
 
@@ -86,6 +140,16 @@ class InitScaffoldTool:
     def name(self) -> str:
         """Tool name used for MCP registration."""
         return "init_scaffold"
+
+    @property
+    def kinds(self) -> tuple[str, ...]:
+        """Scaffold kinds this tool declares, in template order.
+
+        The declared set is the tool's contract: every value is selectable
+        through the ``kind`` input (MCP) and ``--kind`` (CLI), and each one
+        maps to a bundled Copier template.
+        """
+        return SCAFFOLD_KINDS
 
     def _validate_inputs(
         self,
@@ -189,6 +253,8 @@ class InitScaffoldTool:
                 description: Project description.
                 workspace: If True, scaffold a UV workspace.
                 member: Member package name to scaffold inside a workspace.
+                kind: Explicit scaffold kind — one of ``SCAFFOLD_KINDS``
+                    (standalone, workspace, member, paper, experiment).
 
         Returns:
             ToolResult with created files list.
@@ -210,8 +276,37 @@ class InitScaffoldTool:
             license_holder,
         ) = validated
 
+        kind = _read_kind(kwargs)
+        if kind is not None and kind not in SCAFFOLD_KINDS:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"Unknown kind '{kind}' — expected one of "
+                    f"{', '.join(SCAFFOLD_KINDS)}"
+                ),
+            )
+        workspace, member = _apply_kind_flags(
+            kind, workspace=workspace, member=member, name=name
+        )
+
         try:
             target_path = Path(path).resolve()
+            meta = _ProjectMeta(
+                org=org,
+                license_type=license_type,
+                author_name=author,
+                author_email=email,
+            )
+
+            dispatched = self._dispatch_kind(
+                kind,
+                target_path=target_path,
+                name=name,
+                description=description,
+                meta=meta,
+            )
+            if dispatched is not None:
+                return dispatched
 
             if member:
                 return self._scaffold_member(
@@ -234,12 +329,6 @@ class InitScaffoldTool:
 
             template_type = (
                 TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
-            )
-            meta = _ProjectMeta(
-                org=org,
-                license_type=license_type,
-                author_name=author,
-                author_email=email,
             )
             data = self._build_template_data(
                 project_name=project_name,
@@ -278,6 +367,179 @@ class InitScaffoldTool:
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _dispatch_kind(
+        self,
+        kind: str | None,
+        *,
+        target_path: Path,
+        name: str | None,
+        description: str,
+        meta: _ProjectMeta,
+    ) -> ToolResult | None:
+        """Route the paper and experiment kinds.
+
+        Returns ``None`` when *kind* is not one of them, so the caller falls
+        through to the member / workspace / standalone cascade.
+        """
+        label = name or target_path.name
+        if kind == "paper":
+            return self._scaffold_paper(
+                target_path,
+                paper_name=label,
+                meta=meta,
+                description=description,
+            )
+        if kind == "experiment":
+            return self._scaffold_experiment(
+                target_path,
+                experiment_name=label,
+                description=description,
+            )
+        return None
+
+    def _scaffold_paper(
+        self,
+        target_path: Path,
+        *,
+        paper_name: str,
+        meta: _ProjectMeta,
+        description: str,
+    ) -> ToolResult:
+        """Scaffold a paper submodule at *target_path*.
+
+        Renders the bundled paper template, then materialises the
+        ``experiments/`` root this tool owns (the template renders flat and
+        never names an experiment directory).
+
+        Args:
+            target_path: Directory the paper is rendered into.
+            paper_name: Human-supplied paper name, slugified for the template.
+            meta: Author/license identity for the template variables.
+            description: Paper title; falls back to *paper_name*.
+
+        Returns:
+            ToolResult with the created files list.
+        """
+        from axm_init.adapters.copier import CopierAdapter, CopierConfig
+        from axm_init.core.templates import TemplateType, get_template_path
+
+        slug = _slugify(paper_name)
+        result = CopierAdapter().copy(
+            CopierConfig(
+                template_path=get_template_path(TemplateType.PAPER),
+                destination=target_path,
+                data={
+                    "paper_name": slug,
+                    "title": description or paper_name,
+                    "author": meta.author_name,
+                },
+                trust_template=True,
+            )
+        )
+        if not result.success:
+            return ToolResult(
+                success=False,
+                error=result.message or "Paper scaffold failed",
+            )
+
+        files = sorted({*result.files_created, *_ensure_experiments_root(target_path)})
+        kind = TemplateType.PAPER.value
+        return ToolResult(
+            success=True,
+            data={
+                "project_name": slug,
+                "template": kind,
+                "path": str(target_path),
+                "files": files,
+            },
+            text=_render_scaffold_text(
+                label=slug,
+                kind=kind,
+                files=files,
+                path=str(target_path),
+            ),
+        )
+
+    def _scaffold_experiment(
+        self,
+        target_path: Path,
+        *,
+        experiment_name: str,
+        description: str,
+    ) -> ToolResult:
+        """Scaffold an indexed experiment inside the paper at *target_path*.
+
+        Guards on the detected context first: an experiment is legal only
+        inside a detected paper, and the guard fails before any write. The
+        directory is named ``{index:02d}-{slug}`` with the next free index.
+
+        Args:
+            target_path: The paper root the experiment belongs to.
+            experiment_name: Human-supplied experiment name, slugified.
+            description: Experiment title / research question fallback.
+
+        Returns:
+            ToolResult with the created files list, relative to the paper.
+        """
+        from axm_init.adapters.copier import CopierAdapter, CopierConfig
+        from axm_init.checks._workspace import ProjectContext, detect_context
+        from axm_init.core.scaffolder import next_experiment_index
+        from axm_init.core.templates import TemplateType, get_template_path
+
+        if detect_context(target_path) != ProjectContext.PAPER:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"{target_path} is not a paper — scaffold a paper first "
+                    "(kind='paper')"
+                ),
+            )
+
+        experiments_dir = target_path / "experiments"
+        index = next_experiment_index(experiments_dir)
+        experiment_dir = experiments_dir / f"{index:02d}-{_slugify(experiment_name)}"
+        title = description or experiment_name
+
+        result = CopierAdapter().copy(
+            CopierConfig(
+                template_path=get_template_path(TemplateType.EXPERIMENT),
+                destination=experiment_dir,
+                data={
+                    "experiment_id": experiment_dir.name,
+                    "experiment_title": title,
+                    "research_question": (
+                        description or f"What does '{title}' establish?"
+                    ),
+                },
+                trust_template=True,
+            )
+        )
+        if not result.success:
+            return ToolResult(
+                success=False,
+                error=result.message or "Experiment scaffold failed",
+            )
+
+        prefix = experiment_dir.relative_to(target_path).as_posix()
+        files = [f"{prefix}/{f}" for f in result.files_created]
+        kind = TemplateType.EXPERIMENT.value
+        return ToolResult(
+            success=True,
+            data={
+                "experiment": experiment_dir.name,
+                "template": kind,
+                "path": str(experiment_dir),
+                "index": index,
+                "files": files,
+            },
+            text=_render_scaffold_text(
+                label=experiment_dir.name,
+                kind=kind,
+                files=files,
+                path=str(experiment_dir),
+            ),
+        )
 
     @staticmethod
     def _resolve_workspace_root(target_path: Path) -> Path | None:

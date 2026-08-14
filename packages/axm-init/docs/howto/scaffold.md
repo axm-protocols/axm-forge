@@ -43,6 +43,7 @@ This scaffolds a production-grade Python project with:
 | `--description` | `-d` | | One-line description |
 | `--workspace` | `-w` | `False` | Scaffold a UV workspace instead |
 | `--member` | `-m` | | Scaffold a member sub-package with this name |
+| `--kind` | `-k` | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment` |
 
 ### 4. Scaffold a workspace
 
@@ -80,7 +81,44 @@ The `--member` flag:
 
 > **Note:** `--workspace` and `--member` are mutually exclusive.
 
-### 6. Check PyPI availability
+### 6. Scaffold a paper
+
+```bash
+axm-init scaffold my-paper --kind paper \\
+  --org myorg --author "Your Name" --email "you@example.com" \\
+  --description "Attention study"
+```
+
+The `paper` kind renders the paper submodule:
+
+- `PLAN.md` — the paper plan
+- `README.md`
+- `paper/` — `main.tex`, `references.bib` and its `Makefile`
+- `experiments/` — the root every experiment lands in
+- `pyproject.toml` carrying `[tool.axm-lab]`, the marker that makes the
+  directory a *detected paper*
+
+### 7. Scaffold an experiment inside a paper
+
+```bash
+axm-init scaffold my-paper --kind experiment --name baseline \\
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+The `experiment` kind:
+
+1. Refuses any target that is not a detected paper — it fails **before writing
+   anything**, so a mistyped path never leaves debris
+2. Names the directory itself, with the next free zero-padded index and the
+   slugified `--name`: `experiments/01-baseline/`, then `experiments/02-…`
+3. Renders the experiment scaffold flat inside it — `experiment.yaml` (the
+   manifest, complete before any script runs), `inputs/`, `scripts/`,
+   `outputs/`, `analysis/`, `figures/`
+
+> **Note:** the index belongs to the tool, never to the template — re-running
+> the command always allocates the next free slot.
+
+### 8. Check PyPI availability
 
 ```bash
 axm-init scaffold my-project --org myorg --author A --email e@e.com --check-pypi
@@ -88,7 +126,7 @@ axm-init scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
 
-### 7. JSON output
+### 9. JSON output
 
 ```bash
 axm-init scaffold my-project --org myorg --author A --email e@e.com --json
@@ -106,4 +144,6 @@ Outputs structured JSON for CI/automation use.
 | `Member 'X' already exists` | Duplicate member name | Choose a different member name |
 | `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
 | `Target directory already exists` | Non-empty destination directory | Use an empty directory or remove existing files first |
+| `... is not a paper` | `--kind experiment` outside a detected paper | Scaffold the paper first (`--kind paper`), or point the path at the paper root |
+| `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment` |
 | `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |

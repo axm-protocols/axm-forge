@@ -321,3 +321,21 @@ class TestScaffoldToolTemplateSelection:
         mock_get_path.assert_called_once_with(
             getattr(TemplateType, expected_template_type)
         )
+
+
+class TestScaffoldDeclaredKinds:
+    """AC6: the tool declares exactly the five supported scaffold kinds."""
+
+    def test_declared_kind_set_is_the_five_supported_kinds(self) -> None:
+        """AC6: standalone, workspace, member, paper and experiment.
+
+        Pure declaration read from the tool — the two new kinds are added and
+        no shipped kind is dropped.
+        """
+        assert set(InitScaffoldTool().kinds) == {
+            "standalone",
+            "workspace",
+            "member",
+            "paper",
+            "experiment",
+        }

@@ -25,6 +25,7 @@ axm-init scaffold [OPTIONS] [PATH]
 | `--description` | `-d` | string | `""` | Project description |
 | `--workspace` | `-w` | bool | `False` | Scaffold a UV workspace instead of a standalone package |
 | `--member` | `-m` | string | `None` | Scaffold a member sub-package with this name |
+| `--kind` | `-k` | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper` or `experiment` |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |
 | `--json` | | bool | `False` | Output as JSON |
 
@@ -36,6 +37,10 @@ axm-init scaffold [OPTIONS] [PATH]
 - `--workspace` and `--member` are mutually exclusive → exit code 1
 - `--check-pypi` with taken name → exit code 1
 - `--member` outside a workspace → exit code 1
+- `--kind` outside the declared set (`standalone`, `workspace`, `member`,
+  `paper`, `experiment`) → exit code 1
+- `--kind experiment` on a directory that is not a detected paper → exit code 1,
+  and nothing is written under that directory
 
 **Exit codes:**
 
@@ -80,6 +85,30 @@ axm-init scaffold --member my-lib \\
    📄 src/my_lib/__init__.py
    🔧 Patched root files: Makefile, mkdocs.yml, pyproject.toml
 ```
+
+**Paper example** (`--kind paper`, into an empty directory):
+
+```bash
+axm-init scaffold my-paper --kind paper \\
+  --org axm-protocols --author "Your Name" --email "you@example.com" \\
+  --description "Attention study"
+```
+
+Renders `PLAN.md`, `README.md`, `paper/` (LaTeX source + bibliography) and the
+`experiments/` root the tool owns. `--description` becomes the paper title;
+`--name` (or the directory name) is slugified into the paper slug.
+
+**Experiment example** (`--kind experiment`, run against a scaffolded paper):
+
+```bash
+axm-init scaffold my-paper --kind experiment --name baseline \\
+  --org axm-protocols --author "Your Name" --email "you@example.com"
+```
+
+The experiment directory is named by the CLI, never by the template: the next
+free zero-padded index followed by the slug (`experiments/01-baseline/`, then
+`experiments/02-…`). Its `experiment.yaml` manifest is created at scaffold time,
+before any script runs, and appears in the `files` list under `--json`.
 
 ---
 
