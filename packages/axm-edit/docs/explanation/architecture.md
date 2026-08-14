@@ -20,6 +20,7 @@ src/axm_edit/
 │   ├── precheck_fs.py       # Filesystem-resolving rules (anchors on disk, create targets, rewrite targets, line length)
 │   ├── preflight.py         # Shared read-only preflight: merges + partitions the rules
 │   ├── rewrite.py           # Pure rewrite-target predicate shared by the dry run and the apply path
+│   ├── atomic_write.py      # Atomic + durable whole-file replacement (temp sibling, os.replace, fsync)
 │   └── checkpoint.py        # Targeted per-path snapshot / rollback (no git)
 ├── services/
 │   ├── lint.py              # filter_ruff_lines — post-apply ruff diagnostic filtering
@@ -111,6 +112,7 @@ The **hinted** branch (an edit carrying a `line` hint whose anchor is not found 
 - **Anchor re-verification (TOCTOU guard)**: validation resolves each replace edit's `old` anchor to a line range, but the file could change on disk before the apply phase splices it. Immediately before each splice, the apply step re-confirms that the resolved range still matches `old` (using the same exact/dedented matchers as resolution). If the file drifted, the edit is **not** spliced at the now-stale location — the whole batch aborts, rolls back via the checkpoint, and returns `BatchResult(success=False)` with a drift error
 - **Best-effort apply with automatic rollback**: atomicity is *announced at validation*, not at the OS level. Once validation passes the apply phase is best-effort: **any** exception raised mid-apply — anchor drift, a `write_text`/`unlink`/`mkdir` failure, a permission error — triggers a rollback to the pre-apply checkpoint and returns `BatchResult(success=False)` with the error. If the rollback itself cannot fully restore every snapshotted path (a filesystem error while undoing), that is surfaced via `BatchResult.rollback_failed=True`
 - **Rollback is a strict inverse**: `rollback` (and the `batch_rollback` tool) restores **only** the snapshotted paths (rewrite original bytes, remove files that were absent before, recreate deleted files) and touches nothing else — no `git checkout`/`clean`/`stash`. It is best-effort: every captured path is attempted even if an earlier one fails, and the outcome is returned as a `RollbackResult` (`restored` / `unrestored` path lists, plus `ok`) so a partial rollback is detectable. Directory pruning is also strict: only the directories the **batch itself created** (recorded in the snapshot) are removed when empty — a pre-existing empty directory that merely contained a batch-created file is never deleted
+- **Whole-file `rewrite`**: a `rewrite` goes through those very same two phases. Its target is classified during **validation** — so a missing, non-regular, binary or checksum-stale target refuses the whole batch before a single byte is written — and only then applied with `core/atomic_write.py::atomic_replace` (temp sibling + `os.replace` + fsync), so a concurrent reader never observes a half-written file. It is snapshotted by `create_checkpoint` exactly like a replaced file, so `rollback` restores its original bytes with **no dedicated code path**; a successful batch reports it as `summary["rewritten"]`, a key emitted only when the batch actually holds rewrites so replace/create/delete-only results stay byte-identical
 
 ## Preflight: the gate before the gate
 
@@ -148,6 +150,17 @@ other rule, so they ride the existing `merge_diagnostics` ordering and the
 existing `partition_diagnostics` verdict — no ordering, severity or verdict logic
 is duplicated for them.
 
+The **mutating** path enforces the identical verdict: `core/engine.py::_validate_rewrite`
+observes the same triple (does it exist, is it a regular file, the sha256 of the
+bytes on disk) and hands it to that same `classify_rewrite_target`, then maps the
+returned code to a `ValidationError` through the single pure helper
+`_rewrite_error(code, file)` — so a refused rewrite carries the code verbatim in
+its message and the engine never re-implements the decision. Two guards are
+engine-specific: a path escaping the root (`resolve_safe` returning `None`) is
+observed as absent, and a binary target is refused with `rewrite_target_binary`.
+Validation covers the **whole** batch first, so a rewrite paired with a replace
+whose anchor no longer matches leaves every target byte-identical.
+
 Wiring the preflight in does **not** relax the engine: `batch_apply`'s own validation, its anchor re-verification and its rollback stay exactly as they are — they still guard the window between the preflight verdict and the splice.
 
 ## Encoding & line endings
@@ -166,5 +179,5 @@ Wiring the preflight in does **not** relax the engine: `batch_apply`'s own valid
 | Preflight before checkpoint | A contract error (unknown edit key, absent anchor, `create` on an existing path) refuses the batch before any snapshot or write — the mutating path enforces the same rules as the dry-run tool |
 | `old` re-checked at apply time | Closes the validate→apply TOCTOU window; a drifted file aborts instead of a wrong-location splice |
 | Targeted path snapshot | Rollback restores only what the batch touched, never destroys unrelated work |
-| `rewrite` guarded by a checksum | The preflight classifies the target through the single shared predicate before anything is attempted: an absent target, a symlink/directory, or a digest that no longer matches the bytes on disk refuses the batch — a concurrent modification is detected instead of being silently clobbered, and there is no `overwrite` escape hatch |
+| `rewrite` guarded by a checksum | The preflight **and** `batch_apply` classify the target through the single shared predicate before anything is attempted: an absent target, a symlink/directory, a binary file, or a digest that no longer matches the bytes on disk refuses the batch — a concurrent modification is detected instead of being silently clobbered, and there is no `overwrite` escape hatch |
 | `agent_hint` on tools | LLM-optimized description propagates to MCP — agents see what each tool does without parsing docstrings |

@@ -139,6 +139,23 @@ class TestRewriteOp:
             )
         assert "overwrite" in str(excinfo.value)
 
+    def test_operation_union_accepts_a_rewrite_payload(self) -> None:
+        # AC1: the Operation union parses a rewrite mapping into RewriteOp.
+        from pydantic import TypeAdapter
+
+        from axm_edit.models.operations import Operation, RewriteOp
+
+        parsed: object = TypeAdapter(Operation).validate_python(
+            {
+                "op": "rewrite",
+                "file": self.RW_FILE,
+                "content": self.RW_CONTENT,
+                "expected_checksum": self.RW_DIGEST,
+            }
+        )
+
+        assert isinstance(parsed, RewriteOp)
+
 
 class TestBatchResult:
     """Tests for the BatchResult model."""

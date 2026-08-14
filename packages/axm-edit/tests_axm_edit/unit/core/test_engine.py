@@ -203,3 +203,40 @@ def test_hinted_miss_past_eof_states_the_real_line_count() -> None:
     assert err.error is not None
     assert "Content not found at or near hint line" in err.error
     assert "3 lines" in err.error
+
+
+def test_rewrite_error_names_each_rewrite_code() -> None:
+    """AC2: each rewrite code maps to a ValidationError carrying that code."""
+    from axm_edit.core.engine import _rewrite_error
+
+    for code in (
+        "rewrite_target_missing",
+        "rewrite_target_not_regular",
+        "rewrite_checksum_stale",
+    ):
+        err = _rewrite_error(code, "src/mod.py")
+
+        assert isinstance(err, ValidationError)
+        assert err.file == "src/mod.py"
+        assert err.error is not None
+        assert code in err.error
+
+
+def test_group_operations_isolates_rewrite_ops() -> None:
+    """AC1: a rewrite op lands in its own group, never among the replaces."""
+    from pathlib import Path
+
+    from axm_edit.core.engine import _group_operations
+    from axm_edit.models.operations import ReplaceOp, RewriteOp
+
+    rewrite = RewriteOp(
+        op="rewrite",
+        file="a.py",
+        content="gamma = 3\n",
+        expected_checksum="a" * 64,
+    )
+    replace = ReplaceOp(file="b.py", edits=[Edit(old="alpha", new="beta")])
+
+    grouped = _group_operations(Path("/project"), [rewrite, replace])
+
+    assert list(grouped.rewrites) == [rewrite]

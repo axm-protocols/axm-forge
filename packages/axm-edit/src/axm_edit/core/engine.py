@@ -17,11 +17,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
+from axm_edit.core.atomic_write import atomic_replace
 from axm_edit.core.checkpoint import create_checkpoint, rollback
 from axm_edit.core.diagnostics import (
     explain_difference,
     explain_near_miss,
     format_match_lines,
+)
+from axm_edit.core.rewrite import (
+    REWRITE_CHECKSUM_STALE,
+    REWRITE_TARGET_MISSING,
+    REWRITE_TARGET_NOT_REGULAR,
+    classify_rewrite_target,
+    compute_checksum,
 )
 from axm_edit.models.operations import (
     BatchResult,
@@ -30,6 +38,7 @@ from axm_edit.models.operations import (
     Edit,
     Operation,
     ReplaceOp,
+    RewriteOp,
     ValidationError,
 )
 from axm_edit.utils import is_binary, resolve_safe
@@ -691,6 +700,7 @@ class _GroupedOps:
     replace_by_file: dict[str, list[Edit]]
     creates: list[CreateOp]
     deletes: list[DeleteOp]
+    rewrites: list[RewriteOp]
 
 
 def _canonical_key(root: Path, file_rel: str) -> str:
@@ -712,6 +722,7 @@ def _group_operations(root: Path, operations: Sequence[Operation]) -> _GroupedOp
     replace_by_file: dict[str, list[Edit]] = {}
     creates: list[CreateOp] = []
     deletes: list[DeleteOp] = []
+    rewrites: list[RewriteOp] = []
     for op in operations:
         if isinstance(op, ReplaceOp):
             key = _canonical_key(root, op.file)
@@ -720,7 +731,91 @@ def _group_operations(root: Path, operations: Sequence[Operation]) -> _GroupedOp
             creates.append(op)
         elif isinstance(op, DeleteOp):
             deletes.append(op)
-    return _GroupedOps(replace_by_file, creates, deletes)
+        elif isinstance(op, RewriteOp):
+            rewrites.append(op)
+    return _GroupedOps(replace_by_file, creates, deletes, rewrites)
+
+
+_REWRITE_TARGET_BINARY = "rewrite_target_binary"
+
+_REWRITE_ERROR_DETAILS: dict[str, str] = {
+    REWRITE_TARGET_MISSING: "the rewrite target does not exist",
+    REWRITE_TARGET_NOT_REGULAR: "the rewrite target is not a regular file",
+    REWRITE_CHECKSUM_STALE: (
+        "the rewrite target changed since its declared checksum was read"
+    ),
+    _REWRITE_TARGET_BINARY: "the rewrite target is a binary file",
+}
+
+
+def _rewrite_error(code: str, file: str) -> ValidationError:
+    """Map a rewrite classification *code* to its validation error.
+
+    Pure by construction: the wording derives from the code alone, so the
+    diagnostic is testable without touching the filesystem.
+
+    Args:
+        code: The code returned by ``classify_rewrite_target`` (or the
+            engine-local binary-target code).
+        file: The relative path the rewrite targeted.
+
+    Returns:
+        A ``ValidationError`` whose message contains *code* verbatim.
+    """
+    detail = _REWRITE_ERROR_DETAILS.get(code, "the rewrite target was refused")
+    return ValidationError(file=file, error=f"{code}: {detail}")
+
+
+def _observe_rewrite_target(
+    root: Path,
+    relative: str,
+) -> tuple[bool, bool, str | None]:
+    """Read the on-disk facts of a rewrite target, without following it.
+
+    The final path component is inspected as-is, so a symlink is observed as
+    a symlink and never as the regular file it points at. A path escaping
+    *root* is observed as absent, exactly like a path that does not exist.
+
+    Args:
+        root: Project root the batch applies to.
+        relative: Relative path targeted by the rewrite.
+
+    Returns:
+        The ``(exists, is_regular, actual_checksum)`` triple consumed by
+        :func:`~axm_edit.core.rewrite.classify_rewrite_target`.
+    """
+    if _resolve_safe(root, relative) is None:
+        return (False, False, None)
+    candidate = root / relative
+    exists = candidate.exists() or candidate.is_symlink()
+    if not exists or candidate.is_symlink() or not candidate.is_file():
+        return (exists, False, None)
+    try:
+        return (True, True, compute_checksum(candidate.read_bytes()))
+    except OSError:
+        return (True, True, None)
+
+
+def _validate_rewrite(root: Path, op: RewriteOp) -> list[ValidationError]:
+    """Validate one rewrite, before a single byte is written.
+
+    The verdict is not decided here: the observed facts are handed to the
+    shared predicate ``classify_rewrite_target``, so the dry run and the
+    apply path can never drift apart.
+    """
+    exists, is_regular, actual = _observe_rewrite_target(root, op.file)
+    code = classify_rewrite_target(
+        exists=exists,
+        is_regular=is_regular,
+        actual_checksum=actual,
+        expected_checksum=op.expected_checksum,
+    )
+    if code is not None:
+        return [_rewrite_error(code, op.file)]
+    target = _resolve_safe(root, op.file)
+    if target is not None and is_binary(target):
+        return [_rewrite_error(_REWRITE_TARGET_BINARY, op.file)]
+    return []
 
 
 def _validate_all(
@@ -743,6 +838,9 @@ def _validate_all(
 
     for delete_op in grouped.deletes:
         errors.extend(_validate_delete(root, delete_op))
+
+    for rewrite_op in grouped.rewrites:
+        errors.extend(_validate_rewrite(root, rewrite_op))
 
     return resolved_by_file, errors
 
@@ -768,6 +866,17 @@ def _apply_creates_deletes(
     return count
 
 
+def _apply_rewrites(root: Path, rewrites: list[RewriteOp]) -> int:
+    """Replace every validated rewrite target atomically, returning the count."""
+    count = 0
+    for rewrite_op in rewrites:
+        target = _resolve_safe(root, rewrite_op.file)
+        assert target is not None
+        atomic_replace(target, rewrite_op.content.encode("utf-8"))
+        count += 1
+    return count
+
+
 def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     """Validate and apply a batch of file operations.
 
@@ -788,7 +897,7 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
 
     Args:
         root: Project root directory (all paths are relative to this).
-        operations: List of replace, create, and delete operations.
+        operations: List of replace, create, rewrite and delete operations.
 
     Returns:
         BatchResult with success status, a targeted-path snapshot
@@ -812,6 +921,7 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
         for file_rel, resolved in resolved_by_file.items():
             total_applied += _apply_replace(root, file_rel, resolved)
         total_applied += _apply_creates_deletes(root, grouped.creates, grouped.deletes)
+        total_applied += _apply_rewrites(root, grouped.rewrites)
     except _AnchorDriftError as drift:
         rb = rollback(root, checkpoint)
         return BatchResult(
@@ -830,13 +940,17 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
             rollback_failed=not rb.ok,
         )
 
+    summary = {
+        "modified": len(resolved_by_file),
+        "created": len(grouped.creates),
+        "deleted": len(grouped.deletes),
+    }
+    if grouped.rewrites:
+        summary["rewritten"] = len(grouped.rewrites)
+
     return BatchResult(
         success=True,
         checkpoint=checkpoint,
         applied=total_applied,
-        summary={
-            "modified": len(resolved_by_file),
-            "created": len(grouped.creates),
-            "deleted": len(grouped.deletes),
-        },
+        summary=summary,
     )

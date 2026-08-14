@@ -116,7 +116,7 @@ class RewriteOp(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesize
 
 
 Operation = Annotated[
-    ReplaceOp | CreateOp | DeleteOp,
+    ReplaceOp | CreateOp | DeleteOp | RewriteOp,
     Field(discriminator="op"),
 ]
 """Discriminated union of all operation types."""
