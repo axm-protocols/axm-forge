@@ -870,3 +870,70 @@ class TestRunRuffUsesProjectEnv:
         for call in ruff_calls:
             args = call.args[0] if call.args else call.kwargs.get("args", [])
             assert args[0:2] == ["uv", "run"], f"Expected 'uv run ruff ...', got {args}"
+
+
+_DOCSTRING_SOURCE = (
+    "VALUE = 1\n"
+    "\n"
+    "\n"
+    "def helper() -> int:\n"
+    '    """Return the value."""\n'
+    "    return VALUE\n"
+)
+
+
+def _tree_snapshot(root: Path) -> dict[str, tuple[bytes, int]]:
+    """Map every file under *root* to its bytes and its mtime in nanoseconds."""
+    return {
+        str(path.relative_to(root)): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+class TestBlockedBatchSurfacesTheEnrichedDiagnostic:
+    """AC3: a refused batch names the failing edit and writes nothing."""
+
+    def test_refused_batch_reports_the_edit_slot_and_leaves_the_tree_intact(
+        self,
+        tool: BatchEditTool,
+        tmp_path: Path,
+    ) -> None:
+        """AC3: enriched payload and rendered refusal, no write, no checkpoint."""
+        target = tmp_path / "pkg" / "mod.py"
+        target.parent.mkdir(parents=True)
+        target.write_text(_DOCSTRING_SOURCE, encoding="utf-8")
+        before = _tree_snapshot(tmp_path)
+
+        result = tool.execute(
+            path=str(tmp_path),
+            operations=[
+                {
+                    "op": "replace",
+                    "file": "pkg/mod.py",
+                    "edits": [
+                        {"old": "VALUE = 1", "new": "VALUE = 2"},
+                        {
+                            "old": '    """Return the value."""',
+                            "new": '    """Return the stored value."""',
+                        },
+                    ],
+                }
+            ],
+        )
+
+        assert not result.success
+        assert result.data is not None
+        diagnostic = result.data["preflight"]["diagnostics"][0]
+        excerpt = diagnostic["anchor_excerpt"]
+
+        assert diagnostic["edit_index"] == 1, diagnostic
+        assert isinstance(excerpt, str), diagnostic
+        assert excerpt.strip(), diagnostic
+        # The refusal must be readable, not only machine-parsable.
+        rendered = [line.strip() for line in (result.text or "").splitlines()]
+        assert any("edit #1" in line for line in rendered), result.text
+        assert any(line.startswith("anchor: ") for line in rendered), result.text
+        # Nothing was written: same files, same bytes, same mtimes.
+        assert _tree_snapshot(tmp_path) == before
+        assert "checkpoint" not in result.data

@@ -263,3 +263,59 @@ def test_batch_edit_help_prints_the_anchor_contract() -> None:
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert not missing, f"missing rule markers: {missing} in {combined}"
+
+
+@pytest.mark.e2e
+def test_batch_edit_names_the_failing_edit_slot_of_a_refused_batch(
+    tmp_path: Path,
+) -> None:
+    """AC1: the refusal names the failing edit slot and echoes its anchor."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        "VALUE = 1\n"
+        "\n"
+        "\n"
+        "def helper() -> int:\n"
+        '    """Return the value."""\n'
+        "    return VALUE\n",
+        encoding="utf-8",
+    )
+    before = target.read_bytes()
+
+    operations = [
+        {
+            "op": "replace",
+            "file": "pkg/mod.py",
+            "edits": [
+                {"old": "VALUE = 1", "new": "VALUE = 2"},
+                {
+                    "old": '    """Return the value."""',
+                    "new": '    """Return the stored value."""',
+                },
+            ],
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    lines = [line.lstrip() for line in combined.splitlines()]
+
+    assert proc.returncode != 0, combined
+    assert "edit #1" in combined, combined
+    assert any(line.startswith("anchor: ") for line in lines), combined
+    assert target.read_bytes() == before, combined

@@ -439,13 +439,37 @@ def _diagnostic_hint(entry: dict[str, object]) -> str:
     return ""
 
 
+def _diagnostic_edit_slot(entry: dict[str, object]) -> str:
+    """Return the ``edit #N`` fragment of an edit-scoped diagnostic.
+
+    ``edit_index`` is optional on
+    :class:`~axm_edit.models.check.CheckDiagnostic`: a finding scoped to the
+    whole operation carries none, and then renders exactly as before.
+    """
+    index = entry.get("edit_index")
+    if isinstance(index, int) and not isinstance(index, bool):
+        return f" (edit #{index})"
+    return ""
+
+
+def _diagnostic_anchor_excerpt(entry: dict[str, object]) -> str:
+    """Return the bounded anchor excerpt of a diagnostic, if it carries one."""
+    excerpt = entry.get("anchor_excerpt")
+    if isinstance(excerpt, str) and excerpt:
+        return excerpt
+    return ""
+
+
 def _render_preflight_diagnostic(entry: dict[str, object]) -> list[str]:
     """Render one diagnostic as a located line plus its remediation line."""
     lines = [
         f"  [{entry.get('severity', 'error')}] op#{entry.get('op_index', '?')}"
         f" {entry.get('file', '?')}: {entry.get('code', '?')}"
-        f" — {entry.get('message', '')}"
+        f" — {entry.get('message', '')}{_diagnostic_edit_slot(entry)}"
     ]
+    excerpt = _diagnostic_anchor_excerpt(entry)
+    if excerpt:
+        lines.append(f"      anchor: {excerpt}")
     hint = _diagnostic_hint(entry)
     if hint:
         lines.append(f"      hint: {hint}")

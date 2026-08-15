@@ -422,3 +422,75 @@ class TestAgentHintPublishesTheAnchorContract:
         missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
 
         assert not missing, f"missing rule markers: {missing}"
+
+
+ENRICHED_ANCHOR_EXCERPT = "return VALUE"
+
+
+def _blocked_preflight_data() -> dict[str, object]:
+    """One edit-scoped, enriched diagnostic and one legacy one, same payload."""
+    return {
+        "preflight": {
+            "blocking": True,
+            "diagnostics": [
+                {
+                    "severity": "error",
+                    "file": "pkg/mod.py",
+                    "op_index": 0,
+                    "code": "ANCHOR_TRIPLE_QUOTE",
+                    "message": "the anchor contains a triple-quote delimiter",
+                    "hint": "Anchor on a quote-free line instead.",
+                    "edit_index": 1,
+                    "anchor_excerpt": ENRICHED_ANCHOR_EXCERPT,
+                },
+                {
+                    "severity": "error",
+                    "file": "pkg/other.py",
+                    "op_index": 1,
+                    "code": "UNKNOWN_EDIT_KEY",
+                    "message": "Unknown edit key `replace_all`",
+                    "hint": "Accepted edit keys: old, new, line",
+                    "edit_index": None,
+                    "anchor_excerpt": None,
+                },
+            ],
+            "warnings": [],
+        }
+    }
+
+
+class TestRenderPreflightEnrichment:
+    """AC1, AC2: the blocked rendering locates the failing edit."""
+
+    def test_edit_slot_fragment_renders_only_for_the_edit_scoped_diagnostic(
+        self,
+    ) -> None:
+        """AC1: `edit #1` on the enriched line, nothing on the legacy one."""
+        result = BatchResult(success=False, error="Preflight blocked")
+
+        text = render_text(result, [], _blocked_preflight_data())
+        lines = [line.strip() for line in text.splitlines()]
+        enriched = [line for line in lines if "ANCHOR_TRIPLE_QUOTE" in line]
+        legacy = [line for line in lines if "UNKNOWN_EDIT_KEY" in line]
+
+        assert len(enriched) == 1, text
+        assert len(legacy) == 1, text
+        assert "edit #1" in enriched[0], text
+        assert "pkg/mod.py" in enriched[0], text
+        assert "edit #" not in legacy[0], text
+
+    def test_anchor_excerpt_renders_on_its_own_line_only_when_present(
+        self,
+    ) -> None:
+        """AC2: exactly one `anchor: ` line, carrying the excerpt verbatim."""
+        result = BatchResult(success=False, error="Preflight blocked")
+
+        text = render_text(result, [], _blocked_preflight_data())
+        lines = [line.strip() for line in text.splitlines()]
+        anchor_lines = [line for line in lines if line.startswith("anchor: ")]
+        legacy = next(line for line in lines if "UNKNOWN_EDIT_KEY" in line)
+
+        assert anchor_lines == [f"anchor: {ENRICHED_ANCHOR_EXCERPT}"], text
+        # The legacy diagnostic keeps its code, file and hint untouched.
+        assert "pkg/other.py" in legacy, text
+        assert "Accepted edit keys: old, new, line" in text, text
