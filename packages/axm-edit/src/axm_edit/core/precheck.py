@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
 
+from axm_edit.core.diagnostics import _truncate, render_invisibles
 from axm_edit.models.check import CheckDiagnostic
 from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp, RewriteOp
 
@@ -137,13 +138,42 @@ def check_rewrite_keys(
     return diagnostics
 
 
-def check_anchor_quotes(op_index: int, file: str, old: str) -> list[CheckDiagnostic]:
+#: Hard cap on an anchor excerpt carried by a diagnostic, marker included.
+MAX_ANCHOR_EXCERPT_CHARS = 80
+
+
+def anchor_excerpt(old: str) -> str:
+    """Render an anchor as a bounded, single-line excerpt for a diagnostic.
+
+    Invisible characters are named by
+    :func:`~axm_edit.core.diagnostics.render_invisibles` — a line feed becomes
+    ``<LF>``, so the excerpt never carries a raw newline — and the result is
+    clamped by the single truncation rule of that same module, ellipsis
+    marker included.
+
+    Args:
+        old: The anchor text to echo back to the caller.
+
+    Returns:
+        The rendered anchor, at most ``MAX_ANCHOR_EXCERPT_CHARS`` characters.
+    """
+    return _truncate(render_invisibles(old), MAX_ANCHOR_EXCERPT_CHARS)
+
+
+def check_anchor_quotes(
+    op_index: int,
+    file: str,
+    old: str,
+    edit_index: int | None = None,
+) -> list[CheckDiagnostic]:
     """Report an anchor containing a triple-quote delimiter.
 
     Args:
         op_index: 0-indexed position of the operation in the batch.
         file: Relative path targeted by the operation.
         old: The anchor text to inspect.
+        edit_index: 0-indexed position of the edit inside that operation,
+            echoed back on the diagnostic; ``None`` when unknown.
 
     Returns:
         A single ``ANCHOR_TRIPLE_QUOTE`` diagnostic, or ``[]``.
@@ -158,6 +188,8 @@ def check_anchor_quotes(op_index: int, file: str, old: str) -> list[CheckDiagnos
             code="ANCHOR_TRIPLE_QUOTE",
             message="the anchor contains a triple-quote delimiter",
             hint="Anchor on a quote-free line instead of a docstring body.",
+            edit_index=edit_index,
+            anchor_excerpt=anchor_excerpt(old),
         )
     ]
 
@@ -183,6 +215,7 @@ def check_anchor_whole_line(
     file: str,
     lines: Sequence[str],
     old: str,
+    edit_index: int | None = None,
 ) -> list[CheckDiagnostic]:
     """Report a multi-line anchor that does not span whole lines.
 
@@ -191,6 +224,8 @@ def check_anchor_whole_line(
         file: Relative path targeted by the operation.
         lines: In-memory content of ``file``, one entry per line.
         old: The anchor text to inspect.
+        edit_index: 0-indexed position of the edit inside that operation,
+            echoed back on the diagnostic; ``None`` when unknown.
 
     Returns:
         A single ``ANCHOR_NOT_WHOLE_LINE`` diagnostic, or ``[]``.  A
@@ -213,6 +248,8 @@ def check_anchor_whole_line(
                 "the multi-line anchor starts or ends mid-line in the target file"
             ),
             hint="Extend the anchor to full lines, from column 0 to end of line.",
+            edit_index=edit_index,
+            anchor_excerpt=anchor_excerpt(old),
         )
     ]
 
@@ -225,10 +262,12 @@ def _check_replace(
     """Run every anchor/key check on a single replace operation."""
     lines = contents.get(op.file, ())
     diagnostics: list[CheckDiagnostic] = []
-    for edit in op.edits:
+    for edit_index, edit in enumerate(op.edits):
         diagnostics.extend(check_edit_keys(op_index, op.file, edit.model_dump()))
-        diagnostics.extend(check_anchor_quotes(op_index, op.file, edit.old))
-        diagnostics.extend(check_anchor_whole_line(op_index, op.file, lines, edit.old))
+        diagnostics.extend(check_anchor_quotes(op_index, op.file, edit.old, edit_index))
+        diagnostics.extend(
+            check_anchor_whole_line(op_index, op.file, lines, edit.old, edit_index)
+        )
     return diagnostics
 
 

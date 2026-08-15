@@ -6,7 +6,9 @@ replacement text and the resolved limit as arguments and touches no disk.
 
 from __future__ import annotations
 
+from axm_edit.core.precheck import run_static_checks
 from axm_edit.core.precheck_fs import check_line_length
+from axm_edit.models.operations import ReplaceOp
 
 
 def test_line_over_default_but_within_limit_is_flagged() -> None:
@@ -27,3 +29,22 @@ def test_short_or_over_limit_lines_are_not_flagged() -> None:
     codes = [d.code for d in check_line_length(1, "a.py", "x" * 120, 100)]
 
     assert "LINE_LENGTH_DEFAULT_MISMATCH" not in codes
+
+
+def test_edit_index_survives_the_raw_mapping_parse_layer() -> None:
+    """AC6: an op parsed from a raw mapping still names the faulty edit slot."""
+    raw_op: dict[str, object] = {
+        "op": "replace",
+        "file": "a.py",
+        "edits": [
+            {"old": "    return 1", "new": "    return 2"},
+            {"old": 'x = """doc"""', "new": "x = 1"},
+        ],
+    }
+    operations = [ReplaceOp.model_validate(raw_op)]
+    contents = {"a.py": ["def f():", "    return 1", ""]}
+
+    diagnostics = run_static_checks(operations, contents)
+
+    assert len(diagnostics) == 1
+    assert diagnostics[0].edit_index == 1

@@ -28,6 +28,10 @@ class CheckDiagnostic(BaseModel):  # type: ignore[explicit-any]  # pydantic synt
         code: Stable machine-readable identifier (e.g. ``UNKNOWN_EDIT_KEY``).
         message: Human-readable explanation of what was found.
         hint: Actionable remediation advice.
+        edit_index: 0-indexed position of the offending edit inside that
+            operation, or ``None`` when the finding is not edit-scoped.
+        anchor_excerpt: Bounded single-line excerpt of the offending anchor,
+            or ``None`` when the finding carries no anchor.
     """
 
     op_index: int = Field(
@@ -43,6 +47,14 @@ class CheckDiagnostic(BaseModel):  # type: ignore[explicit-any]  # pydantic synt
     code: str = Field(..., min_length=1, description="Stable diagnostic code")
     message: str = Field(..., description="Human-readable explanation")
     hint: str = Field(default="", description="Actionable remediation hint")
+    edit_index: int | None = Field(
+        default=None,
+        description="0-indexed position of the offending edit in the operation",
+    )
+    anchor_excerpt: str | None = Field(
+        default=None,
+        description="Bounded single-line excerpt of the offending anchor",
+    )
 
     model_config = {"extra": "forbid"}
 

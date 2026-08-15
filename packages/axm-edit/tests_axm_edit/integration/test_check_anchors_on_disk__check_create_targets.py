@@ -101,3 +101,27 @@ def test_run_fs_checks_reads_without_mutating(tmp_path: Path) -> None:
     assert _snapshot(tmp_path) == before
     assert isinstance(diagnostics, list)
     assert all(isinstance(d, CheckDiagnostic) for d in diagnostics)
+
+
+@pytest.mark.integration
+def test_on_disk_anchor_diagnostics_carry_their_edit_slot(tmp_path: Path) -> None:
+    """AC7: not-found and ambiguous anchors name their edit slot and excerpt."""
+    (tmp_path / "a.py").write_text("flag = 1\nflag = 1\n")
+    operations = [
+        ReplaceOp(
+            file="a.py",
+            edits=[
+                Edit(old="absent = 0", new="absent = 1"),
+                Edit(old="flag = 1", new="flag = 2"),
+            ],
+        )
+    ]
+
+    diagnostics = check_anchors_on_disk(tmp_path, operations)
+
+    by_code = {item.code: item for item in diagnostics}
+    assert set(by_code) == {"ANCHOR_NOT_FOUND", "ANCHOR_AMBIGUOUS"}
+    assert by_code["ANCHOR_NOT_FOUND"].edit_index == 0
+    assert by_code["ANCHOR_AMBIGUOUS"].edit_index == 1
+    assert by_code["ANCHOR_NOT_FOUND"].anchor_excerpt
+    assert by_code["ANCHOR_AMBIGUOUS"].anchor_excerpt

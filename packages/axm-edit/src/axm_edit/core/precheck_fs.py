@@ -22,6 +22,7 @@ from pydantic import TypeAdapter
 from axm_edit.core.precheck import (
     REWRITE_CHECKSUM_KEY,
     StaticOperation,
+    anchor_excerpt,
     run_static_checks,
 )
 from axm_edit.core.rewrite import (
@@ -268,7 +269,7 @@ def _check_anchors(
 ) -> list[CheckDiagnostic]:
     """Compare every anchor of *op* against the file *text* read on disk."""
     diagnostics: list[CheckDiagnostic] = []
-    for edit in op.edits:
+    for edit_index, edit in enumerate(op.edits):
         occurrences = text.count(edit.old)
         if occurrences == 0:
             diagnostics.append(
@@ -279,6 +280,8 @@ def _check_anchors(
                     code="ANCHOR_NOT_FOUND",
                     message=f"Anchor not found in {op.file!r}: {edit.old!r}.",
                     hint=_ANCHOR_NOT_FOUND_HINT,
+                    edit_index=edit_index,
+                    anchor_excerpt=anchor_excerpt(edit.old),
                 )
             )
         elif occurrences > 1:
@@ -293,6 +296,8 @@ def _check_anchors(
                         f"{edit.old!r}."
                     ),
                     hint=_ANCHOR_AMBIGUOUS_HINT,
+                    edit_index=edit_index,
+                    anchor_excerpt=anchor_excerpt(edit.old),
                 )
             )
     return diagnostics

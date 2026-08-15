@@ -173,3 +173,37 @@ def test_rewrite_unknown_key_is_reported_on_a_real_root(tmp_path: Path) -> None:
     assert unknown[0].op_index == 0
     assert unknown[0].file == "mod.py"
     assert "overwrite" in unknown[0].message
+
+
+def test_clean_anchor_stays_silent_next_to_a_faulty_long_one(tmp_path: Path) -> None:
+    """AC5: only the long quoted anchor is reported, with a bounded excerpt."""
+    body = "a" * 150
+    quoted = f'"""\n{body}\n{body}\n"""'
+    _write(tmp_path, "mod.py", f"    value = 1\n{quoted}\n")
+    before = _snapshot(tmp_path)
+    mtime = (tmp_path / "mod.py").stat().st_mtime
+    raw_ops: list[dict[str, object]] = [
+        {
+            "op": "replace",
+            "file": "mod.py",
+            "edits": [
+                {"old": "    value = 1", "new": "    value = 2"},
+                {"old": quoted, "new": "pass"},
+            ],
+        }
+    ]
+
+    diagnostics = collect_preflight_diagnostics(tmp_path, raw_ops)
+
+    assert len(diagnostics) == 1
+    diagnostic = diagnostics[0]
+    assert diagnostic.code == "ANCHOR_TRIPLE_QUOTE"
+    assert diagnostic.op_index == 0
+    assert diagnostic.edit_index == 1
+    excerpt = diagnostic.anchor_excerpt
+    assert excerpt is not None
+    assert len(excerpt) <= 80
+    assert excerpt.endswith(("…", "..."))
+    assert "\n" not in excerpt
+    assert _snapshot(tmp_path) == before
+    assert (tmp_path / "mod.py").stat().st_mtime == mtime

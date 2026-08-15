@@ -163,3 +163,92 @@ class TestCheckRewriteKeys:
         }
 
         assert _rewrite_key_check()(0, "a.py", raw_op) == []
+
+
+class TestAnchorDiagnosticsLocateTheirEdit:
+    """AC2-AC6: anchor diagnostics name their edit slot and echo the anchor."""
+
+    def test_triple_quote_anchor_carries_its_edit_index_and_excerpt(self) -> None:
+        """AC2: ANCHOR_TRIPLE_QUOTE carries the edit slot and an anchor prefix."""
+        anchor = 'x = """doc"""'
+
+        diagnostics = check_anchor_quotes(0, "a.py", anchor, edit_index=1)
+
+        assert len(diagnostics) == 1
+        diagnostic = diagnostics[0]
+        assert diagnostic.code == "ANCHOR_TRIPLE_QUOTE"
+        assert diagnostic.edit_index == 1
+        assert diagnostic.anchor_excerpt
+        assert anchor.startswith(diagnostic.anchor_excerpt)
+
+    def test_mid_line_multiline_anchor_carries_its_edit_index(self) -> None:
+        """AC3: a multi-line anchor off column 0 names its edit slot."""
+        lines = ["def f():", "    return 1", ""]
+
+        diagnostics = check_anchor_whole_line(
+            0,
+            "a.py",
+            lines,
+            "f():\n    return",
+            edit_index=2,
+        )
+
+        assert len(diagnostics) == 1
+        diagnostic = diagnostics[0]
+        assert diagnostic.code == "ANCHOR_NOT_WHOLE_LINE"
+        assert diagnostic.edit_index == 2
+        assert diagnostic.anchor_excerpt
+
+    def test_trailing_newline_anchor_carries_its_edit_index(self) -> None:
+        """AC4: an anchor ending on a newline names its edit slot."""
+        lines = ["def f():", "    return 1", ""]
+
+        diagnostics = check_anchor_whole_line(
+            0,
+            "a.py",
+            lines,
+            "def f():\n",
+            edit_index=0,
+        )
+
+        assert len(diagnostics) == 1
+        diagnostic = diagnostics[0]
+        assert diagnostic.code == "ANCHOR_NOT_WHOLE_LINE"
+        assert diagnostic.edit_index == 0
+        assert diagnostic.anchor_excerpt
+        assert "\n" not in diagnostic.anchor_excerpt
+
+    def test_long_anchor_excerpt_is_bounded_and_marked(self) -> None:
+        """AC5: a 300-char anchor is truncated to 80 chars, marker included."""
+        body = "a" * 150
+        anchor = f'"""\n{body}\n{body}\n"""'
+
+        diagnostics = check_anchor_quotes(0, "a.py", anchor, edit_index=3)
+
+        assert len(diagnostics) == 1
+        excerpt = diagnostics[0].anchor_excerpt
+        assert excerpt is not None
+        assert len(excerpt) <= 80
+        assert excerpt.endswith(("…", "..."))
+        assert "\n" not in excerpt
+
+    def test_only_the_faulty_edit_is_reported_with_its_slot(self) -> None:
+        """AC6: a clean first edit stays silent, the second names its slot."""
+        operations = [
+            ReplaceOp(
+                file="a.py",
+                edits=[
+                    Edit(old="    return 1", new="    return 2"),
+                    Edit(old='x = """doc"""', new="x = 1"),
+                ],
+            )
+        ]
+        contents = {"a.py": ["def f():", "    return 1", ""]}
+
+        diagnostics = run_static_checks(operations, contents)
+
+        assert len(diagnostics) == 1
+        diagnostic = diagnostics[0]
+        assert diagnostic.code == "ANCHOR_TRIPLE_QUOTE"
+        assert diagnostic.op_index == 0
+        assert diagnostic.edit_index == 1
