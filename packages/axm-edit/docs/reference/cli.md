@@ -30,6 +30,14 @@ method is the single entry point.
 | `delete` | `file` | — |
 | `rewrite` | `file`, `content`, `expected_checksum` | Whole-file replacement carrying the **exact** bytes (no anchor resolution, no quote normalisation, no re-indentation) — the safe path for a triple-quote-heavy module `replace` cannot address |
 
+The `replace` anchor contract (no triple quotes inside an anchor, no trailing
+newline on `old` / `new`, whole lines for a multi-line anchor, indentation kept)
+is published verbatim from a single constant, `ANCHOR_RULES_HINT`
+([`axm_edit.core.anchor_rules`](api/axm_edit/core/anchor_rules.md)): the
+`batch_edit` and `batch_edit_check` agent hints and the `axm batch_edit --help`
+output all compose it, so the published contract can never drift from the rules
+the preflight actually enforces.
+
 The rewrite digest is **mandatory**: it is the sha256 hex digest of the file
 bytes as currently on disk. A stale digest is a hard refusal — a concurrent
 modification is never silently clobbered — and there is no `overwrite` escape

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pytest_mock import MockerFixture
 
+from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -396,3 +397,28 @@ class TestRenderRewriteOpLine:
         assert not line.startswith("+ "), line
         assert not line.startswith("- "), line
         assert not line.startswith("~ "), line
+
+
+ANCHOR_RULE_MARKERS = (
+    "triple quote",
+    "trailing newline",
+    "whole line",
+    "indentation",
+)
+
+
+class TestAgentHintPublishesTheAnchorContract:
+    """AC2: the batch_edit hint composes the shared anchor constant."""
+
+    def test_hint_embeds_the_shared_constant_verbatim(self) -> None:
+        """AC2: ANCHOR_RULES_HINT is a substring of the batch_edit hint."""
+        hint = BatchEditTool().agent_hint
+
+        assert ANCHOR_RULES_HINT in hint, hint
+
+    def test_hint_states_the_four_anchor_rules(self) -> None:
+        """AC2: the published hint carries the four rule markers."""
+        lowered = BatchEditTool().agent_hint.lower()
+        missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
+
+        assert not missing, f"missing rule markers: {missing}"

@@ -11,6 +11,12 @@ import pytest
 
 EXPECTED_NAME = "batch_edit_check"
 EXPECTED_VALUE = "axm_edit.tools.batch_edit_check:BatchEditCheckTool"
+ANCHOR_RULE_MARKERS = (
+    "triple quote",
+    "trailing newline",
+    "whole line",
+    "indentation",
+)
 
 
 @pytest.mark.integration
@@ -30,3 +36,17 @@ def test_batch_edit_check_entry_point_points_at_the_tool_class() -> None:
 
     assert matching, sorted(entry.name for entry in declared)
     assert matching[0].value == EXPECTED_VALUE
+
+
+@pytest.mark.integration
+def test_resolved_tool_publishes_the_anchor_rules() -> None:
+    """AC5: the entry-point-resolved tool exposes the four rule markers."""
+    declared = list(entry_points(group="axm.tools"))
+    matching = [entry for entry in declared if entry.name == EXPECTED_NAME]
+    assert matching, sorted(entry.name for entry in declared)
+
+    tool = matching[0].load()()
+    lowered = str(tool.agent_hint).lower()
+    missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
+
+    assert not missing, f"missing rule markers: {missing} in {lowered}"

@@ -2,9 +2,38 @@
 
 from __future__ import annotations
 
+from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
 from axm_edit.models.check import CheckDiagnostic
 from axm_edit.models.operations import CreateOp, DeleteOp, ReplaceOp
-from axm_edit.tools.batch_edit_check import _parse_check_operations, render_text
+from axm_edit.tools.batch_edit_check import (
+    BatchEditCheckTool,
+    _parse_check_operations,
+    render_text,
+)
+
+ANCHOR_RULE_MARKERS = (
+    "triple quote",
+    "trailing newline",
+    "whole line",
+    "indentation",
+)
+
+
+class TestAgentHintPublishesTheAnchorContract:
+    """AC3: the batch_edit_check hint composes the same shared constant."""
+
+    def test_hint_embeds_the_shared_constant_verbatim(self) -> None:
+        """AC3: ANCHOR_RULES_HINT is a substring of the checker hint."""
+        hint = BatchEditCheckTool().agent_hint
+
+        assert ANCHOR_RULES_HINT in hint, hint
+
+    def test_hint_states_the_four_anchor_rules(self) -> None:
+        """AC3: the published checker hint carries the four rule markers."""
+        lowered = BatchEditCheckTool().agent_hint.lower()
+        missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
+
+        assert not missing, f"missing rule markers: {missing}"
 
 
 class TestParseCheckOperations:

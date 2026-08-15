@@ -18,6 +18,7 @@ from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
 from axm_edit.core.precheck_fs import parse_rewrite_op
 from axm_edit.core.preflight import (
     collect_preflight_diagnostics,
@@ -201,7 +202,8 @@ class BatchEditCheckTool(AXMTool):
 
     agent_hint: str = (
         "Preflight a batch_edit operation set read-only: reports broken"
-        " anchors, creates on existing files and unknown edit keys."
+        " anchors, creates on existing files and unknown edit keys.\n"
+        f"{ANCHOR_RULES_HINT}"
     )
 
     @property

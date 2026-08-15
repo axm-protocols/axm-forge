@@ -12,6 +12,12 @@ from pathlib import Path
 import pytest
 
 NBSP = chr(0xA0)  # U+00A0 NO-BREAK SPACE (built, so the source stays ASCII)
+ANCHOR_RULE_MARKERS = (
+    "triple quote",
+    "trailing newline",
+    "whole line",
+    "indentation",
+)
 
 
 def _axm_binary() -> Path:
@@ -239,3 +245,21 @@ def test_batch_edit_applies_a_rewrite_operation(tmp_path: Path) -> None:
 
     assert proc.returncode == 0, combined
     assert target.read_text(encoding="utf-8") == new_body, combined
+
+
+@pytest.mark.e2e
+def test_batch_edit_help_prints_the_anchor_contract() -> None:
+    """AC4: `axm batch_edit --help` publishes the four anchor rules."""
+    proc = subprocess.run(
+        [str(_axm_binary()), "batch_edit", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    # Help output is wrapped: normalise whitespace before looking for markers.
+    combined = " ".join((proc.stdout + proc.stderr).split()).lower()
+    missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in combined]
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert not missing, f"missing rule markers: {missing} in {combined}"

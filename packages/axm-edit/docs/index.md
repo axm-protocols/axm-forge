@@ -36,6 +36,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 
 | Module | What it provides |
 |---|---|
+| [`axm_edit.core.anchor_rules`](reference/api/axm_edit/core/anchor_rules.md) | `ANCHOR_RULES_HINT` — single source of truth for the `replace` anchor contract, composed into both tool hints and the `batch_edit` docstring |
 | [`axm_edit.core.engine`](reference/api/axm_edit/core/engine.md) | `batch_apply` — validate-then-apply batch engine |
 | [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint.md) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
 | [`axm_edit.core.diagnostics`](reference/api/axm_edit/core/diagnostics.md) | `explain_near_miss`, `closest_candidate`, `render_invisibles` — near-miss report naming the closest window and its invisible characters |
