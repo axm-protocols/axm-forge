@@ -196,6 +196,26 @@ class NamespaceStore:
             self._config_path().unlink(missing_ok=True)
         self._drop_legacy(ns)
 
+    def replace_section(self, ns: str, section: dict[str, object]) -> None:
+        """Atomically replace a namespace's own leaf while keeping children."""
+        config = self._load_config()
+        current = _section(config, ns)
+        had_legacy = self._legacy_path(ns).exists()
+        if not section and not current and not had_legacy:
+            return
+
+        replacement = _with_child_tables(config, ns, dict(section))
+        if replacement:
+            _set_section(config, ns, replacement)
+        else:
+            _drop_section(config, ns)
+
+        if config:
+            self._commit_config(config)
+        else:
+            self._config_path().unlink(missing_ok=True)
+        self._drop_legacy(ns)
+
     def namespaces(self) -> list[str]:
         """Return every namespace path present in ``config.toml`` or legacy.
 

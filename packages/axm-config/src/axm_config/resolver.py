@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import os
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
+
+from pydantic import BaseModel, ConfigDict
 
 from axm_config.store import NamespaceStore
 
@@ -30,11 +32,16 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ConfigError",
+    "ExecutionPolicyOverride",
     "UnsafeHomeError",
     "delete",
+    "delete_execution_policy",
     "get",
+    "get_execution_policy",
+    "list_execution_policies",
     "load",
     "set_",
+    "set_execution_policy",
     "validate_segment",
 ]
 
@@ -147,6 +154,207 @@ def resolve(ns: str, key: str, default: object = None) -> object:
     if file_value is not _MISSING:
         return file_value
     return default
+
+
+if TYPE_CHECKING:
+
+    class _PolicyBase:
+        def __init__(self, **data: object) -> None: ...
+
+        def model_dump(self, *, exclude_none: bool = False) -> dict[str, object]: ...
+
+else:
+    _PolicyBase = BaseModel
+
+
+class ExecutionPolicyOverride(_PolicyBase):
+    """Typed per-ticket-type execution override."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", frozen=True, strict=True
+    )
+
+    backend: str | None = None
+    model: str | None = None
+    analysis_enabled: bool | None = None
+
+    def __init__(
+        self,
+        *,
+        backend: str | None = None,
+        model: str | None = None,
+        analysis_enabled: bool | None = None,
+        **extra: object,
+    ) -> None:
+        super().__init__(
+            backend=backend,
+            model=model,
+            analysis_enabled=analysis_enabled,
+            **extra,
+        )
+
+
+_POLICY_KEYS = frozenset({"backend", "model", "analysis_enabled"})
+_TRUE_TOKENS = frozenset({"true", "1", "yes", "on"})
+_FALSE_TOKENS = frozenset({"false", "0", "no", "off"})
+
+
+def _execution_namespace(ticket_type: str) -> str:
+    """Validate a ticket type and return its execution namespace."""
+    validate_segment(ticket_type, kind="namespace")
+    return f"execution.{ticket_type}"
+
+
+def _policy_pair(
+    backend: object,
+    model: object,
+    *,
+    layer: str,
+) -> tuple[str | None, str | None]:
+    """Validate backend/model as one complete, non-blank layer."""
+    backend_missing = backend is _MISSING or backend is None
+    model_missing = model is _MISSING or model is None
+    if backend_missing and model_missing:
+        return None, None
+    if backend_missing != model_missing:
+        msg = f"{layer} execution policy requires both backend and model"
+        raise ConfigError(msg)
+    if not isinstance(backend, str) or not backend.strip():
+        msg = f"{layer} execution policy backend must be a non-blank string"
+        raise ConfigError(msg)
+    if not isinstance(model, str) or not model.strip():
+        msg = f"{layer} execution policy model must be a non-blank string"
+        raise ConfigError(msg)
+    return backend, model
+
+
+def _policy_boolean(value: object, *, layer: str) -> bool | None:
+    """Validate a stored bool or parse one exact environment bool token."""
+    if value is _MISSING or value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if layer == "environment" and isinstance(value, str):
+        if value != value.strip():
+            msg = "environment analysis_enabled must not contain whitespace"
+            raise ConfigError(msg)
+        token = value.lower()
+        if token in _TRUE_TOKENS:
+            return True
+        if token in _FALSE_TOKENS:
+            return False
+    msg = f"{layer} analysis_enabled must be a boolean"
+    raise ConfigError(msg)
+
+
+def _policy_from_values(
+    values: dict[str, object],
+    *,
+    layer: str,
+) -> ExecutionPolicyOverride:
+    """Build a validated override from one configuration layer."""
+    unexpected = values.keys() - _POLICY_KEYS
+    if unexpected:
+        names = ", ".join(sorted(unexpected))
+        msg = f"{layer} execution policy has unexpected fields: {names}"
+        raise ConfigError(msg)
+    backend, model = _policy_pair(
+        values.get("backend", _MISSING),
+        values.get("model", _MISSING),
+        layer=layer,
+    )
+    analysis_enabled = _policy_boolean(
+        values.get("analysis_enabled", _MISSING),
+        layer=layer,
+    )
+    return ExecutionPolicyOverride(
+        backend=backend,
+        model=model,
+        analysis_enabled=analysis_enabled,
+    )
+
+
+def get_execution_policy(ticket_type: str) -> ExecutionPolicyOverride:
+    """Resolve one policy with atomic pair and independent boolean precedence."""
+    namespace = _execution_namespace(ticket_type)
+    file_values = _store.read(namespace)
+    env_backend = os.environ.get(_env_name(namespace, "backend"), _MISSING)
+    env_model = os.environ.get(_env_name(namespace, "model"), _MISSING)
+
+    if env_backend is not _MISSING or env_model is not _MISSING:
+        backend, model = _policy_pair(
+            env_backend,
+            env_model,
+            layer="environment",
+        )
+    else:
+        backend, model = _policy_pair(
+            file_values.get("backend", _MISSING),
+            file_values.get("model", _MISSING),
+            layer="file",
+        )
+
+    env_analysis = os.environ.get(
+        _env_name(namespace, "analysis_enabled"),
+        _MISSING,
+    )
+    analysis_enabled = _policy_boolean(
+        env_analysis
+        if env_analysis is not _MISSING
+        else file_values.get("analysis_enabled", _MISSING),
+        layer="environment" if env_analysis is not _MISSING else "file",
+    )
+    return ExecutionPolicyOverride(
+        backend=backend,
+        model=model,
+        analysis_enabled=analysis_enabled,
+    )
+
+
+def set_execution_policy(
+    ticket_type: str,
+    *,
+    backend: str | None = None,
+    model: str | None = None,
+    analysis_enabled: bool | None = None,
+) -> None:
+    """Atomically replace or clear one complete ticket-type policy leaf."""
+    namespace = _execution_namespace(ticket_type)
+    if backend is None and model is None and analysis_enabled is None:
+        _store.replace_section(namespace, {})
+        return
+    policy = _policy_from_values(
+        {
+            "backend": backend,
+            "model": model,
+            "analysis_enabled": analysis_enabled,
+        },
+        layer="argument",
+    )
+    _store.replace_section(
+        namespace,
+        policy.model_dump(exclude_none=True),
+    )
+
+
+def delete_execution_policy(ticket_type: str) -> None:
+    """Idempotently delete one policy leaf while preserving descendants."""
+    _store.replace_section(_execution_namespace(ticket_type), {})
+
+
+def list_execution_policies() -> dict[str, ExecutionPolicyOverride]:
+    """Return stored policy leaves as a lexicographically ordered mapping."""
+    policies: dict[str, ExecutionPolicyOverride] = {}
+    prefix = "execution."
+    for namespace in _store.namespaces():
+        if not namespace.startswith(prefix):
+            continue
+        values = _store.read(namespace)
+        if not _POLICY_KEYS.intersection(values):
+            continue
+        ticket_type = namespace.removeprefix(prefix)
+        policies[ticket_type] = _policy_from_values(values, layer="file")
+    return dict(sorted(policies.items()))
 
 
 def get(namespace: str, key: str, *, default: object = None) -> object:

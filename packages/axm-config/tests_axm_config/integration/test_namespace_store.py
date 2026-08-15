@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import tomli_w
 
+import axm_config
 from axm_config import UnsafeHomeError
 from axm_config.store import NamespaceStore
 
@@ -232,3 +233,92 @@ def test_write_preserves_sibling_child_namespace(
     assert store.read("git.default") == {"name": "gabriel"}
     assert store.read("git") == {"token": "abc"}
     assert store.read("git.profiles") == {"work": "on"}
+
+
+def test_set_and_delete_execution_policy_preserve_namespace_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3: policy set/delete replaces one leaf through the atomic 0600 store."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+    store.write("execution.dev.work", "obsolete", "remove-me")
+    store.write("execution.dev.work.child", "note", "keep-child")
+    store.write("execution.dev.review", "backend", "neighbor")
+    store.write("execution.prod.work", "backend", "other")
+
+    real_replace = os.replace
+    replace_calls: list[tuple[object, object]] = []
+
+    def _tracking_replace(source: object, destination: object) -> None:
+        replace_calls.append((source, destination))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", _tracking_replace)
+    set_policy = axm_config.set_execution_policy
+    delete_policy = axm_config.delete_execution_policy
+
+    set_policy(
+        "dev.work",
+        backend="openai",
+        model="gpt-5",
+        analysis_enabled=True,
+    )
+
+    assert store.read("execution.dev.work") == {
+        "backend": "openai",
+        "model": "gpt-5",
+        "analysis_enabled": True,
+    }
+    assert store.read("execution.dev.work.child") == {"note": "keep-child"}
+    assert store.read("execution.dev.review") == {"backend": "neighbor"}
+    assert store.read("execution.prod.work") == {"backend": "other"}
+    assert replace_calls
+    config = tmp_path / ".axm" / "config.toml"
+    assert stat.S_IMODE(config.stat().st_mode) == 0o600
+
+    set_policy(
+        "dev.work",
+        backend=None,
+        model=None,
+        analysis_enabled=None,
+    )
+    assert store.read("execution.dev.work") == {}
+    assert store.read("execution.dev.work.child") == {"note": "keep-child"}
+    assert store.read("execution.dev.review") == {"backend": "neighbor"}
+    assert store.read("execution.prod.work") == {"backend": "other"}
+
+    calls_after_clear = len(replace_calls)
+    delete_policy("dev.work")
+    delete_policy("dev.work")
+    assert len(replace_calls) == calls_after_clear
+    assert stat.S_IMODE(config.stat().st_mode) == 0o600
+
+
+def test_list_execution_policies_validates_filters_and_sorts_leaves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC4: listing returns sorted typed policies, never container namespaces."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    store = NamespaceStore()
+    store.write("execution.zeta.work", "backend", "openai")
+    store.write("execution.zeta.work", "model", "gpt-5")
+    store.write("execution.zeta.work", "analysis_enabled", False)
+    store.write("execution.alpha.work", "backend", "mlx")
+    store.write("execution.alpha.work", "model", "qwen")
+
+    list_policies = axm_config.list_execution_policies
+    model_type = axm_config.ExecutionPolicyOverride
+    policies = list_policies()
+
+    assert list(policies) == ["alpha.work", "zeta.work"]
+    assert all(isinstance(value, model_type) for value in policies.values())
+    assert policies["alpha.work"].model_dump() == {
+        "backend": "mlx",
+        "model": "qwen",
+        "analysis_enabled": None,
+    }
+    assert policies["zeta.work"].model_dump() == {
+        "backend": "openai",
+        "model": "gpt-5",
+        "analysis_enabled": False,
+    }

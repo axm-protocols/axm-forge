@@ -24,6 +24,11 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace dot
   → a *double* underscore). The mapping is provably injective and POSIX-valid
+- ⚙️ **Typed execution policies** — per-ticket-type backend/model and analysis
+  overrides use the same atomic store. For `dev.work`, the environment keys are
+  exactly `AXM_EXECUTION__DEV__WORK_BACKEND`,
+  `AXM_EXECUTION__DEV__WORK_MODEL`, and
+  `AXM_EXECUTION__DEV__WORK_ANALYSIS_ENABLED`
 - 🗄️ **Single-file store** — one atomic `~/.axm/config.toml` (`0600`) with a
   `[namespace]` table per namespace; a read-modify-write preserves every other
   section, an absent/corrupt file degrades to `{}`, and legacy per-namespace

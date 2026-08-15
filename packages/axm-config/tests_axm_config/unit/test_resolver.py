@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+import axm_config
 from axm_config import ConfigError, UnsafeHomeError, load, set_
 from axm_config.resolver import get
 
@@ -243,3 +244,42 @@ def test_env_name_case_collision(
     # The lowercase pair is the sole owner of AXM_DEMO_KEY.
     monkeypatch.setenv("AXM_DEMO_KEY", "lowercase-only")
     assert get("demo", "key", default=None) == "lowercase-only"
+
+
+def test_execution_policy_override_has_exact_frozen_schema() -> None:
+    """AC1: the override is an exact, frozen, extra-forbidden typed model."""
+    model_type = axm_config.ExecutionPolicyOverride
+    policy = model_type(backend="mlx", model="qwen", analysis_enabled=True)
+
+    assert list(model_type.model_fields) == [
+        "backend",
+        "model",
+        "analysis_enabled",
+    ]
+    assert model_type.model_fields["backend"].annotation == str | None
+    assert model_type.model_fields["model"].annotation == str | None
+    assert model_type.model_fields["analysis_enabled"].annotation == bool | None
+    assert policy.model_dump() == {
+        "backend": "mlx",
+        "model": "qwen",
+        "analysis_enabled": True,
+    }
+
+    with pytest.raises(ValidationError):
+        model_type.model_validate({"backend": "mlx", "unexpected": "value"})
+    with pytest.raises(ValidationError):
+        policy.backend = "openai"
+
+
+def test_execution_policy_api_is_exported() -> None:
+    """AC5: the model and four policy operations are package-root exports."""
+    expected = {
+        "ExecutionPolicyOverride",
+        "get_execution_policy",
+        "set_execution_policy",
+        "delete_execution_policy",
+        "list_execution_policies",
+    }
+
+    assert expected <= set(axm_config.__all__)
+    assert all(hasattr(axm_config, name) for name in expected)
