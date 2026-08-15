@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -379,3 +380,44 @@ class TestSubprocessFailureDiagnostic:
         with pytest.raises(ValueError) as excinfo:
             run_tests(tmp_path)
         assert "SENTINEL boom" in str(excinfo.value), str(excinfo.value)
+
+
+def test_run_tests_retains_execution_and_target_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """AC1: run_tests additively retains execution, collection, targets, verdict."""
+    report_data = _make_report_data(num_passed=2)
+    summary = report_data["summary"]
+    assert isinstance(summary, dict)
+    summary["collected"] = 2
+
+    fake_tmp = MagicMock()
+    fake_tmp.name = "/virtual/pytest-report.json"
+    fake_tmp.close.return_value = None
+    monkeypatch.setattr(
+        "axm_audit.core.test_runner.tempfile.NamedTemporaryFile",
+        lambda **_kwargs: fake_tmp,
+    )
+    monkeypatch.setattr(
+        "axm_audit.core.test_runner.Path.unlink",
+        lambda _self, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "axm_audit.core.test_runner.run_in_project",
+        lambda *_args, **_kwargs: MagicMock(returncode=0, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(
+        "axm_audit.core.test_runner.parse_json_report",
+        lambda _path: report_data,
+    )
+
+    target = "tests/test_ex.py"
+    report = run_tests(tmp_path, files=[target])
+
+    data = dataclasses.asdict(report)
+    assert report.passed == 2
+    assert report.failed == 0
+    assert data["pytest_return_code"] == 0
+    assert data["collected"] == 2
+    assert data["target_statuses"] == [{"target": target, "status": "validated"}]
+    assert data["verdict"] is True

@@ -10,7 +10,7 @@ import json
 import logging
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
@@ -88,6 +88,44 @@ class TestReport:
     failures: list[FailureDetail] | None = None
     coverage_by_file: dict[str, float] | None = None
     timed_out: bool = False
+    pytest_return_code: int = 0
+    collected: int | None = None
+    target_statuses: list[dict[str, str]] = field(default_factory=list)
+    verdict: bool | None = None
+
+    def __post_init__(self) -> None:
+        """Populate additive execution metadata for directly-built reports."""
+        if self.collected is None:
+            self.collected = self.passed + self.failed + self.errors + self.skipped
+        if self.verdict is None:
+            self.verdict = self._derive_verdict()
+
+    def record_execution(
+        self,
+        *,
+        return_code: int,
+        collected: int,
+        target_statuses: list[dict[str, str]],
+    ) -> None:
+        """Attach pytest evidence and compute the report's canonical verdict."""
+        self.pytest_return_code = return_code
+        self.collected = collected
+        self.target_statuses = target_statuses
+        self.verdict = self._derive_verdict()
+
+    def _derive_verdict(self) -> bool:
+        """Return the fail-closed verdict from all available evidence."""
+        targets_valid = all(
+            status["status"] == "validated" for status in self.target_statuses
+        )
+        return (
+            self.pytest_return_code == 0
+            and (self.collected or 0) > 0
+            and self.failed == 0
+            and self.errors == 0
+            and not self.timed_out
+            and targets_valid
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +322,71 @@ def build_pytest_cmd(
     return cmd
 
 
+def _collected_count(report_data: dict[str, object]) -> int:
+    """Read pytest's collected count, falling back to emitted test records."""
+    summary = cast("dict[str, object]", report_data.get("summary", {}))
+    collected = summary.get("collected")
+    if isinstance(collected, int):
+        return collected
+    tests = cast("list[dict[str, object]]", report_data.get("tests", []))
+    return len(tests)
+
+
+def _normalize_target(project_path: Path, target: str) -> str:
+    """Normalize a requested pytest target for comparison with node IDs."""
+    path_text, separator, selector = target.partition("::")
+    candidate = Path(path_text)
+    if candidate.is_absolute():
+        try:
+            candidate = candidate.relative_to(project_path)
+        except ValueError:
+            pass
+    normalized = candidate.as_posix()
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    return f"{normalized}{separator}{selector}"
+
+
+def _target_was_collected(target: str, nodeids: list[str]) -> bool:
+    """Return whether pytest emitted a node belonging to the target."""
+    if "::" in target:
+        return any(
+            nodeid == target or nodeid.startswith(f"{target}[") for nodeid in nodeids
+        )
+    prefix = target.rstrip("/")
+    return any(
+        nodeid == prefix
+        or nodeid.startswith(f"{prefix}::")
+        or nodeid.startswith(f"{prefix}/")
+        for nodeid in nodeids
+    )
+
+
+def _build_target_statuses(
+    project_path: Path,
+    files: list[str] | None,
+    report_data: dict[str, object],
+) -> list[dict[str, str]]:
+    """Validate every requested target independently of aggregate counts."""
+    if not files:
+        return []
+    tests = cast("list[dict[str, object]]", report_data.get("tests", []))
+    nodeids = [cast(str, test.get("nodeid", "")).replace("\\", "/") for test in tests]
+    statuses: list[dict[str, str]] = []
+    for target in files:
+        normalized = _normalize_target(project_path, target)
+        if _target_was_collected(normalized, nodeids):
+            status = "validated"
+        else:
+            path_text = target.partition("::")[0]
+            target_path = Path(path_text)
+            if not target_path.is_absolute():
+                target_path = project_path / target_path
+            status = "omitted" if target_path.exists() else "missing"
+        statuses.append({"target": target, "status": status})
+    return statuses
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -352,7 +455,12 @@ def run_tests(
                 "Test run timed out after %ds — coverage not measured",
                 _COVERAGE_RUN_TIMEOUT,
             )
-            return TestReport(timed_out=True)
+            return TestReport(
+                timed_out=True,
+                pytest_return_code=result.returncode,
+                collected=0,
+                verdict=False,
+            )
 
         # Parse JSON report. A subprocess that died before pytest could write
         # the report (failed uv resolution, missing plugin, collection crash)
@@ -369,11 +477,21 @@ def run_tests(
             parse_coverage(coverage_path) if not files else (None, {})
         )
 
-        return build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=total_cov,
             per_file_cov=per_file_cov,
         )
+        report.record_execution(
+            return_code=result.returncode,
+            collected=_collected_count(report_data),
+            target_statuses=_build_target_statuses(
+                project_path,
+                files,
+                report_data,
+            ),
+        )
+        return report
 
     finally:
         report_path.unlink(missing_ok=True)

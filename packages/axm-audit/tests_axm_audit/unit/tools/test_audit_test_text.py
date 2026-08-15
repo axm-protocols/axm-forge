@@ -134,3 +134,70 @@ def test_coverage_section_absent_when_all_files_at_threshold() -> None:
     report = _make_report(coverage_by_file={"src/a.py": 95.0, "src/b.py": 99.0})
     text = format_audit_test_text(report)
     assert "cov<" not in text
+
+
+@pytest.mark.parametrize(
+    ("metadata", "expected_success", "expected_fragments"),
+    [
+        pytest.param(
+            {
+                "pytest_return_code": 0,
+                "collected": 3,
+                "target_statuses": [
+                    {"target": "tests/test_many.py", "status": "validated"}
+                ],
+                "verdict": True,
+            },
+            True,
+            ("3 collected",),
+            id="success",
+        ),
+        pytest.param(
+            {
+                "pytest_return_code": 0,
+                "collected": 0,
+                "target_statuses": [],
+                "verdict": False,
+            },
+            False,
+            ("0 collected",),
+            id="zero_collection",
+        ),
+        pytest.param(
+            {
+                "pytest_return_code": 0,
+                "collected": 4,
+                "target_statuses": [
+                    {"target": "tests/test_empty.py", "status": "omitted"}
+                ],
+                "verdict": False,
+            },
+            False,
+            ("tests/test_empty.py", "omitted"),
+            id="invalid_target",
+        ),
+        pytest.param(
+            {
+                "pytest_return_code": 3,
+                "collected": 1,
+                "target_statuses": [],
+                "verdict": False,
+            },
+            False,
+            ("pytest exit 3",),
+            id="non_success_exit",
+        ),
+    ],
+)
+def test_text_uses_the_structured_verdict(
+    metadata: dict[str, Any],
+    expected_success: bool,
+    expected_fragments: tuple[str, ...],
+) -> None:
+    """AC6: text color and evidence consume the report's single verdict."""
+    report = _make_report(**metadata)
+    text = format_audit_test_text(report)
+
+    assert text.startswith("audit_test | ✅" if expected_success else "audit_test | ❌")
+    for fragment in expected_fragments:
+        assert fragment in text

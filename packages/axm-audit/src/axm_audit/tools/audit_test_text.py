@@ -29,9 +29,12 @@ def _build_header(report: TestReport) -> str:
     skipped = getattr(report, "skipped", 0) or 0
     duration = getattr(report, "duration", 0.0) or 0.0
     coverage = getattr(report, "coverage", None)
-    icon = "\u2705" if (failed + errors) == 0 else "\u274c"
+    icon = "\u2705" if report.verdict else "\u274c"
     counts = " \u00b7 ".join(_count_parts(passed, failed, errors, skipped))
-    header = f"audit_test | {icon} {counts} | {duration:.1f}s"
+    collected = report.collected or 0
+    header = f"audit_test | {icon} {counts} · {collected} collected | {duration:.1f}s"
+    if report.pytest_return_code != 0:
+        header += f" | pytest exit {report.pytest_return_code}"
     if coverage is not None:
         header += f" | cov {report.coverage:.1f}%"
     return header
@@ -71,9 +74,19 @@ def _build_coverage_section(report: TestReport) -> list[str]:
     return ["cov< " + " \u00b7 ".join(parts)]
 
 
+def _build_target_section(report: TestReport) -> list[str]:
+    """Render invalid requested targets with their validation status."""
+    return [
+        f"target {status['target']}: {status['status']}"
+        for status in report.target_statuses
+        if status["status"] != "validated"
+    ]
+
+
 def format_audit_test_text(report: TestReport) -> str:
     """Render a TestReport as compact text for LLM consumption."""
     lines: list[str] = [_build_header(report)]
+    lines.extend(_build_target_section(report))
     lines.extend(_build_failure_blocks(report))
     lines.extend(_build_coverage_section(report))
     return "\n".join(lines)

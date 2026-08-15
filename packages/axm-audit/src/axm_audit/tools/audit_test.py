@@ -75,6 +75,6 @@ class AuditTestTool(AXMTool):
 
             text = format_audit_test_text(report)
 
-            return ToolResult(success=True, data=data, text=text)
+            return ToolResult(success=bool(report.verdict), data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
