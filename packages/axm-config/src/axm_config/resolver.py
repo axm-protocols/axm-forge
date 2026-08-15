@@ -275,7 +275,7 @@ def _policy_from_values(
 
 
 def get_execution_policy(ticket_type: str) -> ExecutionPolicyOverride:
-    """Resolve one policy with atomic pair and independent boolean precedence."""
+    """Resolve one targeted policy, raising ConfigError for malformed values."""
     namespace = _execution_namespace(ticket_type)
     file_values = _store.read(namespace)
     env_backend = os.environ.get(_env_name(namespace, "backend"), _MISSING)
@@ -343,17 +343,21 @@ def delete_execution_policy(ticket_type: str) -> None:
 
 
 def list_execution_policies() -> dict[str, ExecutionPolicyOverride]:
-    """Return stored policy leaves as a lexicographically ordered mapping."""
+    """Return valid policies in lexical order, skipping malformed leaves."""
     policies: dict[str, ExecutionPolicyOverride] = {}
     prefix = "execution."
     for namespace in _store.namespaces():
         if not namespace.startswith(prefix):
             continue
         values = _store.read(namespace)
-        if not _POLICY_KEYS.intersection(values):
+        if not _POLICY_KEYS.intersection(values) or values.keys() - _POLICY_KEYS:
             continue
         ticket_type = namespace.removeprefix(prefix)
-        policies[ticket_type] = _policy_from_values(values, layer="file")
+        try:
+            policy = _policy_from_values(values, layer="file")
+        except ConfigError:
+            continue
+        policies[ticket_type] = policy
     return dict(sorted(policies.items()))
 
 

@@ -187,3 +187,56 @@ def test_execution_policy_env_names_are_documented_exactly() -> None:
 
     assert all(name in readme for name in canonical)
     assert all(name not in readme for name in alternatives)
+
+
+def test_listing_filters_malformed_leaves_without_weakening_targeted_reads() -> None:
+    """AC1: listing skips each invalid leaf while direct lookup stays strict."""
+    store = NamespaceStore()
+
+    store.write("execution.a.analysis", "analysis_enabled", True)
+    store.write("execution.b.backend", "backend", "openai")
+    store.write("execution.b.backend", "model", "gpt-5")
+    store.write("execution.c.full", "backend", "anthropic")
+    store.write("execution.c.full", "model", "claude")
+    store.write("execution.c.full", "analysis_enabled", False)
+
+    store.write("execution.zparent.child", "unknown", "value")
+    store.write("execution.zempty", "temporary", True)
+    delete("execution.zempty", "temporary")
+    store.write("execution.zunknown", "unknown", "value")
+    store.write("execution.zmixedunknown", "backend", "openai")
+    store.write("execution.zmixedunknown", "model", "gpt-5")
+    store.write("execution.zmixedunknown", "unknown", "value")
+    store.write("execution.zbackendonly", "backend", "openai")
+    store.write("execution.zmodelonly", "model", "gpt-5")
+    store.write("execution.zblankbackend", "backend", "")
+    store.write("execution.zblankbackend", "model", "gpt-5")
+    store.write("execution.zblankmodel", "backend", "openai")
+    store.write("execution.zblankmodel", "model", " ")
+    store.write("execution.znonboolean", "analysis_enabled", "true")
+    store.write("execution.zwrongbackendtype", "backend", 42)
+    store.write("execution.zwrongbackendtype", "model", "gpt-5")
+    store.write("execution.zwrongmodeltype", "backend", "openai")
+    store.write("execution.zwrongmodeltype", "model", 42)
+
+    policies = axm_config.list_execution_policies()
+
+    assert list(policies) == ["a.analysis", "b.backend", "c.full"]
+    assert (
+        policies["a.analysis"].backend,
+        policies["a.analysis"].model,
+        policies["a.analysis"].analysis_enabled,
+    ) == (None, None, True)
+    assert (
+        policies["b.backend"].backend,
+        policies["b.backend"].model,
+        policies["b.backend"].analysis_enabled,
+    ) == ("openai", "gpt-5", None)
+    assert (
+        policies["c.full"].backend,
+        policies["c.full"].model,
+        policies["c.full"].analysis_enabled,
+    ) == ("anthropic", "claude", False)
+
+    with pytest.raises(ConfigError):
+        axm_config.get_execution_policy("zbackendonly")
