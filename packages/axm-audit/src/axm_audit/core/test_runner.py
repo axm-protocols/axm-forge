@@ -351,7 +351,10 @@ def _target_was_collected(target: str, nodeids: list[str]) -> bool:
     """Return whether pytest emitted a node belonging to the target."""
     if "::" in target:
         return any(
-            nodeid == target or nodeid.startswith(f"{target}[") for nodeid in nodeids
+            nodeid == target
+            or nodeid.startswith(f"{target}[")
+            or nodeid.startswith(f"{target}::")
+            for nodeid in nodeids
         )
     prefix = target.rstrip("/")
     return any(

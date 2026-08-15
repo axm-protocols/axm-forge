@@ -382,14 +382,29 @@ class TestSubprocessFailureDiagnostic:
         assert "SENTINEL boom" in str(excinfo.value), str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    ("target", "node_prefix"),
+    [
+        ("tests/test_ex.py", "tests/test_ex.py"),
+        ("tests/test_ex.py::TestFeature", "tests/test_ex.py::TestFeature"),
+    ],
+)
 def test_run_tests_retains_execution_and_target_metadata(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Any,
+    target: str,
+    node_prefix: str,
 ) -> None:
     """AC1: run_tests additively retains execution, collection, targets, verdict."""
     report_data = _make_report_data(num_passed=2)
     summary = report_data["summary"]
     assert isinstance(summary, dict)
     summary["collected"] = 2
+    tests = report_data["tests"]
+    assert isinstance(tests, list)
+    for index, test in enumerate(tests):
+        assert isinstance(test, dict)
+        test["nodeid"] = f"{node_prefix}::test_pass_{index}"
 
     fake_tmp = MagicMock()
     fake_tmp.name = "/virtual/pytest-report.json"
@@ -411,7 +426,6 @@ def test_run_tests_retains_execution_and_target_metadata(
         lambda _path: report_data,
     )
 
-    target = "tests/test_ex.py"
     report = run_tests(tmp_path, files=[target])
 
     data = dataclasses.asdict(report)
