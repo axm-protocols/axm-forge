@@ -122,6 +122,29 @@ def test_expected_failure():
     assert all(case["detail"] is None for case in cases if case["outcome"] == "passed")
 
 
+def test_cases_mode_is_a_backward_compatible_evidence_alias(tmp_path: Path) -> None:
+    """The historical mode field can request lossless evidence across caches."""
+    test_file = _write_suite(
+        tmp_path,
+        """
+def test_passes():
+    assert 1 + 1 == 2
+""",
+    )
+
+    result = AuditTestTool().execute(
+        path=str(tmp_path),
+        files=[test_file],
+        stop_on_first=False,
+        mode="cases",
+    )
+
+    assert result.data is not None
+    assert [case["node_id"] for case in result.data["cases"]] == [
+        "test_cases.py::test_passes"
+    ]
+
+
 @pytest.mark.integration
 def test_corrupt_json_report_fails_closed_without_cases(
     monkeypatch: pytest.MonkeyPatch,

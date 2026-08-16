@@ -43,7 +43,8 @@ class AuditTestTool(AXMTool):
 
         Args:
             path: Path to project root.
-            mode: Deprecated, ignored. Kept for backward compatibility.
+            mode: ``"cases"`` requests lossless per-item evidence through the
+                historical field; other values remain backward-compatible.
             files: Specific test files to run.
             markers: Pytest markers to filter.
             stop_on_first: Stop on first failure.
@@ -52,7 +53,8 @@ class AuditTestTool(AXMTool):
         Returns:
             ToolResult with structured test report.
         """
-        if mode != "failures":
+        include_case_evidence = include_cases or mode == "cases"
+        if mode not in {"failures", "cases"}:
             logger.info("mode param is deprecated")
 
         try:
@@ -69,11 +71,11 @@ class AuditTestTool(AXMTool):
                 files=files,
                 markers=markers,
                 stop_on_first=stop_on_first,
-                include_cases=include_cases,
+                include_cases=include_case_evidence,
             )
 
             data = dataclasses.asdict(report)
-            if include_cases:
+            if include_case_evidence:
                 data["cases"] = [dataclasses.asdict(case) for case in report.cases]
             else:
                 data.pop("cases", None)
