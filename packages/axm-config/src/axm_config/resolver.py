@@ -327,36 +327,106 @@ def _policy_from_values(
     )
 
 
+def _is_policy_tombstone(values: dict[str, object]) -> bool:
+    """Return whether values are the exact versioned deletion sentinel."""
+    return values == {"tombstone": "v1"}
+
+
+def _read_policy_section(namespace: str) -> dict[str, object]:
+    """Read one exact stored section, bypassing compatibility overlays."""
+    if isinstance(_store, NamespaceStore):
+        return _store.read_exact(namespace)
+    return _store.read(namespace)
+
+
+def _policy_file_values(
+    ticket_type: str,
+    canonical_values: dict[str, object],
+) -> dict[str, object]:
+    """Select canonical, tombstone, or compatible legacy policy values."""
+    if _is_policy_tombstone(canonical_values):
+        return {}
+    if canonical_values and "tombstone" not in canonical_values:
+        return canonical_values
+    return _read_policy_section(f"execution.{ticket_type}")
+
+
+def _canonical_policy_entry(
+    namespace: str,
+) -> tuple[str, ExecutionPolicyOverride | None] | None:
+    """Decode one valid canonical policy or tombstone for listing."""
+    try:
+        ticket_type = _decode_execution_namespace(namespace)
+    except ConfigError:
+        return None
+    values = _store.read(namespace)
+    if _is_policy_tombstone(values):
+        return ticket_type, None
+    if "tombstone" in values or not _POLICY_KEYS.intersection(values):
+        return None
+    try:
+        return ticket_type, _policy_from_values(values, layer="file")
+    except ConfigError:
+        return None
+
+
+def _legacy_policy_entry(
+    namespace: str,
+) -> tuple[str, ExecutionPolicyOverride] | None:
+    """Decode one compatible legacy policy for listing."""
+    try:
+        ticket_type = _validate_execution_policy_identifier(
+            namespace.removeprefix("execution.")
+        )
+        values = _read_policy_section(namespace)
+        if not _POLICY_KEYS.intersection(values):
+            return None
+        return ticket_type, _policy_from_values(values, layer="file")
+    except ConfigError:
+        return None
+
+
 def get_execution_policy(ticket_type: str) -> ExecutionPolicyOverride:
     """Resolve one targeted policy, raising ConfigError for malformed values."""
     namespace = _execution_namespace(ticket_type)
-    file_values = _store.read(namespace)
+    canonical_values = _store.read(namespace)
     env_backend = os.environ.get(_env_name(namespace, "backend"), _MISSING)
     env_model = os.environ.get(_env_name(namespace, "model"), _MISSING)
+    env_analysis = os.environ.get(
+        _env_name(namespace, "analysis_enabled"),
+        _MISSING,
+    )
+    env_pair_present = env_backend is not _MISSING or env_model is not _MISSING
 
-    if env_backend is not _MISSING or env_model is not _MISSING:
+    if env_pair_present:
         backend, model = _policy_pair(
             env_backend,
             env_model,
             layer="environment",
         )
     else:
-        backend, model = _policy_pair(
-            file_values.get("backend", _MISSING),
-            file_values.get("model", _MISSING),
-            layer="file",
+        backend, model = None, None
+    if env_analysis is not _MISSING:
+        analysis_enabled = _policy_boolean(env_analysis, layer="environment")
+    else:
+        analysis_enabled = None
+
+    if env_pair_present and env_analysis is not _MISSING:
+        return ExecutionPolicyOverride(
+            backend=backend,
+            model=model,
+            analysis_enabled=analysis_enabled,
         )
 
-    env_analysis = os.environ.get(
-        _env_name(namespace, "analysis_enabled"),
-        _MISSING,
-    )
-    analysis_enabled = _policy_boolean(
-        env_analysis
-        if env_analysis is not _MISSING
-        else file_values.get("analysis_enabled", _MISSING),
-        layer="environment" if env_analysis is not _MISSING else "file",
-    )
+    file_values = _policy_file_values(ticket_type, canonical_values)
+    if not env_pair_present:
+        file_policy = _policy_from_values(file_values, layer="file")
+        backend, model = file_policy.backend, file_policy.model
+    if env_analysis is _MISSING:
+        analysis_enabled = _policy_boolean(
+            file_values.get("analysis_enabled", _MISSING),
+            layer="file",
+        )
     return ExecutionPolicyOverride(
         backend=backend,
         model=model,
@@ -373,10 +443,8 @@ def set_execution_policy(
 ) -> None:
     """Atomically replace or clear one complete ticket-type policy leaf."""
     namespace = _execution_namespace(ticket_type)
-    legacy_namespace = f"execution.{ticket_type}"
     if backend is None and model is None and analysis_enabled is None:
-        _store.replace_section(namespace, {})
-        _store.replace_section(legacy_namespace, {})
+        _store.replace_section(namespace, {"tombstone": "v1"})
         return
     policy = _policy_from_values(
         {
@@ -395,44 +463,37 @@ def set_execution_policy(
 def delete_execution_policy(ticket_type: str) -> None:
     """Idempotently delete one policy leaf while preserving descendants."""
     namespace = _execution_namespace(ticket_type)
-    _store.replace_section(namespace, {})
-    _store.replace_section(f"execution.{ticket_type}", {})
+    _store.replace_section(namespace, {"tombstone": "v1"})
 
 
 def list_execution_policies() -> dict[str, ExecutionPolicyOverride]:
     """Return valid policies in lexical order, skipping malformed leaves."""
     policies: dict[str, ExecutionPolicyOverride] = {}
+    masked: set[str] = set()
     namespaces = _store.namespaces()
 
     for namespace in namespaces:
         if not namespace.startswith(_EXECUTION_NAMESPACE_PREFIX):
             continue
-        values = _store.read(namespace)
-        if not _POLICY_KEYS.intersection(values) or values.keys() - _POLICY_KEYS:
+        entry = _canonical_policy_entry(namespace)
+        if entry is None:
             continue
-        try:
-            ticket_type = _decode_execution_namespace(namespace)
-            policies[ticket_type] = _policy_from_values(values, layer="file")
-        except ConfigError:
-            continue
+        ticket_type, policy = entry
+        masked.add(ticket_type)
+        if policy is not None:
+            policies[ticket_type] = policy
 
-    legacy_prefix = "execution."
     for namespace in namespaces:
-        if not namespace.startswith(legacy_prefix) or namespace.startswith(
+        if not namespace.startswith("execution.") or namespace.startswith(
             _EXECUTION_NAMESPACE_PREFIX
         ):
             continue
-        values = _store.read(namespace)
-        if not _POLICY_KEYS.intersection(values) or values.keys() - _POLICY_KEYS:
+        entry = _legacy_policy_entry(namespace)
+        if entry is None:
             continue
-        try:
-            ticket_type = _validate_execution_policy_identifier(
-                namespace.removeprefix(legacy_prefix)
-            )
-            if ticket_type not in policies:
-                policies[ticket_type] = _policy_from_values(values, layer="file")
-        except ConfigError:
-            continue
+        ticket_type, policy = entry
+        if ticket_type not in masked:
+            policies[ticket_type] = policy
 
     return dict(sorted(policies.items()))
 

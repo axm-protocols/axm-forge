@@ -357,3 +357,64 @@ def test_execution_policy_codec_is_versioned_reversible_and_collision_free() -> 
 
         env_name = resolver_module._env_name(namespace, "backend")
         assert env_name == f"AXM_EXECUTION__V1__{token.upper()}_BACKEND"
+
+
+@pytest.mark.parametrize(
+    "malformed_values",
+    [
+        {"tombstone": "V1"},
+        {"tombstone": 1},
+        {"tombstone": "v1", "analysis_enabled": False},
+    ],
+)
+def test_execution_policy_recognizes_only_the_exact_versioned_tombstone(
+    monkeypatch: pytest.MonkeyPatch,
+    malformed_values: dict[str, object],
+) -> None:
+    """AC2: only the exact versioned canonical sentinel masks legacy policy."""
+
+    class _LayeredStore:
+        def __init__(self, canonical_values: dict[str, object]) -> None:
+            token = b"dev.work".hex()
+            self.data = {
+                f"execution.v1.{token}": canonical_values,
+                "execution.dev.work": {
+                    "backend": "legacy",
+                    "model": "model",
+                    "analysis_enabled": True,
+                },
+            }
+
+        def read(self, namespace: str) -> dict[str, object]:
+            return dict(self.data.get(namespace, {}))
+
+    token = b"dev.work".hex().upper()
+    for field in ("BACKEND", "MODEL", "ANALYSIS_ENABLED"):
+        monkeypatch.delenv(
+            f"AXM_EXECUTION__V1__{token}_{field}",
+            raising=False,
+        )
+    monkeypatch.setattr(
+        resolver_module,
+        "_store",
+        _LayeredStore({"tombstone": "v1"}),
+    )
+    tombstoned = axm_config.get_execution_policy("dev.work")
+    assert (
+        tombstoned.backend,
+        tombstoned.model,
+        tombstoned.analysis_enabled,
+    ) == (None, None, None)
+
+    monkeypatch.setattr(
+        resolver_module,
+        "_store",
+        _LayeredStore(malformed_values),
+    )
+    fallback = axm_config.get_execution_policy("dev.work")
+
+    assert (fallback.backend, fallback.model, fallback.analysis_enabled) == (
+        "legacy",
+        "model",
+        True,
+    )

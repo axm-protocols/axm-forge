@@ -317,6 +317,217 @@ def test_legacy_collision_spellings_use_distinct_canonical_namespaces() -> None:
         assert listed[ticket_type] == policy
 
 
+def _write_legacy_policy(
+    ticket_type: str,
+    *,
+    backend: str,
+    model: str,
+    analysis_enabled: bool,
+) -> tuple[Path, bytes]:
+    payload = (
+        f'backend = "{backend}"\n'
+        f'model = "{model}"\n'
+        f"analysis_enabled = {str(analysis_enabled).lower()}\n"
+    ).encode()
+    path = Path.home() / ".axm" / f"execution.{ticket_type}.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(payload)
+    return path, payload
+
+
+def test_canonical_policy_and_tombstone_leave_legacy_bytes_unchanged() -> None:
+    """AC1: canonical set/delete/set wins without mutating legacy bytes."""
+    legacy_path, legacy_bytes = _write_legacy_policy(
+        "dev.work",
+        backend="legacy",
+        model="base",
+        analysis_enabled=True,
+    )
+
+    legacy = axm_config.get_execution_policy("dev.work")
+    assert (legacy.backend, legacy.model, legacy.analysis_enabled) == (
+        "legacy",
+        "base",
+        True,
+    )
+
+    axm_config.set_execution_policy(
+        "dev.work",
+        backend="canonical",
+        model="new",
+        analysis_enabled=False,
+    )
+    canonical = axm_config.get_execution_policy("dev.work")
+    assert (canonical.backend, canonical.model, canonical.analysis_enabled) == (
+        "canonical",
+        "new",
+        False,
+    )
+    assert legacy_path.read_bytes() == legacy_bytes
+
+    axm_config.delete_execution_policy("dev.work")
+
+    deleted = axm_config.get_execution_policy("dev.work")
+    assert deleted.model_dump() == {
+        "backend": None,
+        "model": None,
+        "analysis_enabled": None,
+    }
+    token = b"dev.work".hex()
+    assert NamespaceStore().read(f"execution.v1.{token}") == {"tombstone": "v1"}
+    assert legacy_path.read_bytes() == legacy_bytes
+
+    axm_config.set_execution_policy(
+        "dev.work",
+        backend="restored",
+        model="latest",
+        analysis_enabled=True,
+    )
+
+    restored = axm_config.get_execution_policy("dev.work")
+    assert (restored.backend, restored.model, restored.analysis_enabled) == (
+        "restored",
+        "latest",
+        True,
+    )
+    assert NamespaceStore().read(f"execution.v1.{token}") == {
+        "backend": "restored",
+        "model": "latest",
+        "analysis_enabled": True,
+    }
+    assert legacy_path.read_bytes() == legacy_bytes
+
+
+def test_environment_precedence_around_valid_and_malformed_tombstones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: complete env wins; exact tombstones mask, malformed ones do not."""
+    _write_legacy_policy(
+        "dev.work",
+        backend="legacy",
+        model="base",
+        analysis_enabled=True,
+    )
+    axm_config.delete_execution_policy("dev.work")
+    token = b"dev.work".hex()
+    env_prefix = f"AXM_EXECUTION__V1__{token.upper()}"
+    env = {
+        f"{env_prefix}_BACKEND": "environment",
+        f"{env_prefix}_MODEL": "override",
+        f"{env_prefix}_ANALYSIS_ENABLED": "false",
+    }
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+
+    overridden = axm_config.get_execution_policy("dev.work")
+    assert (
+        overridden.backend,
+        overridden.model,
+        overridden.analysis_enabled,
+    ) == ("environment", "override", False)
+
+    for name in env:
+        monkeypatch.delenv(name)
+
+    masked = axm_config.get_execution_policy("dev.work")
+    assert masked.model_dump() == {
+        "backend": None,
+        "model": None,
+        "analysis_enabled": None,
+    }
+
+    set_(f"execution.v1.{token}", "tombstone", "v2")
+
+    fallback = axm_config.get_execution_policy("dev.work")
+    assert (fallback.backend, fallback.model, fallback.analysis_enabled) == (
+        "legacy",
+        "base",
+        True,
+    )
+
+
+def test_listing_strictly_decodes_masks_and_filters_storage_entries() -> None:
+    """AC3: listing exposes strict IDs and policies, never tokens or tombstones."""
+    _write_legacy_policy(
+        "legacy.only",
+        backend="legacy",
+        model="only",
+        analysis_enabled=True,
+    )
+    _write_legacy_policy(
+        "masked.policy",
+        backend="legacy",
+        model="shadowed",
+        analysis_enabled=True,
+    )
+    _write_legacy_policy(
+        "masked.delete",
+        backend="legacy",
+        model="deleted",
+        analysis_enabled=True,
+    )
+    _write_legacy_policy(
+        "malformed.fallback",
+        backend="legacy",
+        model="fallback",
+        analysis_enabled=False,
+    )
+
+    axm_config.set_execution_policy(
+        "canonical.only",
+        backend="canonical",
+        model="only",
+        analysis_enabled=False,
+    )
+    axm_config.set_execution_policy(
+        "masked.policy",
+        backend="canonical",
+        model="winner",
+        analysis_enabled=False,
+    )
+    axm_config.delete_execution_policy("masked.delete")
+
+    malformed_token = b"malformed.fallback".hex()
+    set_(f"execution.v1.{malformed_token}", "tombstone", "v2")
+    invalid_payload_token = b"invalid.payload".hex()
+    set_(f"execution.v1.{invalid_payload_token}", "backend", "incomplete")
+    set_("execution.v1.zz", "backend", "invalid-token")
+    set_("execution.v1.zz", "model", "invalid-token")
+
+    policies = axm_config.list_execution_policies()
+
+    assert list(policies) == [
+        "canonical.only",
+        "legacy.only",
+        "malformed.fallback",
+        "masked.policy",
+    ]
+    assert policies["canonical.only"].model_dump() == {
+        "backend": "canonical",
+        "model": "only",
+        "analysis_enabled": False,
+    }
+    assert policies["legacy.only"].model_dump() == {
+        "backend": "legacy",
+        "model": "only",
+        "analysis_enabled": True,
+    }
+    assert policies["malformed.fallback"].model_dump() == {
+        "backend": "legacy",
+        "model": "fallback",
+        "analysis_enabled": False,
+    }
+    assert policies["masked.policy"].model_dump() == {
+        "backend": "canonical",
+        "model": "winner",
+        "analysis_enabled": False,
+    }
+    assert "masked.delete" not in policies
+    assert "invalid.payload" not in policies
+    assert "zz" not in policies
+    assert all("tombstone" not in policy.model_dump() for policy in policies.values())
+
+
 @pytest.mark.parametrize(
     "selected",
     (

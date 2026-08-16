@@ -137,6 +137,14 @@ class NamespaceStore:
         except (tomllib.TOMLDecodeError, OSError):
             return {}
 
+    def read_exact(self, ns: str) -> dict[str, object]:
+        """Return exactly one stored section without compatibility overlays."""
+        config = self._load_config()
+        section = _section(config, ns)
+        if section:
+            return section
+        return self._read_legacy(ns)
+
     def read(self, ns: str) -> dict[str, object]:
         """Return the section for ``ns``, or ``{}`` if absent/corrupt.
 
@@ -163,6 +171,8 @@ class NamespaceStore:
                 config,
                 f"{canonical_execution_prefix}{token}",
             )
+            if canonical == {"tombstone": "v1"}:
+                return {}
             if canonical:
                 return canonical
         if section:
@@ -215,7 +225,9 @@ class NamespaceStore:
         config = self._load_config()
         current = _section(config, ns)
         had_legacy = self._legacy_path(ns).exists()
-        if not section and not current and not had_legacy:
+        if (not section and not current and not had_legacy) or (
+            section == current and not had_legacy
+        ):
             return
 
         replacement = _with_child_tables(config, ns, dict(section))
