@@ -132,7 +132,9 @@ class TestFailFast:
 
     def test_failure_data_opt_in_still_requires_every_declared_write(self) -> None:
         """An empty failed result cannot masquerade as measured evidence."""
-        tool = _Tool(ToolResult(success=False, data={}))
+        tool = _Tool(
+            ToolResult(success=False, data={}, error="pytest environment failed")
+        )
         node = tool_node(
             "audit_test",
             returns={"cases": "cases"},
@@ -143,7 +145,7 @@ class TestFailFast:
             _with_tool(tool, name="audit_test"),
             pytest.raises(
                 ToolNodeError,
-                match="no 'cases'",
+                match=r"pytest environment failed.*no 'cases'",
             ),
         ):
             node({"path": "/p"})

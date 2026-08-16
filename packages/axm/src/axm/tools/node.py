@@ -119,7 +119,13 @@ def tool_node(
         if not result.success and not allow_failure_data:
             msg = f"tool {name!r} failed: {result.error or '<no error message>'}"
             raise ToolNodeError(msg)
-        return _shape_output(name, result.data, result.text, out_spec)
+        try:
+            return _shape_output(name, result.data, result.text, out_spec)
+        except ToolNodeError as exc:
+            if not result.success and result.error:
+                msg = f"tool {name!r} failed: {result.error}; {exc}"
+                raise ToolNodeError(msg) from exc
+            raise
 
     return _run
 
