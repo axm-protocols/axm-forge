@@ -137,19 +137,20 @@ def test_execution_policy_uses_canonical_env_names_and_atomic_layer_pair(
 ) -> None:
     """AC2: exact env names win by complete pair and parse booleans strictly."""
     store = NamespaceStore()
-    store.write("execution.dev.work", "backend", "file")
-    store.write("execution.dev.work", "model", "base")
-    store.write("execution.dev.work", "analysis_enabled", True)
+    namespace = resolver_module._execution_namespace("dev.work")
+    store.write(namespace, "backend", "file")
+    store.write(namespace, "model", "base")
+    store.write(namespace, "analysis_enabled", True)
 
     canonical = {
-        resolver_module._env_name("execution.dev.work", "backend"),
-        resolver_module._env_name("execution.dev.work", "model"),
-        resolver_module._env_name("execution.dev.work", "analysis_enabled"),
+        resolver_module._env_name(namespace, "backend"),
+        resolver_module._env_name(namespace, "model"),
+        resolver_module._env_name(namespace, "analysis_enabled"),
     }
     assert canonical == {
-        "AXM_EXECUTION__DEV__WORK_BACKEND",
-        "AXM_EXECUTION__DEV__WORK_MODEL",
-        "AXM_EXECUTION__DEV__WORK_ANALYSIS_ENABLED",
+        "AXM_EXECUTION__V1__6465762E776F726B_BACKEND",
+        "AXM_EXECUTION__V1__6465762E776F726B_MODEL",
+        "AXM_EXECUTION__V1__6465762E776F726B_ANALYSIS_ENABLED",
     }
 
     for name in canonical | {
@@ -158,7 +159,11 @@ def test_execution_policy_uses_canonical_env_names_and_atomic_layer_pair(
         "AXM_EXECUTION_DEV_WORK_ANALYSIS_ENABLED",
     }:
         monkeypatch.delenv(name, raising=False)
+    legacy_prefix = "AXM_EXECUTION__DEV__WORK_"
     for name, value in env_values.items():
+        if name.startswith(legacy_prefix):
+            key = name.removeprefix(legacy_prefix).lower()
+            name = resolver_module._env_name(namespace, key)
         monkeypatch.setenv(name, value)
 
     get_policy = axm_config.get_execution_policy
@@ -193,31 +198,32 @@ def test_listing_filters_malformed_leaves_without_weakening_targeted_reads() -> 
     """AC1: listing skips each invalid leaf while direct lookup stays strict."""
     store = NamespaceStore()
 
-    store.write("execution.a.analysis", "analysis_enabled", True)
-    store.write("execution.b.backend", "backend", "openai")
-    store.write("execution.b.backend", "model", "gpt-5")
-    store.write("execution.c.full", "backend", "anthropic")
-    store.write("execution.c.full", "model", "claude")
-    store.write("execution.c.full", "analysis_enabled", False)
+    policy_namespace = resolver_module._execution_namespace
+    store.write(policy_namespace("a.analysis"), "analysis_enabled", True)
+    store.write(policy_namespace("b.backend"), "backend", "openai")
+    store.write(policy_namespace("b.backend"), "model", "gpt-5")
+    store.write(policy_namespace("c.full"), "backend", "anthropic")
+    store.write(policy_namespace("c.full"), "model", "claude")
+    store.write(policy_namespace("c.full"), "analysis_enabled", False)
 
-    store.write("execution.zparent.child", "unknown", "value")
-    store.write("execution.zempty", "temporary", True)
-    delete("execution.zempty", "temporary")
-    store.write("execution.zunknown", "unknown", "value")
-    store.write("execution.zmixedunknown", "backend", "openai")
-    store.write("execution.zmixedunknown", "model", "gpt-5")
-    store.write("execution.zmixedunknown", "unknown", "value")
-    store.write("execution.zbackendonly", "backend", "openai")
-    store.write("execution.zmodelonly", "model", "gpt-5")
-    store.write("execution.zblankbackend", "backend", "")
-    store.write("execution.zblankbackend", "model", "gpt-5")
-    store.write("execution.zblankmodel", "backend", "openai")
-    store.write("execution.zblankmodel", "model", " ")
-    store.write("execution.znonboolean", "analysis_enabled", "true")
-    store.write("execution.zwrongbackendtype", "backend", 42)
-    store.write("execution.zwrongbackendtype", "model", "gpt-5")
-    store.write("execution.zwrongmodeltype", "backend", "openai")
-    store.write("execution.zwrongmodeltype", "model", 42)
+    store.write(policy_namespace("zparent.child"), "unknown", "value")
+    store.write(policy_namespace("zempty"), "temporary", True)
+    delete(policy_namespace("zempty"), "temporary")
+    store.write(policy_namespace("zunknown"), "unknown", "value")
+    store.write(policy_namespace("zmixedunknown"), "backend", "openai")
+    store.write(policy_namespace("zmixedunknown"), "model", "gpt-5")
+    store.write(policy_namespace("zmixedunknown"), "unknown", "value")
+    store.write(policy_namespace("zbackendonly"), "backend", "openai")
+    store.write(policy_namespace("zmodelonly"), "model", "gpt-5")
+    store.write(policy_namespace("zblankbackend"), "backend", "")
+    store.write(policy_namespace("zblankbackend"), "model", "gpt-5")
+    store.write(policy_namespace("zblankmodel"), "backend", "openai")
+    store.write(policy_namespace("zblankmodel"), "model", " ")
+    store.write(policy_namespace("znonboolean"), "analysis_enabled", "true")
+    store.write(policy_namespace("zwrongbackendtype"), "backend", 42)
+    store.write(policy_namespace("zwrongbackendtype"), "model", "gpt-5")
+    store.write(policy_namespace("zwrongmodeltype"), "backend", "openai")
+    store.write(policy_namespace("zwrongmodeltype"), "model", 42)
 
     policies = axm_config.list_execution_policies()
 
@@ -240,3 +246,117 @@ def test_listing_filters_malformed_leaves_without_weakening_targeted_reads() -> 
 
     with pytest.raises(ConfigError):
         axm_config.get_execution_policy("zbackendonly")
+
+
+_INVALID_EXECUTION_POLICY_IDENTIFIERS = (
+    "",
+    "orchestrate._audit",
+    "orchestrate.audit_",
+    "orchestrate.contre__audit",
+    "Orchestrate.audit",
+    "orchestrate.contre-audit",
+    ".orchestrate",
+    "orchestrate.",
+    "orchestrate..audit",
+)
+
+
+@pytest.mark.parametrize(
+    "invalid_ticket_type",
+    _INVALID_EXECUTION_POLICY_IDENTIFIERS,
+)
+def test_invalid_execution_policy_preserves_configuration_bytes(
+    invalid_ticket_type: str,
+) -> None:
+    """AC1: rejecting an invalid policy ID leaves persisted bytes unchanged."""
+    set_("seed", "value", "unchanged")
+    axm_config.set_execution_policy(
+        "orchestrate.contre_audit",
+        backend="openai",
+        model="gpt-5",
+    )
+    config_path = NamespaceStore()._config_path()
+    before = config_path.read_bytes()
+
+    with pytest.raises(ConfigError):
+        axm_config.set_execution_policy(
+            invalid_ticket_type,
+            backend="mlx",
+            model="qwen",
+        )
+
+    assert config_path.read_bytes() == before
+
+
+def test_legacy_collision_spellings_use_distinct_canonical_namespaces() -> None:
+    """AC2: legacy-colliding IDs persist and look up as distinct exact IDs."""
+    expected = {
+        "dev.python_work": ("openai", "gpt-5", True),
+        "dev.python.work": ("mlx", "qwen", False),
+    }
+    for ticket_type, (backend, model, analysis_enabled) in expected.items():
+        axm_config.set_execution_policy(
+            ticket_type,
+            backend=backend,
+            model=model,
+            analysis_enabled=analysis_enabled,
+        )
+
+    payload = NamespaceStore()._config_path().read_text(encoding="utf-8")
+    for ticket_type in expected:
+        token = ticket_type.encode("utf-8").hex()
+        assert f"[execution.v1.{token}]" in payload
+    assert "dev.python_work" not in payload
+    assert "dev.python.work" not in payload
+
+    listed = axm_config.list_execution_policies()
+    assert set(listed) == set(expected)
+    for ticket_type, values in expected.items():
+        policy = axm_config.get_execution_policy(ticket_type)
+        assert (policy.backend, policy.model, policy.analysis_enabled) == values
+        assert listed[ticket_type] == policy
+
+
+@pytest.mark.parametrize(
+    "selected",
+    (
+        "orchestrate.contre_audit",
+        "dev.python_work",
+        "research.paper_note",
+    ),
+)
+def test_public_policy_operations_preserve_original_identifiers(
+    selected: str,
+) -> None:
+    """AC3: set/get/list/delete round-trip every supported original ID."""
+    expected = {
+        "orchestrate.contre_audit": ("openai", "gpt-5", True),
+        "dev.python_work": ("mlx", "qwen", False),
+        "research.paper_note": ("anthropic", "claude", None),
+    }
+    for ticket_type, (backend, model, analysis_enabled) in expected.items():
+        axm_config.set_execution_policy(
+            ticket_type,
+            backend=backend,
+            model=model,
+            analysis_enabled=analysis_enabled,
+        )
+
+    selected_policy = axm_config.get_execution_policy(selected)
+    assert (
+        selected_policy.backend,
+        selected_policy.model,
+        selected_policy.analysis_enabled,
+    ) == expected[selected]
+    assert set(axm_config.list_execution_policies()) == set(expected)
+
+    axm_config.delete_execution_policy(selected)
+
+    deleted = axm_config.get_execution_policy(selected)
+    assert deleted.model_dump() == {
+        "backend": None,
+        "model": None,
+        "analysis_enabled": None,
+    }
+    remaining = axm_config.list_execution_policies()
+    assert set(remaining) == set(expected) - {selected}

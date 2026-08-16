@@ -4,6 +4,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import axm_config
+import axm_config.resolver as resolver_module
 from axm_config import ConfigError, UnsafeHomeError, load, set_
 from axm_config.resolver import get
 
@@ -283,3 +284,76 @@ def test_execution_policy_api_is_exported() -> None:
 
     assert expected <= set(axm_config.__all__)
     assert all(hasattr(axm_config, name) for name in expected)
+
+
+_INVALID_EXECUTION_POLICY_IDENTIFIERS = (
+    "",
+    "orchestrate._audit",
+    "orchestrate.audit_",
+    "orchestrate.contre__audit",
+    "Orchestrate.audit",
+    "orchestrate.contre-audit",
+    ".orchestrate",
+    "orchestrate.",
+    "orchestrate..audit",
+)
+
+
+@pytest.mark.parametrize(
+    "invalid_ticket_type",
+    _INVALID_EXECUTION_POLICY_IDENTIFIERS,
+)
+def test_execution_policy_identifier_is_validated_before_storage_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_ticket_type: str,
+) -> None:
+    """AC1: accept single underscores and reject bad grammar before any write."""
+
+    class _RecordingStore:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict[str, object]]] = []
+
+        def replace_section(
+            self,
+            namespace: str,
+            section: dict[str, object],
+        ) -> None:
+            self.calls.append((namespace, section))
+
+    store = _RecordingStore()
+    monkeypatch.setattr(resolver_module, "_store", store)
+
+    axm_config.set_execution_policy(
+        "orchestrate.contre_audit",
+        backend="openai",
+        model="gpt-5",
+    )
+    calls_after_valid_identifier = list(store.calls)
+
+    with pytest.raises(ConfigError):
+        axm_config.set_execution_policy(
+            invalid_ticket_type,
+            backend="mlx",
+            model="qwen",
+        )
+
+    assert len(calls_after_valid_identifier) == 1
+    assert store.calls == calls_after_valid_identifier
+
+
+def test_execution_policy_codec_is_versioned_reversible_and_collision_free() -> None:
+    """AC2: canonical namespaces and env names reversibly encode exact IDs."""
+    identifiers = ("dev.python_work", "dev.python.work")
+    namespaces = {
+        identifier: resolver_module._execution_namespace(identifier)
+        for identifier in identifiers
+    }
+
+    assert len(set(namespaces.values())) == len(identifiers)
+    for identifier, namespace in namespaces.items():
+        assert namespace.startswith("execution.v1.")
+        token = namespace.removeprefix("execution.v1.")
+        assert bytes.fromhex(token).decode("utf-8") == identifier
+
+        env_name = resolver_module._env_name(namespace, "backend")
+        assert env_name == f"AXM_EXECUTION__V1__{token.upper()}_BACKEND"

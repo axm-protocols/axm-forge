@@ -150,7 +150,21 @@ class NamespaceStore:
         :class:`~axm_config.resolver.UnsafeHomeError` (a :class:`ConfigError`)
         only when ``~/.axm`` cannot be used safely (HOME inside a git repo).
         """
-        section = _section(self._load_config(), ns)
+        config = self._load_config()
+        section = _section(config, ns)
+        legacy_execution_prefix = "execution."
+        canonical_execution_prefix = "execution.v1."
+        if ns.startswith(legacy_execution_prefix) and not ns.startswith(
+            canonical_execution_prefix
+        ):
+            ticket_type = ns.removeprefix(legacy_execution_prefix)
+            token = ticket_type.encode("utf-8").hex()
+            canonical = _section(
+                config,
+                f"{canonical_execution_prefix}{token}",
+            )
+            if canonical:
+                return canonical
         if section:
             return section
         return self._read_legacy(ns)

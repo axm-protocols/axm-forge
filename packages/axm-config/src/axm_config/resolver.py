@@ -199,10 +199,63 @@ _TRUE_TOKENS = frozenset({"true", "1", "yes", "on"})
 _FALSE_TOKENS = frozenset({"false", "0", "no", "off"})
 
 
+_EXECUTION_POLICY_IDENTIFIER_RE = re.compile(
+    r"^[a-z0-9]+(?:_[a-z0-9]+)*(?:\.[a-z0-9]+(?:_[a-z0-9]+)*)*$"
+)
+_EXECUTION_NAMESPACE_PREFIX = "execution.v1."
+_EXECUTION_TOKEN_RE = re.compile(r"^[0-9a-f]+$")
+
+
+def _validate_execution_policy_identifier(ticket_type: str) -> str:
+    """Return a valid public ticket-type identifier or raise ConfigError."""
+    if (
+        not isinstance(ticket_type, str)
+        or _EXECUTION_POLICY_IDENTIFIER_RE.fullmatch(ticket_type) is None
+    ):
+        pattern = _EXECUTION_POLICY_IDENTIFIER_RE.pattern
+        msg = (
+            f"invalid execution policy identifier {ticket_type!r}: must match {pattern}"
+        )
+        raise ConfigError(msg)
+    return ticket_type
+
+
+def _encode_execution_policy_identifier(ticket_type: str) -> str:
+    """Encode one validated identifier as canonical lowercase UTF-8 hex."""
+    validated = _validate_execution_policy_identifier(ticket_type)
+    return validated.encode("utf-8").hex()
+
+
+def _decode_execution_namespace(namespace: str) -> str:
+    """Strictly decode one canonical versioned execution namespace."""
+    if not isinstance(namespace, str) or not namespace.startswith(
+        _EXECUTION_NAMESPACE_PREFIX
+    ):
+        msg = f"invalid execution namespace {namespace!r}"
+        raise ConfigError(msg)
+
+    token = namespace.removeprefix(_EXECUTION_NAMESPACE_PREFIX)
+    if not token or len(token) % 2 or _EXECUTION_TOKEN_RE.fullmatch(token) is None:
+        msg = f"invalid execution namespace token {token!r}"
+        raise ConfigError(msg)
+
+    try:
+        ticket_type = bytes.fromhex(token).decode("utf-8")
+    except (UnicodeDecodeError, ValueError) as exc:
+        msg = f"invalid execution namespace token {token!r}"
+        raise ConfigError(msg) from exc
+
+    _validate_execution_policy_identifier(ticket_type)
+    if _encode_execution_policy_identifier(ticket_type) != token:
+        msg = f"non-canonical execution namespace token {token!r}"
+        raise ConfigError(msg)
+    return ticket_type
+
+
 def _execution_namespace(ticket_type: str) -> str:
     """Validate a ticket type and return its execution namespace."""
-    validate_segment(ticket_type, kind="namespace")
-    return f"execution.{ticket_type}"
+    token = _encode_execution_policy_identifier(ticket_type)
+    return f"{_EXECUTION_NAMESPACE_PREFIX}{token}"
 
 
 def _policy_pair(
@@ -320,8 +373,10 @@ def set_execution_policy(
 ) -> None:
     """Atomically replace or clear one complete ticket-type policy leaf."""
     namespace = _execution_namespace(ticket_type)
+    legacy_namespace = f"execution.{ticket_type}"
     if backend is None and model is None and analysis_enabled is None:
         _store.replace_section(namespace, {})
+        _store.replace_section(legacy_namespace, {})
         return
     policy = _policy_from_values(
         {
@@ -339,25 +394,46 @@ def set_execution_policy(
 
 def delete_execution_policy(ticket_type: str) -> None:
     """Idempotently delete one policy leaf while preserving descendants."""
-    _store.replace_section(_execution_namespace(ticket_type), {})
+    namespace = _execution_namespace(ticket_type)
+    _store.replace_section(namespace, {})
+    _store.replace_section(f"execution.{ticket_type}", {})
 
 
 def list_execution_policies() -> dict[str, ExecutionPolicyOverride]:
     """Return valid policies in lexical order, skipping malformed leaves."""
     policies: dict[str, ExecutionPolicyOverride] = {}
-    prefix = "execution."
-    for namespace in _store.namespaces():
-        if not namespace.startswith(prefix):
+    namespaces = _store.namespaces()
+
+    for namespace in namespaces:
+        if not namespace.startswith(_EXECUTION_NAMESPACE_PREFIX):
             continue
         values = _store.read(namespace)
         if not _POLICY_KEYS.intersection(values) or values.keys() - _POLICY_KEYS:
             continue
-        ticket_type = namespace.removeprefix(prefix)
         try:
-            policy = _policy_from_values(values, layer="file")
+            ticket_type = _decode_execution_namespace(namespace)
+            policies[ticket_type] = _policy_from_values(values, layer="file")
         except ConfigError:
             continue
-        policies[ticket_type] = policy
+
+    legacy_prefix = "execution."
+    for namespace in namespaces:
+        if not namespace.startswith(legacy_prefix) or namespace.startswith(
+            _EXECUTION_NAMESPACE_PREFIX
+        ):
+            continue
+        values = _store.read(namespace)
+        if not _POLICY_KEYS.intersection(values) or values.keys() - _POLICY_KEYS:
+            continue
+        try:
+            ticket_type = _validate_execution_policy_identifier(
+                namespace.removeprefix(legacy_prefix)
+            )
+            if ticket_type not in policies:
+                policies[ticket_type] = _policy_from_values(values, layer="file")
+        except ConfigError:
+            continue
+
     return dict(sorted(policies.items()))
 
 
