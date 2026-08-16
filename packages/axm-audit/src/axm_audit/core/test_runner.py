@@ -12,12 +12,14 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from axm_audit.core.runner import run_in_project
 
 __all__ = [
     "FailureDetail",
+    "TestCase",
+    "TestOutcome",
     "TestReport",
     "run_tests",
 ]
@@ -70,6 +72,25 @@ class FailureDetail:
 _MAX_TB_LINES = 5
 
 
+type TestOutcome = Literal[
+    "passed",
+    "failed",
+    "error",
+    "skipped",
+    "xfailed",
+    "xpassed",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class TestCase:
+    """Lossless verdict for one collected pytest item."""
+
+    node_id: str
+    outcome: TestOutcome
+    detail: str | None = field(default=None, compare=False)
+
+
 @dataclass
 class TestReport:
     """Compact test execution report.
@@ -87,6 +108,7 @@ class TestReport:
     coverage: float | None = None
     failures: list[FailureDetail] | None = None
     coverage_by_file: dict[str, float] | None = None
+    cases: tuple[TestCase, ...] = ()
     timed_out: bool = False
     pytest_return_code: int = 0
     collected: int | None = None
@@ -402,6 +424,7 @@ def run_tests(
     files: list[str] | None = None,
     markers: list[str] | None = None,
     stop_on_first: bool = True,
+    include_cases: bool = False,
 ) -> TestReport:
     """Run tests with agent-optimized structured output.
 
@@ -458,6 +481,10 @@ def run_tests(
                 "Test run timed out after %ds — coverage not measured",
                 _COVERAGE_RUN_TIMEOUT,
             )
+            if include_cases:
+                raise ValueError(
+                    f"pytest subprocess timed out after {_COVERAGE_RUN_TIMEOUT}s"
+                )
             return TestReport(
                 timed_out=True,
                 pytest_return_code=result.returncode,
@@ -484,6 +511,7 @@ def run_tests(
             report_data=report_data,
             total_cov=total_cov,
             per_file_cov=per_file_cov,
+            include_cases=include_cases,
         )
         report.record_execution(
             return_code=result.returncode,
@@ -501,6 +529,99 @@ def run_tests(
         coverage_path.unlink(missing_ok=True)
 
 
+def _nonempty_text(value: object) -> str | None:
+    """Return non-blank text from a dynamic report field."""
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _phase_detail(value: object) -> str | None:
+    """Extract the best diagnostic from one pytest execution phase."""
+    if not isinstance(value, dict):
+        return None
+    phase = cast("dict[str, object]", value)
+    crash = phase.get("crash")
+    if isinstance(crash, dict):
+        crash_data = cast("dict[str, object]", crash)
+        message = _nonempty_text(crash_data.get("message"))
+        if message is not None:
+            return message
+    return _nonempty_text(phase.get("longrepr"))
+
+
+def _case_detail(
+    entry: dict[str, object],
+    outcome: TestOutcome,
+) -> str | None:
+    """Extract an optional diagnostic without changing case identity."""
+    if outcome == "passed":
+        return None
+
+    for phase_name in ("call", "setup", "teardown"):
+        detail = _phase_detail(entry.get(phase_name))
+        if detail is not None:
+            return detail
+    return _nonempty_text(entry.get("longrepr"))
+
+
+def _extract_cases(report_data: dict[str, object]) -> tuple[TestCase, ...]:
+    """Extract validated cases from a pytest-json-report payload."""
+    raw_tests = report_data.get("tests")
+    if not isinstance(raw_tests, list):
+        raise ValueError("Malformed pytest JSON report: 'tests' must be a list")
+
+    cases: list[TestCase] = []
+    seen_node_ids: set[str] = set()
+    canonical_outcomes = {
+        "passed",
+        "failed",
+        "error",
+        "skipped",
+        "xfailed",
+        "xpassed",
+    }
+    for raw_entry in raw_tests:
+        if not isinstance(raw_entry, dict):
+            raise ValueError("Malformed pytest JSON report: invalid tests entry")
+        entry = cast("dict[str, object]", raw_entry)
+        node_id = entry.get("nodeid")
+        if not isinstance(node_id, str) or not node_id:
+            raise ValueError("Malformed pytest JSON report: invalid node id")
+        if node_id in seen_node_ids:
+            raise ValueError(f"Duplicate pytest node id: {node_id}")
+        seen_node_ids.add(node_id)
+
+        raw_outcome = entry.get("outcome")
+        if not isinstance(raw_outcome, str) or raw_outcome not in canonical_outcomes:
+            raise ValueError(f"Unknown pytest outcome: {raw_outcome!r}")
+        outcome = cast("TestOutcome", raw_outcome)
+        cases.append(
+            TestCase(
+                node_id=node_id,
+                outcome=outcome,
+                detail=_case_detail(entry, outcome),
+            )
+        )
+
+    return tuple(sorted(cases, key=lambda case: case.node_id))
+
+
+def _collection_failure_detail(
+    collectors: list[dict[str, object]],
+) -> str | None:
+    """Return a diagnostic when pytest failed during collection."""
+    for collector in collectors:
+        outcome = collector.get("outcome")
+        longrepr = collector.get("longrepr")
+        if outcome not in {"failed", "error"} and not longrepr:
+            continue
+        node_id = collector.get("nodeid")
+        location = node_id if isinstance(node_id, str) else "<unknown>"
+        if isinstance(longrepr, str) and longrepr.strip():
+            return f"pytest collection failed for {location}: {longrepr}"
+        return f"pytest collection failed for {location}"
+    return None
+
+
 def build_test_report(
     *,
     report_data: dict[str, object],
@@ -508,6 +629,7 @@ def build_test_report(
     per_file_cov: dict[str, float],
     mode: str | None = None,
     last_coverage: dict[str, float] | None = None,
+    include_cases: bool = False,
 ) -> TestReport:
     """Build a ``TestReport`` from pytest JSON and coverage data.
 
@@ -517,11 +639,16 @@ def build_test_report(
     """
     summary = cast("dict[str, object]", report_data.get("summary", {}))
     tests_list = cast("list[dict[str, object]]", report_data.get("tests", []))
+    cases = _extract_cases(report_data) if include_cases else ()
 
     # Always parse failures
     failures = parse_failures(tests_list)
     collectors_list = cast("list[dict[str, object]]", report_data.get("collectors", []))
     failures.extend(parse_collector_errors(collectors_list))
+    if include_cases:
+        collection_failure = _collection_failure_detail(collectors_list)
+        if collection_failure is not None:
+            raise ValueError(collection_failure)
 
     return TestReport(
         passed=cast(int, summary.get("passed", 0)),
@@ -533,4 +660,5 @@ def build_test_report(
         coverage=total_cov,
         failures=failures or None,
         coverage_by_file=per_file_cov or None,
+        cases=cases,
     )

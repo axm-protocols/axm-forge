@@ -28,7 +28,7 @@ class AuditTestTool(AXMTool):
         """Return tool name for registry lookup."""
         return "audit_test"
 
-    def execute(
+    def execute(  # noqa: PLR0913
         self,
         *,
         path: str = ".",
@@ -36,6 +36,7 @@ class AuditTestTool(AXMTool):
         files: list[str] | None = None,
         markers: list[str] | None = None,
         stop_on_first: bool = True,
+        include_cases: bool = False,
         **kwargs: object,
     ) -> ToolResult:
         """Run tests with structured output.
@@ -46,6 +47,7 @@ class AuditTestTool(AXMTool):
             files: Specific test files to run.
             markers: Pytest markers to filter.
             stop_on_first: Stop on first failure.
+            include_cases: Include lossless per-item pytest verdicts.
 
         Returns:
             ToolResult with structured test report.
@@ -67,9 +69,14 @@ class AuditTestTool(AXMTool):
                 files=files,
                 markers=markers,
                 stop_on_first=stop_on_first,
+                include_cases=include_cases,
             )
 
             data = dataclasses.asdict(report)
+            if include_cases:
+                data["cases"] = [dataclasses.asdict(case) for case in report.cases]
+            else:
+                data.pop("cases", None)
 
             from axm_audit.tools.audit_test_text import format_audit_test_text
 

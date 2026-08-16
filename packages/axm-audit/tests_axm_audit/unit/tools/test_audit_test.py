@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
+
 import pytest
 
 from axm_audit.core.test_runner import TestReport
@@ -171,3 +174,92 @@ def test_non_success_exit_overrides_empty_failure_lists(
     assert result.data is not None
     assert result.data["pytest_return_code"] == 3
     assert result.data["verdict"] is False
+
+
+def test_explicit_case_opt_out_matches_default_payload_and_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: explicit false is threaded and preserves default data and text bytes."""
+    seen_include_cases: list[object] = []
+    report = _report(collected=2)
+
+    def _run(*_args: object, **kwargs: object) -> TestReport:
+        seen_include_cases.append(kwargs.get("include_cases"))
+        return report
+
+    monkeypatch.setattr("axm_audit.core.test_runner.run_tests", _run)
+    monkeypatch.setattr(
+        "axm_audit.tools.audit_test.Path.is_dir",
+        lambda _self: True,
+    )
+
+    default = AuditTestTool().execute(path="/virtual/project")
+    explicit = AuditTestTool().execute(
+        path="/virtual/project",
+        include_cases=False,
+    )
+
+    assert seen_include_cases == [False, False]
+    assert explicit.data == default.data
+    assert explicit.text == default.text
+    assert explicit.data is not None
+    assert "cases" not in explicit.data
+
+
+@dataclass(frozen=True, slots=True)
+class _SyntheticCase:
+    node_id: str
+    outcome: str
+    detail: str | None
+
+
+def test_case_opt_in_serializes_records_as_plain_json_dicts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: opted-in case records become JSON-serializable plain dictionaries."""
+    report = TestReport(
+        passed=1,
+        failed=1,
+        collected=2,
+        verdict=False,
+        cases=(
+            _SyntheticCase("tests/test_x.py::test_pass", "passed", None),
+            _SyntheticCase(
+                "tests/test_x.py::test_fail",
+                "failed",
+                "AssertionError: mismatch",
+            ),
+        ),
+    )
+    seen_include_cases: list[object] = []
+
+    def _run(*_args: object, **kwargs: object) -> TestReport:
+        seen_include_cases.append(kwargs.get("include_cases"))
+        return report
+
+    monkeypatch.setattr("axm_audit.core.test_runner.run_tests", _run)
+    monkeypatch.setattr(
+        "axm_audit.tools.audit_test.Path.is_dir",
+        lambda _self: True,
+    )
+
+    result = AuditTestTool().execute(
+        path="/virtual/project",
+        include_cases=True,
+    )
+
+    assert seen_include_cases == [True]
+    assert result.data is not None
+    assert result.data["cases"] == [
+        {
+            "node_id": "tests/test_x.py::test_pass",
+            "outcome": "passed",
+            "detail": None,
+        },
+        {
+            "node_id": "tests/test_x.py::test_fail",
+            "outcome": "failed",
+            "detail": "AssertionError: mismatch",
+        },
+    ]
+    json.dumps(result.data)

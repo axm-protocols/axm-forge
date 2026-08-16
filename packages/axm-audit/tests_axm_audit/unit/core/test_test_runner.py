@@ -435,3 +435,182 @@ def test_run_tests_retains_execution_and_target_metadata(
     assert data["collected"] == 2
     assert data["target_statuses"] == [{"target": target, "status": "validated"}]
     assert data["verdict"] is True
+
+
+_CASE_OUTCOMES = (
+    "passed",
+    "failed",
+    "error",
+    "skipped",
+    "xfailed",
+    "xpassed",
+)
+
+
+def _case_report(entries: object) -> dict[str, object]:
+    return {
+        "summary": {
+            "passed": 1,
+            "failed": 1,
+            "error": 1,
+            "skipped": 1,
+            "warnings": 0,
+        },
+        "tests": entries,
+        "duration": 0.25,
+    }
+
+
+def _build_case_report(
+    entries: object,
+    *,
+    include_cases: bool = True,
+) -> TestReport:
+    return build_test_report(
+        report_data=_case_report(entries),
+        total_cov=None,
+        per_file_cov={},
+        include_cases=include_cases,
+    )
+
+
+def test_build_report_extracts_all_canonical_outcomes_and_exact_node_ids() -> None:
+    """AC1: every canonical verdict keeps its exact parametrized pytest node id."""
+    node_ids = [
+        "tests_axm_audit/unit/test_sample.py::test_p[a-1]",
+        "tests_axm_audit/unit/test_sample.py::test_failed",
+        "tests_axm_audit/unit/test_sample.py::test_error",
+        "tests_axm_audit/unit/test_sample.py::test_skipped",
+        "tests_axm_audit/unit/test_sample.py::test_xfailed",
+        "tests_axm_audit/unit/test_sample.py::test_xpassed",
+    ]
+    entries = [
+        {"nodeid": node_id, "outcome": outcome}
+        for node_id, outcome in zip(node_ids, _CASE_OUTCOMES, strict=True)
+    ]
+
+    report = _build_case_report(entries)
+    by_node_id = {case.node_id: case.outcome for case in report.cases}
+
+    assert by_node_id == dict(zip(node_ids, _CASE_OUTCOMES, strict=True))
+    assert {case.outcome for case in report.cases} == set(_CASE_OUTCOMES)
+
+
+def test_build_report_orders_cases_by_node_id_independently_of_input_order() -> None:
+    """AC1: case ordering is deterministic for reversed source-report entries."""
+    entries = [
+        {
+            "nodeid": f"tests_axm_audit/unit/test_sample.py::test_{suffix}",
+            "outcome": outcome,
+        }
+        for suffix, outcome in zip(
+            ("zeta", "alpha", "mu", "beta", "omega", "delta"),
+            _CASE_OUTCOMES,
+            strict=True,
+        )
+    ]
+
+    forward = _build_case_report(entries)
+    reversed_report = _build_case_report(list(reversed(entries)))
+    expected = sorted(entry["nodeid"] for entry in entries)
+
+    assert [case.node_id for case in forward.cases] == expected
+    assert forward.cases == reversed_report.cases
+
+
+def test_build_report_rejects_unknown_case_outcome() -> None:
+    """AC2: an unknown outcome is diagnosed instead of coerced to passed."""
+    entries = [
+        {
+            "nodeid": "tests_axm_audit/unit/test_sample.py::test_quarantined",
+            "outcome": "quarantined",
+        }
+    ]
+
+    with pytest.raises(ValueError, match="quarantined"):
+        _build_case_report(entries)
+
+
+def test_build_report_rejects_duplicate_case_node_id() -> None:
+    """AC2: duplicate node ids are diagnosed instead of silently deduplicated."""
+    node_id = "tests_axm_audit/unit/test_sample.py::test_duplicate"
+    entries = [
+        {"nodeid": node_id, "outcome": "passed"},
+        {"nodeid": node_id, "outcome": "failed"},
+    ]
+
+    with pytest.raises(ValueError, match="test_duplicate"):
+        _build_case_report(entries)
+
+
+def test_build_report_captures_non_passed_detail_only() -> None:
+    """AC5: failure diagnostics are retained while passed cases stay detail-free."""
+    entries = [
+        {
+            "nodeid": "tests_axm_audit/unit/test_sample.py::test_failed",
+            "outcome": "failed",
+            "call": {
+                "crash": {"message": "AssertionError: expected parity"},
+                "longrepr": "traceback line\nAssertionError: expected parity",
+            },
+        },
+        {
+            "nodeid": "tests_axm_audit/unit/test_sample.py::test_passed",
+            "outcome": "passed",
+            "call": {"longrepr": "must not leak into passed detail"},
+        },
+    ]
+
+    report = _build_case_report(entries)
+    cases = {case.outcome: case for case in report.cases}
+
+    assert cases["failed"].detail
+    assert "expected parity" in cases["failed"].detail
+    assert cases["passed"].detail is None
+
+
+def test_build_report_explicit_opt_out_keeps_counts_and_empty_cases() -> None:
+    """AC3: include_cases=False is accepted and changes no aggregate count."""
+    entries = [
+        {
+            "nodeid": f"tests_axm_audit/unit/test_sample.py::test_{outcome}",
+            "outcome": outcome,
+        }
+        for outcome in _CASE_OUTCOMES
+    ]
+
+    included = _build_case_report(entries)
+    excluded = _build_case_report(entries, include_cases=False)
+
+    assert excluded.cases == ()
+    assert (
+        excluded.passed,
+        excluded.failed,
+        excluded.errors,
+        excluded.skipped,
+    ) == (
+        included.passed,
+        included.failed,
+        included.errors,
+        included.skipped,
+    )
+
+
+@pytest.mark.parametrize(
+    "report_data",
+    [
+        pytest.param({"summary": {}}, id="missing-tests"),
+        pytest.param({"summary": {}, "tests": {"not": "a list"}}, id="tests-not-list"),
+    ],
+)
+def test_build_report_rejects_structurally_corrupt_case_data(
+    report_data: dict[str, object],
+) -> None:
+    """AC6: malformed case data is diagnosed rather than measured as empty."""
+    with pytest.raises(ValueError, match="tests"):
+        build_test_report(
+            report_data=report_data,
+            total_cov=None,
+            per_file_cov={},
+            include_cases=True,
+        )

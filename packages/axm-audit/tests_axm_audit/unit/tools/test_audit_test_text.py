@@ -4,7 +4,11 @@ from typing import Any
 
 import pytest
 
-from axm_audit.core.test_runner import FailureDetail, TestReport
+from axm_audit.core.test_runner import (
+    FailureDetail,
+    TestReport,
+    build_test_report,
+)
 from axm_audit.tools.audit_test_text import format_audit_test_text
 
 
@@ -201,3 +205,34 @@ def test_text_uses_the_structured_verdict(
     assert text.startswith("audit_test | ✅" if expected_success else "audit_test | ❌")
     for fragment in expected_fragments:
         assert fragment in text
+
+
+def test_text_rendering_is_independent_of_case_count() -> None:
+    """AC4: zero and five hundred cases render to byte-identical compact text."""
+    empty = _make_report()
+    tests = [
+        {
+            "nodeid": f"tests/unit/test_many.py::test_case[{index}]",
+            "outcome": "passed",
+        }
+        for index in range(500)
+    ]
+    populated = build_test_report(
+        report_data={
+            "summary": {
+                "passed": 1,
+                "failed": 0,
+                "error": 0,
+                "skipped": 0,
+                "warnings": 0,
+            },
+            "tests": tests,
+            "duration": 0.5,
+        },
+        total_cov=None,
+        per_file_cov={},
+        include_cases=True,
+    )
+
+    assert len(populated.cases) == 500
+    assert format_audit_test_text(populated) == format_audit_test_text(empty)
