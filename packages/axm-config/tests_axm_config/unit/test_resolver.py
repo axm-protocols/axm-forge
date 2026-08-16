@@ -418,3 +418,24 @@ def test_execution_policy_recognizes_only_the_exact_versioned_tombstone(
         "model",
         True,
     )
+
+
+def test_execution_policy_api_documents_persistence_contract() -> None:
+    """AC1: public API docs publish the complete persistence contract."""
+    policy_api = (
+        axm_config.get_execution_policy,
+        axm_config.set_execution_policy,
+        axm_config.delete_execution_policy,
+        axm_config.list_execution_policies,
+    )
+    documentation = "\n".join(symbol.__doc__ or "" for symbol in policy_api)
+
+    required_contract = (
+        "execution.v1.<ticket-type-utf8-hex>",
+        "execution.<ticket-type>",
+        "environment > canonical file > legacy file",
+        "legacy bytes are never rewritten or deleted",
+        '{"tombstone": "v1"}',
+        "a later set replaces the tombstone",
+    )
+    assert all(fragment in documentation for fragment in required_contract)

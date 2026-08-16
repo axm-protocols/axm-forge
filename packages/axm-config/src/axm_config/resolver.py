@@ -498,6 +498,37 @@ def list_execution_policies() -> dict[str, ExecutionPolicyOverride]:
     return dict(sorted(policies.items()))
 
 
+_EXECUTION_POLICY_PERSISTENCE_CONTRACT = """
+Persistence contract:
+
+* Canonical v1 file namespaces use
+  ``execution.v1.<ticket-type-utf8-hex>``: the ticket type is UTF-8 encoded
+  and represented by strict, lowercase, even-length hexadecimal. Decoding
+  rejects malformed hex and identifiers that do not satisfy the ticket-type
+  grammar. Canonical environment variables use the same token in uppercase.
+* The compatible legacy file namespace is ``execution.<ticket-type>``.
+  Resolution precedence is ``environment > canonical file > legacy file``;
+  environment values override the backend/model pair as one unit and
+  ``analysis_enabled`` independently.
+* Migration is non-destructive: legacy bytes are never rewritten or deleted
+  by reads, sets, or deletes. A set writes only the canonical v1 namespace.
+* Delete writes the exact canonical sentinel ``{"tombstone": "v1"}``, which
+  masks compatible legacy data; a later set replaces the tombstone with the
+  complete canonical policy; deleting again restores the tombstone.
+"""
+
+for _execution_policy_api in (
+    get_execution_policy,
+    set_execution_policy,
+    delete_execution_policy,
+    list_execution_policies,
+):
+    _execution_policy_api.__doc__ = (
+        f"{_execution_policy_api.__doc__}\n\n{_EXECUTION_POLICY_PERSISTENCE_CONTRACT}"
+    )
+del _execution_policy_api
+
+
 def get(namespace: str, key: str, *, default: object = None) -> object:
     """Return the resolved value for ``key`` in ``namespace``.
 
