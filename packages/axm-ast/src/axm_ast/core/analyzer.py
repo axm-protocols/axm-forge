@@ -94,6 +94,8 @@ def analyze_package(path: Path) -> PackageInfo:
         msg = f"{path} is not a directory"
         raise ValueError(msg)
 
+    source_package_name: str | None = None
+
     # Detect src-layout: src/<pkg>/__init__.py
     src_dir = path / "src"
     if src_dir.is_dir():
@@ -117,6 +119,7 @@ def analyze_package(path: Path) -> PackageInfo:
                     skipped,
                 )
             path = chosen
+            source_package_name = chosen.name
 
     t0 = time.perf_counter()
 
@@ -124,7 +127,12 @@ def analyze_package(path: Path) -> PackageInfo:
     py_files = sorted(_discover_py_files(path))
     modules: list[ModuleInfo] = []
     for py_file in py_files:
-        modules.append(extract_module_info(py_file))
+        module = extract_module_info(py_file)
+        if source_package_name is not None:
+            relative_name = module_dotted_name(py_file, path)
+            if relative_name != source_package_name:
+                module.name = f"{source_package_name}.{relative_name}"
+        modules.append(module)
 
     # Build dependency edges from internal imports
     dep_edges = _build_edges(modules, path)
@@ -191,7 +199,12 @@ def _discover_py_files_inner(root: Path, git_root: Path | None) -> list[Path]:
     results: list[Path] = []
     for child in sorted(root.iterdir()):
         if child.is_dir():
-            if child.name in _SKIP_DIRS or child.name.endswith(".egg-info"):
+            is_source_build_package = (
+                child.name == "build" and (child / "__init__.py").is_file()
+            )
+            if (
+                child.name in _SKIP_DIRS and not is_source_build_package
+            ) or child.name.endswith(".egg-info"):
                 continue
             if git_root is not None and _is_gitignored(child, git_root):
                 continue

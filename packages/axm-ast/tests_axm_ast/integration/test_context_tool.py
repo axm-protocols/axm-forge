@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from axm_ast.core.context import build_context
 from axm_ast.hooks.context import ContextHook
 from axm_ast.tools.context import ContextTool
 from tests_axm_ast.integration._helpers import _assert_tool_result
@@ -17,6 +18,44 @@ def _make_pkg(tmp_path: Path, files: dict[str, str]) -> Path:
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.write_text(content)
     return pkg
+
+
+def make_build_named_project(tmp_path: Path) -> Path:
+    """Create source and artifact trees that share the ``build`` basename."""
+    project = tmp_path / "project"
+    files = {
+        "src/example/__init__.py": "",
+        "src/example/build/__init__.py": "",
+        "src/example/build/worker.py": (
+            "def source_build_worker() -> str:\n    return 'source'\n"
+        ),
+        "build/generated.py": (
+            "def generated_artifact_symbol() -> str:\n    return 'artifact'\n"
+        ),
+    }
+    for relative_path, content in files.items():
+        target = project / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+    return project
+
+
+@pytest.fixture()
+def build_named_project(tmp_path: Path) -> Path:
+    """Provide the shared source-versus-artifact regression project."""
+    return make_build_named_project(tmp_path)
+
+
+@pytest.mark.integration
+def test_context_includes_source_build_package_only(
+    build_named_project: Path,
+) -> None:
+    """AC1: context keeps source ``build`` modules and rejects artifacts."""
+    context = build_context(build_named_project)
+    module_names = {module["name"] for module in context["modules"]}
+
+    assert {"example.build", "example.build.worker"} <= module_names
+    assert all(not name.endswith("build.generated") for name in module_names)
 
 
 class TestContextToolWorkspace:

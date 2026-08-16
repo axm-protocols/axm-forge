@@ -403,6 +403,12 @@ def build_context(
 
     # Build module summaries with rank stars
     modules = _build_module_summaries(pkg, scores)
+    if pkg.root.parent.name == "src":
+        package_prefix = f"{pkg.name}."
+        for module in modules:
+            module_name = module["name"]
+            if module_name != pkg.name and not module_name.startswith(package_prefix):
+                module["name"] = f"{package_prefix}{module_name}"
 
     return ContextResult(
         name=pkg.name,

@@ -8,8 +8,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from axm_ast.core.analyzer import analyze_package, find_module_for_symbol
 from axm_ast.tools.inspect import InspectTool
 from tests_axm_ast.integration._helpers import _assert_tool_result
+from tests_axm_ast.integration.test_context_tool import make_build_named_project
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -448,6 +450,20 @@ class TestInspectModuleFallback:
         sym = result.data["symbol"]
         assert sym["kind"] == "module"
         assert "helper_func" in sym["functions"]
+
+
+@pytest.mark.integration
+def test_inspect_resolves_symbol_in_source_build_package(tmp_path: Path) -> None:
+    """AC3: inspection resolves source ``build`` and rejects artifacts."""
+    project = make_build_named_project(tmp_path)
+    package = analyze_package(project)
+
+    source_module = find_module_for_symbol(package, "source_build_worker")
+    artifact_module = find_module_for_symbol(package, "generated_artifact_symbol")
+
+    assert source_module is not None
+    assert source_module.path == (project / "src" / "example" / "build" / "worker.py")
+    assert artifact_module is None
 
 
 class TestInspectToolIntegration:

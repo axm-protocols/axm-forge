@@ -10,12 +10,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from axm_ast.core.analyzer import analyze_package, search_symbols
 from axm_ast.tools.search import SearchTool
 from tests_axm_ast.integration._helpers import (
     _assert_tool_result,
     _make_func,
     _make_mod,
 )
+from tests_axm_ast.integration.test_context_tool import make_build_named_project
 
 
 @pytest.fixture()
@@ -85,6 +87,21 @@ def _make_pkg__from_search_suggestion(
     modules: list[SimpleNamespace],
 ) -> SimpleNamespace:
     return SimpleNamespace(root=root, modules=modules)
+
+
+@pytest.mark.integration
+def test_search_finds_symbol_in_source_build_package(tmp_path: Path) -> None:
+    """AC2: search indexes source ``build`` but not generated artifacts."""
+    project = make_build_named_project(tmp_path)
+    package = analyze_package(project)
+
+    source_matches = search_symbols(package, name="source_build_worker")
+    artifact_matches = search_symbols(package, name="generated_artifact_symbol")
+
+    assert [(module, symbol.name) for module, symbol in source_matches] == [
+        ("example.build.worker", "source_build_worker")
+    ]
+    assert artifact_matches == []
 
 
 class TestSearchByName:
