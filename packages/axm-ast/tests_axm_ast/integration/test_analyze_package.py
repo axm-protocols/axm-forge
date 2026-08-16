@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from axm_ast import analyze_package
+from axm_ast.core.analyzer import fingerprint_source_tree
 
 
 def _make_src_layout(root: Path, pkg_name: str = "mypkg") -> Path:
@@ -400,3 +401,35 @@ class TestAnalyzePackageGitignore:
         mod_names = [m.path.name for m in result.modules]
         assert "stuff.py" in mod_names
         assert "mod.py" in mod_names
+
+
+@pytest.mark.integration
+def test_build_package_and_generated_output_share_traversal_policy(
+    tmp_path: Path,
+) -> None:
+    """AC1: discovery and fingerprinting include only the marked build package."""
+    package = tmp_path / "src" / "example"
+    marked_build = package / "build"
+    generated_build = package / "generated" / "build"
+    marked_build.mkdir(parents=True)
+    generated_build.mkdir(parents=True)
+    (package / "__init__.py").write_text('"""Example package."""\n')
+    (marked_build / "__init__.py").write_text('"""Build package."""\n')
+    (marked_build / "source.py").write_text("SOURCE_VALUE = 1\n")
+    (generated_build / "generated.py").write_text("GENERATED_VALUE = 1\n")
+
+    analyzed = analyze_package(tmp_path)
+    discovered = {
+        module.path.relative_to(analyzed.root).as_posix() for module in analyzed.modules
+    }
+    fingerprinted = {
+        Path(path).relative_to(tmp_path).as_posix()
+        for path, _mtime_ns in fingerprint_source_tree(tmp_path)
+    }
+
+    assert discovered == {"__init__.py", "build/__init__.py", "build/source.py"}
+    assert fingerprinted == {
+        "src/example/__init__.py",
+        "src/example/build/__init__.py",
+        "src/example/build/source.py",
+    }

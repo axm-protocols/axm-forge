@@ -194,17 +194,20 @@ def _discover_py_files(root: Path) -> list[Path]:
     return _discover_py_files_inner(root, _find_git_root(root))
 
 
+def _should_skip_source_directory(path: Path) -> bool:
+    """Return whether *path* is generated output rather than Python source."""
+    is_marked_build_package = path.name == "build" and (path / "__init__.py").is_file()
+    return (
+        path.name in _SKIP_DIRS and not is_marked_build_package
+    ) or path.name.endswith(".egg-info")
+
+
 def _discover_py_files_inner(root: Path, git_root: Path | None) -> list[Path]:
     """Recursive helper for :func:`_discover_py_files`."""
     results: list[Path] = []
     for child in sorted(root.iterdir()):
         if child.is_dir():
-            is_source_build_package = (
-                child.name == "build" and (child / "__init__.py").is_file()
-            )
-            if (
-                child.name in _SKIP_DIRS and not is_source_build_package
-            ) or child.name.endswith(".egg-info"):
+            if _should_skip_source_directory(child):
                 continue
             if git_root is not None and _is_gitignored(child, git_root):
                 continue
@@ -243,7 +246,7 @@ def fingerprint_source_tree(root: Path) -> frozenset[tuple[str, int]]:
             continue
         for entry in entries:
             if entry.is_dir(follow_symlinks=False):
-                if entry.name in _SKIP_DIRS or entry.name.endswith(".egg-info"):
+                if _should_skip_source_directory(Path(entry.path)):
                     continue
                 stack.append(entry.path)
             elif entry.name.endswith(".py"):

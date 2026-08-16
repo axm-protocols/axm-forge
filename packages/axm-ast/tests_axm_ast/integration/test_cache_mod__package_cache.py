@@ -14,7 +14,8 @@ from pathlib import Path
 import pytest
 
 import axm_ast.core.cache as cache_mod
-from axm_ast.core.cache import PackageCache
+from axm_ast.core.analyzer import fingerprint_source_tree
+from axm_ast.core.cache import PackageCache, clear_cache, get_package
 
 # ─── TOCTOU fingerprint capture (AXM-1885) ──────────────────────────────────
 
@@ -79,3 +80,104 @@ class TestPackageCacheToctou:
         func_names = [f.name for m in second.modules for f in m.functions]
         assert "goodbye" in func_names
         assert "hello" not in func_names
+
+
+def _make_package_with_build_module(
+    tmp_path: Path, module_name: str, source: str
+) -> Path:
+    package = tmp_path / "pkg"
+    build = package / "build"
+    build.mkdir(parents=True)
+    (package / "__init__.py").write_text('"""Package."""\n')
+    (build / "__init__.py").write_text('"""Build package."""\n')
+    (build / f"{module_name}.py").write_text(source)
+    return package
+
+
+def _module_paths(package_info: object) -> set[str]:
+    return {
+        module.path.relative_to(package_info.root).as_posix()
+        for module in package_info.modules
+    }
+
+
+@pytest.mark.integration
+def test_get_package_invalidates_when_build_package_module_is_added(
+    tmp_path: Path,
+) -> None:
+    """AC2: adding a module under a marked build package refreshes analysis."""
+    clear_cache()
+    package = _make_package_with_build_module(
+        tmp_path,
+        "existing",
+        "EXISTING = 1\n",
+    )
+    before_fingerprint = fingerprint_source_tree(package)
+    before = get_package(package)
+
+    (package / "build" / "added.py").write_text("ADDED = 1\n")
+
+    after_fingerprint = fingerprint_source_tree(package)
+    after = get_package(package)
+
+    assert after_fingerprint != before_fingerprint
+    assert after is not before
+    assert "build/added.py" in _module_paths(after)
+
+
+@pytest.mark.integration
+def test_get_package_invalidates_when_build_package_module_is_modified(
+    tmp_path: Path,
+) -> None:
+    """AC3: modifying a module under a marked build package refreshes metadata."""
+    clear_cache()
+    package = _make_package_with_build_module(
+        tmp_path,
+        "changing",
+        "def old_symbol() -> str:\n    return 'old'\n",
+    )
+    module = package / "build" / "changing.py"
+    before_fingerprint = fingerprint_source_tree(package)
+    before = get_package(package)
+
+    time.sleep(0.05)
+    module.write_text("def replacement_symbol() -> str:\n    return 'replacement'\n")
+
+    after_fingerprint = fingerprint_source_tree(package)
+    after = get_package(package)
+    function_names = {
+        function.name
+        for parsed_module in after.modules
+        for function in parsed_module.functions
+    }
+
+    assert after_fingerprint != before_fingerprint
+    assert after is not before
+    assert "replacement_symbol" in function_names
+    assert "old_symbol" not in function_names
+
+
+@pytest.mark.integration
+def test_get_package_invalidates_when_build_package_module_is_deleted(
+    tmp_path: Path,
+) -> None:
+    """AC4: deleting a module under a marked build package refreshes analysis."""
+    clear_cache()
+    package = _make_package_with_build_module(
+        tmp_path,
+        "removed",
+        "REMOVED = 1\n",
+    )
+    removed = package / "build" / "removed.py"
+    before_fingerprint = fingerprint_source_tree(package)
+    before = get_package(package)
+    assert "build/removed.py" in _module_paths(before)
+
+    removed.unlink()
+
+    after_fingerprint = fingerprint_source_tree(package)
+    after = get_package(package)
+
+    assert after_fingerprint != before_fingerprint
+    assert after is not before
+    assert "build/removed.py" not in _module_paths(after)
