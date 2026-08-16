@@ -60,6 +60,7 @@ def tool_node(
     *,
     args: Mapping[str, str] | None = None,
     returns: Mapping[str, str] | None = None,
+    allow_failure_data: bool = False,
 ) -> Callable[[Mapping[str, object]], dict[str, object]]:
     """Build a DAG python-node ``fn(payload) -> dict`` around an ``axm.tools`` tool.
 
@@ -80,13 +81,20 @@ def tool_node(
             shortcut — ``source="text"`` yields ``ToolResult.text``, never
             ``data["text"]`` (which is unreachable via *returns*). Route such a
             field under a different write source, or rename the data key upstream.
+        allow_failure_data: Opt-in for observation tools whose ``success=False``
+            is itself measured domain data (for example ``audit_test`` returning
+            exact failed cases).  When true, shape ``ToolResult.data`` through
+            *returns* instead of raising solely on the success flag. Missing
+            declared data still raises, so an empty/tool failure cannot become
+            evidence. Defaults to the existing fail-fast behaviour.
 
     Returns:
         A callable mapping the node's ``payload`` to a dict keyed by *returns*.
 
     Raises:
-        ToolNodeError: At call time, if the tool is unknown or returns
-            ``success=False`` (fail-fast).
+        ToolNodeError: At call time, if the tool is unknown, returns
+            ``success=False`` without the explicit observation opt-in, or omits
+            one of the declared return fields.
     """
     rename = dict(args or {})
     out_spec = dict(returns or {})
@@ -108,7 +116,7 @@ def tool_node(
             # ToolNodeError, not a raw TypeError.
             msg = f"tool {name!r}: bad payload for execute(): {exc}"
             raise ToolNodeError(msg) from exc
-        if not result.success:
+        if not result.success and not allow_failure_data:
             msg = f"tool {name!r} failed: {result.error or '<no error message>'}"
             raise ToolNodeError(msg)
         return _shape_output(name, result.data, result.text, out_spec)

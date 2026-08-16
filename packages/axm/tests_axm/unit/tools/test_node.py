@@ -115,6 +115,39 @@ class TestFailFast:
         with _with_tool(tool), pytest.raises(ToolNodeError, match="symbol required"):
             node({"path": "/p"})
 
+    def test_unsuccessful_result_data_can_be_explicitly_observed(self) -> None:
+        """Observation nodes may consume structured failure evidence opt-in."""
+        cases = [{"node_id": "tests/test_x.py::test_x", "outcome": "failed"}]
+        tool = _Tool(ToolResult(success=False, data={"cases": cases}))
+        node = tool_node(
+            "audit_test",
+            returns={"cases": "cases"},
+            allow_failure_data=True,
+        )
+
+        with _with_tool(tool, name="audit_test"):
+            out = node({"path": "/p"})
+
+        assert out == {"cases": cases}
+
+    def test_failure_data_opt_in_still_requires_every_declared_write(self) -> None:
+        """An empty failed result cannot masquerade as measured evidence."""
+        tool = _Tool(ToolResult(success=False, data={}))
+        node = tool_node(
+            "audit_test",
+            returns={"cases": "cases"},
+            allow_failure_data=True,
+        )
+
+        with (
+            _with_tool(tool, name="audit_test"),
+            pytest.raises(
+                ToolNodeError,
+                match="no 'cases'",
+            ),
+        ):
+            node({"path": "/p"})
+
     def test_unknown_tool_raises_with_registered_list(self) -> None:
         """An unregistered tool name raises, naming what is registered."""
         node = tool_node("ghost", returns={"r": "text"})
