@@ -331,6 +331,8 @@ def build_pytest_cmd(
 
     if coverage_path is not None:
         cmd.extend(["--cov", f"--cov-report=json:{coverage_path}"])
+    elif files:
+        cmd.append("--no-cov")
 
     if stop_on_first:
         cmd.append("-x")

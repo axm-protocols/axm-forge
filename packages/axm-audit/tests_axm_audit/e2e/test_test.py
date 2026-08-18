@@ -77,6 +77,35 @@ def test_one_requested_file_with_multiple_tests_succeeds(tmp_path: Path) -> None
     ]
 
 
+def test_requested_file_ignores_project_wide_coverage_threshold(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\n"
+        'addopts = ["--cov=sample", "--cov-fail-under=100"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "sample.py").write_text(
+        "def branch(value: bool) -> int:\n"
+        "    if value:\n"
+        "        return 1\n"
+        "    return 0\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "test_sample.py").write_text(
+        "from sample import branch\n\n"
+        "def test_branch():\n"
+        "    assert branch(True) == 1\n",
+        encoding="utf-8",
+    )
+
+    response = _invoke_audit_test(tmp_path, "test_sample.py")
+    data = _assert_external_consistency(response, expected_success=True)
+
+    assert data["pytest_return_code"] == 0
+    assert data["passed"] == 1
+
+
 @pytest.mark.e2e
 def test_real_zero_collection_fails_closed(tmp_path: Path) -> None:
     """AC3/AC6: a real zero-test target reports zero and fails everywhere."""

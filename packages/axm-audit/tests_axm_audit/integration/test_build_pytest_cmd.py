@@ -74,6 +74,7 @@ class TestBuildPytestCmdCoverageWithFiles:
             markers=None,
             stop_on_first=False,
         )
+        assert "--no-cov" in cmd
         assert "--cov" not in cmd
         assert not any(arg.startswith("--cov-report") for arg in cmd)
 
