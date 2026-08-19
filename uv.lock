@@ -320,6 +320,7 @@ dependencies = [
     { name = "cyclopts" },
     { name = "libcst" },
     { name = "pydantic" },
+    { name = "pytest-json-report" },
     { name = "radon" },
 ]
 
@@ -354,6 +355,7 @@ requires-dist = [
     { name = "cyclopts", specifier = ">=4.21.0" },
     { name = "libcst", specifier = ">=1.5.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pytest-json-report", specifier = ">=1.5" },
     { name = "radon", specifier = ">=6.0.1" },
 ]
 
