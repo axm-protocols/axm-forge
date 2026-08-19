@@ -23,6 +23,11 @@ dependencies = [
     "cyclopts>=4.21.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
+    # audit_test shells out to pytest with --json-report and parses the result,
+    # so the plugin is a RUNTIME requirement of this package, not a dev tool: a
+    # consumer calling audit_test from its own environment needs it installed
+    # there too, and only gets an opaque "unrecognized arguments" exit 4 without.
+    "pytest-json-report>=1.5",
     "radon>=6.0.1",
 ]
 
