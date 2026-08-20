@@ -146,6 +146,21 @@ def test_invalid_mode_in_warden_table_is_rejected(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("configured", ["0", "-2"])
+def test_non_positive_concurrency_in_warden_table_is_rejected(
+    configured: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: a non-positive concurrency from the real file layer raises ConfigError."""
+    axm_dir = _point_axm_home(tmp_path, monkeypatch)
+    _write_config(axm_dir, f"max_concurrent = {configured}\n")
+
+    with pytest.raises(ConfigError):
+        axm_config.warden_max_concurrent()
+
+
+@pytest.mark.integration
 def test_explicit_log_default_is_returned_untouched(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
