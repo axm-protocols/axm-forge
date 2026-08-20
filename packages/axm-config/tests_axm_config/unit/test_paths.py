@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from axm_config import paths
 from axm_config.paths import (
     PATHS_NAMESPACE,
     get_path,
@@ -117,3 +118,69 @@ def test_caller_default_overrides_the_builtin_one(tmp_path: Path) -> None:
     """A migrating caller keeps its own constant while nothing is configured."""
     own = tmp_path / "legacy-root"
     assert sessions_root(default=own) == own
+
+
+def test_get_int_coerces_raw_environment_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a numeric scalar from the environment is returned as an integer."""
+    monkeypatch.setenv("AXM_WARDEN_MAX_CONCURRENT", "4")
+
+    result = paths.get_int("max_concurrent", 0, namespace="warden")
+
+    assert result == 4
+    assert isinstance(result, int)
+
+
+def test_get_int_rejects_non_numeric_environment_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a non-numeric configured integer raises ConfigError."""
+    monkeypatch.setenv("AXM_WARDEN_MAX_CONCURRENT", "abc")
+
+    with pytest.raises(ConfigError):
+        paths.get_int("max_concurrent", 0, namespace="warden")
+
+
+@pytest.mark.parametrize("configured", ["false", "FALSE", "0", "no", "off"])
+def test_get_bool_coerces_false_environment_vocabulary(
+    configured: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: every supported false-ish environment spelling returns False."""
+    monkeypatch.setenv("AXM_WARDEN_AUTOSTART", configured)
+
+    assert paths.get_bool("autostart", True, namespace="warden") is False
+
+
+@pytest.mark.parametrize("configured", ["true", "1", "yes", "ON"])
+def test_get_bool_coerces_true_environment_vocabulary(
+    configured: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: every supported true-ish environment spelling returns True."""
+    monkeypatch.setenv("AXM_WARDEN_AUTOSTART", configured)
+
+    assert paths.get_bool("autostart", False, namespace="warden") is True
+
+
+def test_get_bool_rejects_unknown_environment_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: an unrecognised configured boolean raises ConfigError."""
+    monkeypatch.setenv("AXM_WARDEN_AUTOSTART", "maybe")
+
+    with pytest.raises(ConfigError):
+        paths.get_bool("autostart", True, namespace="warden")
+
+
+def test_get_str_returns_environment_value_as_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: a configured scalar string is returned as text."""
+    monkeypatch.setenv("AXM_WARDEN_MODE", "pull")
+
+    result = paths.get_str("mode", "embedded", namespace="warden")
+
+    assert result == "pull"
+    assert isinstance(result, str)

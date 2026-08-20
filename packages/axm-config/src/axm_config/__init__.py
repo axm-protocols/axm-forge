@@ -8,7 +8,10 @@ from __future__ import annotations
 from axm_config.home import axm_home, resolve_safe
 from axm_config.paths import (
     PATHS_NAMESPACE,
+    get_bool,
+    get_int,
     get_path,
+    get_str,
     protocols_dir,
     quality_dir,
     sessions_root,
@@ -40,8 +43,11 @@ __all__ = [
     "delete",
     "delete_execution_policy",
     "get",
+    "get_bool",
     "get_execution_policy",
+    "get_int",
     "get_path",
+    "get_str",
     "list_execution_policies",
     "load",
     "protocols_dir",

@@ -32,14 +32,20 @@ working installation into a failing one, breaking the additive guarantee above.
 
 from __future__ import annotations
 
+import os
+import tomllib
 from pathlib import Path
+from typing import cast
 
 from axm_config.home import resolve_safe
 from axm_config.resolver import ConfigError, resolve
 
 __all__ = [
     "PATHS_NAMESPACE",
+    "get_bool",
+    "get_int",
     "get_path",
+    "get_str",
     "protocols_dir",
     "quality_dir",
     "sessions_root",
@@ -53,7 +59,37 @@ PATHS_NAMESPACE = "paths"
 _MISSING = object()
 
 
-def get_path(key: str, *, default: Path) -> Path:
+def _resolve_configured(namespace: str, key: str) -> object:
+    """Resolve a value, honoring an explicitly isolated AXM home."""
+    configured = resolve(namespace, key, _MISSING)
+    if configured is not _MISSING:
+        return configured
+
+    home_override = os.environ.get("AXM_HOME")
+    if home_override is None:
+        return _MISSING
+    config_path = Path(home_override) / "config.toml"
+    try:
+        with config_path.open("rb") as stream:
+            document = tomllib.load(stream)
+    except FileNotFoundError:
+        return _MISSING
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        msg = f"cannot load configuration from {config_path}: {exc}"
+        raise ConfigError(msg) from exc
+
+    section = document.get(namespace)
+    if not isinstance(section, dict):
+        return _MISSING
+    return cast(object, section.get(key, _MISSING))
+
+
+def get_path(
+    key: str,
+    default: Path,
+    *,
+    namespace: str = PATHS_NAMESPACE,
+) -> Path:
     """Resolve ``key`` in ``[paths]`` as a normalised :class:`~pathlib.Path`.
 
     ``default`` is the caller's existing constant and is returned **unchanged**
@@ -66,12 +102,12 @@ def get_path(key: str, *, default: Path) -> Path:
     in-repo path, so a bad config fails loudly at the boundary rather than
     writing runtime state somewhere unintended.
     """
-    configured = resolve(PATHS_NAMESPACE, key, _MISSING)
+    configured = _resolve_configured(namespace, key)
     if configured is _MISSING:
         return default
     if not isinstance(configured, str | Path):
         msg = (
-            f"invalid path for {PATHS_NAMESPACE}.{key}: "
+            f"invalid path for {namespace}.{key}: "
             f"expected a string, got {type(configured).__name__}"
         )
         raise ConfigError(msg)
@@ -79,8 +115,68 @@ def get_path(key: str, *, default: Path) -> Path:
     try:
         return resolve_safe(expanded)
     except ValueError as exc:
-        msg = f"invalid path for {PATHS_NAMESPACE}.{key}: {exc}"
+        msg = f"invalid path for {namespace}.{key}: {exc}"
         raise ConfigError(msg) from exc
+
+
+def get_int(
+    key: str,
+    default: int,
+    *,
+    namespace: str = PATHS_NAMESPACE,
+) -> int:
+    """Resolve a configured integer while preserving an untouched default."""
+    configured = _resolve_configured(namespace, key)
+    if configured is _MISSING:
+        return default
+    if type(configured) is int:
+        return configured
+    if isinstance(configured, str):
+        try:
+            return int(configured)
+        except ValueError as exc:
+            msg = f"invalid integer for {namespace}.{key}: {configured!r}"
+            raise ConfigError(msg) from exc
+    msg = (
+        f"invalid integer for {namespace}.{key}: "
+        f"expected an integer, got {type(configured).__name__}"
+    )
+    raise ConfigError(msg)
+
+
+def get_bool(
+    key: str,
+    default: bool,
+    *,
+    namespace: str = PATHS_NAMESPACE,
+) -> bool:
+    """Resolve a configured boolean while preserving an untouched default."""
+    configured = _resolve_configured(namespace, key)
+    if configured is _MISSING:
+        return default
+    if isinstance(configured, bool):
+        return configured
+    if isinstance(configured, str):
+        normalised = configured.lower()
+        if normalised in {"1", "true", "yes", "on"}:
+            return True
+        if normalised in {"0", "false", "no", "off"}:
+            return False
+    msg = f"invalid boolean for {namespace}.{key}: {configured!r}"
+    raise ConfigError(msg)
+
+
+def get_str(
+    key: str,
+    default: str,
+    *,
+    namespace: str = PATHS_NAMESPACE,
+) -> str:
+    """Resolve a configured value as text while preserving an untouched default."""
+    configured = _resolve_configured(namespace, key)
+    if configured is _MISSING:
+        return default
+    return str(configured)
 
 
 def sessions_root(*, default: Path | None = None) -> Path:
