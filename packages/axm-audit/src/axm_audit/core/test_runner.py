@@ -14,6 +14,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
 
+from axm_audit.core.non_test_cause import (
+    _STDERR_EXCERPT_CHARS,  # noqa: F401 - re-exported: one truncation budget
+    _truncate_excerpt,
+)
 from axm_audit.core.runner import run_in_project
 
 __all__ = [
@@ -35,11 +39,6 @@ _COVERAGE_RUN_TIMEOUT = 900
 
 # Synthetic returncode set by ``run_in_project`` on ``subprocess.TimeoutExpired``.
 _TIMEOUT_RETURNCODE = 124
-
-# How much of a failed subprocess's stderr is quoted when the JSON report is
-# unusable. A failed uv resolution runs to several kilobytes; the cause is in
-# its opening lines, so the head is kept and the rest dropped.
-_STDERR_EXCERPT_CHARS = 1200
 
 # ---------------------------------------------------------------------------
 # Models
@@ -253,9 +252,7 @@ def _subprocess_failure(
     """
     if result.returncode == 0:
         return exc
-    stderr = (result.stderr or "").strip()
-    if len(stderr) > _STDERR_EXCERPT_CHARS:
-        stderr = stderr[:_STDERR_EXCERPT_CHARS] + "\n[... stderr truncated]"
+    stderr = _truncate_excerpt(result.stderr or "")
     detail = f"\nsubprocess stderr:\n{stderr}" if stderr else ""
     return ValueError(
         f"pytest exited with code {result.returncode} and left no usable JSON "
