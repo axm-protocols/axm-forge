@@ -4,8 +4,14 @@ from typing import Any
 
 import pytest
 
+from axm_audit.core.non_test_cause import (
+    _STDERR_EXCERPT_CHARS,
+    _TRUNCATION_MARKER,
+    classify_non_test_cause,
+)
 from axm_audit.core.test_runner import (
     FailureDetail,
+    NonTestCauseDetail,
     TestReport,
     build_test_report,
 )
@@ -236,3 +242,71 @@ def test_text_rendering_is_independent_of_case_count() -> None:
 
     assert len(populated.cases) == 500
     assert format_audit_test_text(populated) == format_audit_test_text(empty)
+
+
+# --- Non-test cause rendering ---
+
+
+_COVERAGE_STDOUT = (
+    "FAIL Required test coverage of 85% not reached. Total coverage: 42.31%"
+)
+_COVERAGE_SUMMARY = "required test coverage of 85% not reached"
+
+
+def _make_cause_detail(stdout: str) -> NonTestCauseDetail:
+    """Project the classifier's own verdict on *stdout* into a report field."""
+    cause = classify_non_test_cause(
+        return_code=1,
+        failed=0,
+        errors=0,
+        stdout=stdout,
+        stderr="",
+    )
+    assert cause is not None
+    detail = NonTestCauseDetail.from_cause(cause)
+    assert detail is not None
+    return detail
+
+
+def test_non_test_cause_renders_right_after_the_pytest_exit_line() -> None:
+    """AC1: cause code and summary sit on the line after ``pytest exit N``."""
+    report = _make_report(
+        failed=0,
+        errors=0,
+        pytest_return_code=1,
+        non_test_cause=_make_cause_detail(_COVERAGE_STDOUT),
+    )
+
+    lines = format_audit_test_text(report).splitlines()
+    exit_index = next(
+        index for index, line in enumerate(lines) if "pytest exit 1" in line
+    )
+    assert len(lines) > exit_index + 1
+    cause_line = lines[exit_index + 1]
+
+    assert "coverage_threshold" in cause_line
+    assert _COVERAGE_SUMMARY in cause_line
+
+
+def test_rendered_cause_excerpt_keeps_the_single_truncation_budget() -> None:
+    """AC2: the excerpt follows the cause line and is never re-truncated."""
+    detail_lines = "\n".join(f"detail line {index}" for index in range(400))
+    detail = _make_cause_detail(f"{_COVERAGE_STDOUT}\n{detail_lines}")
+    assert detail.excerpt.endswith(_TRUNCATION_MARKER)
+
+    report = _make_report(
+        failed=0,
+        errors=0,
+        pytest_return_code=1,
+        non_test_cause=detail,
+    )
+    text = format_audit_test_text(report)
+
+    assert "coverage_threshold" in text
+    assert _COVERAGE_STDOUT in text
+    assert text.index(_COVERAGE_STDOUT) > text.index("coverage_threshold")
+
+    tail = text[text.index(_COVERAGE_STDOUT) :]
+    rendered = "\n".join(line.strip() for line in tail.splitlines())
+    assert _TRUNCATION_MARKER.strip() in rendered
+    assert len(rendered) <= _STDERR_EXCERPT_CHARS + len(_TRUNCATION_MARKER)

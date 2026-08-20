@@ -55,7 +55,13 @@ axm-audit test [PATH] [--files FILES] [-m|--markers MARKERS] [-x|--stop-on-first
 | `--stop-on-first`, `-x` | `true` | Stop on first failure |
 | `--agent` | `false` | Compact agent-friendly output (`format_audit_test_text`); without it, output is JSON |
 
-Exit code is `1` when any test failed or errored, `0` otherwise.
+Exit code is `1` whenever the report's verdict is red, `0` otherwise. That
+verdict is fail-closed: it covers a failed or errored test, but also a red no
+test failure explains — a coverage threshold not reached, a pytest usage error,
+an interrupted or internally-errored run, a zero-collection run, or a requested
+target that was never validated. With `--agent`, the cause of such a red is
+named on the line right under the header (see
+[Interpret Results](../howto/results.md#test-report-text)).
 
 ### `axm-audit test-quality`
 

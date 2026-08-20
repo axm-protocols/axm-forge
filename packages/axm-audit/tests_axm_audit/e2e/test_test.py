@@ -175,3 +175,41 @@ def test_real_non_success_exit_overrides_empty_failures(tmp_path: Path) -> None:
     assert data["failed"] == 0
     assert data["errors"] == 0
     assert "pytest exit 3" in str(response["text"])
+
+
+def _write_cov_threshold_project(root: Path) -> None:
+    """Write a project whose green suite still misses its coverage gate."""
+    (root / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\n"
+        'addopts = ["--cov=covpkg", "--cov-fail-under=100"]\n',
+        encoding="utf-8",
+    )
+    (root / "covpkg.py").write_text(
+        "def classify(value: int) -> str:\n"
+        "    if value < 0:\n"
+        '        return "negative"\n'
+        '    return "positive"\n',
+        encoding="utf-8",
+    )
+    (root / "test_covpkg.py").write_text(
+        "from covpkg import classify\n\n"
+        "def test_classify_positive():\n"
+        '    assert classify(1) == "positive"\n',
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.e2e
+def test_cli_test_prints_the_non_test_cause(tmp_path: Path) -> None:
+    """AC4: the shipped test command exits red and names the cause on stdout."""
+    _write_cov_threshold_project(tmp_path)
+
+    proc = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "axm_audit", "test", str(tmp_path), "--agent"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode != 0
+    assert "coverage_threshold" in proc.stdout

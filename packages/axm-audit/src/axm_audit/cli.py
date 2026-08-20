@@ -220,7 +220,10 @@ def test(
     else:
         print(json.dumps(dataclasses.asdict(report), indent=2))
 
-    if report.failed > 0 or report.errors > 0:
+    # Fail on the report's single canonical verdict, not on the test counters
+    # alone: a red with no failed test (coverage threshold, usage error,
+    # interrupted run) must still exit non-zero for the caller.
+    if not report.verdict:
         raise SystemExit(1)
 
 

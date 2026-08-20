@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import PurePosixPath
 
-from axm_audit.core.test_runner import TestReport
+from axm_audit.core.test_runner import NonTestCauseDetail, TestReport
 
 __all__ = ["format_audit_test_text"]
 
@@ -74,6 +74,19 @@ def _build_coverage_section(report: TestReport) -> list[str]:
     return ["cov< " + " \u00b7 ".join(parts)]
 
 
+def _build_cause_block(report: TestReport) -> list[str]:
+    """Render the classified non-test cause right under the header line.
+
+    Strictly conditional: a report carrying no cause renders exactly as
+    before, byte for byte. The excerpt is the one the classifier already
+    bounded, emitted verbatim -- never truncated a second time here.
+    """
+    cause: NonTestCauseDetail | None = getattr(report, "non_test_cause", None)
+    if cause is None:
+        return []
+    return [f"cause {cause.code}: {cause.summary}", *cause.excerpt.splitlines()]
+
+
 def _build_target_section(report: TestReport) -> list[str]:
     """Render invalid requested targets with their validation status."""
     return [
@@ -86,6 +99,7 @@ def _build_target_section(report: TestReport) -> list[str]:
 def format_audit_test_text(report: TestReport) -> str:
     """Render a TestReport as compact text for LLM consumption."""
     lines: list[str] = [_build_header(report)]
+    lines.extend(_build_cause_block(report))
     lines.extend(_build_target_section(report))
     lines.extend(_build_failure_blocks(report))
     lines.extend(_build_coverage_section(report))
