@@ -6,6 +6,7 @@ token-efficient results for AI coding agents.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import subprocess
@@ -16,7 +17,9 @@ from typing import Literal, cast
 
 from axm_audit.core.non_test_cause import (
     _STDERR_EXCERPT_CHARS,  # noqa: F401 - re-exported: one truncation budget
+    NonTestCause,
     _truncate_excerpt,
+    classify_non_test_cause,
 )
 from axm_audit.core.runner import run_in_project
 
@@ -113,6 +116,7 @@ class TestReport:
     collected: int | None = None
     target_statuses: list[dict[str, str]] = field(default_factory=list)
     verdict: bool | None = None
+    non_test_cause: NonTestCauseDetail | None = None
 
     def __post_init__(self) -> None:
         """Populate additive execution metadata for directly-built reports."""
@@ -120,6 +124,10 @@ class TestReport:
             self.collected = self.passed + self.failed + self.errors + self.skipped
         if self.verdict is None:
             self.verdict = self._derive_verdict()
+
+    def model_dump(self) -> dict[str, object]:
+        """Return the report's payload, every key present even when ``None``."""
+        return dataclasses.asdict(self)
 
     def record_execution(
         self,
@@ -511,6 +519,9 @@ def run_tests(
             total_cov=total_cov,
             per_file_cov=per_file_cov,
             include_cases=include_cases,
+            return_code=result.returncode,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
         )
         report.record_execution(
             return_code=result.returncode,
@@ -621,6 +632,29 @@ def _collection_failure_detail(
     return None
 
 
+@dataclass(frozen=True)
+class NonTestCauseDetail:
+    """Serializable projection of a classified non-test cause.
+
+    ``TestReport`` is a dataclass whose payload is produced by
+    ``dataclasses.asdict``: a pydantic model attached to it would survive that
+    traversal as an object and break every JSON consumer of the report. The
+    classifier remains the single source of the classification itself; this
+    only mirrors its verdict in the report's own payload shape.
+    """
+
+    code: str
+    summary: str
+    excerpt: str
+
+    @classmethod
+    def from_cause(cls, cause: NonTestCause | None) -> NonTestCauseDetail | None:
+        """Return the projection of *cause*, or ``None`` when there is none."""
+        if cause is None:
+            return None
+        return cls(code=cause.code, summary=cause.summary, excerpt=cause.excerpt)
+
+
 def build_test_report(
     *,
     report_data: dict[str, object],
@@ -629,10 +663,19 @@ def build_test_report(
     mode: str | None = None,
     last_coverage: dict[str, float] | None = None,
     include_cases: bool = False,
+    return_code: int = 0,
+    stdout: str = "",
+    stderr: str = "",
 ) -> TestReport:
     """Build a ``TestReport`` from pytest JSON and coverage data.
 
     Always parses failures and populates coverage — no mode branching.
+    The captured ``stdout``/``stderr`` and ``return_code`` are optional. When
+    they are supplied, the cause of a red that no test failure accounts for is
+    classified and attached to ``non_test_cause`` — explanatory only, it never
+    influences the verdict, and it stays ``None`` for a green run or a run red
+    by test failures.
+
     Returns ``None`` for ``failures`` and ``coverage_by_file`` when no
     data exists.
     """
@@ -660,4 +703,13 @@ def build_test_report(
         failures=failures or None,
         coverage_by_file=per_file_cov or None,
         cases=cases,
+        non_test_cause=NonTestCauseDetail.from_cause(
+            classify_non_test_cause(
+                return_code=return_code,
+                failed=cast(int, summary.get("failed", 0)),
+                errors=cast(int, summary.get("error", 0)),
+                stdout=stdout,
+                stderr=stderr,
+            )
+        ),
     )

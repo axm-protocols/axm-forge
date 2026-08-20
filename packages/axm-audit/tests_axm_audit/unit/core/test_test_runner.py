@@ -614,3 +614,23 @@ def test_build_report_rejects_structurally_corrupt_case_data(
             per_file_cov={},
             include_cases=True,
         )
+
+
+def test_test_report_defaults_the_non_test_cause_to_none_and_serializes_it() -> None:
+    """AC1: a green report exposes non_test_cause=None and keeps the key.
+
+    The field is a pure additive schema entry: an in-memory report built
+    without any classification must expose it as ``None`` and still emit the
+    key in its serialized payload, so no existing JSON consumer breaks.
+    """
+    report = TestReport(passed=3, failed=0, errors=0, duration=0.1, coverage=90.0)
+
+    payload = (
+        report.model_dump()
+        if hasattr(report, "model_dump")
+        else dataclasses.asdict(report)
+    )
+
+    assert report.non_test_cause is None
+    assert "non_test_cause" in payload
+    assert payload["non_test_cause"] is None

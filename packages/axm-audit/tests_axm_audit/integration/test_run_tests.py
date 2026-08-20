@@ -566,3 +566,39 @@ class TestRunTestsSubprocessFailureDiagnostic:
         message = str(excinfo.value)
         assert "2" in message, message
         assert "ruff==0.15.15" in message, message
+
+
+def _classification_code(cause: object) -> object:
+    """Return the classification code, tolerating an enum or a plain string."""
+    code = getattr(cause, "code", cause)
+    return getattr(code, "value", code)
+
+
+def _classification_excerpt(cause: object) -> str:
+    """Return the first non-empty textual excerpt carried by the cause."""
+    for attr in ("excerpt", "evidence", "detail", "output_excerpt", "stderr_excerpt"):
+        value = getattr(cause, attr, None)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
+
+
+@pytest.mark.integration
+def test_run_tests_classifies_a_package_without_any_collected_test(
+    tmp_path: Path,
+) -> None:
+    """AC4: the nominal path forwards the captured output to the report.
+
+    A real pytest run on a package holding no test at all exits without
+    collecting anything: the JSON report parses fine, so only the captured
+    output explains the red, and the returned report must carry it.
+    """
+    package = tmp_path / "src" / "sample_pkg"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text('"""Sample package with no test."""\n')
+
+    report = run_tests(tmp_path, stop_on_first=False)
+
+    assert report.non_test_cause is not None
+    assert _classification_code(report.non_test_cause) == "no_tests_collected"
+    assert _classification_excerpt(report.non_test_cause)
