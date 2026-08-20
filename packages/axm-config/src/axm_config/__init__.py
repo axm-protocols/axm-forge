@@ -6,6 +6,14 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
 from __future__ import annotations
 
 from axm_config.home import axm_home, resolve_safe
+from axm_config.paths import (
+    PATHS_NAMESPACE,
+    get_path,
+    protocols_dir,
+    quality_dir,
+    sessions_root,
+    warden_socket,
+)
 from axm_config.resolver import (
     ConfigError,
     ExecutionPolicyOverride,
@@ -23,6 +31,7 @@ from axm_config.resolver import (
 from axm_config.store import NamespaceStore
 
 __all__ = [
+    "PATHS_NAMESPACE",
     "ConfigError",
     "ExecutionPolicyOverride",
     "NamespaceStore",
@@ -32,10 +41,15 @@ __all__ = [
     "delete_execution_policy",
     "get",
     "get_execution_policy",
+    "get_path",
     "list_execution_policies",
     "load",
+    "protocols_dir",
+    "quality_dir",
     "resolve_safe",
+    "sessions_root",
     "set_",
     "set_execution_policy",
     "validate_segment",
+    "warden_socket",
 ]
