@@ -15,6 +15,11 @@ from axm_config.paths import (
     protocols_dir,
     quality_dir,
     sessions_root,
+    warden_autostart,
+    warden_binary_path,
+    warden_log_path,
+    warden_max_concurrent,
+    warden_mode,
     warden_socket,
 )
 from axm_config.resolver import (
@@ -57,5 +62,10 @@ __all__ = [
     "set_",
     "set_execution_policy",
     "validate_segment",
+    "warden_autostart",
+    "warden_binary_path",
+    "warden_log_path",
+    "warden_max_concurrent",
+    "warden_mode",
     "warden_socket",
 ]

@@ -184,3 +184,62 @@ def test_get_str_returns_environment_value_as_text(
 
     assert result == "pull"
     assert isinstance(result, str)
+
+
+def test_warden_max_concurrent_coerces_environment_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the public getter returns an environment integer as int."""
+    monkeypatch.setenv("AXM_WARDEN_MAX_CONCURRENT", "4")
+
+    result = paths.warden_max_concurrent()
+
+    assert result == 4
+    assert isinstance(result, int)
+
+
+def test_warden_autostart_coerces_false_environment_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the public getter returns False for the text false."""
+    monkeypatch.setenv("AXM_WARDEN_AUTOSTART", "false")
+
+    assert paths.warden_autostart() is False
+
+
+def test_warden_mode_accepts_pull(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC4: the configured mode pull is part of the supported domain."""
+    monkeypatch.setenv("AXM_WARDEN_MODE", "pull")
+
+    assert paths.warden_mode() == "pull"
+
+
+def test_warden_mode_rejects_an_unknown_configured_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: an unsupported configured mode raises ConfigError."""
+    monkeypatch.setenv("AXM_WARDEN_MODE", "daemon")
+
+    with pytest.raises(ConfigError):
+        paths.warden_mode()
+
+
+@pytest.mark.parametrize("configured", ["0", "-1"])
+def test_warden_max_concurrent_rejects_non_positive_values(
+    configured: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: configured concurrency must be strictly positive."""
+    monkeypatch.setenv("AXM_WARDEN_MAX_CONCURRENT", configured)
+
+    with pytest.raises(ConfigError):
+        paths.warden_max_concurrent()
+
+
+def test_warden_max_concurrent_returns_a_positive_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: a strictly positive configured concurrency is returned."""
+    monkeypatch.setenv("AXM_WARDEN_MAX_CONCURRENT", "12")
+
+    assert paths.warden_max_concurrent() == 12

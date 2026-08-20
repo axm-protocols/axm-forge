@@ -33,11 +33,12 @@ working installation into a failing one, breaking the additive guarantee above.
 from __future__ import annotations
 
 import os
+import sys
 import tomllib
 from pathlib import Path
 from typing import cast
 
-from axm_config.home import resolve_safe
+from axm_config.home import axm_home, resolve_safe
 from axm_config.resolver import ConfigError, resolve
 
 __all__ = [
@@ -49,6 +50,11 @@ __all__ = [
     "protocols_dir",
     "quality_dir",
     "sessions_root",
+    "warden_autostart",
+    "warden_binary_path",
+    "warden_log_path",
+    "warden_max_concurrent",
+    "warden_mode",
     "warden_socket",
 ]
 
@@ -201,6 +207,64 @@ def protocols_dir(*, default: Path | None = None) -> Path:
     """The legacy YAML protocol directory read by the engine and briefings."""
     fallback = default if default is not None else Path.home() / "axm" / "protocols"
     return get_path("protocols_dir", default=fallback)
+
+
+_WARDEN_NAMESPACE = "warden"
+_DEFAULT_WARDEN_MODE = "embedded"
+_DEFAULT_WARDEN_MAX_CONCURRENT = 4
+_DEFAULT_WARDEN_AUTOSTART = True
+_WARDEN_MODES = frozenset({"embedded", "pull"})
+
+
+def warden_mode(*, default: str | None = None) -> str:
+    """Return the configured warden execution mode."""
+    fallback = default if default is not None else _DEFAULT_WARDEN_MODE
+    configured = _resolve_configured(_WARDEN_NAMESPACE, "mode")
+    if configured is _MISSING:
+        return fallback
+
+    value = get_str("mode", fallback, namespace=_WARDEN_NAMESPACE)
+    if value not in _WARDEN_MODES:
+        expected = ", ".join(sorted(_WARDEN_MODES))
+        msg = (
+            f"invalid value for warden.mode: expected one of {expected}, got {value!r}"
+        )
+        raise ConfigError(msg)
+    return value
+
+
+def warden_max_concurrent(*, default: int | None = None) -> int:
+    """Return the strictly positive warden concurrency limit."""
+    fallback = default if default is not None else _DEFAULT_WARDEN_MAX_CONCURRENT
+    configured = _resolve_configured(_WARDEN_NAMESPACE, "max_concurrent")
+    if configured is _MISSING:
+        return fallback
+
+    value = get_int("max_concurrent", fallback, namespace=_WARDEN_NAMESPACE)
+    if value <= 0:
+        msg = f"invalid value for warden.max_concurrent: expected > 0, got {value}"
+        raise ConfigError(msg)
+    return value
+
+
+def warden_autostart(*, default: bool | None = None) -> bool:
+    """Return whether consumers should start the warden automatically."""
+    fallback = default if default is not None else _DEFAULT_WARDEN_AUTOSTART
+    return get_bool("autostart", fallback, namespace=_WARDEN_NAMESPACE)
+
+
+def warden_binary_path(*, default: Path | None = None) -> Path:
+    """Return the configured or interpreter-relative warden executable path."""
+    fallback = (
+        default if default is not None else Path(sys.executable).parent / "axm-warden"
+    )
+    return get_path("binary_path", fallback, namespace=_WARDEN_NAMESPACE)
+
+
+def warden_log_path(*, default: Path | None = None) -> Path:
+    """Return the configured or AXM-home-relative warden log path."""
+    fallback = default if default is not None else axm_home() / "warden.log"
+    return get_path("log_path", fallback, namespace=_WARDEN_NAMESPACE)
 
 
 def warden_socket(*, default: Path | None = None) -> Path:
