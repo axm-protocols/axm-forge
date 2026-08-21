@@ -30,3 +30,14 @@ def test_parse_front_matter_returns_none_without_header() -> None:
 def test_plan_filename_is_the_canonical_uppercase_name() -> None:
     """AC1: the plan filename the check expects is exactly PLAN.md."""
     assert _PLAN_FILENAME == "PLAN.md"
+
+
+def test_research_check_exposes_its_canonical_id() -> None:
+    # AC4: the discovery layer derives paper.research_present from the check,
+    # the id the context tables and the report must both key off.
+    from axm_init.checks import paper
+    from axm_init.core.checker import get_check_name
+
+    check = getattr(paper, "check_research_present", None)
+    assert check is not None, "axm_init.checks.paper must expose check_research_present"
+    assert get_check_name(check) == "paper.research_present"

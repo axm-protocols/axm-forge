@@ -39,10 +39,10 @@ class TestCheckDiscovery:
 
     def test_check_discovery_finds_all(self) -> None:
         """Auto-discovery finds 50 checks across 8 categories."""
-        # AC6: the paper module adds two checks in a ninth category, and the
+        # AC6: the paper module adds three checks in a ninth category, and the
         # experiment module two more in a tenth one.
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 55
+        assert total == 56
         assert len(ALL_CHECKS) == 10
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
@@ -405,7 +405,9 @@ def test_validate_context_tables_accepts_shipped_tables() -> None:
 
 # --- paper checks are context-scoped -------------------------------------
 
-PAPER_CHECK_IDS = frozenset({"paper.paper_structure", "paper.plan_present"})
+PAPER_CHECK_IDS = frozenset(
+    {"paper.paper_structure", "paper.plan_present", "paper.research_present"}
+)
 
 
 def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:

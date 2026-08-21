@@ -15,13 +15,16 @@ from axm_init.models.check import CheckResult
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["check_paper_structure", "check_plan_present"]
+__all__ = ["check_paper_structure", "check_plan_present", "check_research_present"]
 
 #: Delimiter opening and closing a YAML front-matter block.
 _FRONT_MATTER_DELIMITER = "---"
 
 #: Plan document, relative to the paper root.
 _PLAN_FILENAME = "PLAN.md"
+
+#: Research protocol document, relative to the paper root.
+_RESEARCH_FILENAME = "RESEARCH.md"
 
 #: Experiment registry, generated from the manifests — never hand-written.
 _INDEX_FILENAME = "INDEX.md"
@@ -145,7 +148,59 @@ def check_plan_present(project: Path) -> CheckResult:
         A failed ``CheckResult`` when ``PLAN.md`` is missing or carries no
         non-empty YAML front-matter, a passed one otherwise.
     """
-    path = project / _PLAN_FILENAME
+    return _front_matter_document(
+        project,
+        _PLAN_FILENAME,
+        "paper.plan_present",
+        "the paper intention",
+    )
+
+
+def check_research_present(project: Path) -> CheckResult:
+    """Check: the research protocol document exists and declares a header.
+
+    Purely formal, like every axm-init check: it grades the FORM (presence
+    of ``RESEARCH.md`` plus a non-empty YAML front-matter) and never reads
+    the substance of that header - no ``gap``, no ``investigations``, no
+    status. The authoritative model lives in another package.
+
+    Args:
+        project: Paper root directory.
+
+    Returns:
+        A failed ``CheckResult`` when ``RESEARCH.md`` is missing or carries
+        no non-empty YAML front-matter, a passed one otherwise.
+    """
+    return _front_matter_document(
+        project,
+        _RESEARCH_FILENAME,
+        "paper.research_present",
+        "the research protocol",
+    )
+
+
+def _front_matter_document(
+    project: Path,
+    filename: str,
+    check_name: str,
+    intention: str,
+) -> CheckResult:
+    """Grade one paper document on presence and non-empty front-matter.
+
+    Factored out of the per-document checks so the parsing rule, the weight
+    and the wording stay identical across every front-matter document.
+
+    Args:
+        project: Paper root directory.
+        filename: Document name, relative to the paper root.
+        check_name: Canonical check id carried by the result.
+        intention: What the header declares, quoted in the fix hint.
+
+    Returns:
+        A failed ``CheckResult`` when the document is missing or carries no
+        non-empty YAML front-matter, a passed one otherwise.
+    """
+    path = project / filename
     front_matter = (
         _parse_front_matter(path.read_text(encoding="utf-8"))
         if path.is_file()
@@ -153,28 +208,28 @@ def check_plan_present(project: Path) -> CheckResult:
     )
     if not front_matter:
         reason = (
-            f"{_PLAN_FILENAME} not found"
+            f"{filename} not found"
             if not path.is_file()
-            else f"{_PLAN_FILENAME} carries no YAML front-matter"
+            else f"{filename} carries no YAML front-matter"
         )
         return CheckResult(
-            name="paper.plan_present",
+            name=check_name,
             category="paper",
             passed=False,
             weight=5,
             message=reason,
             details=[],
             fix=(
-                f"Write {_PLAN_FILENAME} opening with a '---' delimited "
-                "YAML header declaring the paper intention."
+                f"Write {filename} opening with a '---' delimited "
+                f"YAML header declaring {intention}."
             ),
         )
     return CheckResult(
-        name="paper.plan_present",
+        name=check_name,
         category="paper",
         passed=True,
         weight=5,
-        message=f"{_PLAN_FILENAME} declares a front-matter header",
+        message=f"{filename} declares a front-matter header",
         details=[],
         fix="",
     )

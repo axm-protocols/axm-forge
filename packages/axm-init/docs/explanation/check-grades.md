@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-init check` scores your project against the AXM gold standard — checks derived from the best practices embedded in the project template and CI configurations. A **paper** (an `[tool.axm-lab]` project) is not a Python distribution and is graded on its own invariants instead: see [paper](#paper-10-pts).
+`axm-init check` scores your project against the AXM gold standard — checks derived from the best practices embedded in the project template and CI configurations. A **paper** (an `[tool.axm-lab]` project) is not a Python distribution and is graded on its own invariants instead: see [paper](#paper-15-pts).
 
 ## Grade Scale
 
@@ -27,7 +27,7 @@ The denominator is **dynamic**. The check engine selects which checks run from t
 project context (standalone, workspace, member, paper, experiment) — a `WORKSPACE` adds the 19 workspace
 points, while a member skips the checks listed in `SKIP_BY_CONTEXT[MEMBER]` (e.g. CI and the
 docs-group/`gen_ref_pages` checks, since those are owned by the monorepo root). A `PAPER`
-skips the **whole** Python-packaging rulebook and is scored on the two `paper.*` checks
+skips the **whole** Python-packaging rulebook and is scored on the three `paper.*` checks
 alone. The result is always normalized to 0–100 and mapped to a grade using the
 boundaries above.
 
@@ -147,7 +147,7 @@ Workspace-specific checks — only run when the project context is `WORKSPACE`:
     The check engine detects the project context (standalone, member, workspace, paper) from
     `[tool.uv.workspace]` and the paper markers.
 
-### paper (10 pts)
+### paper (15 pts)
 
 A paper — an `[tool.axm-lab]` project, or a satellite paper recognised by its
 `paper/` + `experiments/` + `PLAN*.md` triple — carries none of a package's
@@ -157,9 +157,10 @@ invariants, so it is scored on its own:
 |-------|--------|------------------|
 | `paper.paper_structure` | 5 | `paper/`, `experiments/`, `README.md` and `PIPELINE.md` all present (a failure names every missing entry, in its message and in its fix) |
 | `paper.plan_present` | 5 | `PLAN.md` at the paper root opens with a `---` delimited YAML front-matter block |
+| `paper.research_present` | 5 | `RESEARCH.md` at the paper root opens with a `---` delimited, non-empty YAML front-matter block — presence and form only, the header's keys are never read |
 
 !!! note "A paper skips the packaging rulebook"
-    The two `paper.*` checks run **only** when the detected context is `PAPER`; they are
+    The three `paper.*` checks run **only** when the detected context is `PAPER`; they are
     skipped for standalone projects, workspace roots and members. Conversely a paper skips
     every packaging check — `SKIP_BY_CONTEXT[PAPER]` is derived as *everything that is not a*
     `paper.*` *check* — so its report carries no Trusted Publishing, CI-matrix, mkdocs,

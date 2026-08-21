@@ -261,3 +261,30 @@ def test_check_json_report_exposes_the_experiment_context(tmp_path: Path) -> Non
     _collect_contexts(payload, contexts)
 
     assert "experiment" in contexts
+
+
+def test_check_json_report_flags_the_missing_research_document(tmp_path: Path) -> None:
+    # AC2: on a paper carrying no research protocol document, the JSON report
+    # holds a failed paper.research_present entry naming RESEARCH.md.
+    root = tmp_path / "paper-r"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "paper-r"\n\n[tool.axm-lab]\nslug = "paper-r"\n'
+    )
+    (root / "paper").mkdir()
+    (root / "experiments").mkdir()
+    (root / "README.md").write_text("# Paper R\n")
+    (root / "PIPELINE.md").write_text("# Pipeline\n")
+    (root / "PLAN.md").write_text("---\ntitle: Paper R\n---\n\n# Plan\n")
+
+    proc = _run_check(str(root), "--json")
+    payload = json.loads(proc.stdout)
+    failures = payload.get("failures", [])
+    research = [
+        entry
+        for entry in failures
+        if isinstance(entry, dict) and entry.get("name") == "paper.research_present"
+    ]
+
+    assert research, payload
+    assert "RESEARCH.md" in json.dumps(research)

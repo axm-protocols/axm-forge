@@ -143,6 +143,24 @@ def test_experiment_checks_are_skipped_for_every_non_experiment_context() -> Non
     assert ids.isdisjoint(table[ProjectContext.EXPERIMENT])
 
 
+def test_research_check_shares_the_paper_partition() -> None:
+    # AC4: the new paper check is registered in the context tables exactly
+    # where its sibling paper.plan_present is - same skip entry per context.
+    table = _skip_table()
+    skipped_for_plan = {
+        context for context in ProjectContext if "paper.plan_present" in table[context]
+    }
+    assert skipped_for_plan, "paper.plan_present must be skipped somewhere"
+
+    skipped_for_research = {
+        context
+        for context in ProjectContext
+        if "paper.research_present" in table[context]
+    }
+
+    assert skipped_for_research == skipped_for_plan
+
+
 def test_experiment_checks_never_run_outside_an_experiment(
     tmp_path: Path,
     member_path: Path,
