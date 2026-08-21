@@ -38,6 +38,7 @@ PACKAGE_GOLDEN: frozenset[str] = frozenset(
         "README.md",
         "PLAN.md",
         "PIPELINE.md",
+        "RESEARCH.md",
         "pyproject.toml",
         "src/attention_study/__init__.py",
         "paper/main.tex",

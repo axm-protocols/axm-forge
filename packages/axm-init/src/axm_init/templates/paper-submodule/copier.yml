@@ -38,6 +38,11 @@ author:
   help: "Author name"
   default: "Unknown author"
 
+gap_statement:
+  type: str
+  help: "Gap in the literature this paper closes (one sentence)"
+  default: "TODO: state the gap in the literature this paper closes."
+
 has_package:
   type: bool
   help: "Autonomous paper shipping its own Python package? (no = satellite)"

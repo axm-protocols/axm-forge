@@ -28,6 +28,9 @@ SCAFFOLD_IDENTITY = {
     "email": "demo@example.com",
 }
 
+RESEARCH_FILENAME = "RESEARCH.md"
+RESEARCH_CHECK_ID = "paper.research_present"
+
 
 def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
     """AC3: a fresh scaffold scores exactly 100 and exits 0."""
@@ -196,3 +199,22 @@ def test_cli_scaffold_then_check_reports_no_packaging_failure(tmp_path: Path) ->
     assert isinstance(failures, list)
     failed = {str(f["name"]) for f in failures}
     assert PACKAGING_CHECK_IDS.isdisjoint(failed), sorted(failed)
+
+
+def test_scaffolded_paper_keeps_the_research_check_green(tmp_path: Path) -> None:
+    """AC5: a CLI-scaffolded paper ships RESEARCH.md and checks green on it."""
+    paper = tmp_path / "research-paper"
+    paper.mkdir()
+    bootstrap = _run_scaffold(str(paper), "--kind", "paper")
+    assert bootstrap.returncode == 0, bootstrap.stderr
+
+    assert (paper / RESEARCH_FILENAME).is_file(), sorted(
+        p.name for p in paper.iterdir()
+    )
+
+    report = _check_json(paper)
+
+    failures = report["failures"]
+    assert isinstance(failures, list)
+    failed = {str(f["name"]) for f in failures}
+    assert RESEARCH_CHECK_ID not in failed, sorted(failed)

@@ -91,6 +91,16 @@ axm-init scaffold my-paper --kind paper \\
 
 The `paper` kind renders the paper submodule:
 
+- `RESEARCH.md` — the research protocol: the *gap* in the literature the paper
+  closes, and the *investigations* (each one the group of experiments meant to
+  establish a single `objective`) declared **before** anything is measured. Its
+  front-matter carries exactly `gap` and `investigations`; an investigation
+  never declares a `status` — a status is a finding *derived* from the
+  experiment results, never an answer given up front. The template asks for the
+  gap statement (`gap_statement`) and propagates the answer verbatim into
+  `gap.statement`; unanswered, it falls back to a `TODO` default, and the body
+  ships marked `TODO` like the other rendered documents (`paper.research_present`
+  fails while the document or its front-matter is absent)
 - `PLAN.md` — the paper plan
 - `PIPELINE.md` — where the data cohort comes from, what it covers and the
   command that reproduces it (skeleton to fill in; `paper.paper_structure`
