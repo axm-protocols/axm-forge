@@ -23,6 +23,9 @@ pytestmark = pytest.mark.integration
 MANIFEST = "manifest.yaml"
 LEGACY_MANIFEST = "experiment.yaml"
 
+# The contract version every rendered experiment manifest must spell out.
+CONTRACT_VERSION = "1.1.0"
+
 CONTRACT_KEYS = frozenset(
     {
         "contract_version",
@@ -35,6 +38,7 @@ CONTRACT_KEYS = frozenset(
         "inputs",
         "steps",
         "bounds",
+        "supports",
     }
 )
 
@@ -102,7 +106,7 @@ def _relative_files(root: Path) -> list[str]:
 
 
 # The falsifier sub-contract, transcribed by hand from the experiment contract
-# 1.0.0 (no axm-lab import: that package is unresolvable from axm-forge CI).
+# 1.1.0 (no axm-lab import: that package is unresolvable from axm-forge CI).
 # ``falsifier`` is required and non-null iff the type is hypothesis_testing,
 # absent or null otherwise, and when present it is the mapping
 # ``{spec: "<non-empty str>", conditions: []}`` with extra keys forbidden.
@@ -150,12 +154,28 @@ def test_manifest_keys_match_the_contract_key_set(tmp_path: Path) -> None:
 
 
 def test_manifest_values_use_the_canonical_vocabularies(tmp_path: Path) -> None:
-    """AC3: contract_version is the string 1.0.0, type/repro_level are canonical."""
+    """AC1: contract_version is the string 1.1.0, type/repro_level canonical."""
     document = _manifest(_render(tmp_path / "render"))
     assert isinstance(document["contract_version"], str)
-    assert document["contract_version"] == "1.0.0"
+    assert document["contract_version"] == CONTRACT_VERSION
     assert document["type"] in EXPERIMENT_TYPES
     assert document["repro_level"] in REPRO_LEVELS
+
+
+def test_manifest_exposes_the_optional_supports_key_as_a_list(
+    tmp_path: Path,
+) -> None:
+    """AC2: the rendered manifest carries supports, parsing to an empty list.
+
+    The key is the experiment-side counterpart of the paper-side grouping: it
+    names the investigations the experiment serves, and a freshly scaffolded
+    experiment serves none yet.
+    """
+    document = _manifest(_render(tmp_path / "render"))
+    assert "supports" in document, sorted(document)
+    supports = document["supports"]
+    assert isinstance(supports, list), supports
+    assert supports == [], supports
 
 
 def test_hypothesis_testing_render_creates_the_freeze_directory(tmp_path: Path) -> None:

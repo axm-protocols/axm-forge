@@ -1,11 +1,11 @@
-# Experiment manifest — the 1.0.0 experiment contract, declared at scaffold
+# Experiment manifest — the 1.1.0 experiment contract, declared at scaffold
 # time, before any script runs.
 #
 # axm-init owns the *rendered* surface: the contract key set, its spelling and
 # its choice vocabularies. The authoritative round-trip validation against the
 # axm-lab manifest model runs in axm-lab's suite — keep both sides in sync
 # when a key moves.
-contract_version: "1.0.0"
+contract_version: "1.1.0"
 id: "{{ experiment_id }}"
 title: "{{ experiment_title }}"
 question: "{{ research_question }}"
@@ -18,3 +18,7 @@ falsifier:
 {%- endif %}
 inputs: []
 steps: []
+# Identifiers of the investigations this experiment serves — the experiment-side
+# counterpart of the grouping the paper declares. Optional: empty at scaffold
+# time, filled in as the experiment is attached to an investigation.
+supports: []
