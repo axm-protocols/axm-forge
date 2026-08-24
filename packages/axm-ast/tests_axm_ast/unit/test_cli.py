@@ -10,10 +10,25 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from axm_ast.cli import app, inspect
+from axm_ast.cli import app, describe, inspect
+from axm_ast.models.nodes import FunctionInfo, ModuleInfo, PackageInfo, ParameterInfo
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
+
+
+def _names_package() -> PackageInfo:
+    """Build an in-memory package whose signatures expose annotation leaks."""
+    root = Path("/virtual")
+    helper = FunctionInfo(
+        name="_private_helper",
+        params=[ParameterInfo(name="value", annotation="str")],
+        return_type="None",
+        line_start=1,
+        line_end=2,
+    )
+    module = ModuleInfo(path=root / "demo.py", functions=[helper])
+    return PackageInfo(name="demo", root=root, modules=[module])
 
 
 def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> str:
@@ -67,6 +82,34 @@ class TestDescribeCommand:
     def test_describe_invalid_path(self) -> None:
         with pytest.raises(SystemExit):
             app(["describe", "/nonexistent/path"])
+
+    def test_describe_names_prints_bare_private_names(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The names detail prints module headers and bare private names (AC1)."""
+        monkeypatch.setattr("axm_ast.cli.get_package", lambda _path: _names_package())
+
+        describe(".", detail="names")
+
+        output = capsys.readouterr().out
+        assert "## demo" in output
+        assert "_private_helper" in {line.strip() for line in output.splitlines()}
+
+    def test_describe_names_omits_annotations(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The names detail omits parameter and return annotations (AC2)."""
+        monkeypatch.setattr("axm_ast.cli.get_package", lambda _path: _names_package())
+
+        describe(".", detail="names")
+
+        output = capsys.readouterr().out
+        assert "-> None" not in output
+        assert ": str" not in output
 
 
 class TestInspectCommand:
