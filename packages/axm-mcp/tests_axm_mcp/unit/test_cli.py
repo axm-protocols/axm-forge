@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
 from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -13,6 +15,7 @@ import pytest
 from axm_mcp import cli, wrapping
 from axm_mcp.cli import (
     app,
+    is_axm_mcp_process,
     is_process_alive,
     stop,
 )
@@ -216,6 +219,54 @@ class TestServePidTransactional:
 
 
 # ──────────────────────── PID helpers ──────────────────────────
+
+
+class TestIsAxmMcpProcess:
+    """Identity check behind the double-start and stop guards."""
+
+    def test_proc_cmdline_carries_marker(self, tmp_path: Path) -> None:
+        """On Linux the full NUL-separated argv is read straight from /proc.
+
+        ``ps -o command=`` renders a column the kernel may truncate for a long
+        argv; an absolute venv path plus arguments is long enough to drop the
+        trailing marker, which would report a live server as unverified.
+        """
+        argv = b"/usr/bin/python\x00/very/long/prefix/.venv/bin/axm-mcp\x00serve\x00"
+        with (
+            patch.object(Path, "read_bytes", return_value=argv),
+            patch("axm_mcp.cli.subprocess.run") as mock_run,
+        ):
+            assert is_axm_mcp_process(4321) is True
+        # /proc answered — ps must not be consulted at all.
+        mock_run.assert_not_called()
+
+    def test_proc_cmdline_without_marker_is_refused(self) -> None:
+        """A recycled PID running something else is refused, not killed."""
+        with patch.object(Path, "read_bytes", return_value=b"/usr/bin/sshd\x00-D\x00"):
+            assert is_axm_mcp_process(4321) is False
+
+    def test_falls_back_to_ps_without_proc(self) -> None:
+        """Without /proc (macOS), identity comes from ``ps -o command=``."""
+        completed = subprocess.CompletedProcess(
+            args=["ps"], returncode=0, stdout=".venv/bin/axm-mcp serve\n", stderr=""
+        )
+        with (
+            patch.object(Path, "read_bytes", side_effect=OSError),
+            patch("axm_mcp.cli.subprocess.run", return_value=completed) as mock_run,
+        ):
+            assert is_axm_mcp_process(4321) is True
+        mock_run.assert_called_once()
+
+    def test_ps_failure_yields_false(self) -> None:
+        """A ``ps`` error never confirms an identity — we must not signal."""
+        completed = subprocess.CompletedProcess(
+            args=["ps"], returncode=1, stdout="", stderr=""
+        )
+        with (
+            patch.object(Path, "read_bytes", side_effect=OSError),
+            patch("axm_mcp.cli.subprocess.run", return_value=completed),
+        ):
+            assert is_axm_mcp_process(4321) is False
 
 
 class TestPidHelpers:

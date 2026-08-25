@@ -70,11 +70,25 @@ def is_axm_mcp_process(pid: int) -> bool:
 
     Guards against OS PID reuse: an existence probe (:func:`is_process_alive`)
     cannot tell our server apart from an unrelated process that inherited the
-    same PID. We inspect the target's command line via ``ps`` (portable to
-    macOS and Linux; no ``/proc`` dependency, no ``psutil``) and require the
-    ``axm-mcp`` marker. Any failure (process vanished, ``ps`` error, mismatch)
-    yields False — we never send SIGTERM on an unconfirmed identity.
+    same PID. We inspect the target's command line (no ``psutil`` dependency)
+    and require the ``axm-mcp`` marker. Any failure (process vanished, read
+    error, mismatch) yields False — we never send SIGTERM on an unconfirmed
+    identity.
+
+    ``/proc/<pid>/cmdline`` is preferred where it exists (Linux): it yields the
+    full NUL-separated argv, whereas ``ps -o command=`` renders a column the
+    kernel may truncate for a long argv — an absolute venv path plus arguments
+    is long enough to lose the trailing marker, which silently turns a live
+    server into an "unverified" one. ``ps`` stays the fallback for platforms
+    without ``/proc`` (macOS).
     """
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        pass  # No /proc (macOS), or the process vanished — fall back to ps.
+    else:
+        return AXM_MCP_MARKER in raw.decode("utf-8", "replace")
+
     try:
         result = subprocess.run(  # noqa: S603
             ["ps", "-p", str(pid), "-o", "command="],  # noqa: S607
