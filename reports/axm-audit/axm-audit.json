@@ -1,8 +1,8 @@
 {
-  "score": 94.6,
+  "score": 94.2,
   "grade": "A",
   "total": 31,
-  "failed": 4,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -36,8 +36,8 @@
       "message": "Coupling: 7 module(s) above threshold (-21 pts)",
       "details": {
         "max_fan_out": 16,
-        "max_fan_in": 51,
-        "avg_coupling": 6.8,
+        "max_fan_in": 66,
+        "avg_coupling": 6.52,
         "n_over_threshold": 7,
         "over_threshold": [
           {
@@ -124,11 +124,11 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
+      "rule_id": "QUALITY_TESTS",
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.94948989171935,
+        "coverage": 90.95945308816596,
         "failures": []
       },
       "metadata": null
@@ -214,11 +214,24 @@
       "metadata": null
     },
     {
-      "rule_id": "PRACTICE_TEST_MIRROR",
+      "rule_id": "QUALITY_TYPE",
       "passed": true,
-      "message": "All source modules have test files",
+      "message": "Type score: 100/100 (0 errors)",
       "details": {
-        "missing": [],
+        "error_count": 0,
+        "checked": "src/ tests_axm_audit/",
+        "errors": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": false,
+      "message": "1 source module(s) without tests",
+      "details": {
+        "missing": [
+          "_base.py"
+        ],
         "orphan": [],
         "exempt": [
           "audit.py",
@@ -231,9 +244,10 @@
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
       "passed": false,
-      "message": "1 integration/e2e test(s) named after source modules",
+      "message": "2 integration/e2e test(s) named after source modules",
       "details": {
         "anti_mirror": [
+          "tests_axm_audit/e2e/test_test_quality.py",
           "tests_axm_audit/integration/test_private_imports.py"
         ]
       },
@@ -261,11 +275,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 88% (206/235)",
+      "message": "Docstring coverage: 90% (255/284)",
       "details": {
-        "coverage": 0.88,
-        "total": 235,
-        "documented": 206,
+        "coverage": 0.9,
+        "total": 284,
+        "documented": 255,
         "missing": [
           "axm_audit/core/fix/report.py:format_report",
           "axm_audit/core/fix/pipeline.py:run",
@@ -335,7 +349,7 @@
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
       "passed": false,
-      "message": "6 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "message": "7 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
       "details": {
         "findings": [
           {
@@ -359,6 +373,14 @@
             "line": 5,
             "import_module": "axm_audit.core.rules.quality_rules",
             "private_symbol": "_get_audit_targets",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/tests_axm_audit/unit/core/rules/node/test__runner.py",
+            "line": 7,
+            "import_module": "axm_audit.core.rules.node._runner",
+            "private_symbol": "_resolve_cmd",
             "symbol_kind": "function",
             "access_kind": "import"
           },
@@ -408,17 +430,6 @@
       "metadata": {
         "verdicts": []
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_audit/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",

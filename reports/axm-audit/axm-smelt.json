@@ -67,7 +67,7 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
+      "rule_id": "QUALITY_TESTS",
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
@@ -147,6 +147,17 @@
       "details": {
         "issue_count": 0,
         "top_issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests_axm_smelt/",
+        "errors": []
       },
       "metadata": null
     },
@@ -272,17 +283,6 @@
           }
         ]
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_smelt/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",

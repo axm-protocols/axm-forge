@@ -1,8 +1,8 @@
 {
-  "score": 82.2,
+  "score": 80.8,
   "grade": "B",
   "total": 31,
-  "failed": 4,
+  "failed": 7,
   "success": false,
   "checks": [
     {
@@ -16,10 +16,17 @@
     },
     {
       "rule_id": "ARCH_GOD_CLASS",
-      "passed": true,
-      "message": "0 god class(es) found",
+      "passed": false,
+      "message": "1 god class(es) found",
       "details": {
-        "god_classes": []
+        "god_classes": [
+          {
+            "name": "TypeScriptBackend",
+            "file": "axm_ast/core/backends/typescript.py",
+            "lines": 236,
+            "methods": 16
+          }
+        ]
       },
       "metadata": null
     },
@@ -29,8 +36,8 @@
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
         "max_fan_out": 15,
-        "max_fan_in": 40,
-        "avg_coupling": 5.24,
+        "max_fan_in": 45,
+        "avg_coupling": 4.91,
         "n_over_threshold": 1,
         "over_threshold": [
           {
@@ -64,9 +71,9 @@
           {
             "file": "axm_ast/core/analyzer.py",
             "function": "analyze_package",
-            "cc": 12,
+            "cc": 13,
             "rank": "C",
-            "cognitive": 21,
+            "cognitive": 22,
             "reason": "cc+cog"
           },
           {
@@ -147,12 +154,25 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "rule_id": "QUALITY_TESTS",
+      "passed": false,
+      "message": "Test coverage: 89% (89/100)",
       "details": {
-        "coverage": 91.23757014866594,
-        "failures": []
+        "coverage": 89.32184338703634,
+        "failures": [
+          {
+            "test": "tests_axm_ast/unit/core/backends/test_typescript.py",
+            "traceback": "('/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/backends/test_typescript.py', 13, \"Skipped: could not import 'tree_sitter_typescript': No module named 'tree_sitter_typescript'\")"
+          },
+          {
+            "test": "tests_axm_ast/unit/core/backends/test_typescript_calls.py",
+            "traceback": "('/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/backends/test_typescript_calls.py', 9, \"Skipped: could not import 'tree_sitter_typescript': No module named 'tree_sitter_typescript'\")"
+          },
+          {
+            "test": "tests_axm_ast/unit/core/test_analyzer_node.py",
+            "traceback": "('/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/test_analyzer_node.py', 11, \"Skipped: could not import 'tree_sitter_typescript': No module named 'tree_sitter_typescript'\")"
+          }
+        ]
       },
       "metadata": null
     },
@@ -231,12 +251,30 @@
       "metadata": null
     },
     {
-      "rule_id": "PRACTICE_TEST_MIRROR",
+      "rule_id": "QUALITY_TYPE",
       "passed": true,
-      "message": "All source modules have test files",
+      "message": "Type score: 100/100 (0 errors)",
       "details": {
-        "missing": [],
-        "orphan": [],
+        "error_count": 0,
+        "checked": "src/ tests_axm_ast/",
+        "errors": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": false,
+      "message": "2 source module(s) without tests; 3 orphan test(s)",
+      "details": {
+        "missing": [
+          "base.py",
+          "extract.py"
+        ],
+        "orphan": [
+          "tests_axm_ast/unit/core/backends/test_extract.py",
+          "tests_axm_ast/unit/core/backends/test_typescript_calls.py",
+          "tests_axm_ast/unit/core/test_analyzer_node.py"
+        ],
         "exempt": [
           "_trace_protocol.py",
           "callers.py",
@@ -293,11 +331,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (195/196)",
+      "message": "Docstring coverage: 100% (225/226)",
       "details": {
-        "coverage": 0.99,
-        "total": 196,
-        "documented": 195,
+        "coverage": 1.0,
+        "total": 226,
+        "documented": 225,
         "missing": [
           "axm_ast/tools/_base.py:wrapper"
         ]
@@ -335,9 +373,17 @@
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
       "passed": false,
-      "message": "1 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "message": "2 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
       "details": {
         "findings": [
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/test_analyzer_node.py",
+            "line": 9,
+            "import_module": "axm_ast.core.analyzer",
+            "private_symbol": "_is_node_project",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
           {
             "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/tools/test_coupling_gaps.py",
             "line": 12,
@@ -365,17 +411,6 @@
       "metadata": {
         "verdicts": []
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_ast/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",

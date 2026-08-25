@@ -75,7 +75,7 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
+      "rule_id": "QUALITY_TESTS",
       "passed": true,
       "message": "Test coverage: 94% (94/100)",
       "details": {
@@ -161,6 +161,17 @@
             "message": "'mkdocs_gen_files' imported but declared as a dev dependency"
           }
         ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests_axm_git/",
+        "errors": []
       },
       "metadata": null
     },
@@ -275,17 +286,6 @@
       "metadata": {
         "verdicts": []
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_git/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",

@@ -75,7 +75,7 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
+      "rule_id": "QUALITY_TESTS",
       "passed": true,
       "message": "Test coverage: 95% (94/100)",
       "details": {
@@ -161,6 +161,17 @@
             "message": "'axm-ast' defined as a dependency but not used in the codebase"
           }
         ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests_axm_edit/",
+        "errors": []
       },
       "metadata": null
     },
@@ -353,17 +364,6 @@
           }
         ]
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_edit/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",

@@ -75,11 +75,11 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
+      "rule_id": "QUALITY_TESTS",
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.03408765396735,
+        "coverage": 91.06273274133486,
         "failures": []
       },
       "metadata": null
@@ -161,6 +161,17 @@
             "message": "'pydantic' defined as a dependency but not used in the codebase"
           }
         ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests_axm_anvil/",
+        "errors": []
       },
       "metadata": null
     },
@@ -436,17 +447,6 @@
       "metadata": {
         "verdicts": []
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_anvil/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",

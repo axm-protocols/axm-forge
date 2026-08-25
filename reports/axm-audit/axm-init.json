@@ -1,8 +1,8 @@
 {
-  "score": 89.8,
+  "score": 89.2,
   "grade": "B",
   "total": 31,
-  "failed": 5,
+  "failed": 6,
   "success": false,
   "checks": [
     {
@@ -16,23 +16,38 @@
     },
     {
       "rule_id": "ARCH_GOD_CLASS",
-      "passed": true,
-      "message": "0 god class(es) found",
+      "passed": false,
+      "message": "1 god class(es) found",
       "details": {
-        "god_classes": []
+        "god_classes": [
+          {
+            "name": "InitScaffoldTool",
+            "file": "axm_init/tools/scaffold.py",
+            "lines": 517,
+            "methods": 10
+          }
+        ]
       },
       "metadata": null
     },
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
+      "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
-        "max_fan_out": 10,
-        "max_fan_in": 23,
-        "avg_coupling": 3.26,
-        "n_over_threshold": 0,
-        "over_threshold": []
+        "max_fan_out": 11,
+        "max_fan_in": 33,
+        "avg_coupling": 3.21,
+        "n_over_threshold": 1,
+        "over_threshold": [
+          {
+            "module": "axm_init.core.checker",
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          }
+        ]
       },
       "metadata": null
     },
@@ -99,11 +114,11 @@
       "metadata": null
     },
     {
-      "rule_id": "QUALITY_COVERAGE",
+      "rule_id": "QUALITY_TESTS",
       "passed": true,
-      "message": "Test coverage: 95% (95/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 95.19764782750735,
+        "coverage": 93.93190554640307,
         "failures": []
       },
       "metadata": null
@@ -183,6 +198,17 @@
       "metadata": null
     },
     {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests_axm_init/",
+        "errors": []
+      },
+      "metadata": null
+    },
+    {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
       "message": "1 orphan test(s)",
@@ -199,8 +225,6 @@
           "gen_ref_pages.py",
           "ports.py",
           "pyproject.py",
-          "structure.py",
-          "tooling.py",
           "workspace_patcher.py"
         ],
         "exempt_tests": [
@@ -262,11 +286,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (128/128)",
+      "message": "Docstring coverage: 100% (159/159)",
       "details": {
         "coverage": 1.0,
-        "total": 128,
-        "documented": 128,
+        "total": 159,
+        "documented": 159,
         "missing": []
       },
       "metadata": null
@@ -404,17 +428,6 @@
       "metadata": {
         "verdicts": []
       }
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_init/",
-        "errors": []
-      },
-      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",
