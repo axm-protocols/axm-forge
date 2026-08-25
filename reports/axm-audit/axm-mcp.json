@@ -69,9 +69,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 93.47382732834807,
+        "coverage": 93.63143631436314,
         "failures": []
       },
       "metadata": null
@@ -331,16 +331,9 @@
           },
           {
             "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "cli.py",
-            "line": 79
-          },
-          {
-            "severity": "LOW",
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
-            "file": "cli.py",
+            "file": "lifecycle.py",
             "line": 79
           },
           {
@@ -348,7 +341,14 @@
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "lifecycle.py",
-            "line": 79
+            "line": 86
+          },
+          {
+            "severity": "LOW",
+            "code": "B607",
+            "message": "Starting a process with a partial executable path",
+            "file": "cli.py",
+            "line": 93
           }
         ]
       },
