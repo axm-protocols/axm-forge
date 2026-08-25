@@ -189,6 +189,15 @@ disable_error_code = [
 module = ["axm_ast.tools.*"]
 disallow_subclassing_any = false
 
+# tree-sitter-typescript ships no type stubs and is an OPTIONAL extra
+# (axm-ast[typescript]); the CI type-check runs without it installed, so mypy
+# cannot resolve the lazy import in core.backends.typescript. Ignore the missing
+# stub rather than a call-site `# type: ignore` (the import is guarded and the
+# registry catches ImportError when the extra is absent).
+[[tool.mypy.overrides]]
+module = ["tree_sitter_typescript"]
+ignore_missing_imports = true
+
 # Pydantic BaseModel subclasses inherit __init__(**data: Any) synthetically;
 # disable explicit-Any on modules defining models.
 [[tool.mypy.overrides]]
