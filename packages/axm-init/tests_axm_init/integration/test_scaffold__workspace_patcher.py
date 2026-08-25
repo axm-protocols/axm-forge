@@ -77,6 +77,6 @@ def test_member_scaffold_patches_correct_blocks_with_decoys(tmp_path: Path) -> N
     assert '"my-lib/v*"' in publish
     assert "# jobs: decoy" in publish
     # pyproject: new testpath in testpaths, testpaths_extra decoy untouched.
-    assert '"packages/my-lib/tests"' in pyproject
+    assert '"packages/my-lib/tests_my_lib"' in pyproject
     assert 'testpaths_extra = ["packages/decoy/tests"]' in pyproject
     assert '"packages/existing/tests"' in pyproject

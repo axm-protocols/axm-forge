@@ -72,7 +72,8 @@ class TestTestsOverrideRelaxation:
         assert "disallow_incomplete_defs = false" in block
 
     def test_workspace_member_relaxes_incomplete_defs(self) -> None:
-        """workspace-member tests.* override declares the relaxation (AC2)."""
+        """workspace-member test-suite override declares the relaxation (AC2)."""
         block = _override_block(TemplateType.MEMBER)
-        assert "tests.*" in block
+        # Le module est dérivé (tests_<module>.*), pas le littéral "tests.*".
+        assert "tests_" in block
         assert "disallow_incomplete_defs = false" in block

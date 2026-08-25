@@ -106,8 +106,12 @@ def check_members_consistent(project: Path) -> CheckResult:
             missing.append("pyproject.toml")
         if not (member / "src").is_dir():
             missing.append("src/")
-        if not (member / "tests").is_dir():
-            missing.append("tests/")
+        # Le nom de la suite est DÉRIVÉ du membre (tests_<module>) pour que chaque
+        # module path reste unique : un `tests/` partagé fait collisionner
+        # tests.conftest entre membres et tue la collecte à la racine (cf. 9688417b0).
+        # On valide donc la POLITIQUE — une suite existe — pas un nom littéral.
+        if not any(child.is_dir() for child in member.glob("tests_*")):
+            missing.append(f"tests_{member.name.replace('-', '_')}/")
         if missing:
             issues.append(f"{member.name}: missing {', '.join(missing)}")
 
@@ -119,7 +123,7 @@ def check_members_consistent(project: Path) -> CheckResult:
             weight=2,
             message=f"{len(issues)} inconsistent member(s)",
             details=issues,
-            fix="Ensure each member has pyproject.toml, src/, and tests/.",
+            fix="Ensure each member has pyproject.toml, src/, and tests_<module>/.",
         )
 
     return CheckResult(

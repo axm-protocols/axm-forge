@@ -51,7 +51,7 @@ line-length = 99
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
-per-file-ignores = { "tests/**" = ["S101"] }
+per-file-ignores = { "**/tests_*/**" = ["S101"] }
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -67,7 +67,9 @@ max-statements = 50
 max-locals = 15
 
 [tool.pytest.ini_options]
-testpaths = ["packages/*/tests"]
+# Les suites sont nommées tests_<module> par membre : un `tests/` partagé ferait
+# collisionner les module paths (tests.conftest) et tuerait la collecte à la racine.
+testpaths = ["packages/*/tests_*"]
 import_mode = "importlib"
 addopts = "-q --import-mode=importlib"
 

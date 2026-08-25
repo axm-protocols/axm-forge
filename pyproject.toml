@@ -108,7 +108,11 @@ testpaths = [
 # ruff 0.16 formats Python blocks inside Markdown by default, which reflows
 # hand-aligned snippets in prose docs. Docs are written by hand here, so the
 # formatter stays out of them.
-extend-exclude = ["*.md"]
+# Les répertoires de templates Copier portent des noms interpolés
+# ({{module_name}}) : ce ne sont pas des modules Python, et N999 les
+# refuserait à juste titre. Les .py.jinja échappent déjà à ruff par leur
+# suffixe ; les __init__.py nus de la suite scaffoldée, non.
+extend-exclude = ["*.md", "**/templates/workspace-member/tests_*/**"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests_*/**" = ["PLR2004"]

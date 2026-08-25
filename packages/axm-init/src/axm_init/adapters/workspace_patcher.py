@@ -533,7 +533,11 @@ def _append_to_toml_array_lines(content: str, value: str, key: str) -> str:
 
 
 def patch_testpaths(root: Path, member_name: str) -> bool:
-    """Ensure root testpaths includes ``packages/<member_name>/tests``.
+    """Ensure root testpaths includes the member's derived test suite.
+
+    The suite is named ``tests_<module_name>`` rather than a shared ``tests``:
+    a common directory name makes every member's ``tests.conftest`` resolve to
+    the same module path, which kills collection at the workspace root.
 
     Adds the test directory of *member_name* to
     ``[tool.pytest.ini_options].testpaths`` in the root ``pyproject.toml``.
@@ -554,7 +558,7 @@ def patch_testpaths(root: Path, member_name: str) -> bool:
     pyproject = root / "pyproject.toml"
     content = pyproject.read_text()
 
-    test_path = f"packages/{member_name}/tests"
+    test_path = f"packages/{member_name}/tests_{member_name.replace('-', '_')}"
     if test_path in content:
         logger.info("testpaths already contains %s — skipping", test_path)
         return False

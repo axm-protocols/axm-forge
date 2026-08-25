@@ -240,5 +240,7 @@ def ws_root(tmp_path: Path) -> Path:
         '[project]\nname = "pkg-a"\nrequires-python = ">=3.12"\n'
     )
     (member / "src").mkdir()
-    (member / "tests").mkdir()
+    # Suite nommée d'après le membre (tests_<module>) : c'est ce que la règle
+    # members_consistent attend, un `tests/` partagé collisionnant entre membres.
+    (member / "tests_pkg_a").mkdir()
     return tmp_path

@@ -104,7 +104,11 @@ extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
 src = ["src", "tests_axm_init"]
-exclude = ["*/_version.py"]
+# Les répertoires de templates Copier portent des noms interpolés
+# ({{module_name}}) : ce ne sont pas des modules Python (N999). Les
+# .py.jinja échappent déjà à ruff par leur suffixe, les __init__.py nus
+# de la suite scaffoldée non.
+exclude = ["*/_version.py", "src/axm_init/templates/workspace-member/tests_*/**"]
 
 [tool.ruff.lint]
 select = [

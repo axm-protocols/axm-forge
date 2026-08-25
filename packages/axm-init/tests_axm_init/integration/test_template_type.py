@@ -36,7 +36,7 @@ def test_workspace_gitignore_has_coverage_xml() -> None:
 
 
 def test_member_tests_ignore_s603_s607() -> None:
-    """AC2: workspace-member tests/* per-file-ignores include S603 and S607.
+    """AC2: workspace-member test-suite per-file-ignores include S603 and S607.
 
     Subprocess-based test helpers legitimately call out to processes; without
     S603/S607 in the tests ignore list every such call is a false positive.
@@ -45,11 +45,11 @@ def test_member_tests_ignore_s603_s607() -> None:
     ignore_lines = [
         line
         for line in content.splitlines()
-        if '"tests/*"' in line and "per-file-ignores" not in line
+        if '"tests_' in line and "per-file-ignores" not in line
     ]
-    # The tests/* per-file-ignores assignment line.
+    # The per-file-ignores line for the derived test suite.
     target = next(
-        (line for line in content.splitlines() if line.strip().startswith('"tests/*"')),
+        (line for line in content.splitlines() if line.strip().startswith('"tests_')),
         "",
     )
     assert "S603" in target, ignore_lines

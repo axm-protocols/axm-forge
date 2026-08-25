@@ -16,7 +16,7 @@ class TestTestpathsGetsMemberEntry:
         patch_testpaths(workspace_root, "my-lib")
 
         content = (workspace_root / "pyproject.toml").read_text()
-        assert "packages/my-lib/tests" in content
+        assert "packages/my-lib/tests_my_lib" in content
         assert "[tool.pytest.ini_options]" in content
 
     def test_idempotent(self, workspace_root: Path) -> None:
@@ -34,7 +34,7 @@ class TestTestpathsGetsMemberEntry:
 
         content = (workspace_root / "pyproject.toml").read_text()
         assert "[tool.pytest.ini_options]" in content
-        assert "packages/my-lib/tests" in content
+        assert "packages/my-lib/tests_my_lib" in content
 
     def test_adds_to_existing_testpaths(self, workspace_root: Path) -> None:
         pyproject = workspace_root / "pyproject.toml"
@@ -49,7 +49,7 @@ class TestTestpathsGetsMemberEntry:
 
         result = pyproject.read_text()
         assert "packages/existing/tests" in result
-        assert "packages/my-lib/tests" in result
+        assert "packages/my-lib/tests_my_lib" in result
 
 
 # ─ TOML array edge cases (covered via public patch_testpaths) ──────────────────
@@ -64,7 +64,7 @@ def test_section_exists_key_missing(tmp_path: Path) -> None:
     )
     patch_testpaths(tmp_path, "new-pkg")
     result = pyproject.read_text()
-    assert '"packages/new-pkg/tests"' in result
+    assert '"packages/new-pkg/tests_new_pkg"' in result
     assert "[tool.pytest.ini_options]" in result
     assert 'import_mode = "importlib"' in result
 
@@ -80,4 +80,4 @@ def test_single_line_array(tmp_path: Path) -> None:
     patch_testpaths(tmp_path, "b")
     result = pyproject.read_text()
     assert '"packages/a/tests"' in result
-    assert '"packages/b/tests"' in result
+    assert '"packages/b/tests_b"' in result

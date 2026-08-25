@@ -151,7 +151,8 @@ class TestMemberTemplateStructure:
         assert (src / "py.typed").is_file()
 
     def test_test_files(self, member_template: Path) -> None:
-        tests = member_template / "tests"
+        # Nom dérivé du membre : on cherche la suite, pas un littéral.
+        tests = next(d for d in member_template.glob("tests_*") if d.is_dir())
         assert (tests / "__init__.py").is_file()
         assert (tests / "conftest.py").is_file()
 

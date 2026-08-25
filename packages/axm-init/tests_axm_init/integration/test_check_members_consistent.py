@@ -11,21 +11,21 @@ class TestMembersConsistent:
     """Tests for check_members_consistent."""
 
     def test_valid(self, ws_root: Path) -> None:
-        """Member with pyproject.toml + src/ + tests/ passes."""
+        """Member with pyproject.toml + src/ + tests_<module>/ passes."""
         result = check_members_consistent(ws_root)
         assert result.passed
         assert result.weight == 2
 
     def test_missing_tests(self, ws_root: Path) -> None:
-        """Member missing tests/ fails with detail."""
+        """Member missing its tests_<module>/ suite fails with detail."""
         # Remove tests dir
         import shutil
 
-        member = ws_root / "packages" / "pkg-a" / "tests"
+        member = ws_root / "packages" / "pkg-a" / "tests_pkg_a"
         shutil.rmtree(member)
         result = check_members_consistent(ws_root)
         assert not result.passed
-        assert any("tests/" in d for d in result.details)
+        assert any("tests_pkg_a/" in d for d in result.details)
 
     def test_no_members_passes(self, tmp_path: Path) -> None:
         """No members is valid (workspace just configured)."""
@@ -84,14 +84,14 @@ class TestMembersConsistentMissing:
         # Actually, member dirs are resolved by glob + has pyproject check
         # So we need pyproject to exist for _resolve_member_dirs to include it
         (member / "pyproject.toml").write_text('[project]\nname = "pkg-a"\n')
-        (member / "tests").mkdir()
+        (member / "tests_pkg_a").mkdir()
         # No src/ directory
         result = check_members_consistent(tmp_path)
         assert not result.passed
         assert any("src/" in d for d in result.details)
 
     def test_missing_src_and_tests(self, tmp_path: Path) -> None:
-        """Member missing both src/ and tests/ → both flagged."""
+        """Member missing both src/ and tests_<module>/ → both flagged."""
         from axm_init.checks.workspace import check_members_consistent
 
         (tmp_path / "pyproject.toml").write_text(
@@ -100,9 +100,9 @@ class TestMembersConsistentMissing:
         member = tmp_path / "packages" / "pkg-a"
         member.mkdir(parents=True)
         (member / "pyproject.toml").write_text('[project]\nname = "pkg-a"\n')
-        # No src/ or tests/
+        # No src/ or tests_<module>/
         result = check_members_consistent(tmp_path)
         assert not result.passed
         details_text = " ".join(result.details)
         assert "src/" in details_text
-        assert "tests/" in details_text
+        assert "tests_pkg_a/" in details_text
