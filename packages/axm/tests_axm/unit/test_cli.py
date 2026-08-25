@@ -108,6 +108,26 @@ class _DispatchTool:
         return ToolResult(success=True, text="ok")
 
 
+def _wrapped_execute_signature(
+    self: object, *, cadence: dict[str, object]
+) -> ToolResult:
+    """Typed signature exposed by a ``**kwargs`` dispatch tool."""
+    raise NotImplementedError
+
+
+class _WrappedDispatchTool:
+    """Dispatch tool whose public signature is carried by ``__wrapped__``."""
+
+    captured: object = None
+
+    def execute(self, **kwargs: object) -> ToolResult:
+        self.captured = kwargs["cadence"]
+        return ToolResult(success=True, text="ok")
+
+
+_WrappedDispatchTool.execute.__wrapped__ = _wrapped_execute_signature
+
+
 class _FakeEP:
     def __init__(self, name: str, obj: object) -> None:
         self.name = name
@@ -229,6 +249,18 @@ class TestBuildCommand:
         cmd = build_command_for_tool("batch_edit", _BatchTool())
         cmd(path=".", operations='[{"op": "replace"}, {"op": "create"}]')
         assert "applied 2" in capsys.readouterr().out
+
+    def test_nonscalar_json_decoded_from_wrapped_signature(self) -> None:
+        tool = _WrappedDispatchTool()
+        cmd = build_command_for_tool("wrapped", tool)
+
+        cmd(cadence='{"kind": "weekly", "at": "04:30", "weekday": "mon"}')
+
+        assert tool.captured == {
+            "kind": "weekly",
+            "at": "04:30",
+            "weekday": "mon",
+        }
 
     def test_invalid_json_exits_2(self) -> None:
         cmd = build_command_for_tool("batch_edit", _BatchTool())

@@ -95,9 +95,9 @@ def _exec_callable(tool_obj: Any) -> Any:
 
 
 def _resolve_hints(fn: Any) -> dict[str, Any]:
-    """Best-effort resolved type hints for *fn* (empty on failure)."""
+    """Best-effort hints for the callable that exposes *fn*'s signature."""
     try:
-        return typing.get_type_hints(fn)
+        return typing.get_type_hints(inspect.unwrap(fn))
     except Exception:  # noqa: BLE001 — unresolved forward refs must not crash the CLI
         return {}
 
