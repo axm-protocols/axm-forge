@@ -99,7 +99,6 @@ sequenceDiagram
 | `schema.py` | `signature_params()`, `apply_signature()`, `extract_docstring_params()` | Derives a tool's typed `__signature__` from its `execute()` (falling back to docstring params) so FastMCP and `ToolCatalog.describe` build the right schema |
 | `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
 | `verify_format.py` | `format_verify_text()` | Compact text rendering of a `verify_project` result |
-
 | `lifecycle.py` | `find_binary()`, `generate_plist()`, `install()`, `uninstall()` | launchd service management — install/uninstall axm-mcp as a macOS background service |
 | `plist_template.py` | `PLIST_TEMPLATE` | launchd plist XML template used by `lifecycle.generate_plist()` |
 
@@ -107,7 +106,7 @@ sequenceDiagram
 
 | Decision | Rationale |
 |---|---|
-| Zero imports from `axm` core | Fully decoupled — `axm-mcp` works with any combination of installed packages |
+| Imports from `axm` core limited to `axm.tools.base` | Only the shared types + `tool_metadata` (and `ToolResult`, used by the `verify`/`web_fetch` built-ins) — never a business-tool implementation, so `axm-mcp` stays decoupled from any specific tool package and works with any combination of installed packages |
 | `ToolLike` Protocol | Duck typing via `Protocol` — no class inheritance needed |
 | Entry points for discovery | Standard Python mechanism, no config files needed |
 | `verify` as meta-tool | Single call replaces 3 separate tool invocations |
@@ -119,7 +118,7 @@ sequenceDiagram
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
 2. **Registration** (facade, default): the `expose_directly` hot path is registered individually via `register_one()`, the built-ins (`verify`, `web_fetch`) are registered directly, and `register_facade()` registers the four facade meta-tools over a `ToolCatalog`. In legacy mode (`AXM_MCP_FACADE=0`), `register_tools()` registers **every** discovered tool individually instead.
 3. **Listing**: `register_list_tools()` registers `list_tools`, which always enumerates the **full** surface (so facade-only tools remain discoverable)
-4. **Execution**: MCP client calls a tool (directly or via `axm_call`) → wrapper delegates to `tool.execute(**kwargs)` → on a **successful** `ToolResult` with `text` set, returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting
+4. **Execution**: MCP client calls a tool **directly or via `axm_call`** → both paths go through the *same* wrapper pair built by `wrapping.build_wrappers()` (there is a single execution path; `ToolCatalog` holds the same wrappers `register_one` registers). The wrapper delegates to `tool.execute(**kwargs)` → on a **successful** `ToolResult` with `text` set, returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting. So tracing (1 call = 1 trace), exception flattening and the per-key lock are invariant regardless of which path reached the tool.
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
 
 ## Concurrency Model (HTTP mode)
@@ -127,16 +126,24 @@ sequenceDiagram
 Multiple conversations run concurrently on the same server. To prevent conflicts:
 
 - **Mode gate** — `server.serve()` sets `wrapping._HTTP_MODE = True` before
-  `mcp.run(transport="streamable-http")`. This single flag gates `KeyedLock`
-  acquisition in `_wrap_with_lock` and the implicit-path warning in
-  `_warn_implicit_path`. The stdio default path (`cli._stdio`) leaves it
-  `False` — one process per conversation means no cross-session contention
+  `mcp.run(transport="streamable-http")`. This single flag gates the
+  `asyncio.to_thread` offload + `KeyedLock` acquisition in `_wrap_with_lock`
+  and the implicit-path warning in `_warn_implicit_path`. The stdio default
+  path (`cli._stdio`) leaves it `False` — one process per conversation means
+  no cross-session contention, and the tool runs inline
+- **Never block the event loop** — in HTTP mode **every** tool's synchronous
+  body is offloaded to a worker thread via `asyncio.to_thread`, so one slow
+  call (a multi-minute `verify`) cannot freeze `/health`, keep-alives, or the
+  other conversations. Per-key serialization is layered on top of this offload
 - **Protocol sessions** are serialized per `session_id` via `KeyedLock`
-- **Git operations** are serialized per `repo_path` via `KeyedLock`
+- **Git operations** are serialized per normalized `repo_path` via `KeyedLock`
+  (`/repo` and `/repo/` resolve to the same key)
+- **Lock timeout** — a `KeyedLock` acquire that exceeds its timeout is
+  flattened into the AXM error envelope (`success=False`, "resource busy,
+  retry") rather than propagating a raw `TimeoutError` to the MCP client
 - **Bounded memory** — `KeyedLock` reaps idle (unheld, unawaited) entries
   opportunistically on release via per-key refcounting, so its map does not
   grow unbounded with session ids / repo paths over the server's lifetime
-- **Graceful shutdown** drains in-flight requests (5s timeout) before exit
 
 ## Service Lifecycle (macOS)
 

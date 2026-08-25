@@ -43,7 +43,7 @@ Four commands via cyclopts: `compact`, `check`, `count`, `version`. All read fro
 
 Between helper calls, `smelt()` detects the format via `detect_format_parsed()` (JSON is probed inline to capture the already-parsed object; the remaining probes are `try_xml`, `try_yaml`, `try_markdown`), counts input tokens, and builds the initial `SmeltContext`. After `_apply_strategies` returns, it counts output tokens and computes `savings_pct`.
 
-The **savings baseline** depends on how the input arrived. For the `text=` path the baseline is the provided raw string, unchanged. For the `parsed=` path there is no canonical textual form, so the baseline is the *pretty* serialization `json.dumps(parsed, indent=2, ensure_ascii=False)` rather than the compact dump produced by `resolve_input`. Measuring against the already-minified compact form would structurally under-report the reduction; the pretty baseline reflects the indented form a user would otherwise have read, so `savings_pct` matches the perceived reduction. `report.original` still carries the compact serialization (the pipeline's working text).
+The **savings baseline** is the pipeline's working text in both input paths. For the `text=` path the baseline is the provided raw string, unchanged. For the `parsed=` path there is no user-supplied textual form, so `resolve_input` produces the compact serialization `json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)` and that compact working text *is* the baseline — there is no pretty `indent=2` reference form. Measuring against this single honest baseline means a `parsed=` input with no applicable strategy yields `savings_pct` 0 rather than a fabricated gain against an indented dump the caller never saw. This matches the `smelt` docstring semantics at `pipeline.py:100-113`. `report.original` carries the same compact serialization (the pipeline's working text).
 
 `check()` runs every registered strategy independently on the original `SmeltContext` and records per-strategy savings without chaining. Only strategies with positive savings (> 0%) are included in `strategy_estimates`; strategies that regress or break even are omitted.
 
@@ -51,7 +51,7 @@ The **savings baseline** depends on how the input arrived. For the `text=` path 
 
 Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ctx) -> SmeltContext`). Strategies are registered in `_REGISTRY` and composed into presets via `_PRESETS`:
 
-**Serialization key ordering** — every JSON re-serialization site uses a single canonical policy: `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. The structural strategies (`minify`, `drop_nulls`, `round_numbers`, `flatten`, `dedup_values_with_refs`) emit object keys in sorted order, matching `SmeltContext.text`. This makes the serialized output independent of which code path produced it (a value round-tripped through a strategy has the same byte layout as the same value via `SmeltContext.text`), which is the stronger determinism guarantee.
+**Serialization key ordering** — the strategy and context serialization sites use a single canonical policy: `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. The structural strategies (`minify`, `drop_nulls`, `round_numbers`, `flatten`, `dedup_values_with_refs`) emit object keys in sorted order, matching `SmeltContext.text`, so a value round-tripped through a strategy has the same byte layout as the same value via `SmeltContext.text`. (`resolve_input` produces the pipeline's *working text* with compact separators but insertion order; the first `minify` in every preset re-canonicalizes it, so the reported output is stable.)
 
 | Preset | Strategies |
 |---|---|
@@ -90,11 +90,11 @@ sequenceDiagram
     participant Strategies
 
     User->>API: smelt(text, preset="moderate")
-    API->>Pipeline: _resolve_input(text, parsed)
+    API->>Pipeline: resolve_input(text, parsed)
     Pipeline-->>API: (text, parsed)
     API->>Pipeline: detect_format(text)
     API->>Pipeline: count(text) -> original_tokens
-    API->>Pipeline: _resolve_strategies(None, "moderate")
+    API->>Pipeline: resolve_strategies(None, "moderate")
     Pipeline-->>API: strats
     Pipeline->>Pipeline: SmeltContext(text, format)
     API->>Pipeline: _apply_strategies(ctx, strats, original_tokens)

@@ -1,4 +1,4 @@
-"""Audit checks for pyproject.toml (9 checks, 27 pts)."""
+"""Audit checks for pyproject.toml (10 checks, 29 pts)."""
 
 from __future__ import annotations
 

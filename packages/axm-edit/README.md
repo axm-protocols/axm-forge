@@ -20,11 +20,14 @@ The agent spends 70% of its budget on mechanics.
 
 ## Features
 
-- 🔧 **`batch_edit`** — Replace, create, and delete files in a single atomic operation
+- 🔧 **`batch_edit`** — Replace, rewrite, create, and delete files in a single atomic operation
+- 🧪 **`batch_edit_check`** — Read-only preflight of a batch: diagnostics without touching the disk
+- 🔬 **`file_bytes`** — Read-only byte-level report on a file: sha256, literal non-ASCII vs textual escape sequences
 - 📖 **`read_file`** — Read file content with optional line-range support
 - 🔍 **`search_files`** — Grep-like search across project files (literal or regex)
 - 📂 **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
 - ✏️ **`write_file`** — Write or overwrite file content
+- 🖊️ **`edit_file`** — Find-and-replace (substring) in a single file
 - ▶️ **`run_command`** — Execute shell commands with timeout and output truncation
 - ⏪ **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
 - 🛡️ **Atomic** — All-or-nothing: validation runs before any file is touched
@@ -75,14 +78,14 @@ Atomic batch file operations.
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `path` | `str` | `"."` | Project root directory |
-| `operations` | `list[Op]` | — | List of replace/create/delete operations |
+| `operations` | `list[Op]` | — | List of replace/create/delete/rewrite operations |
 | `lint` | `bool` | `True` | Run `ruff --fix` on changed Python files after apply |
 | `lint_diff` | `bool` | `True` | Surface per-file `lint_diffs` hunks of post-lint mutations |
 | `lint_diff_max_ratio` | `float` | `0.5` | Fallback to `file_reread_recommended` when `len(diff) > ratio * len(post)` |
 
 When `lint_diff=True` and ruff/harness_fix mutates any Python file, `ToolResult.data["lint_diffs"]` lists one entry per file: `{"file", "rules": [ruff codes], "diff": "@L<n>\n-old\n+new..."}`. On large rewrites the entry drops `diff` and carries `"diff_skipped": "file_reread_recommended"`.
 
-**3 operation types:**
+**4 operation types:**
 
 #### `replace` — modify lines in an existing file
 
@@ -105,13 +108,98 @@ All line numbers reference the **original** file. The engine sorts edits bottom-
 {"op": "create", "file": "src/new.py", "content": "\"\"\"New module.\"\"\"\n"}
 ```
 
-Fails if file exists (unless `"overwrite": true`).
+Fails if the file already exists — **fail-closed, there is no `overwrite`
+flag**. To replace an existing file, use `rewrite` and hand back the digest of
+the bytes you read.
+
+#### `rewrite` — replace an existing file in full
+
+```json
+{
+    "op": "rewrite",
+    "file": "src/foo.py",
+    "content": "\"\"\"Rewritten module.\"\"\"\nvalue = 1\n",
+    "expected_checksum":
+        "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+}
+```
+
+Three required keys — `file`, `content` and `expected_checksum` (the preflight
+tool `batch_edit_check` names that same key `checksum`; `batch_edit` accepts
+either spelling and normalises it). The digest is
+mandatory: it is the **sha256** hex digest of the file bytes **as currently on
+disk** (read the file, hash it, pass it back). A stale digest is a hard
+refusal, so a concurrent modification is never silently clobbered — and, here
+too, there is deliberately no `overwrite` escape hatch.
+
+`rewrite` carries the exact bytes of `content`: no anchor resolution, no quote
+normalisation, no re-indentation. That makes it the safe way to replace a
+triple-quote-heavy module that anchor-based `replace` cannot address. The
+rewritten file joins the post-apply `ruff --fix` pass like any other touched
+Python file.
 
 #### `delete` — remove a file
 
 ```json
 {"op": "delete", "file": "src/old.py"}
 ```
+
+### `batch_edit_check`
+
+Read-only preflight of a `batch_edit` operation set. It runs the same validation
+rules as `batch_edit` (broken `old` anchors, `create` on an existing file,
+unknown edit keys, path traversal) and reports what would go wrong — **read-only**:
+no disk write is ever performed, not a single file is created, modified or deleted.
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Project root the batch would be applied to |
+| `operations` | `list[Op]` | — | Same operation list as `batch_edit` |
+
+```json
+{
+    "path": "/my/project",
+    "operations": [
+        {
+            "op": "replace",
+            "file": "src/foo.py",
+            "edits": [{"line": 3, "old": "import bar", "new": "import baz"}]
+        },
+        {"op": "create", "file": "src/new.py", "content": "x = 1\n"}
+    ]
+}
+```
+
+Returns `data["ok"]` (`true` when nothing is wrong) and `data["diagnostics"]`,
+one entry per problem found, emitted in **operation order** (the batch's own
+order, then rule family) — plus the machine-readable severity partition
+`data["blocking"]` (`true` as soon as one diagnostic is an error),
+`data["error_count"]` and `data["warning_count"]`. The rendered text ends with
+the matching summary line, `blocking: yes (N errors, M warnings)` or
+`blocking: no (0 errors, M warnings)`, so an agent never has to re-parse the
+diagnostic lines to know whether the batch would be rejected. Since nothing is
+written, it is safe to call it as often as needed before committing to a real
+`batch_edit`.
+
+### `file_bytes`
+
+Byte-exact report on a file **already written to disk** — **read-only**: the
+file is opened once in binary mode, no disk write is ever performed and no
+metadata is changed. `path` is the **absolute** path to the file.
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | — | Absolute path to the file to inspect |
+| `expected` | `str?` | `None` | Content the caller believes it wrote |
+| `expect_escaped` | `bool` | `False` | Whether escape sequences are expected verbatim on disk |
+| `encoding` | `str` | `"utf-8"` | Decoding used for the report (only `utf-8`) |
+
+Returns `data["verdict"]` — one of `ok`, `mismatch`,
+`literal_where_escaped_expected`, `escaped_where_literal_expected`,
+`decode_error` — plus `data["sha256"]`, `data["size_bytes"]`, the bounded
+occurrence lists with their `*_total` counters, `data["mismatch"]` (offset and
+ASCII-only reprs of the first divergence) and an actionable `data["hint"]`.
+Undecodable bytes are a diagnostic (`encoding_ok: false`), not an error.
 
 ### `read_file`
 
@@ -155,6 +243,34 @@ Execute shell commands with timeout and output truncation.
 | `cwd` | `str?` | Working directory, relative to root |
 | `timeout` | `int?` | Timeout in seconds (default 30) |
 
+### `write_file`
+
+Write (create or overwrite) a single file. `path` is the **absolute** path
+to the file (not a project root); parent directories are created as needed.
+
+| Param | Type | Description |
+|---|---|---|
+| `path` | `str` | Absolute path to the file to write |
+| `content` | `str` | Text content to write |
+
+### `edit_file`
+
+Find-and-replace in a single file. Unlike `batch_edit` (whole-line `old`),
+`edit_file` matches `old`/`new` as **substrings**. `path` is the **absolute**
+path to the file.
+
+| Param | Type | Description |
+|---|---|---|
+| `path` | `str` | Absolute path to the file to edit |
+| `old` | `str` | Text to find (exact substring match) |
+| `new` | `str` | Replacement text |
+| `count` | `int?` | Max replacements — `-1` for all, else a positive integer (default `1`) |
+
+> **Note** — `write_file` and `edit_file` take an **absolute file path** and are
+> not confined to a project root, unlike the root-relative tools (`read_file`,
+> `search_files`, `list_dir`, `run_command`, `batch_edit`). Like `run_command`,
+> they are not a sandbox: only point them at paths you intend to write.
+
 ### `batch_rollback`
 
 Restore the exact paths a batch touched from its snapshot.
@@ -162,7 +278,7 @@ Restore the exact paths a batch touched from its snapshot.
 | Param | Type | Description |
 |---|---|---|
 | `path` | `str` | Project root directory |
-| `checkpoint` | `str` | Snapshot payload from the `batch_edit` response |
+| `checkpoint` | `str` | Snapshot payload (JSON string) from the `batch_edit` response — pass it back verbatim, it is not a short hash |
 
 ## Development
 

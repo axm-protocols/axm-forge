@@ -207,6 +207,19 @@ duplicate signals/rescues, and the 22-step triage ladder.
 
 `AuditQualityRule` runs `audit_project` for each configured category independently (a lint failure does not prevent type checking) and returns structured agent-friendly feedback via `format_agent`, with a compact `text` summary via `format_agent_text`.
 
+**Params:**
+
+| Param | Type | Purpose |
+|---|---|---|
+| `categories` | `list[str]` | Categories to audit (default `["lint", "type"]`). Must be a subset of the auditor's valid categories — see below. |
+| `working_dir` | `str` | Project root to audit (overridable per-call via a `working_dir` kwarg). |
+| `scope` | `str` | Reserved sub-scope selector. |
+| `exclude_rules` | `list[str]` | Rule-id **prefixes** to drop from the failure list (e.g. `["QUALITY_DIFF_SIZE"]`). |
+| `extra_dirs` | `list[str]` | Extra directories to audit with the same categories (e.g. blast-radius packages). |
+| `guidance` | `str \| None` | Extra instructions appended to the failure `how` message. |
+
+**Valid categories = the auditor's, not a private subset.** The witness accepts exactly the categories `audit_project` knows how to run (`architecture`, `complexity`, `deps`, `lint`, `practices`, `security`, `structure`, `test_quality`, `testing`, `tooling`, `type`). A category outside that set is a **hard config error**: the gate returns `WitnessResult.failure(...)` (RED) rather than silently skipping it. An **empty** `categories` list is likewise RED. This is deliberate: a quality gate must never pass green having audited nothing — a mis-configured gate that swallowed unknown categories used to do exactly that.
+
 ## Hooks
 
 `axm-audit` ships hooks for use with the `axm.hooks` entry point group:

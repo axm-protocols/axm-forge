@@ -1,0 +1,10 @@
+detail | sym
+meta: n=2 · ok=no
+rows:
+  k | v
+  1 | 2
+  3 | 4
+labels: x, y
+note: —
+nested:
+  deep: leaf=7

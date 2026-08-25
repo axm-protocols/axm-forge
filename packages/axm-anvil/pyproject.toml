@@ -1,7 +1,7 @@
 [project]
 name = "axm-anvil"
 dynamic = ["version"]
-description = "Deterministic CST-based refactoring toolkit for Python — move, rename, split, merge symbols atomically across files."
+description = "Deterministic CST-based refactoring toolkit for Python — move, rename, and extract symbols atomically across files (split & merge on the roadmap)."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
@@ -23,9 +23,9 @@ dependencies = [
     "axm-ast",
     "axm-edit",
     "axm-ingot",
-    "cyclopts>=4.5",
-    "libcst>=1.5.0",
-    "pydantic>=2.0.0",
+    "cyclopts>=4.22.5",
+    "libcst>=1.9.0",
+    "pydantic>=2.13.4",
 ]
 
 [project.scripts]
@@ -63,17 +63,17 @@ packages = ["src/axm_anvil"]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
-    "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "ruff==0.16.4",
+    "mypy>=2.3.0",
+    "prek>=0.4.12",
 ]
 docs = [
-    "mkdocs-material>=9.0",
-    "mkdocstrings[python]>=1.0.3",
-    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-material>=9.7.7",
+    "mkdocstrings[python]>=1.0.6",
+    "mkdocs-gen-files>=0.6.1",
     "mkdocs-literate-nav>=0.6.3",
 ]
 
@@ -81,9 +81,13 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm_anvil"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -91,7 +95,7 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "S", "T20", "PLR",
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
+"tests_axm_anvil/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_anvil"]
@@ -122,11 +126,12 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 show_error_codes = true
-exclude = ["tests/integration/fixtures/"]
+exclude = ["tests_axm_anvil/integration/fixtures/"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "conftest"]
+module = ["tests_axm_anvil.*", "conftest"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 ignore_missing_imports = true
 disable_error_code = [
@@ -159,7 +164,7 @@ DEP004 = ["mkdocs_gen_files", "pytest"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_anvil"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -171,7 +176,7 @@ addopts = [
     "--cov=src/axm_anvil",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=88",
 ]
 filterwarnings = ["error"]
 markers = [
@@ -191,7 +196,7 @@ relative_files = true
 # Mirror-exempt façades (see [tool.axm-audit.mirror].exempt_paths): no
 # unit-testable logic — cli.py is a cyclopts wrapper, _version.py is
 # hatch-vcs generated, __main__.py is the entry shim.
-omit = ["*/tests/*", "*/cli.py", "*/_version.py", "*/__main__.py"]
+omit = ["*/tests_*/*", "*/cli.py", "*/_version.py", "*/__main__.py"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

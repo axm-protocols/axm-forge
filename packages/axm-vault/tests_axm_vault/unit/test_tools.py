@@ -1,0 +1,192 @@
+"""Unit tests for axm_vault.tools — vault_doctor / vault_set MCP tools."""
+
+from __future__ import annotations
+
+import dataclasses
+import inspect
+from collections.abc import Iterator
+
+import keyring
+import pytest
+
+from axm_vault.catalog import Catalog
+from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
+from axm_vault.tools import VaultDeleteTool, VaultDoctorTool, VaultSetTool
+
+
+class _MemoryKeyring(keyring.backend.KeyringBackend):
+    """In-memory keyring backend for unit tests (no OS Keychain)."""
+
+    priority = 1
+
+    def __init__(self) -> None:
+        super().__init__()  # type: ignore[no-untyped-call]  # unstubbed keyring
+        self._store: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self._store.get((service, username))
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        self._store[(service, username)] = password
+
+    def delete_password(self, service: str, username: str) -> None:
+        self._store.pop((service, username), None)
+
+
+@pytest.fixture
+def mem_keyring() -> Iterator[_MemoryKeyring]:
+    """Swap the process-wide keyring for an in-memory backend."""
+    backend = _MemoryKeyring()
+    previous = keyring.get_keyring()
+    keyring.set_keyring(backend)
+    yield backend
+    keyring.set_keyring(previous)
+
+
+def _secret_group() -> CredentialGroup:
+    return CredentialGroup(
+        id="svc",
+        package="pkg",
+        title="Service",
+        specs=(
+            CredentialSpec(
+                name="token",
+                env="SVC_TOKEN",
+                kind="token",
+                sensitivity=Sensitivity.SECRET,
+                required=False,
+            ),
+        ),
+    )
+
+
+def _nonsensitive_group() -> CredentialGroup:
+    return CredentialGroup(
+        id="svc",
+        package="pkg",
+        title="Service",
+        specs=(
+            CredentialSpec(
+                name="account_id",
+                env="SVC_ACCOUNT_ID",
+                kind="id",
+                sensitivity=Sensitivity.NONSENSITIVE,
+                required=False,
+            ),
+        ),
+    )
+
+
+def _catalog(*groups: CredentialGroup) -> Catalog:
+    return Catalog(groups=tuple(groups))
+
+
+def _patch_catalog(monkeypatch: pytest.MonkeyPatch, catalog: Catalog) -> None:
+    """Force load_catalog() to return our fixture catalog on every call site.
+
+    ``vault_set`` reads the catalog in ``axm_vault.tools``; ``vault_doctor``
+    delegates to ``doctor_data`` which reads it in ``axm_vault.doctor``.
+    """
+    import axm_vault.doctor as doctor_mod
+    import axm_vault.tools as tools_mod
+
+    monkeypatch.setattr(tools_mod, "load_catalog", lambda: catalog)
+    monkeypatch.setattr(doctor_mod, "load_catalog", lambda: catalog)
+
+
+def test_vault_doctor_tool_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC3: VaultDoctorTool returns success True with provenance data."""
+    monkeypatch.setenv("SVC_TOKEN", "from-env")
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultDoctorTool().execute()
+    assert result.success is True
+    assert result.data["svc.token"] == {"layer": "env", "present": True}
+
+
+def test_vault_doctor_serialized_never_leaks(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC5: the serialized vault_doctor ToolResult contains the plaintext NOWHERE."""
+    monkeypatch.delenv("SVC_TOKEN", raising=False)
+    import axm_config
+
+    monkeypatch.setattr(axm_config, "get", lambda grp, name: None, raising=False)
+    from axm_vault.store import KeyringStore
+
+    KeyringStore().set("svc", "token", "PLAINTEXT")
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultDoctorTool().execute()
+    serialized = str(dataclasses.asdict(result))
+    assert "PLAINTEXT" not in serialized
+    assert result.data["svc.token"] == {"layer": "keyring", "present": True}
+
+
+def test_vault_set_nonsensitive_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC4: a NONSENSITIVE spec is env-only -> rejected, never stored."""
+    _patch_catalog(monkeypatch, _catalog(_nonsensitive_group()))
+    result = VaultSetTool().execute(group="svc", name="account_id", value="123")
+    assert result.success is False
+    assert result.error is not None
+
+
+def test_vault_set_requires_group_name_value() -> None:
+    """AC1/AC2: group/name/value are required params (no empty-string default)."""
+    params = inspect.signature(VaultSetTool.execute).parameters
+    required = {"group", "name", "value"}
+    for field in required:
+        assert params[field].default is inspect.Parameter.empty
+    assert params["instance"].default is None
+
+
+def test_vault_set_happy_path_stores_secret(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC3: a well-formed call with all three fields stores the secret."""
+    from axm_vault.store import KeyringStore
+
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultSetTool().execute(group="svc", name="token", value="s3cret")
+    assert result.success is True
+    assert KeyringStore().get("svc", "token") == "s3cret"
+
+
+def test_vault_set_unknown_spec_surfaces_contextual_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: vault_set on an unknown spec name surfaces the contextual message."""
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultSetTool().execute(group="svc", name="nope", value="x")
+    assert result.success is False
+    assert result.error is not None
+    assert "unknown credential svc.'nope'" in result.error
+    assert result.error != "'nope'"
+
+
+def test_vault_set_missing_group_raises_type_error() -> None:
+    """AC2: a missing required field fails with TypeError, not a bare KeyError."""
+    with pytest.raises(TypeError):
+        VaultSetTool().execute(name="token", value="s3cret")  # type: ignore[call-arg]
+
+
+def test_vault_delete_removes_secret(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC2: VaultDeleteTool deletes a stored SECRET and returns success."""
+    from axm_vault.store import KeyringStore
+
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    KeyringStore().set("svc", "token", "PLAINTEXT")
+    result = VaultDeleteTool().execute(group="svc", name="token")
+    assert result.success is True
+    assert result.data["deleted"] == "keyring:svc.token"
+    assert KeyringStore().get("svc", "token") is None
+
+
+def test_vault_delete_absent_is_noop_success(
+    monkeypatch: pytest.MonkeyPatch, mem_keyring: _MemoryKeyring
+) -> None:
+    """AC1: deleting an already-absent secret is a safe no-op returning success."""
+    _patch_catalog(monkeypatch, _catalog(_secret_group()))
+    result = VaultDeleteTool().execute(group="svc", name="token")
+    assert result.success is True
+    assert result.error is None

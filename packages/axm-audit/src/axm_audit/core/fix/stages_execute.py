@@ -47,6 +47,7 @@ from .paths import (
 from .tests_ast import (
     _movable_units_at_top_level,
     _string_literal_fixtures_in_unit,
+    _unit_arg_fixtures,
     marker_fixtures_in_unit,
     top_level_test_classes,
 )
@@ -456,12 +457,7 @@ def _fixtures_referenced_by(tree: ast.Module, unit_names: set[str]) -> set[str]:
             continue
         refs |= _string_literal_fixtures_in_unit(n)
         refs |= marker_fixtures_in_unit(n)
-        if isinstance(n, ast.ClassDef):
-            for m in n.body:
-                if isinstance(m, ast.FunctionDef):
-                    refs |= {a.arg for a in m.args.args}
-        else:
-            refs |= {a.arg for a in n.args.args}
+        refs |= _unit_arg_fixtures(n)
     return refs
 
 

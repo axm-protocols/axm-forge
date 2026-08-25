@@ -1,0 +1,102 @@
+"""Integration tests for axm_edit.tools.edit_file — EditFileTool (real I/O)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from axm_edit.tools.edit_file import EditFileTool
+
+
+class TestEditFileTool:
+    """Tests for EditFileTool."""
+
+    @pytest.fixture()
+    def tool(self) -> EditFileTool:
+        return EditFileTool()
+
+    def test_simple_replace(self, tool: EditFileTool, tmp_path: Path) -> None:
+        target = tmp_path / "code.py"
+        target.write_text("def foo():\n    return 42\n")
+        result = tool.execute(
+            path=str(tmp_path), file="code.py", old="return 42", new="return 99"
+        )
+        assert result.success is True
+        assert result.data["replacements"] == 1
+        assert result.data["first_line"] == 2
+        assert "return 99" in target.read_text()
+
+    def test_text_not_found(self, tool: EditFileTool, tmp_path: Path) -> None:
+        (tmp_path / "code.py").write_text("def foo():\n    pass\n")
+        result = tool.execute(
+            path=str(tmp_path), file="code.py", old="nonexistent", new="x"
+        )
+        assert result.success is False
+        assert result.error is not None and "not found" in result.error
+
+    def test_ambiguous_multiple(self, tool: EditFileTool, tmp_path: Path) -> None:
+        (tmp_path / "code.py").write_text("a = 1\nb = 1\nc = 1\n")
+        result = tool.execute(path=str(tmp_path), file="code.py", old="= 1", new="= 2")
+        assert result.success is False
+        assert result.error is not None and "3 occurrences" in result.error
+
+    def test_replace_all_with_count(self, tool: EditFileTool, tmp_path: Path) -> None:
+        target = tmp_path / "code.py"
+        target.write_text("a = 1\nb = 1\n")
+        result = tool.execute(
+            path=str(tmp_path), file="code.py", old="= 1", new="= 2", count=-1
+        )
+        assert result.success is True
+        assert result.data["replacements"] == 2
+        assert target.read_text() == "a = 2\nb = 2\n"
+
+    def test_replace_specific_count(self, tool: EditFileTool, tmp_path: Path) -> None:
+        target = tmp_path / "code.py"
+        target.write_text("a = 1\nb = 1\nc = 1\n")
+        result = tool.execute(
+            path=str(tmp_path), file="code.py", old="= 1", new="= 2", count=2
+        )
+        assert result.success is True
+        assert result.data["replacements"] == 2
+        assert target.read_text() == "a = 2\nb = 2\nc = 1\n"
+
+    def test_file_not_found(self, tool: EditFileTool, tmp_path: Path) -> None:
+        result = tool.execute(path=str(tmp_path), file="nope.py", old="a", new="b")
+        assert result.success is False
+        assert result.error is not None and "not found" in result.error
+
+    def test_missing_old(self, tool: EditFileTool, tmp_path: Path) -> None:
+        result = tool.execute(path=str(tmp_path), file="f.py", new="b")
+        assert result.success is False
+        assert result.error is not None and "old" in result.error
+
+    def test_missing_new(self, tool: EditFileTool, tmp_path: Path) -> None:
+        result = tool.execute(path=str(tmp_path), file="f.py", old="a")
+        assert result.success is False
+        assert result.error is not None and "new" in result.error
+
+    def test_multiline_replace(self, tool: EditFileTool, tmp_path: Path) -> None:
+        target = tmp_path / "code.py"
+        target.write_text("def foo():\n    pass\n\ndef bar():\n    pass\n")
+        result = tool.execute(
+            path=str(tmp_path),
+            file="code.py",
+            old="def foo():\n    pass",
+            new="def foo():\n    return 1",
+        )
+        assert result.success is True
+        assert "return 1" in target.read_text()
+        assert result.data["first_line"] == 1
+
+    def test_negative_count_rejected(self, tool: EditFileTool, tmp_path: Path) -> None:
+        """Regression (P2-9): count=-2 fails instead of silently replacing all."""
+        target = tmp_path / "code.py"
+        target.write_text("a a a\n")
+        result = tool.execute(
+            path=str(tmp_path), file="code.py", old="a", new="b", count=-2
+        )
+        assert result.success is False
+        assert result.error is not None and "count" in result.error.lower()
+        # File left untouched — the invalid count did not apply anything.
+        assert target.read_text() == "a a a\n"

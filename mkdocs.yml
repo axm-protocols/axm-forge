@@ -60,6 +60,9 @@ nav:
     - axm-git: '!include ./packages/axm-git/mkdocs.yml'
     - axm-smelt: '!include ./packages/axm-smelt/mkdocs.yml'
     - axm-echo: '!include ./packages/axm-echo/mkdocs.yml'
+    - axm-config: '!include ./packages/axm-config/mkdocs.yml'
+    - axm-vault: '!include ./packages/axm-vault/mkdocs.yml'
+    - axm-doctor: '!include ./packages/axm-doctor/mkdocs.yml'
     - axm-ingot: '!include ./packages/axm-ingot/mkdocs.yml'
   - Contributing:
     - contributing.md
@@ -87,6 +90,9 @@ plugins:
             - packages/axm-smelt/src
             - packages/axm-echo/src
             - packages/axm-ingot/src
+            - packages/axm-config/src
+            - packages/axm-doctor/src
+            - packages/axm-vault/src
           options:
             docstring_style: google
             show_root_heading: true

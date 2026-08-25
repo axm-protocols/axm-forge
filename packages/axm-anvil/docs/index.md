@@ -7,7 +7,7 @@ hide:
 # axm-anvil
 
 <p align="center">
-  <strong>Deterministic CST-based refactoring toolkit for Python — move, rename, split, merge symbols atomically across files.</strong>
+  <strong>Deterministic CST-based refactoring toolkit for Python — move, rename, and extract symbols atomically across files (split &amp; merge on the roadmap).</strong>
 </p>
 
 <p align="center">

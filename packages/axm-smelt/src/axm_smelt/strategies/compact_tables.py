@@ -6,6 +6,7 @@ import re
 
 from axm_smelt.core.models import Format, SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
+from axm_smelt.strategies.fences import fenced_line_indices
 
 __all__ = ["CompactTablesStrategy"]
 
@@ -39,18 +40,13 @@ class CompactTablesStrategy(SmeltStrategy):
         if ctx.format is not Format.MARKDOWN:
             return ctx
 
-        lines = ctx.text.split("\n")
+        text = ctx.text
+        fenced = fenced_line_indices(text)
         out: list[str] = []
         changed = False
-        in_fenced = False
 
-        for line in lines:
-            if line.startswith("```"):
-                in_fenced = not in_fenced
-                out.append(line)
-                continue
-
-            if in_fenced or not _TABLE_LINE_RE.match(line):
+        for idx, line in enumerate(text.split("\n")):
+            if idx in fenced or not _TABLE_LINE_RE.match(line):
                 out.append(line)
                 continue
 

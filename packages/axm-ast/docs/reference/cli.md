@@ -412,12 +412,19 @@ axm-ast flows src/mylib --trace main --json
 ```
 
 ```
-🔀 Flow from 'test_response' (3 step(s)):
+🔀 Flow from 'analyze_package' (4 step(s)):
 
-  depth 0  test_response   (test_http:3)
-  depth 1  HttpResponse    (test_http:4) → mylib.http
-  depth 1  assertEqual     (test_http:5)
+analyze_package  (core.analyzer:71)
+├── _discover_py_files  (core.analyzer:123)
+├── extract_module_info  (core.analyzer:126)
+└── _build_edges  (core.analyzer:129)
 ```
+
+The tree is rendered by `format_flow_compact` (box-drawing glyphs
+`├──`/`└──`, indentation per depth). Cross-module callees resolved with
+`--cross-module` are recorded as leaves annotated with their resolved
+module, but are not themselves expanded further (single-hop, see the
+[cross-module resolution](../explanation/cross_module_resolution.md) page).
 
 ---
 

@@ -20,34 +20,21 @@ Homepage = "https://forge.axm-protocols.io"
 Repository = "https://github.com/axm-protocols/axm-forge"
 Documentation = "https://forge.axm-protocols.io"
 
-dependencies = [
-    "axm",
-    "axm-anvil",
-    "axm-ast",
-    "axm-audit",
-    "axm-edit",
-    "axm-init",
-    "axm-git",
-    "axm-mcp",
-    "axm-smelt",
-    "axm-ingot",
-    "axm-echo",
-]
-
 [dependency-groups]
 dev = [
-    "prek>=0.4.5",
-    "ruff==0.15.18",
+    "prek>=0.4.9",
+    "ruff==0.16.4",
     "pytest>=9.1.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "mypy>=2.1.0",
+    "mypy>=2.2.0",
     "pip-audit>=2.10.1",
+    "pytest-xdist>=3.8.0",
 ]
 docs = [
     "mkdocs-material>=9.7.6",
     "mkdocs-monorepo-plugin>=1.1",
-    "mkdocstrings[python]>=1.0.4",
+    "mkdocstrings[python]>=1.0.6",
     "mkdocs-gen-files>=0.6.1",
     "mkdocs-literate-nav>=0.6.3",
 ]
@@ -86,22 +73,46 @@ axm-ingot = { workspace = true }
 axm-echo = { workspace = true }
 axm-mcp = { workspace = true }
 axm-smelt = { workspace = true }
+axm-config = { workspace = true }
+axm-vault = { workspace = true }
+axm-doctor = { workspace = true }
 
 [tool.pytest.ini_options]
-import_mode = "importlib"
-testpaths = [
-    "packages/axm/tests",
-    "packages/axm-anvil/tests",
-    "packages/axm-ast/tests",
-    "packages/axm-audit/tests",
-    "packages/axm-edit/tests",
-    "packages/axm-init/tests",
-    "packages/axm-git/tests",
-    "packages/axm-mcp/tests",
-    "packages/axm-smelt/tests",
-    "packages/axm-ingot/tests",
-    "packages/axm-echo/tests",
+# Replicated from the per-package configs: a ROOT run is driven by this file.
+pythonpath = [
+    "packages/axm-audit/tests_axm_audit",
 ]
 
+import_mode = "importlib"
+testpaths = [
+    "packages/axm/tests_axm",
+    "packages/axm-anvil/tests_axm_anvil",
+    "packages/axm-ast/tests_axm_ast",
+    "packages/axm-audit/tests_axm_audit",
+    "packages/axm-config/tests_axm_config",
+    "packages/axm-doctor/tests_axm_doctor",
+    "packages/axm-echo/tests_axm_echo",
+    "packages/axm-edit/tests_axm_edit",
+    "packages/axm-git/tests_axm_git",
+    "packages/axm-ingot/tests_axm_ingot",
+    "packages/axm-init/tests_axm_init",
+    "packages/axm-mcp/tests_axm_mcp",
+    "packages/axm-smelt/tests_axm_smelt",
+    "packages/axm-vault/tests_axm_vault",
+    # Workspace-level tests (pre-commit config, uv.lock, workspace render):
+    # they belong to no package, so they need their own entry or they never run.
+    "tests",
+]
+
+[tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+# Les répertoires de templates Copier portent des noms interpolés
+# ({{module_name}}) : ce ne sont pas des modules Python, et N999 les
+# refuserait à juste titre. Les .py.jinja échappent déjà à ruff par leur
+# suffixe ; les __init__.py nus de la suite scaffoldée, non.
+extend-exclude = ["*.md", "**/templates/workspace-member/tests_*/**"]
+
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["PLR2004"]
+"**/tests_*/**" = ["PLR2004"]

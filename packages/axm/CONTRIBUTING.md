@@ -3,7 +3,7 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/axm-protocols/axm.git
+git clone https://github.com/axm-protocols/axm-forge.git
 cd axm
 uv sync --all-groups
 ```

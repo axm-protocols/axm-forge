@@ -70,11 +70,25 @@ def is_axm_mcp_process(pid: int) -> bool:
 
     Guards against OS PID reuse: an existence probe (:func:`is_process_alive`)
     cannot tell our server apart from an unrelated process that inherited the
-    same PID. We inspect the target's command line via ``ps`` (portable to
-    macOS and Linux; no ``/proc`` dependency, no ``psutil``) and require the
-    ``axm-mcp`` marker. Any failure (process vanished, ``ps`` error, mismatch)
-    yields False — we never send SIGTERM on an unconfirmed identity.
+    same PID. We inspect the target's command line (no ``psutil`` dependency)
+    and require the ``axm-mcp`` marker. Any failure (process vanished, read
+    error, mismatch) yields False — we never send SIGTERM on an unconfirmed
+    identity.
+
+    ``/proc/<pid>/cmdline`` is preferred where it exists (Linux): it yields the
+    full NUL-separated argv, whereas ``ps -o command=`` renders a column the
+    kernel may truncate for a long argv — an absolute venv path plus arguments
+    is long enough to lose the trailing marker, which silently turns a live
+    server into an "unverified" one. ``ps`` stays the fallback for platforms
+    without ``/proc`` (macOS).
     """
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        pass  # No /proc (macOS), or the process vanished — fall back to ps.
+    else:
+        return AXM_MCP_MARKER in raw.decode("utf-8", "replace")
+
     try:
         result = subprocess.run(  # noqa: S603
             ["ps", "-p", str(pid), "-o", "command="],  # noqa: S607
@@ -101,14 +115,36 @@ def serve(
     host: Annotated[str, cyclopts.Parameter(help="Bind address.")] = "127.0.0.1",
     port: Annotated[int, cyclopts.Parameter(help="Bind port.")] = DEFAULT_PORT,
 ) -> None:
-    """Start the MCP server with Streamable HTTP transport."""
+    """Start the MCP server with Streamable HTTP transport.
+
+    The PID file is transactional: a second ``serve`` refuses to start when a
+    live axm-mcp server already owns it (avoids clobbering the survivor's PID
+    with a doomed instance that then fails the bind), and the ``finally`` only
+    removes the file when it still contains *our* PID — so a failed start does
+    not delete the legitimate server's PID file.
+    """
     from axm_mcp import server as _server
 
-    write_pid(os.getpid())
+    existing = read_pid()
+    if (
+        existing is not None
+        and is_process_alive(existing)
+        and is_axm_mcp_process(existing)
+    ):
+        print(  # noqa: T201
+            f"Refusing to start: an axm-mcp server is already running "
+            f"(PID {existing}). Use 'axm-mcp stop' first.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    own_pid = os.getpid()
+    write_pid(own_pid)
     try:
         _server.serve(host=host, port=port)
     finally:
-        remove_pid_file()
+        if read_pid() == own_pid:
+            remove_pid_file()
 
 
 @app.command
@@ -121,16 +157,20 @@ def status(
     url = f"http://{host}:{port}/health"
     try:
         resp = httpx.get(url, timeout=3)
-        if resp.status_code == httpx.codes.OK:
-            data = resp.json()
-            tools = data.get("tools_count", "?")
-            print(f"Server running on {host}:{port} ({tools} tools)")  # noqa: T201
-        else:
-            print(f"Server responded with status {resp.status_code}", file=sys.stderr)  # noqa: T201
-            raise SystemExit(1)
-    except (httpx.ConnectError, httpx.ConnectTimeout) as err:
+    except httpx.HTTPError as err:
+        # Any transport-level failure (connect refused/timeout, read timeout,
+        # malformed response) means "not reachable" — never a raw traceback.
         print("Server not running", file=sys.stderr)  # noqa: T201
         raise SystemExit(1) from err
+
+    if resp.status_code != httpx.codes.OK:
+        print(f"Server responded with status {resp.status_code}", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
+    try:
+        tools = resp.json().get("tools_count", "?")
+    except ValueError:  # non-JSON body (JSONDecodeError subclasses ValueError)
+        tools = "?"
+    print(f"Server running on {host}:{port} ({tools} tools)")  # noqa: T201
 
 
 @app.command

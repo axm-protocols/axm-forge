@@ -1,8 +1,11 @@
 # How-To Guides
 
-Task-oriented recipes for common `axm-anvil move` workflows. Every command
-accepts positional (`FROM TO SYMBOLS`) or flag (`--from-file/--to-file/--symbols`)
-form; see the [CLI Reference](../reference/cli.md) for the full option list.
+Task-oriented recipes for common `axm-anvil move` workflows. The dedicated
+`axm-anvil` CLI exposes a single `move` command, which accepts positional
+(`FROM TO SYMBOLS`) or flag (`--from-file/--to-file/--symbols`) form; see the
+[CLI Reference](../reference/cli.md) for the full option list. `rename` and
+`extract` are available via MCP (`anvil_rename`, `anvil_extract`) and the
+`axm` dispatcher — see [Use via MCP](mcp.md).
 
 ## Preview a move before touching the disk
 

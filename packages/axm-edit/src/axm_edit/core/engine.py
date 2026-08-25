@@ -17,7 +17,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
+from axm_edit.core.atomic_write import atomic_replace
 from axm_edit.core.checkpoint import create_checkpoint, rollback
+from axm_edit.core.diagnostics import (
+    explain_difference,
+    explain_near_miss,
+    format_match_lines,
+)
+from axm_edit.core.rewrite import (
+    REWRITE_CHECKSUM_STALE,
+    REWRITE_TARGET_MISSING,
+    REWRITE_TARGET_NOT_REGULAR,
+    classify_rewrite_target,
+    compute_checksum,
+)
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -25,13 +38,23 @@ from axm_edit.models.operations import (
     Edit,
     Operation,
     ReplaceOp,
+    RewriteOp,
     ValidationError,
 )
-from axm_edit.utils import is_binary
+from axm_edit.utils import is_binary, resolve_safe
 
 logger = logging.getLogger(__name__)
 
+# Canonical resolver, re-exported under the historical internal name so the
+# many in-module callers keep working. New code should import
+# ``axm_edit.utils.resolve_safe`` directly.
+_resolve_safe = resolve_safe
+
 _MIN_AMBIGUOUS_HITS = 2
+
+# Preserved verbatim: callers (and tests) match on this exact wording. The
+# hint-miss explanation is APPENDED to it, never substituted.
+_HINT_MISS_WORDING = "Content not found at or near hint line"
 
 # ── Resolved edit (after fuzzy search) ────────────────────────────────────
 
@@ -47,24 +70,6 @@ class ResolvedEdit:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
-
-
-def _resolve_safe(root: Path, relative: str) -> Path | None:
-    """Resolve a relative path safely within *root*.
-
-    Returns ``None`` if the path escapes the project root.
-
-    Containment is enforced solely by resolving the path (which follows
-    ``..`` segments, symlinks, and absolute paths to their real target) and
-    checking it stays under ``root``. No string-level pre-filter is needed:
-    ``resolve()`` + ``relative_to`` is the single, OS-faithful barrier.
-    """
-    resolved = (root / relative).resolve()
-    try:
-        resolved.relative_to(root.resolve())
-    except ValueError:
-        return None
-    return resolved
 
 
 def _old_line_count(old: str) -> int:
@@ -379,25 +384,55 @@ def _all_match_lines(lines: list[str], old: str) -> list[int]:
     return _collect_hits(lines, match_dedented, num_lines)
 
 
+def _hint_miss_message(old: str, actual: str | None, line_count: int) -> str:
+    """Explain a hinted miss on top of the preserved not-found wording.
+
+    :data:`_HINT_MISS_WORDING` is kept verbatim and the explanation is
+    appended: what actually sits at the hint — delegated to
+    :func:`axm_edit.core.diagnostics.explain_difference`, the single owner of
+    the character-level comparison — or, when the hint points past the end of
+    the file, how many lines the file really has.
+    """
+    if actual is None:
+        return (
+            f"{_HINT_MISS_WORDING}: the hint points past the end of the file, "
+            f"which has {line_count} lines"
+        )
+    return f"{_HINT_MISS_WORDING}: {explain_difference(old, actual)}"
+
+
 def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationError:
     """Build the validation error for an unresolved *edit* (no usable match).
 
     Branches on the match count of a hint-less edit so a true zero-match
     miss and a ``>=2`` ambiguous anchor produce distinct, actionable
-    messages. A hinted edit keeps its dedicated near-hint message.
+    messages. A hinted edit keeps its dedicated near-hint message, enriched
+    by :func:`_hint_miss_message` with what actually sits at the hint line
+    (or the file's real line count when the hint points past its end).
+
+    On the zero-match branch the report is delegated to
+    :func:`axm_edit.core.diagnostics.explain_near_miss`: it owns every
+    marker, Unicode-naming and truncation decision, so the engine only
+    transposes its verdict into the structured ``line``/``actual`` fields.
+
+    The ambiguous branch is bounded the same way: the full hit list stays
+    available in :func:`_all_match_lines`, but its rendering goes through
+    :func:`axm_edit.core.diagnostics.format_match_lines`, which lists the
+    first few lines and summarises the rest as ``(+N more)``.
     """
     if edit.line is not None:
+        actual = _actual_at(lines, edit.line, _old_line_count(edit.old))
         return ValidationError(
             file=file_rel,
             line=edit.line,
             expected=edit.old,
-            actual=_actual_at(lines, edit.line, _old_line_count(edit.old)),
-            error="Content not found at or near hint line",
+            actual=actual,
+            error=_hint_miss_message(edit.old, actual, len(lines)),
         )
 
     hits = _all_match_lines(lines, edit.old)
     if len(hits) >= _MIN_AMBIGUOUS_HITS:
-        line_list = ", ".join(str(h) for h in hits)
+        line_list = format_match_lines(hits)
         return ValidationError(
             file=file_rel,
             expected=edit.old,
@@ -406,10 +441,14 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
                 f"({line_list}); disambiguate with a 'line' hint"
             ),
         )
+    near = explain_near_miss([ln.rstrip("\r\n") for ln in lines], edit.old)
+    candidate = near.candidate
     return ValidationError(
         file=file_rel,
+        line=candidate.line if candidate is not None else None,
         expected=edit.old,
-        error="Content not found in file: the 'old' snippet was not located",
+        actual=candidate.text if candidate is not None else None,
+        error=near.message,
     )
 
 
@@ -594,9 +633,14 @@ def _apply_replace(
         # Re-indent if match was indent-normalized
         if edit.indent:
             new_content = _reindent(new_content, edit.indent)
-        if not new_content.endswith("\n"):
-            new_content += "\n"
-        new_lines = new_content.splitlines(keepends=True)
+        if new_content == "":
+            # An empty replacement is a *pure deletion* of the matched block:
+            # emit no lines rather than a residual blank line.
+            new_lines: list[str] = []
+        else:
+            if not new_content.endswith("\n"):
+                new_content += "\n"
+            new_lines = new_content.splitlines(keepends=True)
         lines[start - 1 : end] = new_lines
 
     target.write_text("".join(lines), encoding="utf-8", newline=eol)
@@ -612,7 +656,14 @@ def _validate_create(root: Path, op: CreateOp) -> list[ValidationError]:
             ValidationError(file=op.file, error="Path traversal not allowed"),
         )
         return errors
-    if target.exists() and not op.overwrite:
+    if target.exists() and not target.is_file():
+        errors.append(
+            ValidationError(
+                file=op.file,
+                error="Target exists and is not a file (is a directory?)",
+            ),
+        )
+    elif target.exists() and not op.overwrite:
         errors.append(
             ValidationError(
                 file=op.file,
@@ -635,6 +686,10 @@ def _validate_delete(root: Path, op: DeleteOp) -> list[ValidationError]:
         errors.append(
             ValidationError(file=op.file, error="File not found"),
         )
+    elif not target.is_file():
+        errors.append(
+            ValidationError(file=op.file, error="Not a file (is a directory?)"),
+        )
     return errors
 
 
@@ -645,21 +700,122 @@ class _GroupedOps:
     replace_by_file: dict[str, list[Edit]]
     creates: list[CreateOp]
     deletes: list[DeleteOp]
+    rewrites: list[RewriteOp]
 
 
-def _group_operations(operations: Sequence[Operation]) -> _GroupedOps:
-    """Separate operations by type."""
+def _canonical_key(root: Path, file_rel: str) -> str:
+    """Canonical dedup key for *file_rel*: its resolved-within relative path.
+
+    Two spellings of the same file (``"a.py"`` and ``"./a.py"``, or
+    ``"sub/../a.py"``) collapse to one key so overlap detection cannot be
+    bypassed by aliasing. Paths that escape *root* keep their raw spelling
+    and are caught later by per-op validation.
+    """
+    resolved = resolve_safe(root, file_rel)
+    if resolved is None:
+        return file_rel
+    return resolved.relative_to(root.resolve()).as_posix()
+
+
+def _group_operations(root: Path, operations: Sequence[Operation]) -> _GroupedOps:
+    """Separate operations by type, keying replaces on the canonical path."""
     replace_by_file: dict[str, list[Edit]] = {}
     creates: list[CreateOp] = []
     deletes: list[DeleteOp] = []
+    rewrites: list[RewriteOp] = []
     for op in operations:
         if isinstance(op, ReplaceOp):
-            replace_by_file.setdefault(op.file, []).extend(op.edits)
+            key = _canonical_key(root, op.file)
+            replace_by_file.setdefault(key, []).extend(op.edits)
         elif isinstance(op, CreateOp):
             creates.append(op)
         elif isinstance(op, DeleteOp):
             deletes.append(op)
-    return _GroupedOps(replace_by_file, creates, deletes)
+        elif isinstance(op, RewriteOp):
+            rewrites.append(op)
+    return _GroupedOps(replace_by_file, creates, deletes, rewrites)
+
+
+_REWRITE_TARGET_BINARY = "rewrite_target_binary"
+
+_REWRITE_ERROR_DETAILS: dict[str, str] = {
+    REWRITE_TARGET_MISSING: "the rewrite target does not exist",
+    REWRITE_TARGET_NOT_REGULAR: "the rewrite target is not a regular file",
+    REWRITE_CHECKSUM_STALE: (
+        "the rewrite target changed since its declared checksum was read"
+    ),
+    _REWRITE_TARGET_BINARY: "the rewrite target is a binary file",
+}
+
+
+def _rewrite_error(code: str, file: str) -> ValidationError:
+    """Map a rewrite classification *code* to its validation error.
+
+    Pure by construction: the wording derives from the code alone, so the
+    diagnostic is testable without touching the filesystem.
+
+    Args:
+        code: The code returned by ``classify_rewrite_target`` (or the
+            engine-local binary-target code).
+        file: The relative path the rewrite targeted.
+
+    Returns:
+        A ``ValidationError`` whose message contains *code* verbatim.
+    """
+    detail = _REWRITE_ERROR_DETAILS.get(code, "the rewrite target was refused")
+    return ValidationError(file=file, error=f"{code}: {detail}")
+
+
+def _observe_rewrite_target(
+    root: Path,
+    relative: str,
+) -> tuple[bool, bool, str | None]:
+    """Read the on-disk facts of a rewrite target, without following it.
+
+    The final path component is inspected as-is, so a symlink is observed as
+    a symlink and never as the regular file it points at. A path escaping
+    *root* is observed as absent, exactly like a path that does not exist.
+
+    Args:
+        root: Project root the batch applies to.
+        relative: Relative path targeted by the rewrite.
+
+    Returns:
+        The ``(exists, is_regular, actual_checksum)`` triple consumed by
+        :func:`~axm_edit.core.rewrite.classify_rewrite_target`.
+    """
+    if _resolve_safe(root, relative) is None:
+        return (False, False, None)
+    candidate = root / relative
+    exists = candidate.exists() or candidate.is_symlink()
+    if not exists or candidate.is_symlink() or not candidate.is_file():
+        return (exists, False, None)
+    try:
+        return (True, True, compute_checksum(candidate.read_bytes()))
+    except OSError:
+        return (True, True, None)
+
+
+def _validate_rewrite(root: Path, op: RewriteOp) -> list[ValidationError]:
+    """Validate one rewrite, before a single byte is written.
+
+    The verdict is not decided here: the observed facts are handed to the
+    shared predicate ``classify_rewrite_target``, so the dry run and the
+    apply path can never drift apart.
+    """
+    exists, is_regular, actual = _observe_rewrite_target(root, op.file)
+    code = classify_rewrite_target(
+        exists=exists,
+        is_regular=is_regular,
+        actual_checksum=actual,
+        expected_checksum=op.expected_checksum,
+    )
+    if code is not None:
+        return [_rewrite_error(code, op.file)]
+    target = _resolve_safe(root, op.file)
+    if target is not None and is_binary(target):
+        return [_rewrite_error(_REWRITE_TARGET_BINARY, op.file)]
+    return []
 
 
 def _validate_all(
@@ -682,6 +838,9 @@ def _validate_all(
 
     for delete_op in grouped.deletes:
         errors.extend(_validate_delete(root, delete_op))
+
+    for rewrite_op in grouped.rewrites:
+        errors.extend(_validate_rewrite(root, rewrite_op))
 
     return resolved_by_file, errors
 
@@ -707,6 +866,17 @@ def _apply_creates_deletes(
     return count
 
 
+def _apply_rewrites(root: Path, rewrites: list[RewriteOp]) -> int:
+    """Replace every validated rewrite target atomically, returning the count."""
+    count = 0
+    for rewrite_op in rewrites:
+        target = _resolve_safe(root, rewrite_op.file)
+        assert target is not None
+        atomic_replace(target, rewrite_op.content.encode("utf-8"))
+        count += 1
+    return count
+
+
 def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     """Validate and apply a batch of file operations.
 
@@ -727,14 +897,14 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
 
     Args:
         root: Project root directory (all paths are relative to this).
-        operations: List of replace, create, and delete operations.
+        operations: List of replace, create, rewrite and delete operations.
 
     Returns:
         BatchResult with success status, a targeted-path snapshot
         (``checkpoint``) for rollback, and a summary.
     """
     root = root.resolve()
-    grouped = _group_operations(operations)
+    grouped = _group_operations(root, operations)
     resolved_by_file, errors = _validate_all(root, grouped)
 
     if errors:
@@ -751,6 +921,7 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
         for file_rel, resolved in resolved_by_file.items():
             total_applied += _apply_replace(root, file_rel, resolved)
         total_applied += _apply_creates_deletes(root, grouped.creates, grouped.deletes)
+        total_applied += _apply_rewrites(root, grouped.rewrites)
     except _AnchorDriftError as drift:
         rb = rollback(root, checkpoint)
         return BatchResult(
@@ -769,13 +940,17 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
             rollback_failed=not rb.ok,
         )
 
+    summary = {
+        "modified": len(resolved_by_file),
+        "created": len(grouped.creates),
+        "deleted": len(grouped.deletes),
+    }
+    if grouped.rewrites:
+        summary["rewritten"] = len(grouped.rewrites)
+
     return BatchResult(
         success=True,
         checkpoint=checkpoint,
         applied=total_applied,
-        summary={
-            "modified": len(resolved_by_file),
-            "created": len(grouped.creates),
-            "deleted": len(grouped.deletes),
-        },
+        summary=summary,
     )

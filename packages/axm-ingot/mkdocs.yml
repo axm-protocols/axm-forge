@@ -6,9 +6,12 @@ nav:
   - Tutorials:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
-    - howto/index.md
+    - Overview: howto/index.md
+    - Promote a helper: howto/promote-a-helper.md
+    - Migrate a local renderer: how-to/migrate-local-render-to-ingot.md
   - Reference:
-    - Public API: reference/cli.md
-    - Python API: reference/
+    - Public API: reference/api.md
+    - Render primitives: reference/render.md
+    - Duration primitive: reference/duration.md
   - Explanation:
     - Architecture: explanation/architecture.md

@@ -84,8 +84,21 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
             return {"error": str(exc)}
 
     @mcp.tool(name="axm_call")
-    def axm_call(name: str, arguments: dict[str, object] | None = None) -> str:
+    async def axm_call(name: str, arguments: dict[str, object] | None = None) -> str:
         """Execute an AXM tool by name and return its text output.
+
+        Delegates to :meth:`ToolCatalog.acall` — the single execution path,
+        shared with the direct MCP registration: the per-key concurrency lock
+        (``git_*``/``protocol_*`` in HTTP mode), tracing and exception
+        flattening all apply here identically. This is ``async`` so the lock
+        is actually held and the sync tool body is offloaded off the event
+        loop (``asyncio.to_thread``) in the shared HTTP server.
+
+        A ``TypeError`` reaching this handler comes only from the *kwarg
+        binding* (an ``arguments`` mapping that does not match the tool's
+        signature): the tool's own ``TypeError`` is caught and flattened
+        inside the wrapper, so the param-hint suffix is never a misleading
+        diagnostic for a business-logic error.
 
         Args:
             name: The tool's name.
@@ -97,7 +110,7 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
             arguments did not match the tool's signature.
         """
         try:
-            return catalog.call(name, arguments)
+            return await catalog.acall(name, arguments)
         except UnknownToolError as exc:
             return f"error: {exc}"
         except TypeError as exc:

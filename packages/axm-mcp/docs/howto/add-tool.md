@@ -22,6 +22,58 @@ class MyTool:
         return ToolResult(success=True, data={"result": "ok"})
 ```
 
+### Dual-format results
+
+`execute()` returns a `ToolResult(success, data, text=None, error=None)`. The
+wrapper treats the two payloads differently:
+
+- **`data`** — the structured dict that programmatic callers (hooks, gates,
+  DAG nodes) read.
+- **`text`** — an optional pre-rendered string. On a **successful** result with
+  `text` set, the wrapper short-circuits and returns the raw string (FastMCP
+  renders it as `TextContent`), so the agent sees clean markdown instead of
+  JSON. A **failing** result (or a raised exception) never short-circuits: it is
+  flattened to `{success: False, error: ...}` so the failure signal always
+  reaches the caller.
+
+```python
+return ToolResult(
+    success=True,
+    data={"score": 90, "issues": []},   # for hooks/gates
+    text="my_tool: 90/100 (0 issues)",  # for the agent
+)
+```
+
+Reserved keys in `data` (`success`, `error`, `hint`) are relocated to
+`data_*` rather than clobbering the envelope.
+
+### Facade discovery metadata (optional)
+
+The facade reads three optional class attributes (via `tool_metadata`) — set
+them so agents can *find* your tool through `axm_search`, and so a
+frequently-used tool can bypass the facade:
+
+```python
+class MyTool:
+    expose_directly = True          # register on the HOT PATH (its own tools/list
+                                    # entry) instead of only behind axm_call
+    domain = "quality"              # groups it under axm_capabilities
+    tags = frozenset({"lint", "ci"})  # matched by axm_search's keyword search
+
+    @property
+    def name(self) -> str:
+        return "my_tool"
+    ...
+```
+
+- **`expose_directly`** (default `False`) — `True` registers the tool as an
+  individual MCP tool (the hot path), so it shows up directly in `tools/list`.
+  Reserve it for high-frequency tools; everything else stays compact behind the
+  facade.
+- **`domain`** — a short grouping key surfaced by `axm_capabilities`.
+- **`tags`** — extra keywords `axm_search` matches against (name + summary +
+  tags + domain).
+
 ## Step 2: Register as Entry Point
 
 In your package's `pyproject.toml`:

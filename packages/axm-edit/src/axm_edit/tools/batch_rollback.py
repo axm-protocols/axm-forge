@@ -11,8 +11,6 @@ from axm.tools.base import ToolResult
 
 from axm_edit.core.checkpoint import rollback, snapshot_paths
 
-_SHA_LEN = 7
-
 
 def _restored_files(checkpoint: str) -> list[str]:
     """Return the relative paths captured by *checkpoint* (read-only).
@@ -36,20 +34,21 @@ def render_text(
 
     The header carries the global status — ``✓`` when the working tree was
     restored, ``✗`` otherwise so a failed/no-op rollback is impossible to
-    miss — alongside the restored-file count and the (short) checkpoint SHA.
-    Every restored file is then listed verbatim, one per line. On failure the
-    header surfaces the error and the checkpoint, so nothing carried in
-    ``data`` (the ``restored`` flag) or the error is lost: only JSON
-    structure is dropped.
+    miss — alongside the restored-file count. (The checkpoint is an opaque
+    JSON snapshot payload, not a short hash, so it is not summarised in the
+    header.) Every restored file is then listed verbatim, one per line. On
+    failure the header surfaces the error, so nothing carried in ``data``
+    (the ``restored`` flag) or the error is lost: only JSON structure is
+    dropped.
     """
-    sha = checkpoint[:_SHA_LEN] if checkpoint else "?"
+    del checkpoint  # opaque payload, not summarisable — kept for signature parity
     if success:
         n = len(files)
         plural = "s" if n != 1 else ""
-        header = f"batch_rollback | ✓ | {n} file{plural} restored from {sha}"
+        header = f"batch_rollback | ✓ | {n} file{plural} restored"
         return "\n".join([header, *files])
     reason = error or "nothing restored"
-    header = f"batch_rollback | ✗ | {reason} (checkpoint {sha})"
+    header = f"batch_rollback | ✗ | {reason}"
     return "\n".join([header, *files])
 
 
@@ -58,6 +57,11 @@ class BatchRollbackTool:
 
     Registered as ``batch_rollback`` via axm.tools entry point.
     """
+
+    agent_hint: str = (
+        "Undo a batch_edit. Pass back the full checkpoint snapshot payload"
+        " from the batch_edit response verbatim (a JSON string, not a hash)."
+    )
 
     @property
     def name(self) -> str:

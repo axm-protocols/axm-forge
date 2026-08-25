@@ -16,13 +16,19 @@ Output:
 
 ```
 Format: json
-Tokens: 18
+Tokens: 17
 Strategies applied: none
 Strategy estimates:
-  minify: 22.2%
-  drop_nulls: 16.7%
-  strip_quotes: 5.6%
+  minify: 23.5%
+  drop_nulls: 47.1%
+  flatten: 23.5%
+  round_numbers: 23.5%
+  strip_quotes: 17.6%
+Savings: 23.5%
 ```
+
+The final `Savings:` line reports `report.savings_pct` — the real cumulative gain
+of chaining the default strategy set (see below).
 
 Only strategies with positive savings are shown — strategies that would produce no savings or increase tokens are automatically filtered out.
 

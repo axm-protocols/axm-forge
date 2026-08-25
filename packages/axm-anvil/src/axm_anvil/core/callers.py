@@ -15,10 +15,6 @@ from axm_anvil._cst.transformers import AttributeRewriter
 
 __all__ = [
     "CallerRewrite",
-    "_discover_callers",
-    "_discover_module_import_callers",
-    "_module_path_from_file",
-    "_rewrite_module_import_caller",
     "rewrite_caller_text",
 ]
 
@@ -43,12 +39,54 @@ def _dump_module(node: cst.BaseExpression | None) -> str:
     return ""
 
 
-def _module_path_from_file(file_path: Path, workspace_root: Path) -> str:
-    """Derive the dotted module path for ``file_path`` under ``workspace_root``.
+def _package_root_of(file_path: Path, workspace_root: Path) -> Path | None:
+    """Return the topmost ``__init__.py``-bearing ancestor under the workspace.
 
-    Strips a leading ``src/`` segment if present and drops the ``.py`` suffix.
+    This is the importable-package root: the highest directory that still
+    holds an ``__init__.py`` while remaining an ancestor of ``file_path`` and
+    under ``workspace_root``. For a ``packages/pkg/src/pkg/mod.py`` monorepo
+    layout it resolves to ``.../src/pkg`` (``src`` has no ``__init__.py``),
+    so the derived dotted path is the real import path ``pkg.mod`` rather
+    than the on-disk ``packages.pkg.src.pkg.mod``.
     """
-    rel = file_path.resolve().relative_to(workspace_root.resolve())
+    current = file_path.resolve().parent
+    root_resolved = workspace_root.resolve()
+    if root_resolved not in {current, *current.parents}:
+        return None
+    result: Path | None = None
+    while True:
+        if (current / "__init__.py").is_file():
+            result = current
+        if current == root_resolved:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return result
+
+
+def _module_path_from_file(file_path: Path, workspace_root: Path) -> str:
+    """Derive the dotted *import* path for ``file_path`` under ``workspace_root``.
+
+    Resolves the importable-package root (topmost ``__init__.py`` ancestor)
+    and derives the dotted path relative to that root's parent, so a monorepo
+    ``packages/pkg/src/pkg/mod.py`` layout yields ``pkg.mod`` — the path that
+    real callers actually ``import`` — not the on-disk
+    ``packages.pkg.src.pkg.mod`` that never matches an import statement.
+
+    Falls back to the workspace-relative path (stripping a leading ``src/``)
+    when no package root can be found (e.g. a top-level flat module).
+    """
+    resolved = file_path.resolve()
+    pkg_root = _package_root_of(resolved, workspace_root)
+    if pkg_root is not None:
+        rel = resolved.relative_to(pkg_root.parent)
+        parts = list(rel.with_suffix("").parts)
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        return ".".join(parts)
+    rel = resolved.relative_to(workspace_root.resolve())
     parts = list(rel.with_suffix("").parts)
     if parts and parts[0] == "src":
         parts = parts[1:]
@@ -108,13 +146,68 @@ class _RewriteOldImport(cst.CSTTransformer):
         return updated_node.with_changes(names=kept)
 
 
-def _find_import_line(text: str, old_module: str) -> tuple[int, str] | None:
-    """Return ``(lineno, line_text)`` of the first ``from old_module import`` line."""
-    for idx, line in enumerate(text.splitlines(), start=1):
-        stripped = line.lstrip()
-        if stripped.startswith(f"from {old_module} import"):
-            return idx, line
-    return None
+class _ImportFromLocator(cst.CSTVisitor):
+    """Locate ``from old_module import …`` lines that bind a moved name."""
+
+    METADATA_DEPENDENCIES = (cst.metadata.PositionProvider,)
+
+    def __init__(self, old_module: str, moved_names: set[str]) -> None:
+        super().__init__()
+        self._old_module = old_module
+        self._moved_names = moved_names
+        self.locations: list[tuple[int, list[str]]] = []
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:  # noqa: N802
+        """Record ``(line, bound_names)`` for a matching import statement."""
+        if _dump_module(node.module) != self._old_module:
+            return
+        if isinstance(node.names, cst.ImportStar):
+            return
+        bound = [
+            alias.name.value
+            for alias in node.names
+            if isinstance(alias.name.value, str)
+            and alias.name.value in self._moved_names
+        ]
+        if not bound:
+            return
+        pos = self.get_metadata(cst.metadata.PositionProvider, node)
+        self.locations.append((pos.start.line, bound))
+
+
+def _find_import_lines(
+    text: str, old_module: str, names: set[str]
+) -> list[tuple[int, str, list[str]]]:
+    """Return ``(lineno, line_text, bound_names)`` per matching import line.
+
+    Only ``from old_module import`` statements that actually bind a name in
+    ``names`` are returned, ordered by line number. Uses libcst position
+    metadata so multi-line imports resolve to their opening line.
+    """
+    try:
+        tree = cst.parse_module(text)
+    except cst.ParserSyntaxError:
+        return []
+    locator = _ImportFromLocator(old_module, names)
+    cst.metadata.MetadataWrapper(tree).visit(locator)
+    lines = text.splitlines()
+    results: list[tuple[int, str, list[str]]] = []
+    for lineno, bound in sorted(locator.locations, key=lambda loc: loc[0]):
+        line_text = lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
+        results.append((lineno, line_text, bound))
+    return results
+
+
+def _find_import_line(
+    text: str, old_module: str, names: Iterable[str]
+) -> tuple[int, str] | None:
+    """Return ``(lineno, line_text)`` of the first ``from old_module import`` line
+    that binds one of ``names`` (not merely the first from-import in the file)."""
+    located = _find_import_lines(text, old_module, set(names))
+    if not located:
+        return None
+    lineno, line_text, _bound = located[0]
+    return lineno, line_text
 
 
 def _add_new_imports(
@@ -147,6 +240,32 @@ def _format_new_import_stmt(
     return f"from {new_module} import {names_piece}"
 
 
+def _build_caller_rewrites(
+    located_lines: Sequence[tuple[int, str, list[str]]],
+    symbols: Sequence[str],
+    matched_names: Mapping[str, str | None],
+    new_module: str,
+) -> list[CallerRewrite]:
+    """Build one :class:`CallerRewrite` per matching import line.
+
+    Each record reflects only the names bound on its own line, so a file with
+    several distinct ``from old_module import`` statements yields one record per
+    statement rather than a single collapsed entry.
+    """
+    if not located_lines:
+        new_stmt = _format_new_import_stmt(symbols, matched_names, new_module)
+        return [CallerRewrite(file="", line=1, old="", new=new_stmt)]
+    rewrites: list[CallerRewrite] = []
+    for lineno, line_text, bound in located_lines:
+        line_matched = {n: matched_names[n] for n in bound if n in matched_names}
+        line_symbols = [s for s in symbols if s in line_matched]
+        new_stmt = _format_new_import_stmt(line_symbols, line_matched, new_module)
+        rewrites.append(
+            CallerRewrite(file="", line=lineno, old=line_text, new=new_stmt)
+        )
+    return rewrites
+
+
 def rewrite_caller_text(
     text: str,
     old_module: str,
@@ -166,19 +285,16 @@ def rewrite_caller_text(
     if not collector.matched_names:
         return text, []
 
-    located = _find_import_line(text, old_module)
-    line_no = located[0] if located else 1
-    old_line = located[1].strip() if located else ""
-
     new_tree = tree.visit(_RewriteOldImport(old_module, moved))
 
     context = _add_new_imports(symbols, collector.matched_names, new_module)
     final_tree = AddImportsVisitor(context).transform_module(new_tree)
 
-    new_stmt = _format_new_import_stmt(symbols, collector.matched_names, new_module)
-
-    rewrite = CallerRewrite(file="", line=line_no, old=old_line, new=new_stmt)
-    return final_tree.code, [rewrite]
+    located_lines = _find_import_lines(text, old_module, moved)
+    rewrites = _build_caller_rewrites(
+        located_lines, symbols, collector.matched_names, new_module
+    )
+    return final_tree.code, rewrites
 
 
 class _CollectModuleImportAliases(cst.CSTVisitor):
@@ -237,6 +353,66 @@ class _RemoveModuleImports(cst.CSTTransformer):
         return updated_node.with_changes(body=[inner.with_changes(names=kept)])
 
 
+class _ModuleImportLocator(cst.CSTVisitor):
+    """Locate the source line of each ``import old_module[ as X]`` statement."""
+
+    METADATA_DEPENDENCIES = (cst.metadata.PositionProvider,)
+
+    def __init__(self, old_module: str) -> None:
+        super().__init__()
+        self._old_module = old_module
+        self.locations: dict[str, int] = {}
+
+    def visit_Import(self, node: cst.Import) -> None:  # noqa: N802
+        """Record ``local_name -> line`` for each matching ``old_module`` alias."""
+        pos = self.get_metadata(cst.metadata.PositionProvider, node)
+        for alias in node.names:
+            if _dump_module(alias.name) != self._old_module:
+                continue
+            if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
+                local = alias.asname.name.value
+            else:
+                local = self._old_module
+            self.locations[local] = pos.start.line
+
+
+def _line_text_at(text: str, lineno: int) -> str:
+    """Return the stripped source line ``lineno`` (1-based) or ``\"\"`` if OOB."""
+    lines = text.splitlines()
+    if 0 < lineno <= len(lines):
+        return lines[lineno - 1].strip()
+    return ""
+
+
+def _build_module_import_rewrites(
+    text: str,
+    tree: cst.Module,
+    old_module: str,
+    new_module: str,
+    rewritten_aliases: Sequence[str],
+) -> list[CallerRewrite]:
+    """Build one record per rewritten ``import old_module`` alias.
+
+    Resolves each alias to the real source line and original import text
+    (alias-aware) instead of hard-coding ``line=1`` / ``import old_module``.
+    """
+    locator = _ModuleImportLocator(old_module)
+    cst.metadata.MetadataWrapper(tree).visit(locator)
+    new_stmt = f"import {new_module}"
+    fallback_old = f"import {old_module}"
+    rewrites: list[CallerRewrite] = []
+    for alias in rewritten_aliases:
+        lineno = locator.locations.get(alias)
+        if lineno is None:
+            rewrites.append(
+                CallerRewrite(file="", line=1, old=fallback_old, new=new_stmt)
+            )
+            continue
+        old_text = _line_text_at(text, lineno) or fallback_old
+        rewrites.append(CallerRewrite(file="", line=lineno, old=old_text, new=new_stmt))
+    return rewrites
+
+
 def _rewrite_module_import_caller(
     text: str,
     old_module: str,
@@ -259,7 +435,7 @@ def _rewrite_module_import_caller(
 
     moved = set(symbols)
     aliases_to_remove: set[str] = set()
-    any_rewritten = False
+    rewritten_aliases: list[str] = []
     current_tree: cst.Module = tree
     for alias in collector.aliases:
         wrapper = cst.metadata.MetadataWrapper(current_tree)
@@ -270,12 +446,16 @@ def _rewrite_module_import_caller(
         )
         rewritten = wrapper.visit(rewriter)
         if rewritten.code != current_tree.code:
-            any_rewritten = True
-        if rewriter.kept_usages == 0 and rewritten.code != current_tree.code:
+            rewritten_aliases.append(alias)
+        if (
+            rewriter.kept_usages == 0
+            and rewritten.code != current_tree.code
+            and not _alias_used_as_bare_name(rewritten, alias)
+        ):
             aliases_to_remove.add(alias)
         current_tree = rewritten
 
-    if not any_rewritten:
+    if not rewritten_aliases:
         return text, []
 
     context = CodemodContext()
@@ -287,52 +467,132 @@ def _rewrite_module_import_caller(
             _RemoveModuleImports(old_module, aliases_to_remove)
         )
 
-    rewrite = CallerRewrite(
-        file="",
-        line=1,
-        old=f"import {old_module}",
-        new=f"import {new_module}",
+    rewrites = _build_module_import_rewrites(
+        text, tree, old_module, new_module, rewritten_aliases
     )
-    return current_tree.code, [rewrite]
+    return current_tree.code, rewrites
+
+
+class _BareNameUsageCounter(cst.CSTVisitor):
+    """Count bare-``Name`` uses of ``target`` outside import statements.
+
+    A local alias bound by ``import pkg.old as om`` can survive attribute
+    rewriting as a *value* reference (``x = om``). Such a bare use is not an
+    ``alias.<attr>`` chain, so :class:`AttributeRewriter` never counts it —
+    dropping the import would then leave ``x = om`` dangling (``NameError``).
+    This visitor skips ``Import`` / ``ImportFrom`` bodies so only genuine
+    value references are counted.
+    """
+
+    def __init__(self, target: str) -> None:
+        super().__init__()
+        self._target = target
+        self.count = 0
+
+    def visit_Import(self, node: cst.Import) -> bool:  # noqa: N802
+        """Skip ``import`` statements: their names are not value references."""
+        return False
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> bool:  # noqa: N802
+        """Skip ``from`` imports: their names are not value references."""
+        return False
+
+    def visit_Attribute(self, node: cst.Attribute) -> bool:  # noqa: N802
+        """Skip attribute chains: only the leftmost root is a bare name here."""
+        return False
+
+    def visit_Name(self, node: cst.Name) -> None:  # noqa: N802
+        """Record a bare-``Name`` occurrence of the alias."""
+        if node.value == self._target:
+            self.count += 1
+
+
+def _alias_used_as_bare_name(tree: cst.Module, alias: str) -> bool:
+    """Return ``True`` if ``alias`` still appears as a bare name (non-import).
+
+    Guards against dropping ``import old as alias`` when a residual value
+    reference (e.g. ``x = alias``) would otherwise be left unbound.
+    """
+    counter = _BareNameUsageCounter(alias)
+    tree.visit(counter)
+    return counter.count > 0
+
+
+_EXCLUDED_DIR_NAMES: frozenset[str] = frozenset(
+    {
+        "build",
+        "dist",
+        "node_modules",
+        "venv",
+        "env",
+        "site-packages",
+        "__pycache__",
+    }
+)
 
 
 def _iter_workspace_py_files(
     workspace_root: Path, exclude: Iterable[Path]
 ) -> list[Path]:
-    """Return all ``.py`` files in ``workspace_root`` excluding given paths."""
+    """Return all ``.py`` files in ``workspace_root`` excluding given paths.
+
+    Directories are pruned when their name starts with a dot or is one of the
+    well-known non-source trees in :data:`_EXCLUDED_DIR_NAMES` (build outputs,
+    vendored ``node_modules``, virtualenvs, ``site-packages``).
+    """
     excluded = {p.resolve() for p in exclude}
     return sorted(
         p
         for p in workspace_root.rglob("*.py")
         if p.resolve() not in excluded
-        and not any(part.startswith(".") for part in p.parts)
+        and not any(
+            part.startswith(".") or part in _EXCLUDED_DIR_NAMES
+            for part in p.relative_to(workspace_root).parts
+        )
     )
 
 
-def _discover_callers(
-    workspace_root: Path,
-    moved_names: Sequence[str],
-    from_module: str,
-    exclude: Iterable[Path] = (),
-) -> list[Path]:
-    """Return caller files that import any ``moved_names`` from ``from_module``.
+def _scan_workspace_py_files(
+    workspace_root: Path, exclude: Iterable[Path] = ()
+) -> list[tuple[Path, str]]:
+    """Materialise the workspace ``.py`` scan once as ``(path, source)`` pairs.
 
-    Scans ``.py`` files under ``workspace_root`` with a cheap textual
-    pre-filter (``from <from_module> import``) to avoid parsing every file,
-    then confirms the match by parsing the candidate with libcst and
-    collecting ``ImportFrom`` targets via :class:`_CollectOldImport`. This
-    handles multi-line ``from <from_module> import (\n  foo,\n)`` imports
-    that a per-line textual scan would miss. Matches are validated again
-    via libcst during rewriting.
+    Walks ``workspace_root`` via :func:`_iter_workspace_py_files` and reads each
+    file exactly once. Unreadable files (``OSError``/``UnicodeDecodeError``) are
+    skipped. The resulting collection is threaded to the discovery passes so the
+    disk is walked -- and every file read -- a single time per move, instead of
+    once per discovery function.
     """
-    needle = f"from {from_module} import"
-    moved = set(moved_names)
-    matches: list[Path] = []
+    scanned: list[tuple[Path, str]] = []
     for path in _iter_workspace_py_files(workspace_root, exclude):
         try:
             text = path.read_text()
         except (OSError, UnicodeDecodeError):
             continue
+        scanned.append((path, text))
+    return scanned
+
+
+def _discover_callers(
+    scanned: Sequence[tuple[Path, str]],
+    moved_names: Sequence[str],
+    from_module: str,
+) -> list[Path]:
+    """Return caller files that import any ``moved_names`` from ``from_module``.
+
+    Consumes the pre-scanned ``(path, source)`` collection produced once per
+    move by :func:`_scan_workspace_py_files` rather than re-walking the disk.
+    Applies a cheap textual pre-filter (``from <from_module> import``) to avoid
+    parsing every file, then confirms the match by parsing the candidate with
+    libcst and collecting ``ImportFrom`` targets via :class:`_CollectOldImport`.
+    This handles multi-line ``from <from_module> import (\n  foo,\n)`` imports
+    that a per-line textual scan would miss. Matches are validated again via
+    libcst during rewriting.
+    """
+    needle = f"from {from_module} import"
+    moved = set(moved_names)
+    matches: list[Path] = []
+    for path, text in scanned:
         if needle not in text:
             continue
         try:
@@ -351,24 +611,21 @@ def _discover_callers(
 
 
 def _discover_module_import_callers(
-    workspace_root: Path,
+    scanned: Sequence[tuple[Path, str]],
     from_module: str,
-    exclude: Iterable[Path] = (),
 ) -> list[Path]:
     """Return caller files that contain ``import from_module[ as X]``.
 
-    Textual pre-filter: matches are validated via libcst during rewriting.
+    Consumes the pre-scanned ``(path, source)`` collection produced once per
+    move by :func:`_scan_workspace_py_files`. Textual pre-filter: matches are
+    validated via libcst during rewriting.
     """
     pattern = re.compile(
         rf"^\s*import\s+{re.escape(from_module)}(?:\s|,|$)",
         re.MULTILINE,
     )
     matches: list[Path] = []
-    for path in _iter_workspace_py_files(workspace_root, exclude):
-        try:
-            text = path.read_text()
-        except (OSError, UnicodeDecodeError):
-            continue
+    for path, text in scanned:
         if pattern.search(text):
             matches.append(path)
     return matches

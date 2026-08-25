@@ -18,6 +18,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import TypedDict
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_ast.core.analyzer import (
     build_import_graph,
     module_dotted_name,
@@ -360,10 +362,10 @@ def _detect_layout(pkg: PackageInfo, project_root: Path) -> str:
 
 def _count_test_files(root: Path) -> int:
     """Count test_*.py files in the project."""
-    tests_dir = root / "tests"
-    if not tests_dir.is_dir():
+    tests_dir = resolve_suite_dir(root)
+    if tests_dir is None:
         return 0
-    return len(list(tests_dir.glob("test_*.py")))
+    return len(list(tests_dir.rglob("test_*.py")))
 
 
 # ─── Context building ───────────────────────────────────────────────────────
@@ -401,6 +403,12 @@ def build_context(
 
     # Build module summaries with rank stars
     modules = _build_module_summaries(pkg, scores)
+    if pkg.root.parent.name == "src":
+        package_prefix = f"{pkg.name}."
+        for module in modules:
+            module_name = module["name"]
+            if module_name != pkg.name and not module_name.startswith(package_prefix):
+                module["name"] = f"{package_prefix}{module_name}"
 
     return ContextResult(
         name=pkg.name,

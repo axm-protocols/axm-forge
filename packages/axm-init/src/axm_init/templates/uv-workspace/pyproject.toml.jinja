@@ -23,8 +23,9 @@ bypass-selection = true
 [dependency-groups]
 dev = [
     "prek>=0.4.4",
-    "ruff==0.15.17",
+    "ruff==0.16.4",
     "pytest>=9.0.3",
+    "pytest-xdist>=3.8.0",
     "pytest-cov>=4.0",
     "pytest-mock>=3.0",
     "mypy>=1.0",
@@ -42,25 +43,33 @@ docs = [
 members = ["packages/*"]
 
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default; keep the
+# formatter out of hand-written prose docs.
+extend-exclude = ["*.md"]
 target-version = "py{{ python_min_version | replace('.', '') }}"
 line-length = 99
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
-per-file-ignores = { "tests/**" = ["S101"] }
+per-file-ignores = { "**/tests_*/**" = ["S101"] }
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
 max-args = 5
+# PLR0917 (new in ruff 0.16) counts positional args only; keep it in step
+# with max-args so options past the cutoff must be keyword-only.
+max-positional-args = 5
 max-branches = 12
 max-returns = 6
 max-statements = 50
 max-locals = 15
 
 [tool.pytest.ini_options]
-testpaths = ["packages/*/tests"]
+# Les suites sont nommées tests_<module> par membre : un `tests/` partagé ferait
+# collisionner les module paths (tests.conftest) et tuerait la collecte à la racine.
+testpaths = ["packages/*/tests_*"]
 import_mode = "importlib"
 addopts = "-q --import-mode=importlib"
 

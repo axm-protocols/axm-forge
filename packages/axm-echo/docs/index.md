@@ -45,7 +45,7 @@ pure-CPU and never loads torch, for callers that want to skip the model.
 from axm_echo import embed, extract_monorepo, neighbors
 
 # 1. Build a corpus of public symbols across the configured workspaces
-#    (driven by ~/axm/echo.toml, falling back to the current dir).
+#    (driven by ~/.axm/config.toml [echo], falling back to the current dir).
 symbols = extract_monorepo()
 texts = [s["embed_text"] for s in symbols]
 
@@ -85,9 +85,10 @@ for idx, score in neighbors(matrix[0], matrix, k=5):
   base install (neural-by-default), but torch is imported only inside the
   `st` backend, so the `tfidf` path never loads it at runtime
 - ✅ **axm-ast corpus extractor** — public symbols with signature +
-  docstring, `embed_text` falling back to code when undocumented
-- ✅ **Scope loader** — `~/axm/echo.toml`, graceful degradation to the
-  current workspace
+  docstring; an undocumented symbol's `embed_text` falls back to its
+  *signature* (bodies are not extracted)
+- ✅ **Scope loader** — shared `~/.axm/config.toml` `[echo]` (via axm-config),
+  graceful degradation to the current workspace
 - ✅ **Modern Python** — 3.12+ with strict typing
 
 ---

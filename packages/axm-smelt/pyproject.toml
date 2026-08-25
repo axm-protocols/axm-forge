@@ -16,7 +16,7 @@ classifiers = [
 
 dependencies = [
     "axm",
-    "cyclopts>=4.5",
+    "cyclopts>=4.21.0",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
     "tiktoken>=0.9",
@@ -141,8 +141,16 @@ hash = "28c783a5b834"
 reason = "check_tool_error and count_tool_error exercise the None-input failure path on two distinct tool SUTs (SmeltCheckTool vs SmeltCountTool) — each test pins its tool's error contract; cross-file fold would relocate tool-local checks away from their entry-point module"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "6af3c08c7b6f"
-reason = "16-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments) — each test pins a separate detector branch; parametrization would erase the per-format intent"
+hash = "d084bccd99fa"
+reason = "20-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments, single-heading, try_json/try_markdown probes) — each test pins a separate detector branch; parametrization would erase the per-format intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9f782e0b98e8"
+reason = "two counter tests pin distinct tiktoken contracts (empty-string zero-count vs non-empty count monotonicity) with different inputs and assertion shapes — parametrization would conflate two independent counter invariants"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1accfb95b015"
+reason = "strip_quotes format-guard pair asserts the JSON-only guard on two distinct non-JSON formats (TEXT prose vs MARKDOWN) with different literal inputs — each pins that a separate format is left untouched, the whole point being that the guard is not JSON-specific to one format"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "a921573c8fe1"
@@ -157,10 +165,10 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
+    "ruff==0.16.4",
     "mypy>=1.20.0",
     "types-PyYAML>=6.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pip-audit>=2.0",
 ]
 docs = [
@@ -174,9 +182,13 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm_smelt"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -185,7 +197,7 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/axm_smelt/cli.py" = ["T201", "PLR0913"]
-"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+"tests_axm_smelt/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -220,8 +232,9 @@ show_error_codes = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests_axm_smelt.*"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -257,7 +270,7 @@ DEP004 = ["mkdocs_gen_files"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_smelt"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -270,7 +283,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=89",
 ]
 filterwarnings = ["error"]
 markers = [
@@ -285,7 +298,7 @@ markers = [
 source = ["src/axm_smelt"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_*/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

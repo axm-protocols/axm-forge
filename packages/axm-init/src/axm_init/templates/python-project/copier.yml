@@ -4,8 +4,17 @@
 _min_copier_version: "9.0.0"
 _templates_suffix: .jinja
 _exclude:
-  - "licences"
+  # Copier replaces (does not extend) its default exclude list, so the
+  # stock patterns must be re-declared or the template's own build cruft
+  # (``.mypy_cache``, ``__pycache__``, …) gets copied into every scaffold.
   - "copier.yml"
+  - "licences"
+  - "__pycache__"
+  - "*.py[co]"
+  - ".mypy_cache"
+  - ".ruff_cache"
+  - ".pytest_cache"
+  - ".DS_Store"
 
 # =============================================================================
 # Questions — ordered by decision priority
@@ -97,7 +106,7 @@ _tasks:
     when: "{{ true }}"
   - command: "uv python pin {{ python_min_version }}"
     when: "{{ true }}"
-  - command: "uv add --group dev pytest pytest-cov pytest-mock ruff mypy prek pip-audit"
+  - command: "uv add --group dev pytest pytest-xdist pytest-cov pytest-mock ruff mypy prek pip-audit"
     when: "{{ true }}"
   - command: "uv add --group docs mkdocs-material 'mkdocstrings[python]' mkdocs-gen-files mkdocs-literate-nav"
     when: "{{ true }}"

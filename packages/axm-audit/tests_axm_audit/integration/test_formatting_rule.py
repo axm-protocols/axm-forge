@@ -1,0 +1,253 @@
+"""Tests for FormattingRule (ruff format --check)."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+pytestmark = pytest.mark.integration
+
+_PATCH = "axm_audit.core.rules.quality_rules.run_in_project"
+
+
+class TestFormattingRule:
+    """Tests for FormattingRule (ruff format --check)."""
+
+    def test_formatted_project_scores_100(self, tmp_path: Path) -> None:
+        """Well-formatted project scores 100."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text('"""Module."""\n\nx = 1\n')
+
+        # Mock ruff format --check returning clean output (exit 0, no files)
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.score == 100
+        assert result.details["unformatted_count"] == 0
+
+    def test_unformatted_project_reduces_score(self, tmp_path: Path) -> None:
+        """Unformatted files reduce score."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("x=1\n")
+
+        # Mock ruff format --check returning 3 unformatted files
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="src/a.py\nsrc/b.py\nsrc/c.py\n",
+            stderr="",
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.passed is False  # score 85 < 90
+        assert result.details is not None
+        assert result.details["unformatted_count"] == 3
+        assert result.score == 85
+
+    def test_fix_hint_when_violations(self, tmp_path: Path) -> None:
+        """Fix hint present when there are unformatted files."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("x=1\n")
+
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="src/mod.py\n", stderr=""
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.fix_hint is not None
+        assert "ruff format" in result.fix_hint
+
+    def test_no_fix_hint_when_clean(self, tmp_path: Path) -> None:
+        """No fix hint when all files are properly formatted."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.fix_hint is None
+
+    def test_no_src_directory(self, tmp_path: Path) -> None:
+        """Missing src/ directory returns passing result."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        rule = FormattingRule()
+        result = rule.check(tmp_path)
+
+        assert result.passed is True
+        assert "src/ directory not found" in result.message
+
+    def test_includes_tests_directory(self, tmp_path: Path) -> None:
+        """Both src/ and tests/ are checked when both exist."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
+        tests = tmp_path / "tests"
+        tests.mkdir()
+
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        assert result.details["checked"] == "src/ tests/"
+
+    def test_many_unformatted_capped_at_20(self, tmp_path: Path) -> None:
+        """Unformatted files list is capped at 20."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
+
+        # Generate 30 unformatted files in output
+        files = "\n".join(f"src/file_{i}.py" for i in range(30))
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout=files + "\n", stderr=""
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        assert result.details["unformatted_count"] == 30
+        assert len(result.details["unformatted_files"]) == 20  # capped
+
+    def test_format_uses_returncode(self, tmp_path: Path) -> None:
+        """AC: rc=0 with non-empty stdout still scores 100."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
+
+        # rc=0 but stdout has noise (e.g. info messages)
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="All checks passed!\n",
+            stderr="",
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.score == 100
+        assert result.details["unformatted_count"] == 0
+
+    def test_format_ignores_warnings(self, tmp_path: Path) -> None:
+        """AC: warning lines in stdout not counted as unformatted."""
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("x = 1\n")
+
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="warning: deprecated config\nsrc/bad.py\n",
+            stderr="",
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        assert result.details["unformatted_count"] == 1
+        assert result.details["unformatted_files"] == ["src/bad.py"]
+
+
+class TestFormattingRuleEnvFailure:
+    """False-green guard: an env-failure (timeout rc=124 / config-error rc=2)
+    printed zero unformatted files, which the old code scored as a green 100.
+    Now it must route through ``interpret_process`` and fail loud.
+    """
+
+    @pytest.mark.parametrize("returncode", [124, 2])
+    def test_env_failure_scores_red_not_green(
+        self, tmp_path: Path, returncode: int
+    ) -> None:
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "mod.py").write_text("x = 1\n")
+        # Env-failure: non-zero returncode in the env-failure set, empty stdout
+        # (the process did not actually run the check).
+        env_fail = subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout="", stderr="timed out / config"
+        )
+        with patch(_PATCH, return_value=env_fail):
+            result = FormattingRule().check(tmp_path)
+
+        assert result.passed is False
+        assert result.score == 0
+        assert result.severity.name == "ERROR"
+        assert result.details is not None
+        assert result.details["env_incomplete"] is True
+
+    def test_expected_nonzero_still_parses_findings(self, tmp_path: Path) -> None:
+        """rc=1 (ruff's expected 'files would be reformatted' exit) is NOT an
+        env-failure: findings must still be parsed, not blocked.
+        """
+        from axm_audit.core.rules.quality_rules import FormattingRule
+
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "mod.py").write_text("x = 1\n")
+        issues = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="src/a.py\nsrc/b.py\n", stderr=""
+        )
+        with patch(_PATCH, return_value=issues):
+            result = FormattingRule().check(tmp_path)
+
+        assert result.details is not None
+        assert result.details.get("env_incomplete") is not True
+        assert result.details["unformatted_count"] == 2
+
+
+def test_formatting_injects_ruff(tmp_path: Path) -> None:
+    """FormattingRule passes with_packages=["ruff"]."""
+    from axm_audit.core.rules.quality_rules import FormattingRule
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mod.py").write_text("x = 1\n")
+
+    with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
+        mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
+        FormattingRule().check(tmp_path)
+        assert mock.call_args[1]["with_packages"] == ["ruff"]

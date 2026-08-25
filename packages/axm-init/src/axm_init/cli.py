@@ -97,6 +97,8 @@ def _print_reserve_result(
                 indent=2,
             )
         )
+        if not result.success:
+            raise SystemExit(1)
     elif result.success:
         print(f"\u2705 {result.message}")  # noqa: T201
         print(f"   View at: https://pypi.org/project/{name}/")  # noqa: T201
@@ -145,9 +147,12 @@ def _print_scaffold_result(
                 {
                     "success": result.success,
                     "files": [str(f) for f in result.files_created],
+                    "message": result.message,
                 }
             )
         )
+        if not result.success:
+            raise SystemExit(1)
     elif result.success:
         print(f"✅ Project '{project_name}' created at {target_path}")  # noqa: T201
         for f in result.files_created:
@@ -209,6 +214,13 @@ def scaffold(
             help="Scaffold a member sub-package with this name",
         ),
     ] = None,
+    kind: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--kind", "-k"],
+            help=("Scaffold kind: standalone, workspace, member, paper or experiment"),
+        ),
+    ] = None,
     check_pypi: Annotated[
         bool,
         cyclopts.Parameter(name=["--check-pypi"], help="Check PyPI availability"),
@@ -233,6 +245,28 @@ def scaffold(
     target_path = Path(path).resolve()
     project_name = name or target_path.name
 
+    if kind is not None and kind in ("paper", "experiment"):
+        _scaffold_via_tool(
+            path=path,
+            kind=kind,
+            name=name,
+            org=org,
+            author=author,
+            email=email,
+            license_type=license,
+            description=description,
+            json_output=json_output,
+        )
+        return
+
+    workspace, member = _resolve_kind_flags(
+        kind,
+        workspace=workspace,
+        member=member,
+        name=name,
+        json_output=json_output,
+    )
+
     if check_pypi:
         _check_pypi_availability(project_name, json_output=json_output)
 
@@ -244,6 +278,7 @@ def scaffold(
             author=author,
             email=email,
             license_type=license,
+            license_holder=license_holder,
             description=description,
             json_output=json_output,
         )
@@ -307,6 +342,75 @@ def _build_scaffold_data(
     }
 
 
+def _resolve_kind_flags(
+    kind: str | None,
+    *,
+    workspace: bool,
+    member: str | None,
+    name: str | None,
+    json_output: bool,
+) -> tuple[bool, str | None]:
+    """Map ``--kind`` onto the legacy ``--workspace`` / ``--member`` flags.
+
+    The kind vocabulary is owned by the tool (``SCAFFOLD_KINDS``); the CLI
+    only validates against it and translates.
+    """
+    from axm_init.tools.scaffold import SCAFFOLD_KINDS
+
+    if kind is None:
+        return workspace, member
+    if kind not in SCAFFOLD_KINDS:
+        _fail(
+            f"Unknown --kind '{kind}' (expected one of {', '.join(SCAFFOLD_KINDS)})",
+            json_output=json_output,
+        )
+    if kind == "workspace":
+        return True, member
+    if kind == "member":
+        return workspace, member or name
+    return workspace, member
+
+
+def _scaffold_via_tool(
+    *,
+    path: str,
+    kind: str,
+    name: str | None,
+    org: str,
+    author: str,
+    email: str,
+    license_type: str,
+    description: str,
+    json_output: bool,
+) -> None:
+    """Delegate a paper / experiment scaffold to :class:`InitScaffoldTool`.
+
+    The tool is the single implementation — this wrapper only renders its
+    ToolResult for the terminal.
+    """
+    from axm_init.tools.scaffold import InitScaffoldTool
+
+    result = InitScaffoldTool().execute(
+        path=path,
+        kind=kind,
+        name=name,
+        org=org,
+        author=author,
+        email=email,
+        license=license_type,
+        description=description,
+    )
+    if not result.success:
+        _fail(result.error or f"{kind} scaffold failed", json_output=json_output)
+
+    payload: dict[str, object] = {"success": True}
+    payload.update(result.data or {})
+    if json_output:
+        print(json.dumps(payload))  # noqa: T201
+    else:
+        print(result.text or f"✅ {kind} scaffolded")  # noqa: T201
+
+
 def _fail(msg: str, *, json_output: bool) -> NoReturn:
     """Print error and exit."""
     if json_output:
@@ -314,35 +418,6 @@ def _fail(msg: str, *, json_output: bool) -> NoReturn:
     else:
         print(f"❌ {msg}", file=sys.stderr)  # noqa: T201
     raise SystemExit(1)
-
-
-def _resolve_workspace_root(target_path: Path) -> Path | None:
-    """Resolve workspace root from *target_path*, or return ``None``."""
-    from axm_init.checks._workspace import (
-        ProjectContext,
-        detect_context,
-        find_workspace_root,
-    )
-
-    context = detect_context(target_path)
-    if context == ProjectContext.WORKSPACE:
-        return target_path
-    if context == ProjectContext.MEMBER:
-        return find_workspace_root(target_path)
-    return None
-
-
-def _read_workspace_name(workspace_root: Path) -> str:
-    """Read project name from workspace root pyproject.toml."""
-    import tomllib
-
-    root_pyproject = workspace_root / "pyproject.toml"
-    if root_pyproject.is_file():
-        with open(root_pyproject, "rb") as f:
-            data = tomllib.load(f)
-        name: str = data.get("project", {}).get("name", workspace_root.name)
-        return name
-    return workspace_root.name
 
 
 def _scaffold_member(
@@ -353,6 +428,7 @@ def _scaffold_member(
     author: str,
     email: str,
     license_type: str,
+    license_holder: str | None,
     description: str,
     json_output: bool,
 ) -> None:
@@ -365,15 +441,21 @@ def _scaffold_member(
         author: Author name.
         email: Author email.
         license_type: License type.
+        license_holder: License holder (defaults to *org* when ``None``).
         description: Package description.
         json_output: Whether to output JSON.
     """
     from axm_init.adapters.copier import CopierAdapter, CopierConfig
     from axm_init.adapters.workspace_patcher import patch_all
+    from axm_init.core.scaffolder import (
+        build_member_data,
+        read_workspace_name,
+        resolve_workspace_root,
+    )
     from axm_init.core.templates import TemplateType, get_template_path
 
     # 1. Detect workspace root
-    workspace_root = _resolve_workspace_root(target_path)
+    workspace_root = resolve_workspace_root(target_path)
     if workspace_root is None:
         _fail(
             "Not inside a UV workspace — use --member from a workspace directory",
@@ -389,15 +471,18 @@ def _scaffold_member(
         )
 
     # 3. Scaffold member
-    data = {
-        "member_name": member_name,
-        "description": description or "A workspace member package",
-        "org": org,
-        "license": license_type,
-        "author_name": author,
-        "author_email": email,
-        "workspace_name": _read_workspace_name(workspace_root),
-    }
+    data = build_member_data(
+        member_name,
+        read_workspace_name(workspace_root),
+        {
+            "org": org,
+            "author_name": author,
+            "author_email": email,
+            "license": license_type,
+            "description": description,
+        },
+        license_holder=license_holder,
+    )
 
     copier_adapter = CopierAdapter()
     copier_config = CopierConfig(
@@ -413,7 +498,7 @@ def _scaffold_member(
         return
 
     # 4. Patch root files
-    patched = patch_all(workspace_root, member_name)
+    report = patch_all(workspace_root, member_name)
 
     if json_output:
         print(  # noqa: T201
@@ -423,7 +508,9 @@ def _scaffold_member(
                     "member": member_name,
                     "path": str(member_dir),
                     "files": [str(f) for f in result.files_created],
-                    "patched_root_files": patched,
+                    "patched_root_files": report.patched,
+                    "skipped_root_files": report.skipped,
+                    "failed_root_files": report.failed,
                 }
             )
         )
@@ -431,9 +518,17 @@ def _scaffold_member(
         print(f"✅ Member '{member_name}' created at {member_dir}")  # noqa: T201
         for f in result.files_created:
             print(f"   📄 {f}")  # noqa: T201
-        if patched:
+        if report.patched:
             print(  # noqa: T201
-                f"   🔧 Patched root files: {', '.join(patched)}"
+                f"   🔧 Patched root files: {', '.join(report.patched)}"
+            )
+        if report.skipped:
+            print(  # noqa: T201
+                f"   ⏭️  Skipped root files: {', '.join(report.skipped)}"
+            )
+        if report.failed:
+            print(  # noqa: T201
+                f"   ⚠️  Failed root files: {', '.join(report.failed)}"
             )
 
 
@@ -518,6 +613,7 @@ def check(
         format_agent,
         format_json,
         format_report,
+        resolve_exit_code,
     )
 
     project_path = Path(path).resolve()
@@ -539,8 +635,9 @@ def check(
     else:
         print(format_report(result, verbose=verbose))  # noqa: T201
 
-    if result.score < 100:
-        raise SystemExit(1)
+    exit_code = resolve_exit_code(result)
+    if exit_code:
+        raise SystemExit(exit_code)
 
 
 @app.command()

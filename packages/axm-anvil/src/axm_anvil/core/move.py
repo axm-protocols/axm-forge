@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextvars
 import os
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -30,8 +32,10 @@ from axm_anvil.core.callers import (
     _discover_module_import_callers,
     _module_path_from_file,
     _rewrite_module_import_caller,
+    _scan_workspace_py_files,
     rewrite_caller_text,
 )
+from axm_anvil.core.context import MoveContext
 from axm_anvil.core.cycles import GraphEdits, detect_new_cycle
 from axm_anvil.core.deps import (
     ImportInfo,
@@ -653,10 +657,48 @@ def _existing_guard_codes(target_tree: cst.Module) -> set[str]:
     }
 
 
+def _is_docstring_stmt(stmt: cst.BaseStatement) -> bool:
+    """Return ``True`` if ``stmt`` is a bare module/string-literal docstring line."""
+    if not isinstance(stmt, cst.SimpleStatementLine) or not stmt.body:
+        return False
+    first = stmt.body[0]
+    return isinstance(first, cst.Expr) and isinstance(
+        first.value, cst.SimpleString | cst.ConcatenatedString
+    )
+
+
+def _is_future_import_stmt(stmt: cst.BaseStatement) -> bool:
+    """Return ``True`` if ``stmt`` is a ``from __future__ import ...`` line."""
+    if not isinstance(stmt, cst.SimpleStatementLine):
+        return False
+    return any(
+        isinstance(small, cst.ImportFrom)
+        and small.module is not None
+        and _dotted_name_of(small.module) == "__future__"
+        for small in stmt.body
+    )
+
+
+def _module_preamble_offset(tree: cst.Module) -> int:
+    """Return the body index after the module docstring and ``__future__`` block.
+
+    Guard blocks (``try: import ... except ImportError``) must be spliced
+    *after* any leading module docstring — inserting at position 0 would demote
+    the docstring to an ordinary string statement, nulling ``module.__doc__``
+    and breaking E402. A ``from __future__ import`` line, when present, must
+    also stay first, so it is skipped too.
+    """
+    body = tree.body
+    offset = 1 if body and _is_docstring_stmt(body[0]) else 0
+    while offset < len(body) and _is_future_import_stmt(body[offset]):
+        offset += 1
+    return offset
+
+
 def _splice_guard_blocks(
     target_tree: cst.Module, guards: list[cst.BaseCompoundStatement]
 ) -> cst.Module:
-    """Prepend conditional guard blocks not already present in the target."""
+    """Splice conditional guard blocks after the target's docstring/preamble."""
     if not guards:
         return target_tree
     seen = _existing_guard_codes(target_tree)
@@ -670,7 +712,10 @@ def _splice_guard_blocks(
         to_add.append(block)
     if not to_add:
         return target_tree
-    return target_tree.with_changes(body=[*to_add, *target_tree.body])
+    offset = _module_preamble_offset(target_tree)
+    body = list(target_tree.body)
+    new_body = [*body[:offset], *to_add, *body[offset:]]
+    return target_tree.with_changes(body=new_body)
 
 
 def _apply_imports(
@@ -707,7 +752,7 @@ def _apply_imports(
     )
 
 
-def _classify_import(  # noqa: PLR0913
+def _classify_import(  # noqa: PLR0913, PLR0917
     name: str,
     info: ImportInfo,
     target_imports: dict[str, ImportInfo],
@@ -828,7 +873,7 @@ def _splice_blocks_after_anchor(
     return base_body + blocks_body, [warning]
 
 
-def _build_target_tree(  # noqa: PLR0913
+def _build_target_tree(  # noqa: PLR0913, PLR0917
     target_tree: cst.Module,
     blocks: list[Block],
     source_imports: dict[str, ImportInfo],
@@ -1007,6 +1052,22 @@ def _assert_target_free(target_tree: cst.Module, names: list[str]) -> None:
             raise SymbolAlreadyExistsError(name)
 
 
+def _assert_rename_targets_free(
+    target_tree: cst.Module, rename_map: dict[str, str]
+) -> None:
+    """Reject a move whose *renamed* name already exists in the target.
+
+    ``_validate_and_expand`` only checks the pre-rename names against the
+    target; a ``rename={'foo': 'bar'}`` where ``bar`` is already defined in
+    the target would otherwise write a second ``def bar`` that silently
+    shadows the first at import. Guard against that renamed-target collision.
+    """
+    target_existing = _gather_target_existing(target_tree)
+    for new_name in rename_map.values():
+        if new_name in target_existing:
+            raise SymbolAlreadyExistsError(new_name)
+
+
 def _resolve_shared_map(
     blocks: list[Block],
     collected_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
@@ -1044,7 +1105,7 @@ def _sync_dunder_all_trees(
     return new_source_tree, new_target_tree
 
 
-def _build_trees(  # noqa: PLR0913
+def _build_trees(  # noqa: PLR0913, PLR0917
     source_tree: cst.Module,
     target_tree: cst.Module,
     blocks: list[Block],
@@ -1148,16 +1209,7 @@ def _render_and_validate(
     return source_text_new, target_text_new
 
 
-def _build_plan(  # noqa: PLR0913
-    source_text_new: str,
-    target_text_new: str,
-    moved_names: list[str],
-    imports_added: list[str],
-    constants_added: list[str],
-    shared_map: dict[str, SharedInfo],
-    callers_updated: list[CallerRewrite] | None = None,
-    redundant_import_warnings: list[str] | None = None,
-) -> MovePlan:
+def _build_plan(ctx: MoveContext) -> MovePlan:
     """Assemble the MovePlan with shared-helper detections and warnings."""
     shared_detected = [
         SharedHelperDetection(
@@ -1165,7 +1217,7 @@ def _build_plan(  # noqa: PLR0913
             used_by_moved=sorted(info.used_by_moved),
             used_by_remaining=sorted(info.used_by_remaining),
         )
-        for name, info in sorted(shared_map.items())
+        for name, info in sorted(ctx.shared_map.items())
     ]
     shared_warnings = [
         (
@@ -1175,16 +1227,33 @@ def _build_plan(  # noqa: PLR0913
         )
         for det in shared_detected
     ]
-    warnings: list[str] = list(redundant_import_warnings or []) + list(shared_warnings)
+    warnings: list[str] = list(ctx.redundant_import_warnings or []) + list(
+        shared_warnings
+    )
     return MovePlan(
-        source_text_new=source_text_new,
-        target_text_new=target_text_new,
-        moved_names=moved_names,
-        imports_added=imports_added,
-        constants_added=constants_added,
+        source_text_new=ctx.source_text_new,
+        target_text_new=ctx.target_text_new,
+        moved_names=ctx.moved_names,
+        imports_added=ctx.imports_added,
+        constants_added=ctx.constants_added,
         warnings=warnings,
         shared_helpers_detected=shared_detected,
-        callers_updated=list(callers_updated or []),
+        callers_updated=list(ctx.callers_updated or []),
+    )
+
+
+def _unresolved_module_warning(
+    file_path: Path, workspace_root: Path, exc: ValueError
+) -> str:
+    """Human-readable warning for a caller file outside ``workspace_root``.
+
+    Names the offending file and the root it could not be resolved against so
+    the user can update any remaining callers by hand.
+    """
+    return (
+        f"skipped caller import rewrite: could not resolve '{file_path}' to an "
+        f"import path under workspace root '{workspace_root}' ({exc}); callers "
+        f"referencing the moved symbols may need manual updates"
     )
 
 
@@ -1194,39 +1263,39 @@ def _process_callers(
     source_path: Path,
     target_path: Path,
     rename_map: dict[str, str] | None = None,
-) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite]]:
+) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite], list[str]]:
     """Discover callers, rewrite their imports, and validate the results.
 
-    Returns ``(caller_texts, rewrites)`` where ``caller_texts`` maps each
-    caller path to ``(original_text, new_text)``. Raises
-    :class:`MoveValidationError` if any caller fails to parse before or after
-    rewrite. Files are only read — writes happen later via ``_apply_write``.
+    Returns ``(caller_texts, rewrites, warnings)`` where ``caller_texts`` maps
+    each caller path to ``(original_text, new_text)`` and ``warnings`` carries
+    non-fatal notices (e.g. a source/target file outside ``workspace_root``
+    whose import path cannot be resolved, so its callers are left untouched).
+    Raises :class:`MoveValidationError` if any caller fails to parse before or
+    after rewrite. Files are only read — writes happen later via
+    ``_apply_write``.
     """
     try:
         from_module = _module_path_from_file(source_path, workspace_root)
+    except ValueError as exc:
+        return {}, [], [_unresolved_module_warning(source_path, workspace_root, exc)]
+    try:
         new_module = _module_path_from_file(target_path, workspace_root)
-    except ValueError:
-        return {}, []
+    except ValueError as exc:
+        return {}, [], [_unresolved_module_warning(target_path, workspace_root, exc)]
 
-    from_callers = _discover_callers(
-        workspace_root,
-        moved_names,
-        from_module,
-        exclude=[source_path, target_path],
+    scanned = _scan_workspace_py_files(
+        workspace_root, exclude=[source_path, target_path]
     )
-    module_callers = _discover_module_import_callers(
-        workspace_root,
-        from_module,
-        exclude=[source_path, target_path],
-    )
+    from_callers = _discover_callers(scanned, moved_names, from_module)
+    module_callers = _discover_module_import_callers(scanned, from_module)
     ordered_callers = _dedup_caller_paths(from_callers, module_callers)
 
+    source_by_path = dict(scanned)
     new_texts: dict[Path, tuple[str, str]] = {}
     rewrites: list[CallerRewrite] = []
     for caller_path in ordered_callers:
-        try:
-            original = caller_path.read_text()
-        except (OSError, UnicodeDecodeError):
+        original = source_by_path.get(caller_path)
+        if original is None:
             continue
         result = _rewrite_one_caller(
             original, from_module, new_module, moved_names, rename_map
@@ -1239,7 +1308,7 @@ def _process_callers(
             rewrite.file = file_str
             rewrites.append(rewrite)
         new_texts[caller_path] = (original, current_text)
-    return new_texts, rewrites
+    return new_texts, rewrites, []
 
 
 def _dedup_caller_paths(
@@ -1293,7 +1362,7 @@ def _caller_relpath(caller_path: Path, workspace_root: Path) -> str:
         return str(caller_path)
 
 
-def _apply_write(  # noqa: PLR0913
+def _apply_write(  # noqa: PLR0913, PLR0917
     source_path: Path,
     target_path: Path,
     source_text: str,
@@ -1443,9 +1512,30 @@ def _pkg_module_name(py: Path, pkg_root: Path) -> str:
     return pkg_prefix + (("." + ".".join(parts)) if parts else "")
 
 
-def _build_current_graph(
-    pkg_root: Path,
-) -> tuple[dict[str, set[str]], set[str]]:
+_GraphResult = tuple[dict[str, set[str]], set[str]]
+
+_GRAPH_CACHE: contextvars.ContextVar[dict[Path, _GraphResult] | None] = (
+    contextvars.ContextVar("_GRAPH_CACHE", default=None)
+)
+
+
+@contextmanager
+def _graph_cache_session() -> Iterator[None]:
+    """Scope a parsed-graph cache to a single move/session.
+
+    Inside the ``with`` block, repeated :func:`_build_current_graph` calls for
+    the same package root reuse one parsed graph instead of re-parsing the
+    package on every cycle-check. The cache is created on entry and dropped on
+    exit, so it never bridges two moves (a fresh session always re-parses).
+    """
+    token = _GRAPH_CACHE.set({})
+    try:
+        yield
+    finally:
+        _GRAPH_CACHE.reset(token)
+
+
+def _parse_package_graph(pkg_root: Path) -> _GraphResult:
     """Parse all ``.py`` files under ``pkg_root`` and build an import graph.
 
     Returns ``(graph, internal_modules)`` using fully-qualified dotted names.
@@ -1471,6 +1561,24 @@ def _build_current_graph(
     return graph, modules
 
 
+def _build_current_graph(pkg_root: Path) -> _GraphResult:
+    """Return the package import graph, reusing the session cache if active.
+
+    When a :func:`_graph_cache_session` is open, the parsed graph for
+    ``pkg_root`` is computed once and memoised for the remainder of the
+    session; outside a session each call parses fresh. The returned graph is
+    equivalent to a freshly parsed one for the same unchanged sources.
+    """
+    cache = _GRAPH_CACHE.get()
+    key = pkg_root.resolve()
+    if cache is not None and key in cache:
+        return cache[key]
+    result = _parse_package_graph(pkg_root)
+    if cache is not None:
+        cache[key] = result
+    return result
+
+
 def _resolve_internal_module(module: str, internal_modules: set[str]) -> str | None:
     """Resolve ``module`` (or a dotted prefix) to an internal module name."""
     if module in internal_modules:
@@ -1483,7 +1591,7 @@ def _resolve_internal_module(module: str, internal_modules: set[str]) -> str | N
     return None
 
 
-def _block_implied_target_imports(  # noqa: PLR0913
+def _block_implied_target_imports(  # noqa: PLR0913, PLR0917
     blocks: list[Block],
     source_tree: cst.Module,
     new_source_tree: cst.Module,
@@ -1609,7 +1717,7 @@ def _diff_module_imports(
     return GraphEdits(adds=adds, removes=removes)
 
 
-def _compute_graph_edits(  # noqa: PLR0913
+def _compute_graph_edits(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_path: Path,
     target_path: Path,
@@ -1647,7 +1755,7 @@ def _compute_graph_edits(  # noqa: PLR0913
     return _diff_module_imports(ctx, _resolve_caller)
 
 
-def _cycle_check(  # noqa: PLR0913
+def _cycle_check(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_path: Path,
     target_path: Path,
@@ -1706,7 +1814,7 @@ def _cycle_check(  # noqa: PLR0913
     return detect_new_cycle(graph, edits)
 
 
-def _cross_package_cycle_check(  # noqa: PLR0913
+def _cross_package_cycle_check(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_path: Path,
     target_path: Path,
@@ -1761,7 +1869,7 @@ def _namespaced_caller_module(caller_path: Path, workspace_root: Path) -> str | 
     return _pkg_module_name(caller_path.resolve(), pkg_root)
 
 
-def _compute_workspace_graph_edits(  # noqa: PLR0913
+def _compute_workspace_graph_edits(  # noqa: PLR0913, PLR0917
     workspace_root: Path,
     source_module: str,
     target_module: str,
@@ -2064,16 +2172,16 @@ def _string_forward_ref_warnings(
     return scanner.warnings
 
 
-def _resolve_caller_phase(  # noqa: PLR0913
+def _resolve_caller_phase(  # noqa: PLR0913, PLR0917
     reexport: bool,
     root: Path,
     moved_names: Sequence[str],
     source_path: Path,
     target_path: Path,
     rename_map: dict[str, str] | None = None,
-) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite]]:
+) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite], list[str]]:
     if reexport:
-        return {}, []
+        return {}, [], []
     return _process_callers(root, moved_names, source_path, target_path, rename_map)
 
 
@@ -2086,6 +2194,7 @@ def move_symbols(  # noqa: PLR0913
     source_path: str | Path,
     target_path: str | Path,
     symbol_names: Sequence[str],
+    *,
     dry_run: bool = False,
     workspace_root: Path | None = None,
     shared_helpers: str = "duplicate",
@@ -2160,18 +2269,21 @@ def move_symbols(  # noqa: PLR0913
         # move is a no-op. Return an empty plan with the original texts BEFORE
         # any tree-building or write, so source and target stay byte-identical.
         noop_plan = _build_plan(
-            source_text,
-            target_text,
-            moved_names,
-            [],
-            [],
-            {},
+            MoveContext(
+                source_text_new=source_text,
+                target_text_new=target_text,
+                moved_names=moved_names,
+                imports_added=[],
+                constants_added=[],
+                shared_map={},
+            )
         )
         noop_plan.warnings.extend(skipped_warnings)
         return noop_plan
     remove_targets, blocks = _extract_moved_blocks(source_tree, expanded_names)
     rename_map = _active_rename(rename, moved_names)
     if rename_map:
+        _assert_rename_targets_free(target_tree, rename_map)
         blocks = _apply_rename_to_blocks(blocks, rename_map)
 
     root = (
@@ -2213,21 +2325,24 @@ def move_symbols(  # noqa: PLR0913
         new_source_tree, new_target_tree
     )
 
-    caller_texts, caller_rewrites = _resolve_caller_phase(
+    caller_texts, caller_rewrites, caller_warnings = _resolve_caller_phase(
         reexport, root, moved_names, source_path, target_path, rename_map
     )
 
     plan = _build_plan(
-        source_text_new,
-        target_text_new,
-        moved_names,
-        imports_added,
-        constants_added,
-        shared_map,
-        callers_updated=caller_rewrites,
-        redundant_import_warnings=redundant_import_warnings,
+        MoveContext(
+            source_text_new=source_text_new,
+            target_text_new=target_text_new,
+            moved_names=moved_names,
+            imports_added=imports_added,
+            constants_added=constants_added,
+            shared_map=shared_map,
+            callers_updated=caller_rewrites,
+            redundant_import_warnings=redundant_import_warnings,
+        )
     )
     plan.warnings.extend(skipped_warnings)
+    plan.warnings.extend(caller_warnings)
     # Forward-refs to *renamed* symbols are rewritten in the moved code
     # (RenameSymbols.leave_Annotation); only moved-but-not-renamed names still
     # warrant the manual-update warning.
@@ -2239,16 +2354,17 @@ def move_symbols(  # noqa: PLR0913
         _fixture_scope_warnings(blocks, source_tree, source_path, target_path, root)
     )
 
-    cycle = _cycle_check(
-        root,
-        source_path,
-        target_path,
-        new_source_tree,
-        new_target_tree,
-        caller_texts,
-        blocks,
-        source_tree,
-    )
+    with _graph_cache_session():
+        cycle = _cycle_check(
+            root,
+            source_path,
+            target_path,
+            new_source_tree,
+            new_target_tree,
+            caller_texts,
+            blocks,
+            source_tree,
+        )
     _enforce_cycle(cycle, check, dry_run)
 
     if dry_run or check:

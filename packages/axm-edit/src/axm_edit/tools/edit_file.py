@@ -10,6 +10,8 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
+from axm_edit.utils import resolve_safe
+
 __all__ = ["EditFileTool"]
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,8 @@ class EditFileTool:
     """
 
     agent_hint: str = (
-        "Find-and-replace in a file. Args: path, old, new."
+        "Find-and-replace in a file, confined to a project root."
+        " Args: path (root), file (relative), old, new."
         " Replaces first occurrence. Errors if text not found"
         " or ambiguous (multiple matches)."
     )
@@ -54,15 +57,17 @@ class EditFileTool:
 
     @staticmethod
     def _validate_args(
-        path: str | None, old: str | None, new: str | None
+        file: str | None, old: str | None, new: str | None, count: int
     ) -> str | None:
-        """Return an error message if required args are missing, else None."""
-        if not path:
-            return "Missing required argument: path"
+        """Return an error message if required args are invalid, else None."""
+        if not file:
+            return "Missing required argument: file"
         if old is None:
             return "Missing required argument: old"
         if new is None:
             return "Missing required argument: new"
+        if count != -1 and count < 1:
+            return "count must be -1 (all) or a positive integer"
         return None
 
     @staticmethod
@@ -77,41 +82,70 @@ class EditFileTool:
             )
         return None
 
+    @staticmethod
+    def _resolve_target(root_str: str, file_rel: str) -> Path | ToolResult:
+        """Resolve *file_rel* under *root_str*, confined via ``resolve_safe``.
+
+        Returns the resolved ``Path`` on success, or a ``ToolResult`` error
+        when the root is not a directory, the target escapes the root, or the
+        file does not exist.
+        """
+        root = Path(root_str).resolve()
+        if not root.is_dir():
+            return ToolResult(
+                success=False,
+                error=f"Root is not a directory: {root_str}",
+            )
+        target = resolve_safe(root, file_rel)
+        if target is None:
+            return ToolResult(
+                success=False,
+                error=f"Path escapes project root (confinement barrier): {file_rel}",
+            )
+        if not target.is_file():
+            return ToolResult(success=False, error=f"File not found: {file_rel}")
+        return target
+
     def execute(
         self,
         *,
-        path: str | None = None,
+        path: str = ".",
+        file: str | None = None,
         old: str | None = None,
         new: str | None = None,
         count: int = 1,
         **kwargs: object,
     ) -> ToolResult:
-        """Find and replace text in a file.
+        """Find and replace text in a file, confined under a project root.
 
         Args:
-            path: Absolute path to the file to edit.
+            path: Project root directory (default ".").
+            file: Path to the file to edit, relative to ``path``.
             old: Text to find (exact match).
             new: Replacement text.
             count: Max replacements (default 1). Use -1 for all.
 
         Returns:
-            ToolResult with replacement details.
+            ToolResult with replacement details. A ``file`` that escapes
+            ``path`` (absolute outside root, or ``..`` traversal) is
+            refused with ``success=False``.
         """
-        file_path = path
+        root_str = path
+        file_rel = file
 
-        validation_error = self._validate_args(file_path, old, new)
+        validation_error = self._validate_args(file_rel, old, new, count)
         if validation_error:
             return ToolResult(success=False, error=validation_error)
 
-        # After validation, path/old/new are guaranteed non-None
-        assert file_path is not None
+        # After validation, file/old/new are guaranteed non-None
+        assert file_rel is not None
         assert old is not None
         assert new is not None
 
-        target = Path(file_path)
-
-        if not target.is_file():
-            return ToolResult(success=False, error=f"File not found: {file_path}")
+        resolved = self._resolve_target(root_str, file_rel)
+        if isinstance(resolved, ToolResult):
+            return resolved
+        target = resolved
 
         try:
             content = target.read_text(encoding="utf-8")
@@ -141,7 +175,7 @@ class EditFileTool:
 
         logger.debug(
             "edit %s: replaced %d occurrence(s) at line %d",
-            file_path,
+            file_rel,
             replaced,
             line_num,
         )

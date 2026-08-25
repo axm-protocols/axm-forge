@@ -11,7 +11,10 @@
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
 | `git_release_diff` | `GitReleaseDiffTool` | Read-only SemVer bump decision: scopes commits/diffstat to a package subdir since its last tag, flags public-API changes, and suggests the next version |
 | `git_push` | `GitPushTool` | Push with dirty-check and auto-upstream; `force` uses `--force-with-lease` by default, `force_unconditional` for a bare `--force` |
-| `git_worktree` | `GitWorktreeTool` | Add, remove, or list git worktrees |
+| `git_worktree` | `GitWorktreeTool` | Add, remove, or list git worktrees; `path` is the repo and `worktree_path` the (possibly not-yet-existing) worktree location |
+| `git_merge` | `GitMergeTool` | Squash-merge a branch into its target; refuses a dirty tree and rolls back on conflict |
+| `git_pull` | `GitPullTool` | Pull `origin main` (override via `remote`/`branch`) into the local repo |
+| `git_await_merge` | `GitAwaitMergeTool` | Poll a PR (`pr`: number or URL) until merged or timeout |
 | `git_pr` | `GitPRTool` | Create GitHub pull requests with optional auto-merge; idempotent — recovers the existing PR (`already_existed`) when one is already open |
 
 ## Lifecycle Hooks
@@ -25,7 +28,7 @@ Hook actions auto-discovered via the `axm.hooks` entry-point group by `HookRegis
 | `git:branch-delete` | `BranchDeleteHook` | Delete a branch via `git branch -D`; reads name from `branch` param then `branch` context key |
 | `git:commit-phase` | `CommitPhaseHook` | Stage all + commit with `[axm] {phase}`; pass `from_outputs=True` to derive staged files from protocol outputs |
 | `git:merge-squash` | `MergeSquashHook` | Squash-merge branch back to target; accepts `branch` and `message` params, reads branch from context when not supplied |
-| `git:worktree-add` | `WorktreeAddHook` | Create a worktree + branch for a ticket at `<repo_parent>/<ticket_id>/` |
+| `git:worktree-add` | `WorktreeAddHook` | Create a worktree + branch for a ticket at `/tmp/axm-worktrees/<ticket_id>/` |
 | `git:worktree-remove` | `WorktreeRemoveHook` | Remove a worktree previously created by `WorktreeAddHook` |
 | `git:push` | `PushHook` | Push the current branch to `origin -u`; reads `branch` from context or detects HEAD |
 | `git:pull-main` | `PullHook` | Pull `origin main` (override via `remote`/`branch` params) into the local repository |

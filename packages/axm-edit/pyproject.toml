@@ -19,6 +19,7 @@ classifiers = [
 
 dependencies = [
     "axm",
+    "axm-ast",
     "pydantic>=2.0.0",
 ]
 
@@ -30,6 +31,7 @@ Issues = "https://github.com/axm-protocols/axm-forge/issues"
 
 [project.entry-points."axm.tools"]
 batch_edit     = "axm_edit.tools.batch_edit:BatchEditTool"
+batch_edit_check = "axm_edit.tools.batch_edit_check:BatchEditCheckTool"
 batch_rollback = "axm_edit.tools.batch_rollback:BatchRollbackTool"
 read_file      = "axm_edit.tools.read_file:ReadFileTool"
 write_file     = "axm_edit.tools.write_file:WriteFileTool"
@@ -37,6 +39,7 @@ edit_file      = "axm_edit.tools.edit_file:EditFileTool"
 search_files   = "axm_edit.tools.search_files:SearchFilesTool"
 run_command    = "axm_edit.tools.run_command:RunCommandTool"
 list_dir       = "axm_edit.tools.list_dir:ListDirTool"
+file_bytes     = "axm_edit.tools.file_bytes:FileBytesTool"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -65,9 +68,9 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
+    "ruff==0.16.4",
     "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pip-audit>=2.0",
 ]
 docs = [
@@ -81,9 +84,13 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm_edit"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -91,7 +98,7 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "S", "T20", "PLR",
 ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+"tests_axm_edit/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_edit"]
@@ -124,8 +131,9 @@ check_untyped_defs = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "conftest"]
+module = ["tests_axm_edit.*", "conftest"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -155,6 +163,17 @@ disallow_subclassing_any = false
 exempt_paths = ["core/engine.py", "core/checkpoint.py"]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# axm-audit — near-threshold advisory (pilot opt-in, warn-only)
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-edit is the pilot package for the `near_threshold` advisory: several
+# functions sit exactly at ruff's reference arity, so a single added parameter
+# trips PLR0913. The advisory surfaces that proximity BEFORE the edit. It reads
+# the thresholds from ruff (falling back to ruff's defaults) — do NOT pin them
+# here.
+[tool.axm-audit.complexity]
+near_threshold = true
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.deptry]
@@ -167,7 +186,7 @@ DEP004 = ["mkdocs_gen_files", "pytest"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_edit"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -180,7 +199,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=91",
 ]
 filterwarnings = ["error"]
 markers = [
@@ -195,7 +214,7 @@ markers = [
 source = ["src/axm_edit"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_*/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

@@ -1,8 +1,7 @@
 # Fix pipeline — deterministic test-suite reorganiser
 
 The `axm-audit fix` subcommand and the `audit_fix` MCP tool
-([`AuditFixTool`](../src/axm_audit/tools/audit_fix.py) in
-`axm_audit.tools.audit_fix`) drive a deterministic pipeline that
+(`AuditFixTool` in `axm_audit.tools.audit_fix`) drive a deterministic pipeline that
 batch-relocates, splits, merges and renames test files to satisfy the
 AXM 3-level pyramid + canonical naming conventions. It consumes findings from three rules:
 

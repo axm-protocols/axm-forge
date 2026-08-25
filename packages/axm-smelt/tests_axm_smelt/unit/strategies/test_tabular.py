@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from axm_smelt.core.models import SmeltContext
+from axm_smelt.strategies.tabular import (
+    TabularStrategy,
+    collect_ordered_keys,
+    render_rows,
+    to_table,
+)
+
+
+@pytest.fixture
+def strategy() -> TabularStrategy:
+    return TabularStrategy()
+
+
+class TestTabularBasic:
+    def test_tabular_basic(self, strategy: TabularStrategy) -> None:
+        inp = '[{"name":"A","age":1},{"name":"B","age":2}]'
+        result = strategy.apply(SmeltContext(text=inp)).text
+        assert result == "name|age\nA|1\nB|2"
+
+    def test_tabular_nested_values(self, strategy: TabularStrategy) -> None:
+        data = json.dumps([{"a": 1, "b": {"nested": True}}])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        assert lines[0] == "a|b"
+        # Nested dict value should be JSON-encoded
+        assert '{"nested": true}' in lines[1]
+
+    @pytest.mark.parametrize(
+        ("input_text", "expected"),
+        [
+            pytest.param("[]", "[]", id="empty_array"),
+            pytest.param('[{"a":1}]', "a\n1", id="single_item"),
+        ],
+    )
+    def test_tabular_trivial_arrays(
+        self, strategy: TabularStrategy, input_text: str, expected: str
+    ) -> None:
+        result = strategy.apply(SmeltContext(text=input_text)).text
+        assert result == expected
+
+    def test_tabular_mixed_keys(self, strategy: TabularStrategy) -> None:
+        data = json.dumps([{"a": 1, "b": 2}, {"a": 3, "c": 4}])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        headers = lines[0].split("|")
+        assert "a" in headers
+        assert "b" in headers
+        assert "c" in headers
+        # Row for {"a":3, "c":4} should have empty for missing key b
+        row2_values = lines[2].split("|")
+        b_idx = headers.index("b")
+        assert row2_values[b_idx] == ""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param('{"a":1}', id="non_array"),
+            pytest.param("[1,2,3]", id="non_dict_array"),
+        ],
+    )
+    def test_tabular_passthrough(self, strategy: TabularStrategy, text: str) -> None:
+        result = strategy.apply(SmeltContext(text=text)).text
+        assert result == text
+
+
+class TestTabularEdgeCases:
+    def test_pipe_in_value(self, strategy: TabularStrategy) -> None:
+        data = json.dumps([{"a": "hello|world", "b": 1}])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        assert lines[0] == "a|b"
+        # Value containing pipe must be JSON-encoded to avoid ambiguity
+        assert '"hello|world"' in lines[1]
+
+    def test_pipe_in_nested_value(self, strategy: TabularStrategy) -> None:
+        """AC1: a nested dict cell containing a pipe must not add a phantom column."""
+        data = json.dumps([{"a": {"x": "y|z"}, "b": 1}])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        assert lines[0] == "a|b"
+        # Row must split into exactly the header's column count (2)
+        # with no phantom column.
+        assert len(lines[1].split("|")) == 2
+
+    def test_very_wide_table(self, strategy: TabularStrategy) -> None:
+        obj = {f"key_{i:03d}": i for i in range(55)}
+        data = json.dumps([obj])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        headers = lines[0].split("|")
+        assert len(headers) == 55
+
+    def test_boolean_null_values(self, strategy: TabularStrategy) -> None:
+        data = json.dumps([{"a": True, "b": None}])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        assert lines[0] == "a|b"
+        assert lines[1] == "true|null"
+
+    def test_pipe_in_key_no_phantom_column(self) -> None:
+        """AC1: a key containing a pipe must not spawn a phantom header column."""
+        result = to_table([{"a|b": 1, "c": 2}])
+        assert result is not None
+        lines = result.split("\n")
+        header_cols = lines[0].split("|")
+        row_cols = lines[1].split("|")
+        # Header boundaries align with the data row: same column count.
+        assert len(header_cols) == len(row_cols) == 2
+        # The pipe in the key is escaped (no bare pipe inside the cell).
+        assert "\\u007c" in lines[0]
+
+    def test_header_escaping_symmetric_with_value(self) -> None:
+        """AC2: header keys use the same pipe-escape scheme as cell values."""
+        result = to_table([{"a|b": ["x|y"]}])
+        assert result is not None
+        header, row = result.split("\n")
+        # Key and value both escape the pipe via the | scheme.
+        assert "\\u007c" in header
+        assert "\\u007c" in row
+        # No bare pipe remains in the single-key header -> no phantom column.
+        assert "|" not in header
+
+    def test_pipe_free_keys_regression(self) -> None:
+        """AC3: pipe-free keys render byte-identical to the pre-fix output."""
+        result = to_table([{"name": "A", "age": 1}, {"name": "B", "age": 2}])
+        assert result == "name|age\nA|1\nB|2"
+
+
+# --- merged from test_tabular_helpers.py ---
+
+
+@pytest.mark.parametrize(
+    ("items", "expected"),
+    [
+        pytest.param(
+            [{"b": 1, "a": 2}, {"a": 3, "c": 4}],
+            ["b", "a", "c"],
+            id="preserves_order",
+        ),
+        pytest.param([], [], id="empty"),
+    ],
+)
+def test_collect_ordered_keys(items: list[dict[str, int]], expected: list[str]) -> None:
+    assert collect_ordered_keys(items) == expected
+
+
+def test_render_rows_with_missing_keys() -> None:
+    items = [{"a": 1, "b": 2}, {"a": 3}]
+    keys = ["a", "b"]
+    rows = render_rows(items, keys)
+    assert len(rows) == 2
+    # Second row should have empty string for missing key "b"
+    assert rows[1].split("|")[1] == ""
+
+
+@pytest.mark.parametrize(
+    ("items", "expected_header", "expected_line_count"),
+    [
+        pytest.param([{"a": 1}], "a", 2, id="single_item_list"),
+        pytest.param([{"a": 1}, {"a": 2}], "a", 3, id="all_keys_identical"),
+    ],
+)
+def test_to_table_single_column(
+    items: list[dict[str, int]],
+    expected_header: str,
+    expected_line_count: int,
+) -> None:
+    result = to_table(items)
+    assert result is not None
+    lines = result.split("\n")
+    assert lines[0] == expected_header
+    assert len(lines) == expected_line_count
+
+
+def test_nested_values_in_cells() -> None:
+    result = to_table([{"a": {"b": 1}}])
+    assert result is not None
+    lines = result.split("\n")
+    # Nested dict should be JSON-serialized via _format_cell
+    cell = lines[1]
+    assert "b" in cell
+    assert "1" in cell

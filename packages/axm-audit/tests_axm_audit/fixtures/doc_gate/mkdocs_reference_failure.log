@@ -1,0 +1,4 @@
+INFO    -  Building documentation...
+WARNING -  Doc file 'api.md' contains a bad reference 'sym.func' that could not be resolved.
+WARNING -  Sponsor reference could not be resolved.
+ERROR   -  Aborted with a strict-mode reference failure.

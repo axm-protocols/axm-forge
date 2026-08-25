@@ -1,0 +1,4 @@
+INFO    -  Building documentation...
+WARNING -  Doc file 'guide.md' contains a link 'other.md#missing' but the page does not contain an anchor '#missing'.
+ERROR -  Theme link preview mentions an unrecognized anchor.
+ERROR   -  Aborted with a strict-mode anchor failure.

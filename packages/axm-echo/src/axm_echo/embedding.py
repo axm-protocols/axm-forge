@@ -19,9 +19,10 @@ technical notes) and is not re-litigated here.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
@@ -69,8 +70,9 @@ def code_tokens(src: str) -> list[str]:
         tokens.append(ident.lower())
         parts = re.split(r"(?<=[a-z])(?=[A-Z])|_", ident)
         tokens.extend(p.lower() for p in parts if p)
+    ident_tokens = [t for t in tokens if t in _STRUCTURAL_KEYWORDS]
     for kw in _STRUCTURAL_KEYWORDS:
-        tokens.extend([kw] * src.count(kw))
+        tokens.extend([kw] * ident_tokens.count(kw))
     return tokens
 
 
@@ -89,19 +91,14 @@ def _embed_tfidf(texts: Sequence[str]) -> NDArray[np.float64]:
     return np.asarray(matrix.todense(), dtype=np.float64)
 
 
-def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:
-    """MiniLM sentence-transformer embedding (the default neural backend).
+@functools.cache
+def _load_model() -> Any:  # type: ignore[explicit-any]  # SentenceTransformer (lazy)
+    """Load (and memoize) the MiniLM model, placed on MPS when available.
 
-    ``torch`` and ``sentence_transformers`` are base dependencies (AXM-2188);
-    they are imported here lazily only for first-call latency, so the ``tfidf``
-    path stays light. No subprocess is forked -- embedding runs in-process.
-
-    ``TOKENIZERS_PARALLELISM`` is pinned off before the first tokenizers import
-    as a precaution: HuggingFace tokenizers otherwise spin a native fork-based
-    worker pool that deadlocks after a fork. ``setdefault`` keeps an explicit
-    caller override intact. (The Linux-CI ``torch`` circular-import crash is
-    fixed elsewhere -- the CPU torch wheel pin in the root ``pyproject.toml`` --
-    not here; this only keeps the documented in-process guarantee honest.)
+    Memoized module-level so repeated ``st`` embeddings across ``echo_check`` /
+    ``echo_code`` calls in one process pay the model load exactly once instead
+    of on every call. ``torch`` and ``sentence_transformers`` are imported
+    lazily here so the ``tfidf`` path never loads torch.
     """
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
@@ -115,6 +112,19 @@ def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:
             model = model.to("mps")
     except Exception:  # noqa: BLE001, S110 - device placement is best-effort
         pass
+    return model
+
+
+def _embed_st(texts: Sequence[str]) -> NDArray[np.float64]:
+    """MiniLM sentence-transformer embedding (the ``st`` backend, default).
+
+    ``torch`` and ``sentence_transformers`` are base dependencies (AXM-2188);
+    they are imported lazily (in :func:`_load_model`) only for first-call
+    latency, so the ``tfidf`` path stays light. No subprocess is forked --
+    embedding runs in-process. The model itself is cached module-level, so
+    only the first call in a process pays the load.
+    """
+    model = _load_model()
     embeddings = model.encode(
         list(texts),
         batch_size=128,
@@ -136,9 +146,10 @@ def embed(texts: Sequence[str], *, backend: Backend = "tfidf") -> NDArray[np.flo
 
     Args:
         texts: Texts to embed (one row per text).
-        backend: ``"tfidf"`` (code, scikit-learn) or ``"st"`` (MiniLM, the
-            default neural backend). The ``st`` backend lazily imports torch
-            for first-call latency; ``tfidf`` never loads it.
+        backend: ``"tfidf"`` (code, scikit-learn) or ``"st"`` (MiniLM neural).
+            The ``st`` backend is the tools' default (this lib-layer function
+            defaults to ``tfidf`` for a torch-free call); it lazily imports
+            torch for first-call latency, ``tfidf`` never loads it.
 
     Returns:
         A ``(len(texts), dim)`` float matrix. Rows are not guaranteed
@@ -179,9 +190,12 @@ def neighbors(
 
     Returns:
         A list of ``(row_index, cosine_score)`` pairs sorted by score
-        descending, length ``<= k``. The query is not excluded from the
-        corpus; if ``query`` is a row of ``matrix`` it appears at score 1.0.
+        descending, length ``<= k``. ``k <= 0`` yields an empty list. The
+        query is not excluded from the corpus; if ``query`` is a row of
+        ``matrix`` it appears at score 1.0.
     """
+    if k <= 0:
+        return []
     norm_matrix = _l2_normalize(np.atleast_2d(matrix).astype(np.float64))
     norm_query = _l2_normalize(np.asarray(query, dtype=np.float64).reshape(1, -1))
     sims = (norm_query @ norm_matrix.T).ravel()

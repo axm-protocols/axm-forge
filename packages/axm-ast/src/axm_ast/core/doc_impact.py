@@ -8,7 +8,13 @@ import re
 from pathlib import Path
 from typing import NotRequired, TypedDict
 
+from axm_ast.doc_policy import is_documentation_required
+from axm_ast.models.nodes import ClassInfo, FunctionInfo, ModuleInfo
+
 log = logging.getLogger(__name__)
+
+# A symbol node whose documentation-required status the shared policy can judge.
+type DocSymbolNode = FunctionInfo | ClassInfo | ModuleInfo
 
 __all__ = [
     "DocImpactResult",
@@ -198,6 +204,14 @@ def find_doc_refs(
 ) -> dict[str, list[DocRefEntry]]:
     """Find documentation references for given symbols.
 
+    The hit is **purely lexical**: a reference is recorded when the bare
+    symbol name appears between backticks or in a Markdown heading of a doc
+    file. Nothing else is interpreted — prose outside those two forms, and
+    the body of a fenced code block, establish no semantic link.
+
+    The returned entries are pages to read, never a non-regression oracle:
+    a stable output does not prove the prose still describes the code.
+
     Args:
         root: Project root directory.
         symbols: Symbol names to search for in docs.
@@ -215,18 +229,78 @@ def find_doc_refs(
     return refs
 
 
+def _index_symbol_nodes(root: Path) -> dict[str, DocSymbolNode]:
+    """Map bare symbol names to their parsed axm-ast nodes.
+
+    Uses the canonical axm-ast package extraction (``get_package``) so the
+    docstring signal fed to :func:`is_documentation_required` is exactly what
+    the tree-sitter parser recorded — no bespoke "has docstring" heuristic is
+    introduced here.
+
+    Args:
+        root: Project root directory to analyze.
+
+    Returns:
+        Mapping of bare name to the first node (function, method, or class)
+        seen under that name. Empty when the root cannot be analyzed.
+    """
+    from axm_ast.core.cache import get_package
+
+    try:
+        pkg = get_package(root)
+    except ValueError:
+        return {}
+    index: dict[str, DocSymbolNode] = {}
+    for module in pkg.modules:
+        for fn in module.functions:
+            index.setdefault(fn.name, fn)
+        for cls in module.classes:
+            index.setdefault(cls.name, cls)
+            for method in cls.methods:
+                index.setdefault(method.name, method)
+    return index
+
+
 def find_undocumented(
     doc_refs: dict[str, list[DocRefEntry]],
+    symbol_nodes: dict[str, DocSymbolNode],
 ) -> list[str]:
-    """Return symbols that have no documentation references.
+    """Return public, docstring-less symbols absent from the prose docs.
+
+    A symbol is reported only when it has **no** prose documentation reference
+    *and* the shared :func:`is_documentation_required` policy considers it a
+    real gap — i.e. it is public surface (name not ``_``-prefixed) and carries
+    no docstring. Private/dunder symbols and symbols already documented by a
+    docstring are never reported; this can only ever *shrink* the prose-missing
+    set, never grow it (the output schema is unchanged).
+
+    A symbol absent from ``symbol_nodes`` (unresolvable in the analyzed source)
+    keeps the legacy prose-only verdict, so a genuinely missing symbol is never
+    silently dropped.
+
+    The prose signal it consumes is **purely lexical**: ``find_doc_refs`` only
+    matches the bare name between backticks or in a Markdown heading, and never
+    reads the meaning of a fenced code block. A single name-drop of the symbol
+    therefore suffices to drop it from this list, without any real prose being
+    written. See :func:`analyze_doc_impact` for the canonical caveat.
 
     Args:
         doc_refs: Output of ``find_doc_refs``.
+        symbol_nodes: Bare-name → parsed node index (see
+            :func:`_index_symbol_nodes`) supplying the docstring/privacy signal.
 
     Returns:
-        List of symbol names with empty references.
+        List of symbol names that are documentation-required gaps.
     """
-    return [sym for sym, refs in doc_refs.items() if not refs]
+    undocumented: list[str] = []
+    for sym, refs in doc_refs.items():
+        if refs:
+            continue
+        node = symbol_nodes.get(sym)
+        if node is not None and not is_documentation_required(node):
+            continue
+        undocumented.append(sym)
+    return undocumented
 
 
 def find_stale_signatures(
@@ -237,6 +311,12 @@ def find_stale_signatures(
 
     Compares ``def`` / ``class`` signatures in doc code blocks
     against actual AST signatures.
+
+    The scope is strictly a fenced code block: a signature written in plain
+    prose, in an indented block or in an inline span is never extracted. The
+    comparison itself is a lexical string equality, so a reformatted but
+    semantically equivalent signature still reads as stale, and a stale
+    signature outside a fenced code block is invisible here.
 
     Args:
         root: Project root directory.
@@ -282,6 +362,34 @@ def analyze_doc_impact(
     Combines doc refs, undocumented detection, and stale
     signature detection.
 
+    Caveat (canonical) — all three signals rest on a **purely lexical**
+    matching, never a semantic one. A symbol counts as mentioned when its
+    bare name appears between backticks or in a Markdown heading, and a
+    documented signature is only compared inside a fenced code block. No
+    meaning is read: a purely semantic change leaves this output identical
+    byte for byte, and a bare name-drop of the symbol anywhere in the prose
+    is enough to remove it from ``undocumented``.
+
+    Read the result as a list of pages to read, not a proof that the
+    documentation is correct or up to date. Never use it as a non-regression
+    oracle: an unchanged output proves nothing about the prose still telling
+    the truth — a human review remains the only verdict on doc correctness.
+
+    Limits — what this tool does not detect:
+
+    1. A **semantic** change at unchanged name. Rewrite what a symbol means
+       without touching its name and every signal stays identical, byte for
+       byte: nothing here reports the prose that now lies.
+    2. A bare **name-drop** counted as documentation. A single backticked
+       mention, even in an unrelated sentence, is enough to drop the symbol
+       from ``undocumented`` — presence is not coverage.
+    3. ``undocumented`` is not a non-regression **oracle**. An empty or
+       unchanged result proves nothing about documentation drift.
+
+    When the semantics of a symbol change while its name does not, re-read by
+    hand every page listed in ``doc_refs``: that manual pass is the one thing
+    this tool cannot do for you. See ``docs/explanation/doc_impact_limits.md``.
+
     Args:
         root: Project root directory.
         symbols: Symbol names to analyze.
@@ -290,8 +398,9 @@ def analyze_doc_impact(
         Dict with ``doc_refs``, ``undocumented``, ``stale_signatures``.
     """
     refs = find_doc_refs(root, symbols)
+    symbol_nodes = _index_symbol_nodes(root)
     return {
         "doc_refs": refs,
-        "undocumented": find_undocumented(refs),
+        "undocumented": find_undocumented(refs, symbol_nodes),
         "stale_signatures": find_stale_signatures(root, symbols),
     }

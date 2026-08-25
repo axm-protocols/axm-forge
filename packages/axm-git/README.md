@@ -29,7 +29,7 @@
 - 🔀 **PR** — Create GitHub pull requests with optional auto-merge
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
 - 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, branch-delete, commit-phase, merge-squash, worktree-add, worktree-remove, push, create-pr, await-merge, pull-main) with `enabled` guard, auto-discovered via entry-points
-- 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection. Schedule rules apply only under user-configured `workspace_paths`; comparison is timezone-aware via the optional `timezone` field (default `Europe/Paris`)
+- 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection. Schedule rules apply only under user-configured `workspace_paths`; comparison is timezone-aware via the optional `timezone` field (default `Europe/Paris`). The whole schedule can be switched off with `schedule.enabled = false` (defaults to `true`), in which case resolution falls through to the default identity
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
 
 ## Installation
@@ -146,9 +146,9 @@ Add, remove, or list git worktrees.
 
 | Parameter | Default | Description |
 |---|---|---|
-| `path` | `.` | Project root directory |
 | `action` | *required* | `add`, `remove`, or `list` |
-| `worktree_path` | `None` | Path for the new or existing worktree |
+| `path` | `.` | Repository path (git-root resolution runs here, so a fresh sibling worktree works) |
+| `worktree_path` | `None` | Worktree location for `add`/`remove` (may not exist yet). When omitted, `path` doubles as the worktree location (legacy form) |
 | `branch` | `None` | Branch name for `add` |
 | `base` | `None` | Base ref for `add` (defaults to repo default) |
 | `force` | `False` | Force removal for the `remove` action |

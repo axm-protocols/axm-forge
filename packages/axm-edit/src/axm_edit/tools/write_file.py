@@ -10,6 +10,8 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
+from axm_edit.utils import resolve_safe
+
 __all__ = ["WriteFileTool"]
 
 logger = logging.getLogger(__name__)
@@ -36,8 +38,8 @@ class WriteFileTool:
     """
 
     agent_hint: str = (
-        "Write text content to a file (creates parents)."
-        " Use for artifacts, configs, and new files."
+        "Write text content to a file (creates parents), confined to a"
+        " project root. Args: path (root), file (relative), content."
         " For multi-file atomic edits, use batch_edit instead."
     )
 
@@ -49,27 +51,44 @@ class WriteFileTool:
     def execute(
         self,
         *,
-        path: str | None = None,
+        path: str = ".",
+        file: str | None = None,
         content: str | None = None,
         **kwargs: object,
     ) -> ToolResult:
-        """Write content to a file.
+        """Write content to a file, confined under a project root.
 
         Args:
-            path: Absolute path to the file to write.
+            path: Project root directory (default ".").
+            file: Path to the file to write, relative to ``path``.
             content: Text content to write.
 
         Returns:
-            ToolResult with written file path and byte count.
+            ToolResult with written file path and byte count. A ``file``
+            that escapes ``path`` (absolute outside root, or ``..``
+            traversal) is refused with ``success=False``.
         """
-        file_path = path
+        root_str = path
+        file_rel = file
 
-        if not file_path:
-            return ToolResult(success=False, error="Missing required argument: path")
+        if not file_rel:
+            return ToolResult(success=False, error="Missing required argument: file")
         if content is None:
             return ToolResult(success=False, error="Missing required argument: content")
 
-        target = Path(file_path)
+        root = Path(root_str).resolve()
+        if not root.is_dir():
+            return ToolResult(
+                success=False,
+                error=f"Root is not a directory: {root_str}",
+            )
+
+        target = resolve_safe(root, file_rel)
+        if target is None:
+            return ToolResult(
+                success=False,
+                error=f"Path escapes project root (confinement barrier): {file_rel}",
+            )
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -78,7 +97,7 @@ class WriteFileTool:
             return ToolResult(success=False, error=f"Write failed: {exc}")
 
         byte_count = len(content.encode("utf-8"))
-        logger.debug("wrote %s (%d bytes)", file_path, byte_count)
+        logger.debug("wrote %s (%d bytes)", file_rel, byte_count)
 
         target_path = str(target)
         return ToolResult(

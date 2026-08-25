@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
-import os
-import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
 from io import StringIO
 from pathlib import Path
 
@@ -15,6 +14,56 @@ from pydantic import BaseModel, ConfigDict
 from axm_init.models.results import ScaffoldResult
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def _suppress_output() -> Iterator[None]:
+    """Discard Python-level stdout/stderr for the duration of the block.
+
+    Uses :func:`contextlib.redirect_stdout` / :func:`contextlib.redirect_stderr`
+    to swap the interpreter-level streams to an in-memory sink, so child-tool
+    chatter (git / uv / prek) written through ``sys.stdout`` / ``sys.stderr`` is
+    swallowed.  Unlike ``os.dup2`` on fds 1/2, this never mutates the
+    process-global file descriptors, so a concurrent writer on fd 1/2 is left
+    completely unaffected.
+    """
+    sink = StringIO()
+    with (
+        contextlib.redirect_stdout(sink),
+        contextlib.redirect_stderr(sink),
+    ):
+        yield
+
+
+def _offload_to_thread(sync_call: Callable[[], None]) -> None:
+    """Run *sync_call* on a worker thread, awaiting it via ``asyncio.to_thread``.
+
+    Called when a loop is already running on the current thread (e.g. an MCP
+    server): copier calls ``asyncio.run()`` internally and therefore needs a
+    thread without a running loop.  The worker thread runs its own loop and
+    awaits ``asyncio.to_thread(sync_call)``, so the caller's running loop is
+    never driven with a blocking ``future.result()``.  Exceptions raised by
+    *sync_call* are re-raised on the calling thread.
+    """
+    import asyncio
+    import threading
+
+    errors: list[Exception] = []
+
+    def _worker() -> None:
+        async def _main() -> None:
+            await asyncio.to_thread(sync_call)
+
+        try:
+            asyncio.run(_main())
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=_worker)
+    thread.start()
+    thread.join()
+    if errors:
+        raise errors[0]
 
 
 class CopierConfig(BaseModel):  # type: ignore[explicit-any]
@@ -53,7 +102,6 @@ class CopierAdapter:
         its own event loop context.
         """
         import asyncio
-        import concurrent.futures
 
         def _run() -> None:
             # ``run_copy`` declares ``data: dict[str, Any] | None``;
@@ -74,21 +122,20 @@ class CopierAdapter:
             # No event loop — safe to call directly (CLI context).
             _run()
         else:
-            # Inside an event loop (MCP server) — offload to a thread.
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(_run)
-                future.result()  # propagate exceptions
+            # Inside an event loop (MCP server) — offload without blocking
+            # the running loop on a synchronous ``future.result()``.
+            _offload_to_thread(_run)
 
     def copy(self, config: CopierConfig) -> ScaffoldResult:
         """Execute Copier copy operation.
 
-        Redirects stdout/stderr so that post-copy tasks (git init,
-        uv sync, pre-commit install) don't pollute the parent process
-        stdio — critical when running inside an MCP server.
-
-        File descriptors are individually guarded so that a failure at
-        any point (e.g. fd limit reached) cannot leak previously
-        acquired descriptors.
+        Suppresses stdout/stderr via the scoped :func:`_suppress_output`
+        context manager so that post-copy tasks (git init, uv sync,
+        pre-commit install) don't pollute the parent process stdio —
+        critical when running inside an MCP server.  Suppression is scoped
+        to the interpreter-level streams and never mutates the process-global
+        file descriptors 1/2, so concurrent writers on those fds are
+        unaffected.
 
         Args:
             config: Copier configuration with template path, destination, and data.
@@ -96,47 +143,14 @@ class CopierAdapter:
         Returns:
             ScaffoldResult with success status and path.
         """
-        old_stdout, old_stderr = sys.stdout, sys.stderr
-        devnull = -1
-        old_fd_out = -1
-        old_fd_err = -1
-
-        def _cleanup_fds() -> None:
-            """Close any fds that were successfully acquired (idempotent)."""
-            nonlocal devnull, old_fd_out, old_fd_err
-            if old_fd_out != -1:
-                os.dup2(old_fd_out, 1)
-                os.close(old_fd_out)
-                old_fd_out = -1
-            if old_fd_err != -1:
-                os.dup2(old_fd_err, 2)
-                os.close(old_fd_err)
-                old_fd_err = -1
-            if devnull != -1:
-                os.close(devnull)
-                devnull = -1
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-
+        if config.trust_template:
+            logger.warning(
+                "Running Copier with unsafe=True — template may execute "
+                "arbitrary post-copy tasks."
+            )
         try:
-            # Redirect stdout/stderr to prevent subprocess output from
-            # corrupting MCP JSON-RPC stdio transport.
-            sys.stdout = StringIO()
-            sys.stderr = StringIO()
-            devnull = os.open(os.devnull, os.O_WRONLY)
-            old_fd_out = os.dup(1)
-            old_fd_err = os.dup(2)
-            os.dup2(devnull, 1)
-            os.dup2(devnull, 2)
-            if config.trust_template:
-                logger.warning(
-                    "Running Copier with unsafe=True — template may execute "
-                    "arbitrary post-copy tasks."
-                )
-            try:
+            with _suppress_output():
                 self._do_copy(config)
-            finally:
-                _cleanup_fds()
             # Walk destination to collect created files, excluding noise
             # from post-copy tasks (.git, .venv, __pycache__, node_modules).
             _excluded = {
@@ -162,7 +176,6 @@ class CopierAdapter:
                 files_created=created,
             )
         except Exception as e:
-            _cleanup_fds()
             return ScaffoldResult(
                 success=False,
                 path=str(config.destination),

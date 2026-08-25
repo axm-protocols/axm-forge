@@ -7,7 +7,10 @@ between the classified level and the folder the test lives in are
 reported as findings.
 
 R4 (conftest fixture-IO resolution) and R5 (mock neutralisation) are
-stubbed here as identities — ticket #4b replaces the two placeholders.
+fully implemented below: R5 recognises a fully-mocked SUT (see
+``_apply_mock_neutralization`` / ``extract_mock_targets`` /
+``_NATIVE_AUDIO_IO_TOKENS``) so a unit test whose only residual I/O signal
+is mocked scaffolding is not force-promoted to integration.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ from axm_audit.core.rules.test_quality._shared import (
     get_pkg_prefixes,
     has_in_package_subprocess_invocation,
     iter_test_files,
+    load_cli_binaries,
     load_project_scripts,
     target_matches_io,
     test_invokes_inline_python_script,
@@ -1019,7 +1023,7 @@ def _apply_heavy_importorskip_signals(
     return bool(heavy_mods)
 
 
-def _apply_r4_conftest(  # noqa: PLR0913
+def _apply_r4_conftest(  # noqa: PLR0913, PLR0917
     node: ast.FunctionDef,
     tree: ast.Module,
     test_file: Path,
@@ -1073,7 +1077,7 @@ class _ScanContext:
     fixtures: dict[str, ast.FunctionDef] | None = None
 
 
-def _build_scan_context(  # noqa: PLR0913
+def _build_scan_context(  # noqa: PLR0913, PLR0917
     test_file: Path,
     tree: ast.Module,
     pkg_root: Path,
@@ -1108,7 +1112,7 @@ def _build_scan_context(  # noqa: PLR0913
         file_has_subprocess=file_has_subprocess,
         file_signals=file_signals,
         file_heavy_importorskip=file_heavy_importorskip,
-        project_scripts=load_project_scripts(pkg_root),
+        project_scripts=load_cli_binaries(pkg_root),
         helpers=_collect_helpers(tree),
     )
 
@@ -1256,7 +1260,7 @@ def _classify_test_function(ctx: _ScanContext, node: ast.FunctionDef) -> Finding
     )
 
 
-def scan_test_file(  # noqa: PLR0913
+def scan_test_file(  # noqa: PLR0913, PLR0917
     test_file: Path,
     tree: ast.Module,
     pkg_root: Path,

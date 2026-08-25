@@ -74,6 +74,16 @@ audit_test | ❌ 10 passed · 2 failed | 3.4s | cov 88.0%
 cov< utils.py 80%
 ```
 
+A red that no test failure explains names its cause on the line right under the
+header, followed by the bounded excerpt of the captured output — so an agent can
+diagnose it without re-running pytest by hand:
+
+```
+audit_test | ❌ 1 passed · 1 collected | 2.1s | pytest exit 1
+cause coverage_threshold: required test coverage of 100% not reached
+FAIL Required test coverage of 100% not reached. Total coverage: 62.50%
+```
+
 ### Deterministic auto-fix
 
 Use `audit_fix` to run the deterministic test-suite fix pipeline:

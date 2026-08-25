@@ -28,45 +28,21 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Checks to skip for workspace roots (they are package-level concerns).
-SKIP_FOR_WORKSPACE: frozenset[str] = frozenset(
-    {
-        "structure.src_layout",
-        "structure.py_typed",
-        "structure.tests_dir",
-        "pyproject.pyproject_urls",
-        "pyproject.pyproject_classifiers",
-        "pyproject.pyproject_mypy",
-        "pyproject.pyproject_ruff",
-        "deps.dev_deps",
-        "deps.docs_group",
-        "pyproject.pyproject_pytest",
-        "pyproject.pyproject_coverage",
-        "docs.diataxis_nav",
-    }
-)
-
-# CI/tooling checks that should be redirected to workspace root for members.
-REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
-    {
-        "ci.ci_workflow_exists",
-        "ci.trusted_publishing",
-        "ci.dependabot",
-        "ci.ci_lint_job",
-        "ci.ci_security_job",
-        "ci.ci_test_job",
-        "tooling.precommit_exists",
-        "tooling.precommit_ruff",
-        "tooling.precommit_mypy",
-        "tooling.precommit_conventional",
-        "tooling.precommit_basic",
-        "tooling.makefile",
-        "tooling.precommit_installed",
-        "structure.license_file",
-        "structure.python_version",
-        "structure.contributing",
-    }
-)
+__all__ = [
+    "ALL_CHECKS",
+    "REDIRECT_BY_CONTEXT",
+    "SKIP_BY_CONTEXT",
+    "VALID_CATEGORIES",
+    "CheckEngine",
+    "format_agent",
+    "format_agent_text",
+    "format_json",
+    "format_report",
+    "get_check_name",
+    "resolve_exit_code",
+    "stamp_canonical_name",
+    "validate_context_tables",
+]
 
 
 # Sub-packages of ``axm_init.checks`` that hold a non-Python framework's
@@ -159,7 +135,8 @@ def get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
 
     This is THE single source of truth for check naming. The convention is
     ``category.function_name_without_check_`` (the module name is the
-    category). The same string is used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*``
+    category). The same string is used by the context tables
+    ``SKIP_BY_CONTEXT`` / ``REDIRECT_BY_CONTEXT``
     (pre-run, on the function), by ``[tool.axm-init].exclude`` matching
     (post-run, on the result), and as the displayed ``CheckResult.name`` —
     so a name shown in the report can always be excluded by config.
@@ -237,7 +214,57 @@ VALID_CATEGORIES = {
 }
 
 
-SKIP_FOR_MEMBER: frozenset[str] = frozenset(
+# --- Context-keyed skip / redirect tables --------------------------------
+#
+# ONE table per decision, keyed by ProjectContext: a fourth context is a new
+# row, never a new branch in the engine. Every id is checked against the
+# discovered check ids by :func:`validate_context_tables`, called from the
+# engine constructor — a typo is a hard error, not a silently inert skip.
+
+
+def _known_check_ids() -> frozenset[str]:
+    """Return every canonical check id declared by the discovery registry."""
+    return frozenset(
+        name
+        for fns in ALL_CHECKS.values()
+        for fn in fns
+        if (name := get_check_name(fn)) is not None
+    )
+
+
+def _category_check_ids(category: str) -> frozenset[str]:
+    """Return the canonical check ids registered under *category*."""
+    return frozenset(
+        name
+        for fn in ALL_CHECKS.get(category, [])
+        if (name := get_check_name(fn)) is not None
+    )
+
+
+# Checks that only make sense on a workspace root: every other context skips
+# the whole ``workspace`` category.
+_WORKSPACE_ONLY_CHECKS: frozenset[str] = _category_check_ids("workspace")
+
+# Package-level concerns a workspace root does not carry.
+_WORKSPACE_ROOT_SKIPS: frozenset[str] = frozenset(
+    {
+        "structure.src_layout",
+        "structure.py_typed",
+        "structure.tests_dir",
+        "pyproject.pyproject_urls",
+        "pyproject.pyproject_classifiers",
+        "pyproject.pyproject_mypy",
+        "pyproject.pyproject_ruff",
+        "deps.dev_deps",
+        "deps.docs_group",
+        "pyproject.pyproject_pytest",
+        "pyproject.pyproject_coverage",
+        "docs.diataxis_nav",
+    }
+)
+
+# Docs/deps concerns owned by the workspace root, not by each of its members.
+_MEMBER_SKIPS: frozenset[str] = frozenset(
     {
         "docs.gen_ref_pages",
         "docs.plugins",
@@ -246,6 +273,102 @@ SKIP_FOR_MEMBER: frozenset[str] = frozenset(
         "deps.docs_group",
     }
 )
+
+# CI/tooling checks a member delegates to its workspace root.
+_MEMBER_REDIRECTS: frozenset[str] = frozenset(
+    {
+        "ci.ci_workflow_exists",
+        "ci.trusted_publishing",
+        "ci.dependabot",
+        "ci.ci_lint_job",
+        "ci.ci_security_job",
+        "ci.ci_test_job",
+        "tooling.precommit_exists",
+        "tooling.precommit_ruff",
+        "tooling.precommit_mypy",
+        "tooling.precommit_conventional",
+        "tooling.precommit_basic",
+        "tooling.makefile",
+        "tooling.precommit_installed",
+        "structure.license_file",
+        "structure.python_version",
+        "structure.contributing",
+    }
+)
+
+# A paper's own invariants: meaningless in every non-paper context.
+_PAPER_CHECKS: frozenset[str] = _category_check_ids("paper")
+
+# An experiment folder's own form invariants: meaningless everywhere else,
+# so every NON-experiment context skips the whole ``experiment`` category.
+# Derived from the registry, never hand-listed.
+_EXPERIMENT_CHECKS: frozenset[str] = _category_check_ids("experiment")
+
+# Every Python-packaging check id — i.e. everything that is neither a paper
+# nor an experiment check. Derived from the registry instead of hand-listed,
+# so a packaging check added later is skipped on a paper the day it lands.
+_PACKAGING_CHECKS: frozenset[str] = (
+    _known_check_ids() - _PAPER_CHECKS - _EXPERIMENT_CHECKS
+)
+
+# Checks skipped entirely, per detected project context.
+SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
+    ProjectContext.STANDALONE: (
+        _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+    ),
+    ProjectContext.WORKSPACE: (
+        _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+    ),
+    ProjectContext.MEMBER: (
+        _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+    ),
+    # A paper is not a Python distribution: the whole packaging rulebook is
+    # out, only the paper's own invariants are graded — and an experiment's
+    # form checks belong to the experiment folders nested under it, not to
+    # the paper root.
+    ProjectContext.PAPER: _PACKAGING_CHECKS | _EXPERIMENT_CHECKS,
+    # An experiment folder is not a Python distribution either: it holds a
+    # manifest, not a pyproject.toml / src/ / py.typed / test pyramid /
+    # mkdocs.yml. The whole packaging rulebook is out, and so are the paper
+    # invariants (they belong to the paper root above it) — only the two
+    # experiment FORM checks are graded. Both operands come from the
+    # registry-derived sets, so a check added or renamed later is routed (or
+    # rejected by ``validate_context_tables``) instead of drifting.
+    ProjectContext.EXPERIMENT: _PACKAGING_CHECKS | _PAPER_CHECKS,
+}
+
+# Checks run against the workspace root instead, per detected context.
+REDIRECT_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
+    ProjectContext.STANDALONE: frozenset(),
+    ProjectContext.WORKSPACE: frozenset(),
+    ProjectContext.MEMBER: _MEMBER_REDIRECTS,
+    # Like a member, a paper delegates CI/tooling to its workspace root.
+    ProjectContext.PAPER: _MEMBER_REDIRECTS,
+    # Nothing to redirect: every redirectable id is a packaging check, and
+    # the experiment context skips the packaging rulebook outright.
+    ProjectContext.EXPERIMENT: frozenset(),
+}
+
+
+def validate_context_tables() -> None:
+    """Check every context-table id against the discovered check registry.
+
+    Raises:
+        ValueError: if a table holds an id no registered check declares —
+            the message names every offending id.
+    """
+    known = _known_check_ids()
+    unknown = sorted(
+        check_id
+        for table in (SKIP_BY_CONTEXT, REDIRECT_BY_CONTEXT)
+        for ids in table.values()
+        for check_id in ids
+        if check_id not in known
+    )
+    if unknown:
+        listed = ", ".join(repr(check_id) for check_id in unknown)
+        msg = f"Unknown check id(s) in the context tables: {listed}"
+        raise ValueError(msg)
 
 
 class CheckEngine:
@@ -258,6 +381,7 @@ class CheckEngine:
         category: str | None = None,
         framework: Framework | str | None = None,
     ) -> None:
+        validate_context_tables()
         self.project_path = project_path.resolve()
         self.category = category
         self.framework = (
@@ -272,22 +396,14 @@ class CheckEngine:
         """Check if a check name matches any exclusion prefix."""
         return any(check_name.startswith(prefix) for prefix in exclusions)
 
-    def _should_skip(self, check_name: str | None, category: str) -> bool:
+    def _should_skip(self, check_name: str | None) -> bool:
         """Return True if the check should be skipped for context reasons."""
-        if category == "workspace" and self.context != ProjectContext.WORKSPACE:
-            return True
-        if (
-            self.context == ProjectContext.WORKSPACE
-            and check_name in SKIP_FOR_WORKSPACE
-        ):
-            return True
-        return self.context == ProjectContext.MEMBER and check_name in SKIP_FOR_MEMBER
+        return check_name in SKIP_BY_CONTEXT.get(self.context, frozenset())
 
     def _should_redirect(self, check_name: str | None) -> bool:
         """Return True if the check should be redirected to workspace root."""
         return (
-            self.context == ProjectContext.MEMBER
-            and check_name in REDIRECT_FOR_MEMBER
+            check_name in REDIRECT_BY_CONTEXT.get(self.context, frozenset())
             and self.workspace_root is not None
         )
 
@@ -299,7 +415,7 @@ class CheckEngine:
 
         Skip and redirect decisions key off the canonical
         ``category.fn_name`` name (:func:`get_check_name`, the same
-        convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*``). Exclusions
+        convention used by the context tables). Exclusions
         are NOT handled here: they match against ``CheckResult.name`` after
         the check runs — but that name is now re-stamped with the SAME
         canonical value (see :func:`stamp_canonical_name`), so excluding by
@@ -307,10 +423,10 @@ class CheckEngine:
         """
         all_fns: list[Callable[[Path], CheckResult]] = []
 
-        for _category, fns in checks_to_run.items():
+        for fns in checks_to_run.values():
             for fn in fns:
                 check_name = get_check_name(fn)
-                if self._should_skip(check_name, _category):
+                if self._should_skip(check_name):
                     continue
                 if self._should_redirect(check_name):
                     all_fns.append(_redirect_to_root(fn, self.workspace_root))  # type: ignore[arg-type]
@@ -328,7 +444,7 @@ class CheckEngine:
 
         Exclusion matching keys off ``CheckResult.name`` — which ``run`` has
         already re-stamped to the canonical :func:`get_check_name` form, the
-        same convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*`` and shown
+        same convention used by the context tables and shown
         in the report. Excluding by the displayed name therefore actually
         skips the check. Excluded checks become auto-pass results carrying
         that same canonical name.
@@ -453,10 +569,19 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
         lines.extend(_format_category_checks(cat_checks, verbose=verbose))
         lines.append("")
 
-    # Score
-    grade_emoji = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
-    emoji = grade_emoji.get(result.grade.value, "")
-    lines.append(f"  Score: {result.score}/100 — Grade {result.grade.value} {emoji}")
+    # Score — a not-applicable run (no weighted checks scored in this
+    # context, e.g. `check --category workspace` on a standalone project)
+    # renders an N/A line, NOT a numeric 0/100 Grade F.
+    if result.not_applicable:
+        lines.append(
+            "  Category not applicable (N/A) — no checks scored in this context"
+        )
+    else:
+        grade_emoji = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
+        emoji = grade_emoji.get(result.grade.value, "")
+        lines.append(
+            f"  Score: {result.score}/100 — Grade {result.grade.value} {emoji}"
+        )
     lines.append("")
 
     # Failures
@@ -466,12 +591,25 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
+def resolve_exit_code(result: ProjectResult) -> int:
+    """Resolve the CLI process exit code for a check *result*.
+
+    A not-applicable verdict (no weighted checks ran for this context — e.g.
+    a category that does not apply to the project) is a skip/success and
+    exits ``0``. An applicable run exits ``0`` only on a perfect score,
+    otherwise ``1`` — so a real 0/100 Grade F still fails the process.
+    """
+    if result.not_applicable:
+        return 0
+    return 0 if result.score >= 100 else 1
+
+
 def format_json(result: ProjectResult) -> dict[str, object]:
     """Format check result as JSON-serializable dict."""
     return {
         "project": str(result.project_path),
-        "score": result.score,
-        "grade": result.grade.value,
+        "score": None if result.not_applicable else result.score,
+        "grade": None if result.not_applicable else result.grade.value,
         "context": result.context,
         "workspace_root": str(result.workspace_root) if result.workspace_root else None,
         "excluded_checks": result.excluded_checks,
@@ -510,8 +648,8 @@ def format_agent(result: ProjectResult) -> dict[str, object]:
     Only failures carry actionable detail.
     """
     return {
-        "score": result.score,
-        "grade": result.grade.value,
+        "score": None if result.not_applicable else result.score,
+        "grade": None if result.not_applicable else result.grade.value,
         "context": result.context,
         "workspace_root": str(result.workspace_root) if result.workspace_root else None,
         "excluded_checks": result.excluded_checks,
@@ -556,10 +694,13 @@ def format_agent_text(result: ProjectResult) -> str:
     passed = sum(1 for c in result.checks if c.passed)
     failures = result.failures
     context = result.context or "package"
-    header = (
-        f"init_check | {result.grade.value} {result.score}/100 | "
-        f"{context} | {passed} ok · {len(failures)} fail"
+    # A not-applicable run (no weighted checks scored in this context) renders
+    # an N/A marker, NOT a numeric 0/100 Grade F — else the LLM reads a real
+    # failure where a dimension simply does not apply.
+    verdict = (
+        "N/A" if result.not_applicable else f"{result.grade.value} {result.score}/100"
     )
+    header = f"init_check | {verdict} | {context} | {passed} ok · {len(failures)} fail"
     if not failures:
         return f"{header}\nAll gold-standard checks passed."
 

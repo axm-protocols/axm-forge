@@ -7,11 +7,12 @@ first docstring line from ``axm_ast.docstring_parser.parse_docstring``.
 
 The unified embedding text (AC3) is, per symbol::
 
-    embed_text = docstring if present else normalized code/signature
+    embed_text = docstring if present else signature
 
 so a public documented symbol contributes its intent while an
-undocumented one still contributes its code shape -- one engine, one
-vector space, the registry picked per symbol.
+undocumented one still contributes its *signature* (``body_norm`` holds the
+signature, not a normalized body -- bodies are not extracted). One engine,
+one vector space, the registry picked per symbol.
 """
 
 from __future__ import annotations
@@ -148,7 +149,14 @@ def _iter_source_files(pkg_root: Path) -> Iterator[Path]:
     for py in sorted(search_root.rglob("*.py")):
         if _EXCLUDED_SEGMENTS.intersection(py.parts):
             continue
-        if py.name == "__init__.py" and py.stat().st_size == 0:
+        try:
+            is_empty_init = py.name == "__init__.py" and py.stat().st_size == 0
+        except OSError:
+            # A broken symlink or a file removed mid-walk must not abort the
+            # whole extraction: honour the "unparseable files are silently
+            # ignored" contract and skip it.
+            continue
+        if is_empty_init:
             continue
         yield py
 
@@ -225,7 +233,9 @@ def extract_package(pkg_root: Path) -> list[SymbolDict]:
     Returns:
         One ``Symbol`` per public function/class, each carrying
         ``qualname``, ``signature``, ``doc_first_line``, ``doc_full``,
-        ``body_norm`` and the derived ``embed_text``.
+        ``body_norm`` (the signature, used as the fallback embed text for
+        undocumented symbols -- bodies are not extracted) and the derived
+        ``embed_text``.
     """
     package, workspace = _package_meta(pkg_root)
     symbols: list[Symbol] = []
@@ -264,7 +274,8 @@ def discover_package_roots() -> list[Path]:
 def _packages_in_workspace(workspace_root: Path) -> Iterator[Path]:
     """Yield package dirs under one workspace root (or the root itself).
 
-    The scope (``~/axm/echo.toml``) lists *workspace roots directly*, so
+    The scope (``~/.axm/config.toml`` ``[echo]``) lists *workspace roots
+    directly*, so
     packages live one level below the root. Handles, off the workspace root:
       - ``<workspace_root>/packages/<pkg>`` (the AXM monorepo convention)
       - ``<workspace_root>/other/<pkg>`` (the ``other`` subdir as a flat

@@ -429,7 +429,7 @@ def _rewrite_cross_test_imports(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_helper_conflicts(
+def _resolve_helper_conflicts(  # noqa: PLR0917
     source_tree: ast.Module,
     target_tree: ast.Module,
     moving_unit_names: list[str],
@@ -537,7 +537,7 @@ def _should_rename_helper(
     return new_name not in source_helpers and new_name not in target_helpers
 
 
-def _resolve_conftest_shadowing(
+def _resolve_conftest_shadowing(  # noqa: PLR0917
     source_tree: ast.Module,
     target_tree: ast.Module,
     moving_unit_names: list[str],
@@ -719,7 +719,7 @@ def _classify_units(
     return warnings, final_units, rename_map
 
 
-def _apply_helper_conflict_renames(
+def _apply_helper_conflict_renames(  # noqa: PLR0917
     source: Path,
     target: Path,
     project_path: Path,
@@ -746,7 +746,7 @@ def _apply_helper_conflict_renames(
     ]
 
 
-def _apply_conftest_shadow_renames(
+def _apply_conftest_shadow_renames(  # noqa: PLR0917
     source: Path,
     target: Path,
     project_path: Path,

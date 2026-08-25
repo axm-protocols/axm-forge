@@ -60,10 +60,10 @@ axm-init check --verbose
 Shows every individual check with its status and weight:
 
 ```
-pyproject (27/27)
-    ✅ pyproject.exists               4/4  pyproject.toml found
-    ✅ pyproject.urls                  3/3  All 4 URLs present
-    ✅ pyproject.dynamic_version       3/3  Dynamic version with hatch-vcs
+pyproject (29/29)
+    ✅ pyproject.pyproject_exists       4/4  pyproject.toml found
+    ✅ pyproject.pyproject_urls          3/3  All 4 URLs present
+    ✅ pyproject.pyproject_dynamic_version  3/3  Dynamic version with hatch-vcs
     ...
 ```
 

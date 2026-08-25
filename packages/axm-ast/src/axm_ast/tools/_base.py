@@ -27,7 +27,7 @@ def safe_execute[**P](
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> ToolResult:
         try:
             return method(*args, **kwargs)
-        except Exception as exc:  # noqa: BLE001 — final boundary
+        except Exception as exc:
             tool_name = type(args[0]).__name__ if args else "<unknown>"
             logger.warning(
                 "Tool %s failed: %s",

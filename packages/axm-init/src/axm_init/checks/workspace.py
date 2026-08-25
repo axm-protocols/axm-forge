@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+from fnmatch import fnmatchcase
 from pathlib import Path
+
+from axm_ingot.suite import resolve_suite_dir
 
 from axm_init.checks._utils import TomlTable, load_toml, section
 from axm_init.models.check import CheckResult
@@ -103,8 +106,12 @@ def check_members_consistent(project: Path) -> CheckResult:
             missing.append("pyproject.toml")
         if not (member / "src").is_dir():
             missing.append("src/")
-        if not (member / "tests").is_dir():
-            missing.append("tests/")
+        # Le nom de la suite est DÉRIVÉ du membre (tests_<module>) pour que chaque
+        # module path reste unique : un `tests/` partagé fait collisionner
+        # tests.conftest entre membres et tue la collecte à la racine (cf. 9688417b0).
+        # On valide donc la POLITIQUE — une suite existe — pas un nom littéral.
+        if not any(child.is_dir() for child in member.glob("tests_*")):
+            missing.append(f"tests_{member.name.replace('-', '_')}/")
         if missing:
             issues.append(f"{member.name}: missing {', '.join(missing)}")
 
@@ -116,7 +123,7 @@ def check_members_consistent(project: Path) -> CheckResult:
             weight=2,
             message=f"{len(issues)} inconsistent member(s)",
             details=issues,
-            fix="Ensure each member has pyproject.toml, src/, and tests/.",
+            fix="Ensure each member has pyproject.toml, src/, and tests_<module>/.",
         )
 
     return CheckResult(
@@ -376,8 +383,30 @@ def check_pytest_importmode(project: Path) -> CheckResult:
     )
 
 
+def _testpath_covers_suite(testpath: str, suite_path: str) -> bool:
+    """Return whether one configured testpath includes a member suite."""
+    normalized = testpath.strip().replace("\\", "/").rstrip("/")
+    if not normalized:
+        return False
+    return (
+        fnmatchcase(suite_path, normalized)
+        or suite_path == normalized
+        or suite_path.startswith(f"{normalized}/")
+    )
+
+
+def _resolved_member_suites(project: Path) -> list[tuple[Path, Path]]:
+    """Resolve only workspace members that currently own a test suite."""
+    suites: list[tuple[Path, Path]] = []
+    for member in _resolve_member_dirs(project):
+        suite = resolve_suite_dir(member)
+        if suite is not None:
+            suites.append((member, suite))
+    return suites
+
+
 def check_pytest_testpaths(project: Path) -> CheckResult:
-    """Check root testpaths includes paths for workspace members."""
+    """Check root testpaths covers every existing workspace member suite."""
     data = load_toml(project)
     if data is None:
         return CheckResult(
@@ -393,11 +422,10 @@ def check_pytest_testpaths(project: Path) -> CheckResult:
     pytest_cfg = _get_pytest_config(data)
     testpaths_raw = pytest_cfg.get("testpaths", [])
     testpaths: list[str] = (
-        [tp for tp in testpaths_raw if isinstance(tp, str)]
+        [path for path in testpaths_raw if isinstance(path, str)]
         if isinstance(testpaths_raw, list)
         else []
     )
-
     if not testpaths:
         return CheckResult(
             name="workspace.pytest_testpaths",
@@ -406,30 +434,83 @@ def check_pytest_testpaths(project: Path) -> CheckResult:
             weight=2,
             message="No testpaths configured",
             details=["Expected testpaths listing member test directories"],
-            fix='Add testpaths = ["packages/*/tests"] to [tool.pytest.ini_options].',
+            fix=(
+                "Add every existing member suite to "
+                "[tool.pytest.ini_options].testpaths."
+            ),
         )
 
-    # Check that at least one path references packages/*/tests or similar
-    has_member_paths = any("packages" in tp and "tests" in tp for tp in testpaths)
-    if has_member_paths:
+    member_suites = _resolved_member_suites(project)
+    uncovered: list[tuple[Path, str]] = []
+    for member, suite in member_suites:
+        suite_path = suite.relative_to(project).as_posix()
+        if not any(
+            _testpath_covers_suite(testpath, suite_path) for testpath in testpaths
+        ):
+            uncovered.append((member, suite_path))
+
+    if uncovered:
+        details = [f"{member.name}: {suite_path}" for member, suite_path in uncovered]
+        missing_paths = [suite_path for _, suite_path in uncovered]
         return CheckResult(
             name="workspace.pytest_testpaths",
             category="workspace",
-            passed=True,
+            passed=False,
             weight=2,
-            message=f"testpaths configured ({len(testpaths)} path(s))",
-            details=[],
-            fix="",
+            message=(f"testpaths does not cover {len(uncovered)} member suite(s)"),
+            details=details,
+            fix=(f"Add the uncovered suites to testpaths: {', '.join(missing_paths)}"),
         )
 
     return CheckResult(
         name="workspace.pytest_testpaths",
         category="workspace",
-        passed=False,
+        passed=True,
         weight=2,
-        message="testpaths does not reference member test directories",
-        details=[f"Current: {testpaths}"],
-        fix='Add "packages/*/tests" to testpaths in [tool.pytest.ini_options].',
+        message=f"testpaths cover {len(member_suites)} member suite(s)",
+        details=[],
+        fix="",
+    )
+
+
+def check_suite_dir_uniqueness(project: Path) -> CheckResult:
+    """Check every workspace member suite directory name is unique."""
+    owners: dict[str, list[str]] = {}
+    for member, suite in _resolved_member_suites(project):
+        owners.setdefault(suite.name, []).append(member.name)
+
+    duplicates = {
+        suite_name: sorted(member_names)
+        for suite_name, member_names in owners.items()
+        if len(member_names) > 1
+    }
+    if duplicates:
+        details = [
+            f"{suite_name}: {', '.join(member_names)}"
+            for suite_name, member_names in sorted(duplicates.items())
+        ]
+        names = ", ".join(sorted(duplicates))
+        return CheckResult(
+            name="workspace.suite_dir_uniqueness",
+            category="workspace",
+            passed=False,
+            weight=2,
+            message=f"Duplicate suite directory names: {names}",
+            details=details,
+            fix=(
+                "Rename each duplicate suite to its canonical "
+                "tests_<normalized-package> name."
+            ),
+        )
+
+    return CheckResult(
+        name="workspace.suite_dir_uniqueness",
+        category="workspace",
+        passed=True,
+        weight=2,
+        message=f"{len(owners)} member suite name(s) are unique",
+        details=[],
+        fix="",
     )
 
 

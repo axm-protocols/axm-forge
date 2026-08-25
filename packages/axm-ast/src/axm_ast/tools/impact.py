@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -19,6 +19,19 @@ from axm_ast.tools.impact_text import (
 logger = logging.getLogger(__name__)
 
 _COMPACT_LINE_THRESHOLD = 5
+
+
+class _TestFilterKwargs(TypedDict, total=False):
+    """Optional ``test_filter`` pass-through for single-symbol analysis.
+
+    Typing the splat as a TypedDict (rather than ``dict[str, str | None]``)
+    tells mypy the unpack can *only* provide ``test_filter`` -- so it never
+    ambiguously targets the sibling ``include_module_importers: bool`` param
+    when the toggle is deliberately omitted (default path, AC2).
+    """
+
+    test_filter: str | None
+
 
 __all__ = [
     "ImpactTool",
@@ -43,7 +56,7 @@ class ImpactTool(AXMTool):
         return "ast_impact"
 
     @safe_execute
-    def execute(
+    def execute(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
         self,
         *,
         path: str = ".",
@@ -51,6 +64,7 @@ class ImpactTool(AXMTool):
         symbols: list[str] | None = None,
         exclude_tests: bool = False,
         detail: str | None = None,
+        include_module_importers: bool = False,
         **kwargs: object,
     ) -> ToolResult:
         """Analyze change impact for a symbol.
@@ -62,11 +76,29 @@ class ImpactTool(AXMTool):
             exclude_tests: If True, exclude test files from impact analysis.
             detail: Output detail level. Use ``"compact"`` for a markdown
                 table summary instead of the full JSON dict.
+            include_module_importers: OPT-IN (default ``False``). When ``True``,
+                forward the core reverse-import toggle so the result data carries
+                a ``module_level_importers`` field listing modules that only
+                ``import pkg.m`` the edited symbol's *module* (or a re-export
+                shim of it) without referencing the symbol itself -- dependents a
+                symbol-level traversal misses. Off (the default) the ToolResult
+                data and text are byte-for-byte the legacy output (AC2).
+                Best-effort: inert in workspace mode (the core
+                ``analyze_impact_workspace`` does not yet accept the toggle -- a
+                documented residual, single-package analysis is unaffected) and
+                silently empty when the import graph is unavailable.
             **kwargs: Extra options. ``test_filter`` (``"none"``,
                 ``"all"``, ``"related"``) controls test caller filtering.
 
         Returns:
             ToolResult with impact analysis.
+
+        Note:
+            Seeding (Volet B): the analysis seeds from *symbol* verbatim -- the
+            tool never derives or proxies the seed. If a caller (the
+            BUILD-briefing) hands in a derived/proxy symbol, that mis-seed lives
+            on the caller side; it is a documented residual, not fixable here
+            without forcing an axm-ast change.
         """
         if not symbol and not symbols:
             return ToolResult(success=False, error="symbol parameter is required")
@@ -88,6 +120,7 @@ class ImpactTool(AXMTool):
                     symbols,
                     exclude_tests,
                     detail,
+                    include_module_importers=include_module_importers,
                     **tf,
                 )
 
@@ -98,12 +131,13 @@ class ImpactTool(AXMTool):
                 symbol,
                 exclude_tests,
                 detail,
+                include_module_importers=include_module_importers,
                 **tf,
             )
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
 
-    def _execute_batch(
+    def _execute_batch(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
         self,
         project_path: Path,
         symbols: list[str],
@@ -111,6 +145,7 @@ class ImpactTool(AXMTool):
         detail: str | None,
         *,
         test_filter: str | None = None,
+        include_module_importers: bool = False,
     ) -> ToolResult:
         """Run batch impact analysis for multiple symbols.
 
@@ -132,6 +167,7 @@ class ImpactTool(AXMTool):
                     project_path,
                     sym,
                     exclude_tests=exclude_tests,
+                    include_module_importers=include_module_importers,
                     **tf,
                 )
             )
@@ -158,7 +194,7 @@ class ImpactTool(AXMTool):
             pass
         return None
 
-    def _execute_single(
+    def _execute_single(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
         self,
         project_path: Path,
         symbol: str,
@@ -166,6 +202,7 @@ class ImpactTool(AXMTool):
         detail: str | None,
         *,
         test_filter: str | None = None,
+        include_module_importers: bool = False,
     ) -> ToolResult:
         """Run single-symbol impact analysis with optional compact output.
 
@@ -179,6 +216,7 @@ class ImpactTool(AXMTool):
                 project_path,
                 symbol,
                 exclude_tests=exclude_tests,
+                include_module_importers=include_module_importers,
                 **tf,
             )
             return ToolResult(
@@ -190,6 +228,7 @@ class ImpactTool(AXMTool):
             project_path,
             symbol,
             exclude_tests=exclude_tests,
+            include_module_importers=include_module_importers,
             **tf,
         )
 
@@ -200,8 +239,15 @@ class ImpactTool(AXMTool):
         *,
         exclude_tests: bool = False,
         test_filter: str | None = None,
+        include_module_importers: bool = False,
     ) -> ImpactResult:
         """Run impact analysis for a single symbol.
+
+        The analysis seeds from *symbol* exactly as received (Volet B): the
+        real edit-target, never a derived proxy. ``include_module_importers``
+        is forwarded to the single-package core path only -- the workspace path
+        (``analyze_impact_workspace``) does not yet accept the toggle, so the
+        opt-in is a best-effort no-op there (documented residual).
 
         Returns:
             Impact dict with ``score`` key on success,
@@ -211,6 +257,8 @@ class ImpactTool(AXMTool):
             try:
                 from axm_ast.core.impact import analyze_impact_workspace
 
+                # Residual: the workspace core does not accept the reverse-import
+                # toggle yet, so it is intentionally not forwarded here.
                 impact = analyze_impact_workspace(
                     project_path,
                     symbol,
@@ -225,6 +273,7 @@ class ImpactTool(AXMTool):
                     symbol,
                     exclude_tests=exclude_tests,
                     test_filter=test_filter,
+                    include_module_importers=include_module_importers,
                 )
 
             if impact.get("definition") is None:
@@ -246,17 +295,30 @@ class ImpactTool(AXMTool):
         *,
         exclude_tests: bool = False,
         test_filter: str | None = None,
+        include_module_importers: bool = False,
     ) -> ToolResult:
         """Run single-symbol impact analysis and return a ToolResult."""
-        tf: dict[str, str | None] = (
+        tf: _TestFilterKwargs = (
             {"test_filter": test_filter} if test_filter is not None else {}
         )
-        result = self._analyze_single(
-            project_path,
-            symbol,
-            exclude_tests=exclude_tests,
-            **tf,
-        )
+        # Omit the toggle entirely when off so the default delegation stays
+        # byte-for-byte identical to the legacy call (AC2); forward it verbatim
+        # only when opted-in.
+        if include_module_importers:
+            result = self._analyze_single(
+                project_path,
+                symbol,
+                exclude_tests=exclude_tests,
+                include_module_importers=True,
+                **tf,
+            )
+        else:
+            result = self._analyze_single(
+                project_path,
+                symbol,
+                exclude_tests=exclude_tests,
+                **tf,
+            )
         if "error" in result:
             err = result.get("error", "")
             return ToolResult(

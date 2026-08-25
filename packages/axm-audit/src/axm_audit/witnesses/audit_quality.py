@@ -14,7 +14,7 @@ from pathlib import Path
 
 from axm.witnesses import ValidationFeedback, WitnessResult
 
-from axm_audit.core.auditor import audit_project
+from axm_audit.core.auditor import VALID_CATEGORIES, audit_project
 from axm_audit.formatters import format_agent
 from axm_audit.models.results import AuditResult
 
@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["AuditQualityRule"]
 
-VALID_CATEGORIES = frozenset({"lint", "type", "testing", "complexity", "security"})
+# The witness accepts exactly the categories the auditor knows about
+# (``axm_audit.core.auditor.VALID_CATEGORIES``). It MUST NOT keep a private
+# narrower whitelist: a subset silently drops valid categories a loom gate
+# asked for, and an empty survivor set used to return
+# ``WitnessResult.success()`` — a gate passing green without auditing
+# anything, the exact false-green a quality gate must never emit.
 
 
 @dataclass
@@ -168,9 +173,40 @@ class AuditQualityRule:
                 ),
             )
 
-        categories = [c for c in self.categories if c in VALID_CATEGORIES]
+        unknown = [c for c in self.categories if c not in VALID_CATEGORIES]
+        if unknown:
+            return WitnessResult.failure(
+                feedback=ValidationFeedback(
+                    what=f"Unknown audit category/categories: {unknown}",
+                    why=(
+                        "The witness was configured with categories the "
+                        "auditor does not know how to run, so nothing would "
+                        "be audited. A quality gate MUST fail loud on a "
+                        "config error rather than pass green having checked "
+                        "nothing."
+                    ),
+                    how=(
+                        "Fix the witness `params.categories`. Valid "
+                        f"categories: {', '.join(sorted(VALID_CATEGORIES))}."
+                    ),
+                ),
+            )
+        categories = list(self.categories)
         if not categories:
-            return WitnessResult.success()
+            return WitnessResult.failure(
+                feedback=ValidationFeedback(
+                    what="No audit categories configured",
+                    why=(
+                        "The witness `params.categories` is empty, so the "
+                        "gate would audit nothing and pass green — a "
+                        "false-green a quality gate must never emit."
+                    ),
+                    how=(
+                        "Set at least one category. Valid categories: "
+                        f"{', '.join(sorted(VALID_CATEGORIES))}."
+                    ),
+                ),
+            )
 
         results = self._run_categories(project_path, categories)
         if not results:

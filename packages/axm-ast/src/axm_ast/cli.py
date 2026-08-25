@@ -138,7 +138,7 @@ def describe(
         str,
         cyclopts.Parameter(
             name=["--detail", "-d"],
-            help="Detail level: summary, detailed",
+            help="Detail level: toc < names < summary < detailed",
         ),
     ] = "detailed",
     json_output: Annotated[
@@ -203,6 +203,13 @@ def describe(
 
     if detail == "toc":
         _print_toc(format_toc(pkg), json_output=json_output)
+        return
+
+    if detail == "names" and not json_output:
+        from axm_ast.tools.describe_text import render_describe_text
+
+        data = cast("dict[str, object]", format_json(pkg, detail=detail))
+        print(render_describe_text(data, detail))
         return
 
     if compress:
@@ -788,7 +795,7 @@ def impact(
         raise SystemExit(1)
 
     if compact:
-        print(tool_result.data["compact"])
+        print(tool_result.text)
     elif json_output:
         print(json.dumps(tool_result.data, indent=2))
     else:

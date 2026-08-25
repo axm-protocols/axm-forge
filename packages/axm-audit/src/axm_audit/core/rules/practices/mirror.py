@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
@@ -198,12 +200,13 @@ class MirrorRule(ProjectRule):
             )
 
         src_path = project_path / "src"
-        tests_path = project_path / "tests"
+        tests_path = resolve_suite_dir(project_path) or (project_path / "tests")
+        suite_name = tests_path.name
         missing, exempt = self._find_untested_modules(
             src_path, tests_path, config.exempt_paths
         )
         orphan, exempt_tests = self._collect_orphan_tests(
-            src_path, tests_path, config.exempt_tests
+            src_path, tests_path, suite_name, config.exempt_tests
         )
 
         if not missing and not orphan:
@@ -225,7 +228,7 @@ class MirrorRule(ProjectRule):
         score = max(0, 100 - violations * 15)
         passed = score >= 90  # noqa: PLR2004
 
-        hint = self._build_fix_hint(src_path, missing, orphan)
+        hint = self._build_fix_hint(src_path, suite_name, missing, orphan)
         text = self._build_text(missing, orphan)
         message = self._build_message(missing, orphan)
 
@@ -273,39 +276,55 @@ class MirrorRule(ProjectRule):
     def _build_fix_hint(
         cls,
         src_path: Path,
+        suite_name: str,
         missing: list[str],
         orphan: list[str],
     ) -> str | None:
         """Build the fix hint covering both missing tests and orphan suggestions."""
         parts: list[str] = []
         if missing:
-            files = ", ".join(f"tests/test_{m}" for m in missing[:5])
+            files = ", ".join(f"{suite_name}/test_{m}" for m in missing[:5])
             if len(missing) > 5:  # noqa: PLR2004
                 files += f" (+{len(missing) - 5} more)"
             parts.append(f"Create test files: {files}")
         if orphan:
             source_stems = sorted(
-                {
-                    Path(n).stem.lstrip("_")
-                    for n in cls._collect_source_modules(src_path)
-                }
+                {Path(n).stem for n in cls._collect_source_modules(src_path)}
             )
-            for orphan_path in orphan[:5]:
-                stem = Path(orphan_path).stem[len("test_") :]
-                close = difflib.get_close_matches(stem, source_stems, n=1, cutoff=0.6)
-                if close:
-                    suggested = f"test_{close[0]}.py"
-                    parts.append(
-                        f"{orphan_path} → rename to {suggested} or merge into "
-                        f"tests/unit/{suggested}"
-                    )
-                else:
-                    parts.append(
-                        f"{orphan_path} → delete or rename to a real source module"
-                    )
+            parts.extend(
+                cls._orphan_suggestion(suite_name, orphan_path, source_stems)
+                for orphan_path in orphan[:5]
+            )
             if len(orphan) > 5:  # noqa: PLR2004
                 parts.append(f"(+{len(orphan) - 5} more orphans)")
         return "; ".join(parts) if parts else None
+
+    @staticmethod
+    def _orphan_suggestion(
+        suite_name: str, orphan_path: str, source_stems: list[str]
+    ) -> str:
+        """One actionable hint for an orphan test file — never self-referential.
+
+        The candidate stems keep their real module basenames (a private
+        ``_helpers.py`` stays ``_helpers``): stripping the leading underscore
+        minted identity hints (``test_helpers.py → rename to test_helpers.py
+        or merge into tests/unit/test_helpers.py``) whose target was the
+        orphan itself.
+        """
+        stem = Path(orphan_path).stem[len("test_") :]
+        close = difflib.get_close_matches(stem, source_stems, n=1, cutoff=0.6)
+        if not close:
+            return f"{orphan_path} → delete or rename to a real source module"
+        suggested = f"test_{close[0]}.py"
+        merge_target = f"{suite_name}/unit/{suggested}"
+        if orphan_path == merge_target:
+            return (
+                f"{orphan_path} → no mirrored source module; delete it "
+                f"or exempt via [tool.axm-audit.mirror].exempt_paths"
+            )
+        if Path(orphan_path).name == suggested:
+            return f"{orphan_path} → move to {merge_target}"
+        return f"{orphan_path} → rename to {suggested} or merge into {merge_target}"
 
     @staticmethod
     def _collect_source_modules(src_path: Path) -> list[str]:
@@ -493,6 +512,7 @@ class MirrorRule(ProjectRule):
         cls,
         src_path: Path,
         tests_path: Path,
+        suite_name: str,
         exempt_tests: list[str] | None = None,
     ) -> tuple[list[str], list[str]]:
         """List ``tests/unit/`` test files with no matching source module.
@@ -524,7 +544,7 @@ class MirrorRule(ProjectRule):
             if candidates & available:
                 continue
             rel_to_unit = test_file.relative_to(unit_path).as_posix()
-            full = f"tests/{test_file.relative_to(tests_path).as_posix()}"
+            full = f"{suite_name}/{test_file.relative_to(tests_path).as_posix()}"
             if cls._is_exempt_path(rel_to_unit, exempt_tests):
                 exempted.append(full)
             else:

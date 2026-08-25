@@ -30,5 +30,6 @@ nav:
     - CLI: reference/cli.md
     - Python API: reference/
   - Explanation:
+    - Architecture: explanation/architecture.md
     - Strategy Catalog: explanation/strategies.md
     - Format Detection: explanation/formats.md

@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import libcst as cst
+from axm_ingot.suite import resolve_suite_dir
 
 from .io_primitives import cst_load, cst_save
 from .paths import module_path_for_test_file
@@ -1065,9 +1066,17 @@ def _project_import_index(
     if project_path in _PROJECT_IMPORT_INDEX_CACHE:
         return _PROJECT_IMPORT_INDEX_CACHE[project_path]
     index: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
+    tests_root = resolve_suite_dir(project_path)
+    if tests_root is None:
+        _PROJECT_IMPORT_INDEX_CACHE[project_path] = index
+        return index
     seen_dirs: set[Path] = set()
-    for tdir in ("tests/integration", "tests/e2e", "tests/unit", "tests"):
-        d = project_path / tdir
+    for d in (
+        tests_root / "integration",
+        tests_root / "e2e",
+        tests_root / "unit",
+        tests_root,
+    ):
         if not d.exists() or d in seen_dirs:
             continue
         seen_dirs.add(d)
@@ -1440,8 +1449,8 @@ def _synth_import_from_helpers(
     ``backfill_missing_imports``. The second tuple element (enclosing
     block) is always ``None`` — these synthesized imports are top-level.
     """
-    tests_root = project_path / "tests"
-    if not tests_root.is_dir():
+    tests_root = resolve_suite_dir(project_path)
+    if tests_root is None:
         return None
     for tier in ("integration", "e2e", "unit"):
         helpers = tests_root / tier / "_helpers.py"

@@ -41,13 +41,27 @@ dependencies = ["axm-echo"]
 axm-echo = { workspace = true }
 ```
 
+## Quick Start
+
+```python
+from axm_echo import embed, extract_monorepo, neighbors
+
+symbols = extract_monorepo()  # public symbols across the configured scope
+matrix = embed([s["embed_text"] for s in symbols], backend="tfidf")
+for idx, score in neighbors(matrix[0], matrix, k=5):
+    print(f"{score:.3f}  {symbols[idx]['qualname']}")
+```
+
+See the [documentation site](https://axm-protocols.github.io/axm-forge-workspace/)
+for the `echo_code` / `echo_check` tools and the scope how-to.
+
 ## Development
 
 This package is part of the **axm-forge-workspace** uv workspace.
 
 ```bash
 # Run tests for this package
-uv run pytest --package axm-echo
+uv run --package axm-echo pytest
 
 # From workspace root
 make test-axm-echo

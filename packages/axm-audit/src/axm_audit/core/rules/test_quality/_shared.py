@@ -11,16 +11,19 @@ import ast
 import re
 import tomllib
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+from axm_ingot.suite import resolve_suite_dir
 
 from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
 
 __all__ = [
     "analyze_imports",
     "canonical_filename",
+    "cli_binaries_from_pyproject",
     "cli_invocation_tuple",
     "collect_pkg_contract_classes",
     "collect_pkg_public_symbols",
@@ -39,6 +42,7 @@ __all__ = [
     "is_import_smoke_test",
     "iter_test_files",
     "iter_test_funcs",
+    "load_cli_binaries",
     "load_project_scripts",
     "target_matches_io",
     "test_invokes_in_package_script",
@@ -321,8 +325,8 @@ def iter_test_files(pkg_root: Path) -> Iterator[tuple[Path, ast.Module | None]]:
     and the test_quality rules must do the same so corpus files don't
     get flagged as pyramid / naming / tautology offenders.
     """
-    tests_dir = pkg_root / "tests"
-    if not tests_dir.exists():
+    tests_dir = resolve_suite_dir(pkg_root)
+    if tests_dir is None:
         return
     fixtures_dir = tests_dir / "fixtures"
     for test_file in sorted(tests_dir.rglob("test_*.py")):
@@ -1203,6 +1207,47 @@ def load_project_scripts(pkg_root: Path) -> set[str]:
     return {name for name in scripts if isinstance(name, str)}
 
 
+def cli_binaries_from_pyproject(data: Mapping[str, object]) -> set[str]:
+    """Return the CLI binaries a parsed pyproject document exposes.
+
+    Union of the ``[project.scripts]`` keys and the generic ``axm`` binary,
+    the latter added only when the package declares a non-empty
+    ``[project.entry-points."axm.tools"]`` table (its keys are tool names,
+    never binaries). A document declaring neither table widens nothing.
+    """
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return set()
+    binaries: set[str] = set()
+    scripts = project.get("scripts")
+    if isinstance(scripts, dict):
+        binaries.update(name for name in scripts if isinstance(name, str))
+    entry_points = project.get("entry-points")
+    if isinstance(entry_points, dict):
+        tools = entry_points.get("axm.tools")
+        if isinstance(tools, dict) and tools:
+            binaries.add("axm")
+    return binaries
+
+
+def load_cli_binaries(pkg_root: Path) -> set[str]:
+    """Return the CLI binaries declared by the package at ``pkg_root``.
+
+    Thin I/O reader delegating the derivation to
+    :func:`cli_binaries_from_pyproject`; a missing or unreadable pyproject
+    yields an empty set.
+    """
+    pyproject = pkg_root / "pyproject.toml"
+    if not pyproject.exists():
+        return set()
+    try:
+        with pyproject.open("rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError):
+        return set()
+    return cli_binaries_from_pyproject(data)
+
+
 def has_in_package_subprocess_invocation(
     *,
     call: ast.Call,
@@ -2037,6 +2082,37 @@ def canonical_filename(
     return "test_" + "__".join(tokens) + ".py"
 
 
+def _dedup_preserving_order(tokens: list[str]) -> list[str]:
+    """Drop empties and later duplicates, keeping first-seen order."""
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for tok in tokens:
+        if tok and tok not in seen:
+            seen.add(tok)
+            ordered.append(tok)
+    return ordered
+
+
+def _e2e_tokens_collapsed(items: list[tuple[str, str]]) -> list[str]:
+    """Single-binary tokens: each ``(bin, sub)`` collapses to its sub (or bin)."""
+    collapsed = [
+        to_snake_token(sub if sub else bin_name)
+        for bin_name, sub in items[:_FILE_NAMING_TOP_K]
+    ]
+    return _dedup_preserving_order(collapsed)
+
+
+def _e2e_tokens_paired(items: list[tuple[str, str]]) -> list[str]:
+    """Multi-binary tokens: ``bin__sub`` (or bare ``bin`` when no sub)."""
+    pieces: list[str] = []
+    for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
+        bin_tok = to_snake_token(bin_name)
+        sub_tok = to_snake_token(sub) if sub else ""
+        # ``__`` (not ``-``) — see ``canonical_filename`` comment above.
+        pieces.append(f"{bin_tok}__{sub_tok}" if sub_tok else bin_tok)
+    return pieces
+
+
 def _e2e_tokens(
     items: list[tuple[str, str]],
     single_binary: str | None,
@@ -2048,21 +2124,5 @@ def _e2e_tokens(
     so a bare-binary invocation still surfaces a name).
     """
     if single_binary is not None:
-        collapsed: list[str] = []
-        for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
-            token = sub if sub else bin_name
-            collapsed.append(to_snake_token(token))
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for tok in collapsed:
-            if tok and tok not in seen:
-                seen.add(tok)
-                ordered.append(tok)
-        return ordered
-    pieces: list[str] = []
-    for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
-        bin_tok = to_snake_token(bin_name)
-        sub_tok = to_snake_token(sub) if sub else ""
-        # ``__`` (not ``-``) — see ``canonical_filename`` comment above.
-        pieces.append(f"{bin_tok}__{sub_tok}" if sub_tok else bin_tok)
-    return pieces
+        return _e2e_tokens_collapsed(items)
+    return _e2e_tokens_paired(items)

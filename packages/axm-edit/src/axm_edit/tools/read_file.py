@@ -10,12 +10,16 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.core.engine import _resolve_safe
-from axm_edit.utils import is_binary
+from axm_edit.utils import is_binary, resolve_safe
 
 __all__ = ["ReadFileTool"]
 
 logger = logging.getLogger(__name__)
+
+# Default cap on the number of lines returned when no explicit range is
+# given, so a huge file cannot blow past the MCP transport limit. Callers
+# that need more pass explicit ``start_line``/``end_line``.
+_DEFAULT_MAX_LINES = 2000
 
 
 def _validate_line_range(
@@ -48,7 +52,7 @@ def _resolve_file(
     if not root.is_dir():
         return ToolResult(success=False, error=f"Root is not a directory: {root_str}")
 
-    resolved = _resolve_safe(root, file_rel)
+    resolved = resolve_safe(root, file_rel)
     if resolved is None:
         return ToolResult(
             success=False,
@@ -179,6 +183,18 @@ class ReadFileTool:
 
         all_lines = text.splitlines(keepends=True)
         selected, first_line_num = _select_lines(all_lines, start_line, end_line)
+
+        # Cap unbounded reads so a large file cannot exceed the MCP
+        # transport limit. Only applies when no explicit range was given.
+        capped = False
+        if (
+            start_line is None
+            and end_line is None
+            and len(selected) > _DEFAULT_MAX_LINES
+        ):
+            selected = selected[:_DEFAULT_MAX_LINES]
+            capped = True
+
         content = _format_numbered(selected, first_line_num)
 
         logger.debug("read %s: %d/%d lines", file_rel, len(selected), len(all_lines))
@@ -187,12 +203,19 @@ class ReadFileTool:
         start = first_line_num
         end = first_line_num + len(selected) - 1
 
+        if capped:
+            content += (
+                f"\n[truncated: {total_lines} lines total, showing first "
+                f"{_DEFAULT_MAX_LINES}; use start_line/end_line for more]"
+            )
+
         return ToolResult(
             success=True,
             data={
                 "content": content,
                 "file": file_rel,
                 "total_lines": total_lines,
+                "truncated": capped,
                 "showing": {
                     "start": start,
                     "end": end,

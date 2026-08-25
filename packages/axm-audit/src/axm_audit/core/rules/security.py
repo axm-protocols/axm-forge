@@ -289,6 +289,12 @@ def _is_placeholder(value: str) -> bool:
     )
 
 
+def _span_covered(span: tuple[int, int], covers: list[tuple[int, int]]) -> bool:
+    """True when ``span`` sits inside any of the ``covers`` spans."""
+    v_start, v_end = span
+    return any(s <= v_start and v_end <= e for s, e in covers)
+
+
 @dataclass
 @register_rule("security")
 class SecurityPatternRule(ProjectRule):
@@ -316,6 +322,42 @@ class SecurityPatternRule(ProjectRule):
             "pattern": label,
         }
 
+    def _scan_high_value(
+        self, path: Path, src_path: Path, content: str
+    ) -> tuple[list[dict[str, str | int]], list[tuple[int, int]]]:
+        """Scan high-value patterns; return (findings, matched spans)."""
+        found: list[dict[str, str | int]] = []
+        spans: list[tuple[int, int]] = []
+        for label, pattern in self.high_value_patterns:
+            for match in re.finditer(pattern, content):
+                spans.append(match.span())
+                found.append(
+                    self._record(path, src_path, content, match.start(), label)
+                )
+        return found, spans
+
+    def _scan_keywords(
+        self,
+        path: Path,
+        src_path: Path,
+        content: str,
+        high_value_spans: list[tuple[int, int]],
+    ) -> list[dict[str, str | int]]:
+        """Scan filtered keyword patterns, skipping placeholders and dupes."""
+        found: list[dict[str, str | int]] = []
+        for label, pattern in self.keyword_patterns:
+            for match in re.finditer(pattern, content, re.IGNORECASE):
+                if _is_placeholder(match.group("value")):
+                    continue
+                # Skip when the value already matched a high-value pattern,
+                # so e.g. ``token = "ghp_..."`` counts once, not twice.
+                if _span_covered(match.span("value"), high_value_spans):
+                    continue
+                found.append(
+                    self._record(path, src_path, content, match.start(), label)
+                )
+        return found
+
     def _scan_file_for_secrets(
         self, path: Path, src_path: Path
     ) -> list[dict[str, str | int]]:
@@ -324,26 +366,8 @@ class SecurityPatternRule(ProjectRule):
         except (OSError, UnicodeDecodeError):
             return []
 
-        found: list[dict[str, str | int]] = []
-        high_value_spans: list[tuple[int, int]] = []
-        for label, pattern in self.high_value_patterns:
-            for match in re.finditer(pattern, content):
-                high_value_spans.append(match.span())
-                found.append(
-                    self._record(path, src_path, content, match.start(), label)
-                )
-        for label, pattern in self.keyword_patterns:
-            for match in re.finditer(pattern, content, re.IGNORECASE):
-                if _is_placeholder(match.group("value")):
-                    continue
-                # Skip when the value already matched a high-value pattern,
-                # so e.g. ``token = "ghp_..."`` counts once, not twice.
-                v_start, v_end = match.span("value")
-                if any(s <= v_start and v_end <= e for s, e in high_value_spans):
-                    continue
-                found.append(
-                    self._record(path, src_path, content, match.start(), label)
-                )
+        found, high_value_spans = self._scan_high_value(path, src_path, content)
+        found.extend(self._scan_keywords(path, src_path, content, high_value_spans))
         return found
 
     def _build_secret_result(self, matches: list[dict[str, str | int]]) -> CheckResult:

@@ -6,17 +6,27 @@ token-efficient results for AI coding agents.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
+import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
+from axm_audit.core.non_test_cause import (
+    _STDERR_EXCERPT_CHARS,  # noqa: F401 - re-exported: one truncation budget
+    NonTestCause,
+    _truncate_excerpt,
+    classify_non_test_cause,
+)
 from axm_audit.core.runner import run_in_project
 
 __all__ = [
     "FailureDetail",
+    "TestCase",
+    "TestOutcome",
     "TestReport",
     "run_tests",
 ]
@@ -64,6 +74,25 @@ class FailureDetail:
 _MAX_TB_LINES = 5
 
 
+type TestOutcome = Literal[
+    "passed",
+    "failed",
+    "error",
+    "skipped",
+    "xfailed",
+    "xpassed",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class TestCase:
+    """Lossless verdict for one collected pytest item."""
+
+    node_id: str
+    outcome: TestOutcome
+    detail: str | None = field(default=None, compare=False)
+
+
 @dataclass
 class TestReport:
     """Compact test execution report.
@@ -81,7 +110,51 @@ class TestReport:
     coverage: float | None = None
     failures: list[FailureDetail] | None = None
     coverage_by_file: dict[str, float] | None = None
+    cases: tuple[TestCase, ...] = ()
     timed_out: bool = False
+    pytest_return_code: int = 0
+    collected: int | None = None
+    target_statuses: list[dict[str, str]] = field(default_factory=list)
+    verdict: bool | None = None
+    non_test_cause: NonTestCauseDetail | None = None
+
+    def __post_init__(self) -> None:
+        """Populate additive execution metadata for directly-built reports."""
+        if self.collected is None:
+            self.collected = self.passed + self.failed + self.errors + self.skipped
+        if self.verdict is None:
+            self.verdict = self._derive_verdict()
+
+    def model_dump(self) -> dict[str, object]:
+        """Return the report's payload, every key present even when ``None``."""
+        return dataclasses.asdict(self)
+
+    def record_execution(
+        self,
+        *,
+        return_code: int,
+        collected: int,
+        target_statuses: list[dict[str, str]],
+    ) -> None:
+        """Attach pytest evidence and compute the report's canonical verdict."""
+        self.pytest_return_code = return_code
+        self.collected = collected
+        self.target_statuses = target_statuses
+        self.verdict = self._derive_verdict()
+
+    def _derive_verdict(self) -> bool:
+        """Return the fail-closed verdict from all available evidence."""
+        targets_valid = all(
+            status["status"] == "validated" for status in self.target_statuses
+        )
+        return (
+            self.pytest_return_code == 0
+            and (self.collected or 0) > 0
+            and self.failed == 0
+            and self.errors == 0
+            and not self.timed_out
+            and targets_valid
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -172,13 +245,44 @@ def parse_collector_errors(
     return failures
 
 
+def _subprocess_failure(
+    exc: ValueError,
+    result: subprocess.CompletedProcess[str],
+) -> ValueError:
+    """Enrich an unusable-report error with the subprocess's own diagnostic.
+
+    Returns *exc* untouched when the run exited cleanly — a zero exit with an
+    unreadable report is a genuine report defect, and the subprocess has nothing
+    to add. Otherwise the returncode and the head of ``stderr`` are prepended,
+    since that is where the actual cause lives. The stderr is truncated to
+    :data:`_STDERR_EXCERPT_CHARS`: a failed dependency resolution runs to
+    several kilobytes and must not be dumped whole into an exception message.
+    """
+    if result.returncode == 0:
+        return exc
+    stderr = _truncate_excerpt(result.stderr or "")
+    detail = f"\nsubprocess stderr:\n{stderr}" if stderr else ""
+    return ValueError(
+        f"pytest exited with code {result.returncode} and left no usable JSON "
+        f"report ({exc}).{detail}"
+    )
+
+
 def parse_json_report(report_path: Path) -> dict[str, object]:
     """Read and parse a pytest-json-report JSON file."""
     try:
-        return cast("dict[str, object]", json.loads(report_path.read_text()))
+        raw_report = json.loads(report_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to parse JSON report: %s", exc)
-        return {}
+        msg = f"Invalid pytest JSON report at {report_path}: {exc}"
+        raise ValueError(msg) from exc
+
+    if not isinstance(raw_report, dict):
+        msg = f"Invalid pytest JSON report at {report_path}: root is not an object"
+        raise ValueError(msg)
+    if not isinstance(raw_report.get("summary"), dict):
+        msg = f"Invalid pytest JSON report at {report_path}: missing object 'summary'"
+        raise ValueError(msg)
+    return cast("dict[str, object]", raw_report)
 
 
 def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]:
@@ -232,6 +336,8 @@ def build_pytest_cmd(
 
     if coverage_path is not None:
         cmd.extend(["--cov", f"--cov-report=json:{coverage_path}"])
+    elif files:
+        cmd.append("--no-cov")
 
     if stop_on_first:
         cmd.append("-x")
@@ -243,6 +349,74 @@ def build_pytest_cmd(
         cmd.extend(files)
 
     return cmd
+
+
+def _collected_count(report_data: dict[str, object]) -> int:
+    """Read pytest's collected count, falling back to emitted test records."""
+    summary = cast("dict[str, object]", report_data.get("summary", {}))
+    collected = summary.get("collected")
+    if isinstance(collected, int):
+        return collected
+    tests = cast("list[dict[str, object]]", report_data.get("tests", []))
+    return len(tests)
+
+
+def _normalize_target(project_path: Path, target: str) -> str:
+    """Normalize a requested pytest target for comparison with node IDs."""
+    path_text, separator, selector = target.partition("::")
+    candidate = Path(path_text)
+    if candidate.is_absolute():
+        try:
+            candidate = candidate.relative_to(project_path)
+        except ValueError:
+            pass
+    normalized = candidate.as_posix()
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    return f"{normalized}{separator}{selector}"
+
+
+def _target_was_collected(target: str, nodeids: list[str]) -> bool:
+    """Return whether pytest emitted a node belonging to the target."""
+    if "::" in target:
+        return any(
+            nodeid == target
+            or nodeid.startswith(f"{target}[")
+            or nodeid.startswith(f"{target}::")
+            for nodeid in nodeids
+        )
+    prefix = target.rstrip("/")
+    return any(
+        nodeid == prefix
+        or nodeid.startswith(f"{prefix}::")
+        or nodeid.startswith(f"{prefix}/")
+        for nodeid in nodeids
+    )
+
+
+def _build_target_statuses(
+    project_path: Path,
+    files: list[str] | None,
+    report_data: dict[str, object],
+) -> list[dict[str, str]]:
+    """Validate every requested target independently of aggregate counts."""
+    if not files:
+        return []
+    tests = cast("list[dict[str, object]]", report_data.get("tests", []))
+    nodeids = [cast(str, test.get("nodeid", "")).replace("\\", "/") for test in tests]
+    statuses: list[dict[str, str]] = []
+    for target in files:
+        normalized = _normalize_target(project_path, target)
+        if _target_was_collected(normalized, nodeids):
+            status = "validated"
+        else:
+            path_text = target.partition("::")[0]
+            target_path = Path(path_text)
+            if not target_path.is_absolute():
+                target_path = project_path / target_path
+            status = "omitted" if target_path.exists() else "missing"
+        statuses.append({"target": target, "status": status})
+    return statuses
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +431,7 @@ def run_tests(
     files: list[str] | None = None,
     markers: list[str] | None = None,
     stop_on_first: bool = True,
+    include_cases: bool = False,
 ) -> TestReport:
     """Run tests with agent-optimized structured output.
 
@@ -313,25 +488,171 @@ def run_tests(
                 "Test run timed out after %ds — coverage not measured",
                 _COVERAGE_RUN_TIMEOUT,
             )
-            return TestReport(timed_out=True)
+            if include_cases:
+                raise ValueError(
+                    f"pytest subprocess timed out after {_COVERAGE_RUN_TIMEOUT}s"
+                )
+            return TestReport(
+                timed_out=True,
+                pytest_return_code=result.returncode,
+                collected=0,
+                verdict=False,
+            )
 
-        # Parse JSON report
-        report_data = parse_json_report(report_path)
+        # Parse JSON report. A subprocess that died before pytest could write
+        # the report (failed uv resolution, missing plugin, collection crash)
+        # leaves it absent or empty: the bare JSON decode error then describes a
+        # corrupt file and hides the real cause, which only the captured stderr
+        # carries. Re-raise it enriched instead.
+        try:
+            report_data = parse_json_report(report_path)
+        except ValueError as exc:
+            raise _subprocess_failure(exc, result) from exc
 
         # Parse coverage
         total_cov, per_file_cov = (
             parse_coverage(coverage_path) if not files else (None, {})
         )
 
-        return build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=total_cov,
             per_file_cov=per_file_cov,
+            include_cases=include_cases,
+            return_code=result.returncode,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
         )
+        report.record_execution(
+            return_code=result.returncode,
+            collected=_collected_count(report_data),
+            target_statuses=_build_target_statuses(
+                project_path,
+                files,
+                report_data,
+            ),
+        )
+        return report
 
     finally:
         report_path.unlink(missing_ok=True)
         coverage_path.unlink(missing_ok=True)
+
+
+def _nonempty_text(value: object) -> str | None:
+    """Return non-blank text from a dynamic report field."""
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _phase_detail(value: object) -> str | None:
+    """Extract the best diagnostic from one pytest execution phase."""
+    if not isinstance(value, dict):
+        return None
+    phase = cast("dict[str, object]", value)
+    crash = phase.get("crash")
+    if isinstance(crash, dict):
+        crash_data = cast("dict[str, object]", crash)
+        message = _nonempty_text(crash_data.get("message"))
+        if message is not None:
+            return message
+    return _nonempty_text(phase.get("longrepr"))
+
+
+def _case_detail(
+    entry: dict[str, object],
+    outcome: TestOutcome,
+) -> str | None:
+    """Extract an optional diagnostic without changing case identity."""
+    if outcome == "passed":
+        return None
+
+    for phase_name in ("call", "setup", "teardown"):
+        detail = _phase_detail(entry.get(phase_name))
+        if detail is not None:
+            return detail
+    return _nonempty_text(entry.get("longrepr"))
+
+
+def _extract_cases(report_data: dict[str, object]) -> tuple[TestCase, ...]:
+    """Extract validated cases from a pytest-json-report payload."""
+    raw_tests = report_data.get("tests")
+    if not isinstance(raw_tests, list):
+        raise ValueError("Malformed pytest JSON report: 'tests' must be a list")
+
+    cases: list[TestCase] = []
+    seen_node_ids: set[str] = set()
+    canonical_outcomes = {
+        "passed",
+        "failed",
+        "error",
+        "skipped",
+        "xfailed",
+        "xpassed",
+    }
+    for raw_entry in raw_tests:
+        if not isinstance(raw_entry, dict):
+            raise ValueError("Malformed pytest JSON report: invalid tests entry")
+        entry = cast("dict[str, object]", raw_entry)
+        node_id = entry.get("nodeid")
+        if not isinstance(node_id, str) or not node_id:
+            raise ValueError("Malformed pytest JSON report: invalid node id")
+        if node_id in seen_node_ids:
+            raise ValueError(f"Duplicate pytest node id: {node_id}")
+        seen_node_ids.add(node_id)
+
+        raw_outcome = entry.get("outcome")
+        if not isinstance(raw_outcome, str) or raw_outcome not in canonical_outcomes:
+            raise ValueError(f"Unknown pytest outcome: {raw_outcome!r}")
+        outcome = cast("TestOutcome", raw_outcome)
+        cases.append(
+            TestCase(
+                node_id=node_id,
+                outcome=outcome,
+                detail=_case_detail(entry, outcome),
+            )
+        )
+
+    return tuple(sorted(cases, key=lambda case: case.node_id))
+
+
+def _collection_failure_detail(
+    collectors: list[dict[str, object]],
+) -> str | None:
+    """Return a diagnostic when pytest failed during collection."""
+    for collector in collectors:
+        outcome = collector.get("outcome")
+        longrepr = collector.get("longrepr")
+        if outcome not in {"failed", "error"} and not longrepr:
+            continue
+        node_id = collector.get("nodeid")
+        location = node_id if isinstance(node_id, str) else "<unknown>"
+        if isinstance(longrepr, str) and longrepr.strip():
+            return f"pytest collection failed for {location}: {longrepr}"
+        return f"pytest collection failed for {location}"
+    return None
+
+
+@dataclass(frozen=True)
+class NonTestCauseDetail:
+    """Serializable projection of a classified non-test cause.
+
+    ``TestReport`` is a dataclass whose payload is produced by
+    ``dataclasses.asdict``: a pydantic model attached to it would survive that
+    traversal as an object and break every JSON consumer of the report. The
+    classifier remains the single source of the classification itself; this
+    only mirrors its verdict in the report's own payload shape.
+    """
+
+    code: str
+    summary: str
+    excerpt: str
+
+    @classmethod
+    def from_cause(cls, cause: NonTestCause | None) -> NonTestCauseDetail | None:
+        """Return the projection of *cause*, or ``None`` when there is none."""
+        if cause is None:
+            return None
+        return cls(code=cause.code, summary=cause.summary, excerpt=cause.excerpt)
 
 
 def build_test_report(
@@ -341,20 +662,35 @@ def build_test_report(
     per_file_cov: dict[str, float],
     mode: str | None = None,
     last_coverage: dict[str, float] | None = None,
+    include_cases: bool = False,
+    return_code: int = 0,
+    stdout: str = "",
+    stderr: str = "",
 ) -> TestReport:
     """Build a ``TestReport`` from pytest JSON and coverage data.
 
     Always parses failures and populates coverage — no mode branching.
+    The captured ``stdout``/``stderr`` and ``return_code`` are optional. When
+    they are supplied, the cause of a red that no test failure accounts for is
+    classified and attached to ``non_test_cause`` — explanatory only, it never
+    influences the verdict, and it stays ``None`` for a green run or a run red
+    by test failures.
+
     Returns ``None`` for ``failures`` and ``coverage_by_file`` when no
     data exists.
     """
     summary = cast("dict[str, object]", report_data.get("summary", {}))
     tests_list = cast("list[dict[str, object]]", report_data.get("tests", []))
+    cases = _extract_cases(report_data) if include_cases else ()
 
     # Always parse failures
     failures = parse_failures(tests_list)
     collectors_list = cast("list[dict[str, object]]", report_data.get("collectors", []))
     failures.extend(parse_collector_errors(collectors_list))
+    if include_cases:
+        collection_failure = _collection_failure_detail(collectors_list)
+        if collection_failure is not None:
+            raise ValueError(collection_failure)
 
     return TestReport(
         passed=cast(int, summary.get("passed", 0)),
@@ -366,4 +702,14 @@ def build_test_report(
         coverage=total_cov,
         failures=failures or None,
         coverage_by_file=per_file_cov or None,
+        cases=cases,
+        non_test_cause=NonTestCauseDetail.from_cause(
+            classify_non_test_cause(
+                return_code=return_code,
+                failed=cast(int, summary.get("failed", 0)),
+                errors=cast(int, summary.get("error", 0)),
+                stdout=stdout,
+                stderr=stderr,
+            )
+        ),
     )

@@ -7,6 +7,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
@@ -178,7 +180,8 @@ class TestsPyramidRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check the test pyramid layout and required markers."""
-        if not (project_path / "tests").exists():
+        suite = resolve_suite_dir(project_path)
+        if suite is None:
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
@@ -187,8 +190,10 @@ class TestsPyramidRule(ProjectRule):
                 fix_hint="mkdir -p " + " ".join(_PYRAMID_DIRS),
             )
 
+        suite_name = suite.name
         self_contained = _is_self_contained(project_path)
         required_dirs, required_markers = _pyramid_requirements(self_contained)
+        required_dirs = [f"{suite_name}/{d.split('/', 1)[1]}" for d in required_dirs]
         missing_dirs = [d for d in required_dirs if not (project_path / d).is_dir()]
         missing_markers = _missing_markers(project_path, required_markers)
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.core.engine import _resolve_safe
+from axm_edit.utils import resolve_safe
 
 __all__ = ["RunCommandTool"]
 
@@ -39,6 +39,19 @@ def _is_blocked(command: str) -> bool:
     """Return True if *command* contains a blocked pattern."""
     lower = command.lower().strip()
     return any(pat in lower for pat in _BLOCKED_PATTERNS)
+
+
+def _decode_partial(raw: object) -> str:
+    """Decode partial subprocess output captured on timeout.
+
+    ``TimeoutExpired.stdout``/``stderr`` are ``bytes`` even under
+    ``text=True``; ``str`` output (or ``None``) is passed through.
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode(errors="replace")
+    return str(raw)
 
 
 def _truncate(output: str) -> tuple[str, bool]:
@@ -163,7 +176,7 @@ class RunCommandTool:
 
         # Resolve cwd within the sandbox
         if cwd_rel:
-            resolved_cwd = _resolve_safe(root, cwd_rel)
+            resolved_cwd = resolve_safe(root, cwd_rel)
             if resolved_cwd is None:
                 return ToolResult(
                     success=False,
@@ -198,8 +211,11 @@ def _run(command: str, work_dir: Path, timeout: int) -> ToolResult:
         exit_code = result.returncode
     except subprocess.TimeoutExpired as exc:
         timed_out = True
-        stdout = str(exc.stdout) if exc.stdout else ""
-        stderr = str(exc.stderr) if exc.stderr else ""
+        # On timeout CPython attaches the *raw bytes* buffered so far, even
+        # under ``text=True`` — decode them rather than stringifying to the
+        # ``b'...'`` repr an agent cannot read.
+        stdout = _decode_partial(exc.stdout)
+        stderr = _decode_partial(exc.stderr)
         exit_code = -1
     except FileNotFoundError:
         return ToolResult(

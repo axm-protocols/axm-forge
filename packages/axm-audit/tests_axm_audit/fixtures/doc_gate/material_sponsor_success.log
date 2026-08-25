@@ -1,0 +1,5 @@
+INFO    -  Building documentation...
+INFO    -  Cleaning site directory
+WARNING -  Material sponsor banner contains a link 'support.md' which is not found among the documentation files.
+INFO    -  Sponsor reference and anchor details are available online.
+INFO    -  Documentation built in 0.42 seconds

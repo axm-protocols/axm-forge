@@ -54,13 +54,19 @@ jobs:
               - 'packages/axm-ingot/**'
             axm-echo:
               - 'packages/axm-echo/**'
+            axm-config:
+              - 'packages/axm-config/**'
+            axm-vault:
+              - 'packages/axm-vault/**'
+            axm-doctor:
+              - 'packages/axm-doctor/**'
       - name: Compute package matrix
         id: set
         env:
           SHARED: ${{ steps.filter.outputs.shared }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
-          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot","axm-echo"]'
+          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot","axm-echo","axm-config","axm-vault","axm-doctor"]'
           if [ "$SHARED" = "true" ]; then
             echo "Shared file changed -> full matrix"
             PACKAGES="$ALL"
@@ -98,31 +104,40 @@ jobs:
       # shared file) changed, keyed off the `changes` job output.
       - name: MyPy (axm-anvil)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-anvil')
-        run: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src/ packages/axm-anvil/tests/
+        run: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src/ packages/axm-anvil/tests_axm_anvil/
       - name: MyPy (axm-ast)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-ast')
-        run: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src/ packages/axm-ast/tests/
+        run: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src/ packages/axm-ast/tests_axm_ast/
       - name: MyPy (axm-audit)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-audit')
-        run: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src/ packages/axm-audit/tests/
+        run: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src/ packages/axm-audit/tests_axm_audit/
       - name: MyPy (axm-edit)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-edit')
-        run: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src/ packages/axm-edit/tests/
+        run: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src/ packages/axm-edit/tests_axm_edit/
       - name: MyPy (axm-init)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-init')
-        run: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src/ packages/axm-init/tests/
+        run: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src/ packages/axm-init/tests_axm_init/
       - name: MyPy (axm-git)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-git')
-        run: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src/ packages/axm-git/tests/
+        run: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src/ packages/axm-git/tests_axm_git/
       - name: MyPy (axm-smelt)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-smelt')
-        run: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src/ packages/axm-smelt/tests/
+        run: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src/ packages/axm-smelt/tests_axm_smelt/
       - name: MyPy (axm-ingot)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-ingot')
-        run: uv run --package axm-ingot mypy --config-file packages/axm-ingot/pyproject.toml packages/axm-ingot/src/ packages/axm-ingot/tests/
+        run: uv run --package axm-ingot mypy --config-file packages/axm-ingot/pyproject.toml packages/axm-ingot/src/ packages/axm-ingot/tests_axm_ingot/
       - name: MyPy (axm-echo)
         if: contains(fromJSON(needs.changes.outputs.packages), 'axm-echo')
-        run: uv run --package axm-echo mypy --config-file packages/axm-echo/pyproject.toml packages/axm-echo/src/ packages/axm-echo/tests/
+        run: uv run --package axm-echo mypy --config-file packages/axm-echo/pyproject.toml packages/axm-echo/src/ packages/axm-echo/tests_axm_echo/
+      - name: MyPy (axm-config)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-config')
+        run: uv run --package axm-config mypy --config-file packages/axm-config/pyproject.toml packages/axm-config/src/ packages/axm-config/tests_axm_config/
+      - name: MyPy (axm-vault)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-vault')
+        run: uv run --package axm-vault mypy --config-file packages/axm-vault/pyproject.toml packages/axm-vault/src/ packages/axm-vault/tests_axm_vault/
+      - name: MyPy (axm-doctor)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-doctor')
+        run: uv run --package axm-doctor mypy --config-file packages/axm-doctor/pyproject.toml packages/axm-doctor/src/ packages/axm-doctor/tests_axm_doctor/
 
   security:
     name: Security Audit

@@ -19,10 +19,15 @@ dependencies = [
     "axm-ast",
     "axm-echo",
     "axm-ingot",
-    "complexipy==5.6.1",  # pinned: 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186); native dep run via uvx, lock does not protect — Dependabot proposes bumps
-    "cyclopts>=3.0",
+    "complexipy==6.2.0",  # pinned: 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186); native dep run via uvx, lock does not protect — Dependabot proposes bumps
+    "cyclopts>=4.21.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
+    # audit_test shells out to pytest with --json-report and parses the result,
+    # so the plugin is a RUNTIME requirement of this package, not a dev tool: a
+    # consumer calling audit_test from its own environment needs it installed
+    # there too, and only gets an opaque "unrecognized arguments" exit 4 without.
+    "pytest-json-report>=1.5",
     "radon>=6.0.1",
 ]
 
@@ -39,6 +44,7 @@ Issues = "https://github.com/axm-protocols/axm-audit/issues"
 audit = "axm_audit.tools.audit:AuditTool"
 audit_test = "axm_audit.tools.audit_test:AuditTestTool"
 audit_fix = "axm_audit.tools.audit_fix:AuditFixTool"
+doc_gate = "axm_audit.doc_gate.tool:DocGateTool"
 
 [project.entry-points."axm.witnesses"]
 audit_quality = "axm_audit.witnesses.audit_quality:AuditQualityRule"
@@ -79,9 +85,9 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-json-report>=1.5",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
+    "ruff==0.16.4",
     "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pip-audit>=2.0",
     "bandit>=1.9.3",
 ]
@@ -96,13 +102,17 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
 exclude = [
     "*/_version.py",
     "scripts/*",
-    "tests/fixtures/fix_corpus/*/input",
-    "tests/fixtures/fix_corpus/*/expected",
+    "tests_axm_audit/fixtures/fix_corpus/*/input",
+    "tests_axm_audit/fixtures/fix_corpus/*/expected",
 ]
 
 [tool.ruff.lint]
@@ -110,11 +120,11 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20",
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+"tests_axm_audit/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 # Fix-corpus loaders intentionally invoke `git` and `axm-audit` by PATH name
 # (subprocess controls all args; no untrusted input).
-"tests/fixtures/fix_corpus/conftest.py" = ["S603", "S607"]
-"tests/fixtures/fix_corpus/regenerate.py" = ["S603", "S607"]
+"tests_axm_audit/fixtures/fix_corpus/conftest.py" = ["S603", "S607"]
+"tests_axm_audit/fixtures/fix_corpus/regenerate.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/quality_rules.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
 "src/axm_audit/cli.py" = ["T201", "PLR0913"]
@@ -612,11 +622,12 @@ check_untyped_defs = true
 plugins = ["pydantic.mypy"]
 # fix-corpus input/expected trees are fixture mini-packages that reference
 # modules only resolvable inside a per-test temp dir — skip type analysis.
-exclude = ["tests/fixtures/fix_corpus/[^/]+/(input|expected)/"]
+exclude = ["tests_axm_audit/fixtures/fix_corpus/[^/]+/(input|expected)/"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests_axm_audit.*"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -683,7 +694,7 @@ disallow_untyped_decorators = false
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_audit"]
 python_files = "test_*.py"
 addopts = [
     "-v",
@@ -695,7 +706,7 @@ addopts = [
     "--cov-report=xml",
     "--import-mode=importlib",
 ]
-pythonpath = ["src", "tests"]
+pythonpath = ["src", "tests_axm_audit"]
 filterwarnings = ["ignore::DeprecationWarning"]
 asyncio_mode = "auto"
 markers = [
@@ -713,7 +724,7 @@ markers = [
 source = ["src"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_*/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

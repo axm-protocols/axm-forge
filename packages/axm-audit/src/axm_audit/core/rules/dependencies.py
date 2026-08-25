@@ -279,7 +279,7 @@ def has_deptry_config(project_path: Path) -> bool:
         import tomllib
 
         data = tomllib.loads(pyproject.read_text())
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("Failed to parse %s", pyproject, exc_info=True)
         return False
     return bool(data.get("tool", {}).get("deptry", {}).get("known_first_party"))

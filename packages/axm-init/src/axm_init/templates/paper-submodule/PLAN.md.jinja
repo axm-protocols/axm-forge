@@ -1,0 +1,28 @@
+---
+paper_name: {{ paper_name }}
+title: "{{ title }}"
+author: "{{ author }}"
+has_package: {{ has_package | string | lower }}
+{% if has_package %}package_name: {{ package_name }}
+{% endif %}---
+
+# Plan — {{ title }}
+
+## Intention
+
+TODO: state the claim `{{ paper_name }}` defends, in one paragraph.
+
+## Contributions
+
+- TODO
+
+## Experiments
+
+Each run lives under `experiments/`. The experiment index is **generated**
+by the `experiment_index` tool — never write it by hand.
+
+## Status
+
+- [ ] Intention frozen
+- [ ] Experiments run
+- [ ] Draft written

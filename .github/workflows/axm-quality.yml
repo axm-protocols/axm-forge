@@ -105,32 +105,7 @@ jobs:
 
       - name: Define badge helpers
         run: |
-          cat > /tmp/badge-helpers.sh << 'HELPERS'
-          score_color() {
-            local SCORE=$1
-            if [ "$SCORE" -ge 95 ]; then echo "brightgreen"
-            elif [ "$SCORE" -ge 80 ]; then echo "green"
-            elif [ "$SCORE" -ge 60 ]; then echo "yellow"
-            else echo "red"; fi
-          }
-
-          write_badge() {
-            local DIR=$1 NAME=$2 LABEL=$3 VALUE=$4 LOGO_FILE=${5:-}
-            mkdir -p "$DIR"
-            local SCORE_INT=$(python3 -c "print(int(float('${VALUE}')))")
-            local COLOR=$(score_color "$SCORE_INT")
-            if [ -n "$LOGO_FILE" ] && [ -f "$LOGO_FILE" ]; then
-              local LOGO=$(cat "$LOGO_FILE")
-              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" --arg logo "$LOGO" \
-                '{schemaVersion:1, label:$l, message:"\($v)%", color:$c, logoSvg:$logo, style:"flat"}' \
-                > "$DIR/$NAME.json"
-            else
-              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" \
-                '{schemaVersion:1, label:$l, message:"\($v)%", color:$c, style:"flat"}' \
-                > "$DIR/$NAME.json"
-            fi
-          }
-          HELPERS
+          cp .github/scripts/badge-helpers.sh /tmp/badge-helpers.sh
           curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
             > /tmp/audit-logo.svg || true
           cp /tmp/audit-logo.svg /tmp/init-logo.svg || true
@@ -165,8 +140,11 @@ jobs:
           fi
 
           # ── axm-audit ─────────────────────────────────────────────────
-          RESULT=$(uvx axm-audit audit "$PKG_DIR" --json) || true
+          RESULT=$(uv run --package axm-audit axm-audit audit "$PKG_DIR" --json) || true
           echo "$RESULT" > "_publish/reports/axm-audit/$PKG.json"
+          # Guard: empty / malformed RESULT or non-numeric .score -> explicit
+          # error/red badge + exit 1 (fails the job), never a bogus "%"/red badge.
+          require_valid_result "$RESULT" "_publish/badges/$PKG" "axm-audit" "axm-audit"
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "📋 $PKG: Score $SCORE/100 — Grade $GRADE — Coverage ${COV}%"
@@ -175,13 +153,13 @@ jobs:
           write_badge "_publish/badges/$PKG" "coverage" "coverage" "$COV"
 
           # ── axm-init ──────────────────────────────────────────────────
-          IRESULT=$(uvx axm-init check "$PKG_DIR" --json) || true
+          IRESULT=$(uv run --package axm-init axm-init check "$PKG_DIR" --json) || true
           echo "$IRESULT" > "_publish/reports/axm-init/$PKG.json"
           ISCORE=$(echo "$IRESULT" | jq '.score')
           write_badge "_publish/badges/$PKG" "axm-init" "axm-init" "$ISCORE" /tmp/init-logo.svg
 
       - name: Upload package badges + reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: badges-${{ matrix.package }}
           path: _publish/
@@ -209,32 +187,7 @@ jobs:
 
       - name: Define badge helpers
         run: |
-          cat > /tmp/badge-helpers.sh << 'HELPERS'
-          score_color() {
-            local SCORE=$1
-            if [ "$SCORE" -ge 95 ]; then echo "brightgreen"
-            elif [ "$SCORE" -ge 80 ]; then echo "green"
-            elif [ "$SCORE" -ge 60 ]; then echo "yellow"
-            else echo "red"; fi
-          }
-
-          write_badge() {
-            local DIR=$1 NAME=$2 LABEL=$3 VALUE=$4 LOGO_FILE=${5:-}
-            mkdir -p "$DIR"
-            local SCORE_INT=$(python3 -c "print(int(float('${VALUE}')))")
-            local COLOR=$(score_color "$SCORE_INT")
-            if [ -n "$LOGO_FILE" ] && [ -f "$LOGO_FILE" ]; then
-              local LOGO=$(cat "$LOGO_FILE")
-              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" --arg logo "$LOGO" \
-                '{schemaVersion:1, label:$l, message:"\($v)%", color:$c, logoSvg:$logo, style:"flat"}' \
-                > "$DIR/$NAME.json"
-            else
-              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" \
-                '{schemaVersion:1, label:$l, message:"\($v)%", color:$c, style:"flat"}' \
-                > "$DIR/$NAME.json"
-            fi
-          }
-          HELPERS
+          cp .github/scripts/badge-helpers.sh /tmp/badge-helpers.sh
           curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
             > /tmp/audit-logo.svg || true
           cp /tmp/audit-logo.svg /tmp/init-logo.svg || true
@@ -253,7 +206,7 @@ jobs:
           fi
 
       - name: Download this run's package artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: badges-*
           path: _artifacts
@@ -270,7 +223,7 @@ jobs:
         run: |
           source /tmp/badge-helpers.sh
           mkdir -p _publish/reports/axm-init
-          RESULT=$(uvx axm-init check . --json) || true
+          RESULT=$(uv run --package axm-init axm-init check . --json) || true
           echo "$RESULT" > _publish/reports/axm-init/root.json
 
       # Recompute workspace-wide averages from the merged per-package reports.

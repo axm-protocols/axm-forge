@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import PurePosixPath
 
-from axm_audit.core.test_runner import TestReport
+from axm_audit.core.test_runner import NonTestCauseDetail, TestReport
 
 __all__ = ["format_audit_test_text"]
 
@@ -29,9 +29,12 @@ def _build_header(report: TestReport) -> str:
     skipped = getattr(report, "skipped", 0) or 0
     duration = getattr(report, "duration", 0.0) or 0.0
     coverage = getattr(report, "coverage", None)
-    icon = "\u2705" if (failed + errors) == 0 else "\u274c"
+    icon = "\u2705" if report.verdict else "\u274c"
     counts = " \u00b7 ".join(_count_parts(passed, failed, errors, skipped))
-    header = f"audit_test | {icon} {counts} | {duration:.1f}s"
+    collected = report.collected or 0
+    header = f"audit_test | {icon} {counts} · {collected} collected | {duration:.1f}s"
+    if report.pytest_return_code != 0:
+        header += f" | pytest exit {report.pytest_return_code}"
     if coverage is not None:
         header += f" | cov {report.coverage:.1f}%"
     return header
@@ -71,9 +74,33 @@ def _build_coverage_section(report: TestReport) -> list[str]:
     return ["cov< " + " \u00b7 ".join(parts)]
 
 
+def _build_cause_block(report: TestReport) -> list[str]:
+    """Render the classified non-test cause right under the header line.
+
+    Strictly conditional: a report carrying no cause renders exactly as
+    before, byte for byte. The excerpt is the one the classifier already
+    bounded, emitted verbatim -- never truncated a second time here.
+    """
+    cause: NonTestCauseDetail | None = getattr(report, "non_test_cause", None)
+    if cause is None:
+        return []
+    return [f"cause {cause.code}: {cause.summary}", *cause.excerpt.splitlines()]
+
+
+def _build_target_section(report: TestReport) -> list[str]:
+    """Render invalid requested targets with their validation status."""
+    return [
+        f"target {status['target']}: {status['status']}"
+        for status in report.target_statuses
+        if status["status"] != "validated"
+    ]
+
+
 def format_audit_test_text(report: TestReport) -> str:
     """Render a TestReport as compact text for LLM consumption."""
     lines: list[str] = [_build_header(report)]
+    lines.extend(_build_cause_block(report))
+    lines.extend(_build_target_section(report))
     lines.extend(_build_failure_blocks(report))
     lines.extend(_build_coverage_section(report))
     return "\n".join(lines)

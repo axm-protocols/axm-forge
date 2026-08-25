@@ -52,9 +52,10 @@ packages = ["src/{{ module_name }}"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pytest-xdist>=3.8.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.17",
+    "ruff==0.16.4",
     "mypy>=1.20.0",
     "prek>=0.4.4",
 ]
@@ -69,9 +70,12 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default; keep the
+# formatter out of hand-written prose docs.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_{{module_name}}"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -79,13 +83,16 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "S", "T20", "PLR",
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
+"tests_{{module_name}}/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
 max-args = 5
+# PLR0917 (new in ruff 0.16) counts positional args only; keep it in step
+# with max-args so options past the cutoff must be keyword-only.
+max-positional-args = 5
 max-branches = 12
 max-returns = 6
 max-statements = 50
@@ -112,8 +119,9 @@ check_untyped_defs = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "conftest"]
+module = ["tests_{{module_name}}.*", "conftest"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -138,7 +146,7 @@ DEP004 = ["mkdocs_gen_files", "pytest"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_{{module_name}}"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -165,7 +173,7 @@ markers = [
 source = ["src/{{ module_name }}"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_{{module_name}}/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

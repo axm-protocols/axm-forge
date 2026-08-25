@@ -60,10 +60,26 @@ def render_describe_text(data: dict[str, object], detail: str) -> str:
     match detail:
         case "toc":
             return _render_toc(modules, header)
+        case "names":
+            return _render_names(modules, header)
         case "detailed":
             return _render_detailed(modules, header)
         case _:
             return _render_summary(modules, header)
+
+
+def _render_names(modules: list[_ModuleEntry], header: str) -> str:
+    """Render the name-only symbol index, skipping empty modules."""
+    lines: list[str] = [header]
+    for mod in modules:
+        functions = mod.get("functions", [])
+        classes = mod.get("classes", [])
+        if not functions and not classes:
+            continue
+        lines.append(f"## {mod['name']}")
+        lines.extend(fn["name"] for fn in functions)
+        lines.extend(cls["name"] for cls in classes)
+    return "\n".join(lines)
 
 
 def _render_toc(modules: list[_ModuleEntry], header: str) -> str:

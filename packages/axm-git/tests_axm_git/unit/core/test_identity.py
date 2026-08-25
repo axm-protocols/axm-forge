@@ -1,0 +1,252 @@
+"""Unit test for resolve_identity: no-config-file edge case."""
+
+from __future__ import annotations
+
+import inspect as _inspect_axm1710
+import logging
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+import axm_git.core.identity as _ident_axm1710
+from axm_git.core.identity import (
+    GitIdentity,
+    GitProfileConfig,
+    Schedule,
+    author_args,
+    resolve_by_schedule,
+    resolve_identity,
+)
+
+
+class TestResolveIdentityEdgeCases:
+    def test_no_config_file_returns_none(self, monkeypatch):
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _: None)
+        result = resolve_identity(Path("/any"))
+        assert result is None
+
+
+def _build_config_axm1710(
+    *,
+    workspace_paths: list[Path] | None = None,
+    timezone: str | None = None,
+    schedule_rules: list[dict[str, Any]] | None = None,
+    profiles: dict[str, dict[str, str]] | None = None,
+) -> GitProfileConfig:
+    payload: dict[str, Any] = {
+        "default": {"name": "Default", "email": "default@example.com"},
+        "profiles": profiles or {},
+        "schedule": {"rules": schedule_rules or []},
+    }
+    if workspace_paths is not None:
+        payload["workspace_paths"] = [str(p) for p in workspace_paths]
+    if timezone is not None:
+        payload["timezone"] = timezone
+    return GitProfileConfig.model_validate(payload)
+
+
+class TestGitIdentityModel:
+    """Test GitIdentity pydantic model."""
+
+    def test_git_identity_model(self) -> None:
+        identity = GitIdentity(name="Secondary", email="secondary@axm-protocol.io")
+        assert identity.name == "Secondary"
+        assert identity.email == "secondary@axm-protocol.io"
+
+
+class TestAuthorArgs:
+    """Test author_args helper."""
+
+    def test_author_args_with_identity(self) -> None:
+        identity = GitIdentity(name="Secondary", email="secondary@axm-protocol.io")
+        result = author_args(identity)
+        assert result == ["--author", "Secondary <secondary@axm-protocol.io>"]
+
+    def test_author_args_none(self) -> None:
+        result = author_args(None)
+        assert result == []
+
+
+class TestExplicitConfigPath:
+    """AC4: the explicit-path form is unchanged (no store consulted)."""
+
+    def test_explicit_config_path_still_parses_file(self, tmp_path: Path) -> None:
+        """AC4: load_config(config_path=<file>) parses that exact TOML file.
+
+        No axm_config store monkeypatch is needed: the explicit-path branch
+        must never consult the store.
+        """
+        from axm_git.core.identity import load_config
+
+        cfg = tmp_path / "git-profiles.toml"
+        cfg.write_text('[default]\nname = "Explicit"\nemail = "explicit@example.com"\n')
+        result = load_config(config_path=cfg)
+        assert result is not None
+        assert result.default.name == "Explicit"
+        assert result.default.email == "explicit@example.com"
+
+
+class TestIdentityModuleInvariants:
+    """Unit-scope invariants on the identity module (no I/O)."""
+
+    def test_no_hardcoded_workspace_prefix_in_module(self) -> None:
+        src = _inspect_axm1710.getsource(_ident_axm1710)
+        assert "/Users/" not in src
+        assert "_AXM_WORKSPACE_PREFIX" not in src
+
+    def test_resolve_identity_default_timezone_is_europe_paris(self) -> None:
+        config = _build_config_axm1710()
+        assert config.timezone == "Europe/Paris"
+
+
+class TestScheduleEnabledToggle:
+    """AC1-AC3: the schedule.enabled on/off toggle gates resolve_by_schedule."""
+
+    # A Tuesday well inside any all-day window.
+    _NOW = datetime(2026, 6, 23, 10, 0, 0)
+
+    def _config(self, tmp_path: Path, *, enabled: bool | None) -> GitProfileConfig:
+        schedule: dict[str, object] = {
+            "rules": [
+                {
+                    "profile": "work",
+                    "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                    "start": "00:00",
+                    "end": "23:59",
+                }
+            ]
+        }
+        if enabled is not None:
+            schedule["enabled"] = enabled
+        return GitProfileConfig.model_validate(
+            {
+                "default": {"name": "Default", "email": "default@example.com"},
+                "profiles": {"work": {"name": "Work", "email": "work@example.com"}},
+                "workspace_paths": [str(tmp_path)],
+                "schedule": schedule,
+            }
+        )
+
+    def test_schedule_disabled_returns_none(self, tmp_path: Path) -> None:
+        """AC2: a matching rule is ignored when schedule.enabled is False."""
+        config = self._config(tmp_path, enabled=False)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        assert resolve_by_schedule(config, ws, self._NOW) is None
+
+    def test_schedule_enabled_default_unchanged(self, tmp_path: Path) -> None:
+        """AC1, AC3: enabled defaults to True; a matching rule still resolves."""
+        assert Schedule().enabled is True
+        config = self._config(tmp_path, enabled=None)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        resolved = resolve_by_schedule(config, ws, self._NOW)
+        assert resolved == config.profiles["work"]
+
+    def test_resolve_identity_falls_back_to_default_when_disabled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: resolve_identity returns the default identity when disabled."""
+        config = self._config(tmp_path, enabled=False)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        assert resolve_identity(ws, now=self._NOW) == config.default
+
+
+class TestUnknownProfileOverrideObservability:
+    """AC1-AC4: observability for the profile_override fall-through."""
+
+    def _warnings(self, caplog: pytest.LogCaptureFixture) -> list[str]:
+        return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+
+    def test_unknown_profile_warns(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """AC1: unknown profile_override warns then returns None."""
+        config = _build_config_axm1710(
+            profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
+        )
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override="alicia")
+        assert result is None
+        assert any("alicia" in m and "alice" in m for m in self._warnings(caplog))
+
+    @pytest.mark.parametrize(
+        ("profile_override", "expected_name"),
+        [
+            pytest.param("alice", "Alice", id="valid_profile_resolves"),
+            pytest.param(None, "Default", id="none_uses_default"),
+        ],
+    )
+    def test_resolved_profile_no_warning(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        profile_override: str | None,
+        expected_name: str,
+    ) -> None:
+        """AC2, AC3: a resolvable profile_override (valid name or None->default).
+
+        Resolves to its identity with no warning.
+        """
+        config = _build_config_axm1710(
+            profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
+        )
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override=profile_override)
+        assert result is not None
+        assert result.name == expected_name
+        assert self._warnings(caplog) == []
+
+    def test_no_profiles_configured_distinct_message(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """AC4: empty config.profiles warns with a distinct message."""
+        config = _build_config_axm1710(profiles={})
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override="x")
+        assert result is None
+        warnings = self._warnings(caplog)
+        assert any("no profiles" in m.lower() for m in warnings)
+        assert not any("available profiles" in m.lower() for m in warnings)
+
+
+class TestLoadConfigFailsLoudOnUnsafeHome:
+    """AC4: an unresolvable store path fails loud, never a silent ``None``.
+
+    ``load_config()`` resolving to ``None`` legitimately means "no config
+    anywhere" (AC5). It must therefore *not* also collapse a store that cannot
+    be read at all — an ``~/.axm`` home refused by the security guard (``HOME``
+    resolving inside a git checkout) — into that same ``None``. Such a state is
+    a real defect surfaced by ``UnsafeHomeError``, which resolution lets
+    propagate rather than swallow, so a broken store is distinguishable from an
+    absent one.
+    """
+
+    def test_unsafe_home_raises_not_silent_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from axm_config import UnsafeHomeError
+
+        from axm_git.core.identity import load_config
+
+        (tmp_path / ".git").mkdir()
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("USERPROFILE", raising=False)
+        for name in list(os.environ):
+            if name.startswith("AXM_"):
+                monkeypatch.delenv(name, raising=False)
+
+        with pytest.raises(UnsafeHomeError):
+            load_config()

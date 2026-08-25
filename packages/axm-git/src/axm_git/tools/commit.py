@@ -21,8 +21,10 @@ from axm_git.core.identity import author_args, resolve_identity
 from axm_git.core.runner import (
     find_git_root,
     not_a_repo_error,
+    reset_paths,
     run_git,
     stage_spec_files,
+    staged_delta,
     timeout_error_result,
 )
 from axm_git.tools.commit_text import render_failure_text, render_text
@@ -30,6 +32,70 @@ from axm_git.tools.commit_text import render_failure_text, render_text
 __all__ = ["GitCommitTool"]
 
 logger = logging.getLogger(__name__)
+
+
+def _snapshot_staged(git_root: Path) -> set[str]:
+    """Return the set of staged paths (``git diff --cached --name-only``).
+
+    Snapshots the index so the delta a staging operation introduces can be
+    computed (:func:`axm_git.core.runner.staged_delta`) and, on a definitive
+    hook refusal, scoped-reset without touching third-party staged paths.
+    Runs through this module's ``run_git`` so callers stay git-root-relative.
+    """
+    result = run_git(["diff", "--cached", "--name-only"], git_root)
+    return {line for line in result.stdout.splitlines() if line.strip()}
+
+
+def _spec_staged_set(
+    files: list[str], git_root: Path, working_dir: Path | None
+) -> set[str]:
+    """Return the git-root-relative POSIX paths the spec declares to stage.
+
+    Mirrors the resolution :func:`stage_spec_files` performs (git-root first,
+    then *working_dir*), keeping every candidate that lands inside the
+    repository. Intentionally over-inclusive: an extra candidate can only mask
+    a debris path, never wrongly flag a legitimate spec path — false negatives
+    are safe here, false positives (refusing a clean spec) are not.
+    """
+    root = git_root.resolve()
+    out: set[str] = set()
+    for filepath in files:
+        raw = Path(filepath)
+        if raw.is_absolute():
+            candidates = [raw]
+        else:
+            candidates = [root / filepath]
+            if working_dir is not None and working_dir.resolve() != root:
+                candidates.append(working_dir.resolve() / filepath)
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved.is_relative_to(root):
+                out.add(resolved.relative_to(root).as_posix())
+    return out
+
+
+def _unexpected_staged(
+    staged: set[str], spec: set[str], autofixed: set[str]
+) -> list[str]:
+    """Return the sorted staged paths that sit outside the spec set.
+
+    A path is *unexpected* when the index holds it, the spec did not declare
+    it, and no commit hook auto-fixed it — ``hook_autofixed_files`` is a
+    legitimate channel (paths a hook mutated + the retry re-staged) and is
+    exempt from the strict check (AC3).
+
+    A spec entry may be a *directory* (staging it introduces nested paths, e.g.
+    ``pkg`` → ``pkg/a.py``), so a staged path is also expected when it is nested
+    under any declared/auto-fixed prefix. Sorted for a deterministic diagnostic
+    and ``unexpected_staged`` data field.
+    """
+    allowed = spec | autofixed
+    return sorted(
+        path
+        for path in staged
+        if path not in allowed
+        and not any(path.startswith(f"{prefix}/") for prefix in allowed)
+    )
 
 
 def _attempt_commit(
@@ -134,41 +200,57 @@ def _build_failure_data(  # noqa: PLR0913
     retried: bool,
     auto_fixed: list[str],
     total: int,
+    index_restored: bool = False,
+    restored_paths: list[str] | None = None,
+    unexpected_staged: list[str] | None = None,
 ) -> dict[str, object]:
     """Build failure data dict for a failed commit.
 
     *auto_fixed* is the list of files captured by ``_attempt_commit``
     before re-staging — we no longer recompute it here because the
     subsequent ``git add`` would have emptied the diff.
+
+    *index_restored* / *restored_paths* record whether the operation's
+    staging delta was scoped-reset after a definitive hook refusal (audit
+    traceability for AC4).
     """
     return {
         "results": results,
         "total": total,
         "succeeded": len(results),
+        # Additive, non-breaking surface (AC4): the staged paths outside the
+        # spec that triggered a strict refusal; ``[]`` on every other failure.
+        "unexpected_staged": unexpected_staged or [],
         "failed_commit": {
             "index": index,
             "message": message,
             "precommit_output": output.strip(),
             "auto_fixed_files": auto_fixed,
             "retried": retried,
+            "index_restored": index_restored,
+            "restored_paths": restored_paths or [],
         },
     }
 
 
-def _process_single_commit(  # noqa: PLR0913
+def _process_single_commit(  # noqa: PLR0913, PLR0917
     spec: dict[str, object],
     index: int,
     identity_args: list[str],
     path: Path,
     results: list[dict[str, object]],
     total: int,
+    autofixed: list[str],
     *,
     strict: bool = False,
 ) -> ToolResult | None:
     """Process one commit spec: validate, stage, commit, record result.
 
     Returns a ``ToolResult`` on failure or ``None`` on success
-    (appending the commit record to *results*).
+    (appending the commit record to *results*). On the success path any
+    hook-mutated file paths captured during the autofix-retry are appended
+    to *autofixed* so the caller can surface them at the top level
+    (``hook_autofixed_files`` — the Verdict-Carrying Patch invariant).
     """
     validation_err = _validate_commit_spec(spec, index, results, total, strict=strict)
     if validation_err:
@@ -189,6 +271,10 @@ def _process_single_commit(  # noqa: PLR0913
             total=total,
         )
 
+    # Snapshot the index BEFORE staging so we can compute the exact delta this
+    # operation introduces (third-party staged paths are excluded from it).
+    staged_before = _snapshot_staged(git_root)
+
     # Stage files via the subdir-aware resolver (git-root-relative paths work
     # even when *path* is a package subdir; deletions and gitignored files are
     # handled the same way the commit-phase hook handles them).
@@ -198,6 +284,49 @@ def _process_single_commit(  # noqa: PLR0913
             error=f"Commit {index}: git add failed: {add_err}",
             results=results,
             total=total,
+        )
+
+    # The paths this operation staged (delta vs the pre-call index) — the only
+    # paths a definitive-failure restore is allowed to unstage (AC1/AC2).
+    staged_after = _snapshot_staged(git_root)
+    recorded = staged_delta(staged_before, staged_after)
+
+    # Strict index check — Verdict-Carrying Patch applied to the commit itself:
+    # the index must hold ONLY what the spec declared. Any other staged path is
+    # debris a third party left in the index; committing it would land content
+    # the spec never claimed. Hook auto-fixed paths are a legitimate channel and
+    # are exempt (AC3). On a match: restore the index to its pre-call state and
+    # refuse fail-loud, naming every offending path (AC1/AC2/AC4).
+    unexpected = _unexpected_staged(
+        staged_after,
+        _spec_staged_set(files, git_root, path),
+        set(autofixed),
+    )
+    if unexpected:
+        restored = bool(recorded)
+        if restored:
+            reset_paths(recorded, git_root)
+        offending = ", ".join(unexpected)
+        error = "Commit {i}: index holds staged paths outside the spec: {p}{r}".format(
+            i=index, p=offending, r=" (index restored)" if restored else ""
+        )
+        data = _build_failure_data(
+            results,
+            index=index,
+            message=message,
+            output="",
+            retried=False,
+            auto_fixed=[],
+            total=total,
+            index_restored=restored,
+            restored_paths=recorded,
+            unexpected_staged=unexpected,
+        )
+        return ToolResult(
+            success=False,
+            error=error,
+            data=data,
+            text=render_failure_text(error=error, data=data),
         )
 
     # Build commit command
@@ -212,7 +341,14 @@ def _process_single_commit(  # noqa: PLR0913
     )
 
     if not ok:
-        error = f"Commit {index}: hook check failed"
+        # Definitive refusal (post auto-fix retry): scoped-reset only the paths
+        # this operation staged, leaving the index otherwise as it was (AC1/AC2).
+        restored = bool(recorded)
+        if restored:
+            reset_paths(recorded, git_root)
+        error = "Commit {i}: hook check failed{r}".format(
+            i=index, r=" (index restored)" if restored else ""
+        )
         data = _build_failure_data(
             results,
             index=index,
@@ -221,6 +357,8 @@ def _process_single_commit(  # noqa: PLR0913
             retried=retried,
             auto_fixed=auto_fixed,
             total=total,
+            index_restored=restored,
+            restored_paths=recorded,
         )
         return ToolResult(
             success=False,
@@ -228,6 +366,10 @@ def _process_single_commit(  # noqa: PLR0913
             data=data,
             text=render_failure_text(error=error, data=data),
         )
+
+    # The commit landed. Record any hook-mutated paths captured during the
+    # autofix-retry (empty on the clean path) so the caller surfaces them.
+    autofixed.extend(auto_fixed)
 
     # Get the SHA of the commit
     log = run_git(["log", "-1", "--format=%H"], git_root)
@@ -259,6 +401,14 @@ class GitCommitTool(AXMTool):
 
     When a commit hook auto-fixes files (e.g. ruff ``--fix``),
     the tool automatically re-stages and retries the commit once.
+
+    **Verdict-Carrying Patch invariant** — when a hook mutates staged
+    content on the autofix-retry path, ``ToolResult.data`` reports exactly
+    which files changed under ``hook_autofixed_files: list[str]`` (repo-root
+    relative). The field is *always present*: it is an empty list on the
+    clean path (no hooks, or no mutation) and never ``None``. This lets a
+    consumer see that the patch it committed is not byte-for-byte the patch
+    it staged — the commit still carries a truthful verdict of what landed.
 
     The hook runner is whatever the repo installs at
     ``.git/hooks/pre-commit`` (pre-commit OR prek); axm-git never
@@ -300,8 +450,11 @@ class GitCommitTool(AXMTool):
                 (warn-by-default guardrail).
 
         Returns:
-            ToolResult with list of committed results and an
-            ``author`` key (``{name, email}`` or ``None``).
+            ToolResult with a list of committed results, an ``author`` key
+            (``{name, email}`` or ``None``), and ``hook_autofixed_files``
+            (``list[str]``, repo-root relative) naming any staged files a
+            commit hook mutated during the autofix-retry — always present,
+            ``[]`` when no hook auto-fixed anything.
         """
         resolved = Path(path).resolve()
         commit_list: list[dict[str, object]] = commits or []
@@ -334,10 +487,18 @@ class GitCommitTool(AXMTool):
             identity_args = author_args(identity)
 
             results: list[dict[str, object]] = []
+            autofixed: list[str] = []
 
             for i, spec in enumerate(commit_list):
                 failure = _process_single_commit(
-                    spec, i + 1, identity_args, resolved, results, total, strict=strict
+                    spec,
+                    i + 1,
+                    identity_args,
+                    resolved,
+                    results,
+                    total,
+                    autofixed,
+                    strict=strict,
                 )
                 if failure:
                     return failure
@@ -348,6 +509,10 @@ class GitCommitTool(AXMTool):
             "results": results,
             "total": len(results),
             "succeeded": len(results),
+            # Verdict-Carrying Patch invariant: the paths a commit hook
+            # auto-fixed during the re-stage + retry (deduplicated, sorted);
+            # always present, ``[]`` on the clean path (AC1/AC2).
+            "hook_autofixed_files": sorted(set(autofixed)),
             "author": (
                 {"name": identity.name, "email": identity.email} if identity else None
             ),

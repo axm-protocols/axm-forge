@@ -73,6 +73,15 @@ def install(port: int = DEFAULT_PORT, *, binary: Path | None = None) -> None:
 
     uid = os.getuid()
     launchctl = shutil.which("launchctl") or "launchctl"
+    # Idempotent: bootout any already-loaded instance first, so a re-install
+    # does not fail with a cryptic "Failed to load service" (Bootstrap failed:
+    # 5: service already loaded). Best-effort — ignore if nothing was loaded.
+    subprocess.run(  # noqa: S603
+        [launchctl, "bootout", f"gui/{uid}", str(PLIST_PATH)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
     try:
         subprocess.run(  # noqa: S603
             [launchctl, "bootstrap", f"gui/{uid}", str(PLIST_PATH)],

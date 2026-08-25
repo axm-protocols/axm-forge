@@ -15,7 +15,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "cyclopts>=4.5.1",
+    "cyclopts>=4.21.0",
 ]
 
 [project.optional-dependencies]
@@ -64,9 +64,9 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
+    "ruff==0.16.4",
     "mypy>=1.20.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
 ]
 docs = [
     "mkdocs-material>=9.0",
@@ -80,9 +80,13 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
+src = ["src", "tests_axm"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
@@ -90,7 +94,7 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20",
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108"]
+"tests_axm/*" = ["S101", "S105", "S106", "S108"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -123,8 +127,9 @@ check_untyped_defs = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests_axm.*"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -172,7 +177,7 @@ hash = "935c6a5eef12"
 reason = "distinct create_app scenarios sharing the '\"audit\" in list(app)' shape: bare tool registration vs explicit-command-wins-over-tool precedence — parametrization would conflate two registration rules"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -184,7 +189,7 @@ addopts = [
     "--cov=axm",
     "--cov-report=term-missing",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=90",
 ]
 filterwarnings = ["error"]
 markers = [
@@ -199,14 +204,14 @@ markers = [
 source = ["axm"]
 branch = true
 relative_files = true
-omit = ["*/tests/*", "*/_version.py"]
+omit = ["*/tests_*/*", "*/_version.py"]
 
 [tool.coverage.xml]
 output = "coverage.xml"
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["dev"]
-known_first_party = ["axm", "axm_mcp"]
+known_first_party = ["axm"]
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "if __name__"]

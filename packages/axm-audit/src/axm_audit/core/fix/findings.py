@@ -218,6 +218,45 @@ def class_needs_flatten(
     return len(canonicals) >= 2
 
 
+def _nondeterministic_findings(result: object | None) -> list[dict[str, Any]]:
+    """Normalize NO_PACKAGE_SYMBOL-class findings from an audit result."""
+    out: list[dict[str, Any]] = []
+    if result is None:
+        return out
+    for check in result.checks:  # type: ignore[attr-defined]
+        rid = getattr(check, "rule_id", "")
+        if rid not in NON_DETERMINISTIC_RULES:
+            continue
+        for d in normalize_findings(check):
+            out.append({"rule_id": rid, **d})
+    return out
+
+
+def _pathological_flatten_findings(project_path: Path) -> list[dict[str, Any]]:
+    """Emit PATHOLOGICAL FILE_NAMING findings from the flatten plan."""
+    # B1: lazy import to break the findings <-> stages_plan cycle.
+    from .stages_plan import plan_flatten
+
+    out: list[dict[str, Any]] = []
+    for op in plan_flatten(project_path):
+        if not op.rationale.startswith("PATHOLOGICAL"):
+            continue
+        try:
+            tf = str(op.source.relative_to(project_path))
+        except ValueError:
+            tf = str(op.source)
+        out.append(
+            {
+                "rule_id": "TEST_QUALITY_FILE_NAMING",
+                "verdict": "PATHOLOGICAL",
+                "test_file": tf,
+                "path": tf,
+                "reason": op.rationale,
+            }
+        )
+    return out
+
+
 def collect_unfixable(project_path: Path) -> list[dict[str, Any]]:
     """Re-audit and return NO_PACKAGE_SYMBOL + pathological FILE_NAMING findings.
 
@@ -231,34 +270,10 @@ def collect_unfixable(project_path: Path) -> list[dict[str, Any]]:
     user invokes ``/scenario-rename`` or rewrites by hand instead of
     silently leaving the SPLIT finding unresolved.
     """
-    out: list[dict[str, Any]] = []
     try:
         result = audit_project(project_path, category="test_quality")
     except FileNotFoundError:
         result = None
-    if result is not None:
-        for check in result.checks:
-            rid = getattr(check, "rule_id", "")
-            if rid not in NON_DETERMINISTIC_RULES:
-                continue
-            for d in normalize_findings(check):
-                out.append({"rule_id": rid, **d})
-    # B1: lazy import to break the findings <-> stages_plan cycle.
-    from .stages_plan import plan_flatten
-
-    for op in plan_flatten(project_path):
-        if op.rationale.startswith("PATHOLOGICAL"):
-            try:
-                tf = str(op.source.relative_to(project_path))
-            except ValueError:
-                tf = str(op.source)
-            out.append(
-                {
-                    "rule_id": "TEST_QUALITY_FILE_NAMING",
-                    "verdict": "PATHOLOGICAL",
-                    "test_file": tf,
-                    "path": tf,
-                    "reason": op.rationale,
-                }
-            )
-    return out
+    return _nondeterministic_findings(result) + _pathological_flatten_findings(
+        project_path
+    )

@@ -1,0 +1,180 @@
+"""Tests for axm_edit.models.operations."""
+
+from __future__ import annotations
+
+import pytest
+from pydantic import ValidationError
+
+from axm_edit.models.operations import (
+    BatchResult,
+    CreateOp,
+    DeleteOp,
+    Edit,
+    ReplaceOp,
+)
+
+
+class TestEdit:
+    """Tests for the Edit model."""
+
+    def test_valid_edit(self) -> None:
+        edit = Edit(line=1, old="import os", new="import sys")
+        assert edit.line == 1
+        assert edit.old == "import os"
+        assert edit.new == "import sys"
+
+    @pytest.mark.parametrize(
+        ("line", "old"),
+        [
+            pytest.param(0, "a", id="line_must_be_positive"),
+            pytest.param(1, "", id="old_cannot_be_empty"),
+        ],
+    )
+    def test_rejects_invalid_field(self, line: int, old: str) -> None:
+        with pytest.raises(ValidationError):
+            Edit(line=line, old=old, new="b")
+
+    def test_new_can_be_empty(self) -> None:
+        """Deleting content by replacing with empty string is valid."""
+        edit = Edit(line=1, old="import os", new="")
+        assert edit.new == ""
+
+    def test_extra_fields_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            Edit(line=1, old="a", new="b", extra="nope")  # type: ignore[call-arg]
+
+
+class TestReplaceOp:
+    """Tests for the ReplaceOp model."""
+
+    def test_valid_replace(self) -> None:
+        op = ReplaceOp(
+            file="src/foo.py",
+            edits=[Edit(line=1, old="import os", new="import sys")],
+        )
+        assert op.op == "replace"
+        assert op.file == "src/foo.py"
+        assert len(op.edits) == 1
+
+    def test_edits_cannot_be_empty(self) -> None:
+        with pytest.raises(ValidationError):
+            ReplaceOp(file="foo.py", edits=[])
+
+    def test_extra_fields_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ReplaceOp(  # type: ignore[call-arg]
+                file="foo.py",
+                edits=[Edit(line=1, old="a", new="b")],
+                extra="nope",
+            )
+
+
+class TestCreateOp:
+    """Tests for the CreateOp model."""
+
+    def test_defaults(self) -> None:
+        op = CreateOp(file="src/new.py", content="hello")
+        assert op.op == "create"
+        assert op.overwrite is False
+
+    def test_overwrite_explicit(self) -> None:
+        op = CreateOp(file="x.py", content="", overwrite=True)
+        assert op.overwrite is True
+
+
+class TestDeleteOp:
+    """Tests for the DeleteOp model."""
+
+    def test_valid(self) -> None:
+        op = DeleteOp(file="old.py")
+        assert op.op == "delete"
+        assert op.file == "old.py"
+
+
+class TestRewriteOp:
+    RW_FILE = "src/foo.py"
+    RW_CONTENT = "new body\n"
+    RW_DIGEST = "a" * 64
+
+    def test_accepts_complete_payload(self) -> None:
+        # AC1: a full payload round-trips its four declared fields.
+        from axm_edit.models.operations import RewriteOp
+
+        op = RewriteOp(
+            op="rewrite",
+            file=self.RW_FILE,
+            content=self.RW_CONTENT,
+            expected_checksum=self.RW_DIGEST,
+        )
+        assert op.model_dump() == {
+            "op": "rewrite",
+            "file": self.RW_FILE,
+            "content": self.RW_CONTENT,
+            "expected_checksum": self.RW_DIGEST,
+        }
+
+    def test_expected_checksum_is_mandatory(self) -> None:
+        # AC1: omitting expected_checksum is refused by the model.
+        from axm_edit.models.operations import RewriteOp
+
+        with pytest.raises(ValidationError) as excinfo:
+            RewriteOp(  # type: ignore[call-arg]
+                op="rewrite",
+                file=self.RW_FILE,
+                content=self.RW_CONTENT,
+            )
+        assert "expected_checksum" in str(excinfo.value)
+
+    def test_rejects_overwrite_escape_hatch(self) -> None:
+        # AC4: an unknown overwrite key is refused, by name.
+        from axm_edit.models.operations import RewriteOp
+
+        with pytest.raises(ValidationError) as excinfo:
+            RewriteOp(  # type: ignore[call-arg]
+                op="rewrite",
+                file=self.RW_FILE,
+                content=self.RW_CONTENT,
+                expected_checksum=self.RW_DIGEST,
+                overwrite=True,
+            )
+        assert "overwrite" in str(excinfo.value)
+
+    def test_operation_union_accepts_a_rewrite_payload(self) -> None:
+        # AC1: the Operation union parses a rewrite mapping into RewriteOp.
+        from pydantic import TypeAdapter
+
+        from axm_edit.models.operations import Operation, RewriteOp
+
+        parsed: object = TypeAdapter(Operation).validate_python(
+            {
+                "op": "rewrite",
+                "file": self.RW_FILE,
+                "content": self.RW_CONTENT,
+                "expected_checksum": self.RW_DIGEST,
+            }
+        )
+
+        assert isinstance(parsed, RewriteOp)
+
+
+class TestBatchResult:
+    """Tests for the BatchResult model."""
+
+    def test_success_defaults(self) -> None:
+        result = BatchResult(success=True, applied=5)
+        assert result.checkpoint is None
+        assert result.summary == {"modified": 0, "created": 0, "deleted": 0}
+        assert result.details == []
+
+    def test_failure_with_details(self) -> None:
+        from axm_edit.models.operations import (
+            ValidationError as ValError,
+        )
+
+        result = BatchResult(
+            success=False,
+            error="Validation failed",
+            details=[ValError(file="x.py", error="File not found")],
+        )
+        assert not result.success
+        assert len(result.details) == 1

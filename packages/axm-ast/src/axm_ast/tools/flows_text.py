@@ -119,7 +119,7 @@ def render_entry_points_text(entries: list[EntryPointDict], count: int) -> str:
     return "\n".join(lines)
 
 
-def render_trace_text(  # noqa: PLR0913
+def render_trace_text(  # noqa: PLR0913, PLR0917
     entry: str,
     steps: list[FlowStepDict],
     depth: int,
@@ -138,7 +138,7 @@ def render_trace_text(  # noqa: PLR0913
     return "\n".join(lines)
 
 
-def render_compact_text(  # noqa: PLR0913
+def render_compact_text(  # noqa: PLR0913, PLR0917
     entry: str,
     compact: str,
     depth: int,
@@ -153,7 +153,7 @@ def render_compact_text(  # noqa: PLR0913
     return f"{hdr}\n\n{compact}"
 
 
-def render_source_text(  # noqa: PLR0913
+def render_source_text(  # noqa: PLR0913, PLR0917
     entry: str,
     steps: list[FlowStepDict],
     depth: int,

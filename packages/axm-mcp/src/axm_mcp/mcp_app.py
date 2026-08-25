@@ -73,7 +73,11 @@ def _register_direct(tools: dict[str, ToolEntry]) -> None:
 
 
 if _facade_enabled():
-    catalog = ToolCatalog(discovered_tools)
+    # The catalog indexes the FULL surface — discovered tools AND the
+    # built-ins — so ``axm_describe``/``axm_search`` see ``verify``/``web_fetch``
+    # too (they are already exposed directly on the hot path, but the facade
+    # must not claim they are "unknown"). Discovered tools win on name clash.
+    catalog = ToolCatalog({**_BUILTINS, **discovered_tools})
     # Hot path: tools that opt in via expose_directly, registered individually.
     _hot = {name: discovered_tools[name] for name in catalog.hot_path()}
     _register_direct(_hot)

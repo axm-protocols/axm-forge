@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from axm_ingot.suite import is_suite_name, resolve_suite_dirs
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
         WorkspaceInfo,
     )
 
-from axm_ast.core.analyzer import module_dotted_name
+from axm_ast.core.analyzer import build_import_graph, module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
@@ -91,6 +92,11 @@ class ImpactResult(TypedDict, total=False):
     affected_modules: list[str]
     test_files: list[str]
     test_files_by_import: list[str]
+    # OPT-IN only (``analyze_impact(..., include_module_importers=True)``):
+    # modules that import the edited symbol's *module* (or a re-export shim
+    # of it) without referencing the symbol itself — invisible to a
+    # symbol-level call-graph traversal. Absent from the default output.
+    module_level_importers: list[str]
     # Heterogeneous payload from git_coupling (file/strength/co_changes).
     git_coupled: list[Mapping[str, object]]
     cross_package_impact: list[str]
@@ -330,8 +336,9 @@ def _is_reexported_via_import(mod: ModuleInfo, symbol: str) -> bool:
 def map_tests(symbol: str, project_root: Path) -> list[Path]:
     """Find test files that reference a given symbol.
 
-    Scans ``tests/`` directory for test_*.py files containing
-    the symbol name.
+    Recursively scans the ``tests/`` directory (including the AXM pyramid
+    sub-dirs ``tests/unit|integration|e2e/``) for ``test_*.py`` files
+    containing the symbol name.
 
     Args:
         symbol: Name to search for in test files.
@@ -340,12 +347,17 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
     Returns:
         List of test file paths that reference the symbol.
     """
-    tests_dir = project_root / "tests"
-    if not tests_dir.is_dir():
+    tests_dirs = resolve_suite_dirs(project_root)
+    if not tests_dirs:
         return []
 
     matching: list[Path] = []
-    for test_file in sorted(tests_dir.glob("test_*.py")):
+    test_files = sorted(
+        test_file
+        for tests_dir in tests_dirs
+        for test_file in tests_dir.rglob("test_*.py")
+    )
+    for test_file in test_files:
         try:
             content = test_file.read_text(encoding="utf-8")
             if symbol in content:
@@ -368,8 +380,9 @@ def _find_test_files_by_import(
     in is often imported by test files even when the symbol name itself
     does not appear.
 
-    Only ``tests/`` is scanned (bounded scope).  Non-test files are
-    excluded.
+    Only ``tests/`` is scanned (bounded scope), recursively so that the
+    AXM pyramid sub-dirs (``tests/unit|integration|e2e/``) are covered.
+    Non-test files are excluded.
 
     Args:
         module_name: Bare module name (e.g. ``"models"``, not
@@ -381,8 +394,8 @@ def _find_test_files_by_import(
     """
     import re
 
-    tests_dir = project_root / "tests"
-    if not tests_dir.is_dir():
+    tests_dirs = resolve_suite_dirs(project_root)
+    if not tests_dirs:
         return []
 
     # Match import lines:  from <anything>.module_name import ...
@@ -394,7 +407,12 @@ def _find_test_files_by_import(
     )
 
     matching: list[Path] = []
-    for test_file in sorted(tests_dir.glob("test_*.py")):
+    test_files = sorted(
+        test_file
+        for tests_dir in tests_dirs
+        for test_file in tests_dir.rglob("test_*.py")
+    )
+    for test_file in test_files:
         try:
             content = test_file.read_text(encoding="utf-8")
             if pattern.search(content):
@@ -678,9 +696,11 @@ def score_impact(
 
 
 def _resolve_project_root(path: Path, explicit: Path | None) -> Path:
-    """Infer project root from package path if not given explicitly."""
+    """Infer the test-owning project root without stepping above a real root."""
     if explicit is not None:
         return explicit
+    if resolve_suite_dirs(path):
+        return path
     if path.parent.name == "src":
         return path.parent.parent
     return path.parent
@@ -784,7 +804,7 @@ def _is_test_module(module: str) -> bool:
     also matches dotted paths where any segment starts with ``test_``.
     """
     parts = module.split(".")
-    return any(p.startswith("test_") or p == "tests" for p in parts)
+    return any(p.startswith("test_") or is_suite_name(p) for p in parts)
 
 
 def _resolve_effective_filter(
@@ -819,13 +839,75 @@ def _apply_test_filter(result: ImpactResult, effective: str | None) -> None:
         ]
 
 
-def analyze_impact(
+def _find_module_importers(
+    pkg: PackageInfo,
+    definition: DefinitionInfo | None,
+    reexports: list[str],
+) -> list[str]:
+    """Reverse-import-by-module-path: modules importing the symbol's module.
+
+    Inverts the package import graph (built by :func:`build_import_graph`,
+    the existing workspace primitive — no new scanner) to find every module
+    that imports the *module* the edited symbol lives in via ``import pkg.m``
+    or ``from pkg import m``. Such importers never reference the symbol name,
+    so a symbol-level call-graph traversal misses them entirely.
+
+    Re-export shims are followed one hop: for each module that re-exports the
+    symbol (``reexports``), its own importers are included too — a file that
+    imports the shim is a genuine downstream dependent of the symbol's module.
+
+    Args:
+        pkg: Analyzed package info.
+        definition: Resolved definition of the symbol (``None`` → no module
+            to trace, returns ``[]``).
+        reexports: Modules that re-export the symbol (from
+            :func:`find_reexports`) — treated as shims to follow one hop.
+
+    Returns:
+        Sorted list of dotted module names that import the symbol's module
+        (or a re-export shim of it), excluding the defining module itself.
+    """
+    if definition is None:
+        return []
+    target_module = definition["module"]
+    graph = build_import_graph(pkg)
+    reverse: dict[str, set[str]] = {}
+    for src, targets in graph.items():
+        for target in targets:
+            reverse.setdefault(target, set()).add(src)
+    importers = set(reverse.get(target_module, set()))
+    for shim in reexports:
+        importers |= reverse.get(shim, set())
+    importers.discard(target_module)
+    return sorted(importers)
+
+
+def _safe_module_importers(
+    pkg: PackageInfo,
+    definition: DefinitionInfo | None,
+    reexports: list[str],
+) -> list[str]:
+    """Best-effort wrapper around :func:`_find_module_importers` (AC3).
+
+    When the import graph cannot be built (unavailable / malformed), the
+    reverse-import lookup silently falls back to an empty result rather than
+    surfacing an error to the consumer.
+    """
+    try:
+        return _find_module_importers(pkg, definition, reexports)
+    except Exception:
+        logger.debug("Reverse-import lookup unavailable; falling back", exc_info=True)
+        return []
+
+
+def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
     path: Path,
     symbol: str,
     *,
     project_root: Path | None = None,
     exclude_tests: bool = False,
     test_filter: str | None = None,
+    include_module_importers: bool = False,
 ) -> ImpactResult:
     """Full impact analysis for a symbol.
 
@@ -844,6 +926,13 @@ def analyze_impact(
             ``"all"`` keeps everything, ``"related"`` keeps only
             direct test callers.  Takes precedence over
             *exclude_tests* when both are set.
+        include_module_importers: OPT-IN (default ``False``). When ``True``,
+            add a ``module_level_importers`` field listing modules that import
+            the symbol's *module* (or a re-export shim of it) without calling
+            the symbol — dependents a symbol-level traversal misses. Off by
+            default the field is absent and the result is byte-for-byte the
+            legacy output; best-effort, so a missing import graph silently
+            yields an empty list rather than raising.
 
     Returns:
         Complete impact analysis dict.
@@ -924,6 +1013,13 @@ def analyze_impact(
     effective = _resolve_effective_filter(test_filter, exclude_tests)
     _apply_test_filter(result, effective)
 
+    # OPT-IN reverse-import augmentation. Skipped entirely when off, so the
+    # default result stays byte-for-byte identical to the legacy output (AC2).
+    if include_module_importers:
+        result["module_level_importers"] = _safe_module_importers(
+            pkg, definition, reexports
+        )
+
     return result
 
 
@@ -944,13 +1040,7 @@ def _collect_workspace_tests(
     symbol: str,
 ) -> list[str]:
     """Collect test files referencing a symbol across the workspace."""
-    test_files: list[str] = []
-    for member_dir in ws.root.iterdir():
-        if not member_dir.is_dir():
-            continue
-        for t in map_tests(symbol, member_dir):
-            test_files.append(str(t.name))
-    return sorted(set(test_files))
+    return sorted({test_file.name for test_file in map_tests(symbol, ws.root)})
 
 
 def _add_workspace_git_coupling(

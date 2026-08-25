@@ -71,7 +71,11 @@ class MoveTool(AXMTool):
                 }
                 for det in plan.shared_helpers_detected
             ],
-            "files_modified": [str(src_path), str(tgt_path)],
+            "files_modified": [
+                str(src_path),
+                str(tgt_path),
+                *(entry.file for entry in plan.callers_updated),
+            ],
         }
         if reexport:
             data["reexport"] = True

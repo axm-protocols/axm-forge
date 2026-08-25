@@ -24,7 +24,9 @@ FetchResult = dict[str, bool | int | str | None]
 
 logger = logging.getLogger(__name__)
 
-# Lazy-loaded at module level for mockability in tests.
+# Eager optional import (scrapling): resolved once at module import. The
+# ``try/except`` degrades gracefully to a clear error when scrapling is absent;
+# the module-level names are what tests patch.
 try:
     from scrapling.fetchers import (
         DynamicFetcher,
@@ -81,7 +83,7 @@ async def fetch_page(
     try:
         match mode:
             case "auto" | "basic":
-                page = Fetcher.get(url)
+                page = await asyncio.to_thread(Fetcher.get, url)
             case "dynamic":
                 page = await DynamicFetcher.async_fetch(url)
             case "stealth":

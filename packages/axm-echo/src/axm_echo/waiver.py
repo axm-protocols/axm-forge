@@ -34,10 +34,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 __all__ = [
     "HASH_LEN",
@@ -75,7 +76,9 @@ def cluster_hash(cluster: Mapping[str, object], *, key_fields: Sequence[str]) ->
     raw_members = cluster.get("members", [])
     members = raw_members if isinstance(raw_members, list) else []
     keyed: list[list[str]] = sorted(
-        [str(member.get(field, "")) for field in key_fields] for member in members
+        [str(member.get(field, "")) for field in key_fields]
+        for member in members
+        if isinstance(member, Mapping)
     )
     blob = json.dumps(keyed, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:HASH_LEN]

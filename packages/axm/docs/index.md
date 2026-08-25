@@ -54,7 +54,7 @@ init_check    = "axm_init.cli:check"
 init_reserve  = "axm_init.cli:reserve"
 ```
 
-The `axm` CLI discovers these at startup and exposes them as subcommands.
+The `axm` CLI discovers these from entry-point metadata and dispatches lazily — it imports only the one command you invoke, not every tool at startup.
 
 ## Package Structure
 

@@ -71,5 +71,6 @@ root = find_workspace_root(Path.cwd())
 
 - [Getting Started Tutorial](tutorials/getting-started.md)
 - [List a workspace's members](howto/index.md)
-- [API Reference](reference/cli.md)
+- [Promote a helper into ingot](howto/promote-a-helper.md)
+- [API Reference](reference/api.md)
 - [Architecture & Design Decisions](explanation/architecture.md)

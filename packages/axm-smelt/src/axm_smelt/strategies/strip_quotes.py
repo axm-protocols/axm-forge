@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from axm_smelt.core.models import SmeltContext
+from axm_smelt.core.models import Format, SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
 __all__ = ["StripQuotesStrategy"]
@@ -28,8 +28,13 @@ class StripQuotesStrategy(SmeltStrategy):
     def apply(self, ctx: SmeltContext) -> SmeltContext:
         """Strip quotes from simple alphanumeric JSON keys.
 
-        Operates on ``ctx.text`` via regex — no parsing required.
+        Operates on ``ctx.text`` via regex — no parsing required. Guarded to
+        JSON only: the ``"word":`` pattern also matches quoted words in prose
+        and Markdown, so on any non-JSON format the input is returned
+        unchanged rather than silently mutated.
         """
+        if ctx.format is not Format.JSON:
+            return ctx
         text = ctx.text
         result = _SIMPLE_KEY_RE.sub(r"\1", text)
         if result != text:

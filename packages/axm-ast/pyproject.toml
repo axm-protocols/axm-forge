@@ -17,7 +17,7 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-ingot",
-    "cyclopts>=3.0",
+    "cyclopts>=4.21.0",
     "pydantic>=2.12.5",
     "tree-sitter>=0.24",
     "tree-sitter-python>=0.23",
@@ -57,6 +57,7 @@ ast_diff      = "axm_ast.tools.diff:DiffTool"
 ast_flows      = "axm_ast.tools.flows:FlowsTool"
 ast_doc_impact = "axm_ast.tools.doc_impact:DocImpactTool"
 ast_file_header = "axm_ast.tools.file_header:AstFileHeaderTool"
+ast_coupling_gaps = "axm_ast.tools.coupling_gaps:CouplingGapsTool"
 
 [project.entry-points."axm.hooks"]
 "ast:trace-source"  = "axm_ast.hooks.trace_source:TraceSourceHook"
@@ -98,10 +99,10 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.18",
+    "ruff==0.16.4",
     "mypy>=1.20.0",
     "types-PyYAML>=6.0",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pip-audit>=2.0",
     "radon>=6.0.1",
 ]
@@ -116,17 +117,21 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
-exclude = ["*/_version.py", "tests/fixtures"]
+src = ["src", "tests_axm_ast"]
+exclude = ["*/_version.py", "tests_axm_ast/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "S", "T20", "PLR", "RUF"]
 ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+"tests_axm_ast/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 "src/axm_ast/cli.py" = ["T201", "PLR0913"]
 # Benchmark scripts are CLI tools that print results and probe internal
 # cache state on purpose.
@@ -162,11 +167,12 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 show_error_codes = true
-exclude = ["tests/fixtures/"]
+exclude = ["tests_axm_ast/fixtures/"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests_axm_ast.*"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -198,7 +204,7 @@ disallow_any_explicit = false
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_ast"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -211,7 +217,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=88",
 ]
 filterwarnings = ["error"]
 markers = [
@@ -514,7 +520,7 @@ DEP004 = ["mkdocs_gen_files"]
 source = ["src/axm_ast"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests_*/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

@@ -1,4 +1,4 @@
-"""Audit checks for documentation (6 checks, 16 pts)."""
+"""Audit checks for documentation (7 checks, 18 pts)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,10 @@ __all__ = [
     "check_plugins",
     "check_readme",
     "check_readme_badges",
+    "check_standalone_api_ref",
 ]
+
+_API_REF_PLUGINS = ("gen-files", "literate-nav", "mkdocstrings")
 
 
 def _resolve_mkdocs(project: Path) -> Path | None:
@@ -181,6 +184,69 @@ def check_gen_ref_pages(project: Path) -> CheckResult:
         passed=True,
         weight=2,
         message="gen_ref_pages.py found",
+        details=[],
+        fix="",
+    )
+
+
+def _local_nav_promises_api_ref(content: str) -> bool:
+    """True if the mkdocs nav declares an auto-generated ``reference/api/``."""
+    return "reference/api/" in content
+
+
+def check_standalone_api_ref(project: Path) -> CheckResult:
+    """Check 22b: a member's *own* ``reference/api/`` nav must build standalone.
+
+    Guards ``mkdocs build --strict`` **standalone** integrity. Unlike
+    :func:`check_plugins` / :func:`check_gen_ref_pages`, this check does NOT
+    fall back to the workspace-root ``mkdocs.yml``: if a package's *local*
+    nav declares an auto-generated ``reference/api/`` section, the package
+    MUST carry its own ``docs/gen_ref_pages.py`` and the gen-files /
+    literate-nav / mkdocstrings plugins locally — otherwise the promised
+    section resolves to nothing and ``--strict`` aborts. The root fallback
+    (correct for monorepo aggregation) previously masked this on scaffolded
+    members, so a green ``init_check`` coexisted with a red standalone build.
+
+    Passes trivially when the local nav makes no ``reference/api/`` promise
+    or when no local ``mkdocs.yml`` exists.
+    """
+    local = project / "mkdocs.yml"
+    if not local.exists():
+        return _api_ref_pass()
+    content = local.read_text()
+    if not _local_nav_promises_api_ref(content):
+        return _api_ref_pass()
+    missing: list[str] = [p for p in _API_REF_PLUGINS if p not in content]
+    if not (project / "docs" / "gen_ref_pages.py").exists():
+        missing.append("docs/gen_ref_pages.py")
+    if missing:
+        return CheckResult(
+            name="docs.standalone_api_ref",
+            category="docs",
+            passed=False,
+            weight=2,
+            message=(
+                "nav declares reference/api/ but standalone build cannot "
+                f"resolve it — missing {len(missing)} item(s)"
+            ),
+            details=[f"Missing locally: {', '.join(missing)}"],
+            fix=(
+                "Add docs/gen_ref_pages.py + gen-files/literate-nav/"
+                "mkdocstrings plugins so `mkdocs build --strict` passes "
+                "standalone (do not rely on the workspace-root mkdocs.yml)."
+            ),
+        )
+    return _api_ref_pass()
+
+
+def _api_ref_pass() -> CheckResult:
+    """Passing result for :func:`check_standalone_api_ref`."""
+    return CheckResult(
+        name="docs.standalone_api_ref",
+        category="docs",
+        passed=True,
+        weight=2,
+        message="reference/api/ builds standalone",
         details=[],
         fix="",
     )

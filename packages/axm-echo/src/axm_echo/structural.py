@@ -4,8 +4,8 @@ Moved verbatim from ``axm-audit``'s ``duplicate_tests`` rule (AXM-2172 / E5):
 the similarity primitives are corpus-agnostic and 100% structural — they parse
 an ``ast.FunctionDef``, normalize away constant/identifier identity, and compare
 the resulting statement-sets with Jaccard. No embedding backend is involved and
-**torch is never imported** on this path (it lives behind the optional ``neural``
-extra, used only by :mod:`axm_echo.embedding`).
+**torch is never imported** on this path (torch is a base dependency used only
+by the ``st`` backend of :mod:`axm_echo.embedding`, never here).
 
 The audit ``duplicate_tests`` rule imports these helpers directly (a ~50ms pure
 structural import, no torch → a legitimate direct import, not ``axm_call``).

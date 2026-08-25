@@ -25,6 +25,7 @@ axm-init scaffold [OPTIONS] [PATH]
 | `--description` | `-d` | string | `""` | Project description |
 | `--workspace` | `-w` | bool | `False` | Scaffold a UV workspace instead of a standalone package |
 | `--member` | `-m` | string | `None` | Scaffold a member sub-package with this name |
+| `--kind` | `-k` | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper` or `experiment` |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |
 | `--json` | | bool | `False` | Output as JSON |
 
@@ -36,6 +37,19 @@ axm-init scaffold [OPTIONS] [PATH]
 - `--workspace` and `--member` are mutually exclusive → exit code 1
 - `--check-pypi` with taken name → exit code 1
 - `--member` outside a workspace → exit code 1
+- `--kind` outside the declared set (`standalone`, `workspace`, `member`,
+  `paper`, `experiment`) → exit code 1
+- `--kind experiment` on a directory that is not a detected paper → exit code 1,
+  and nothing is written under that directory
+
+**Exit codes:**
+
+- `0` — scaffold succeeded
+- `1` — scaffold failed (validation, copier error, taken name, …)
+
+The exit code is authoritative in **both** text and `--json` mode: a failure
+always exits `1`, and the `--json` payload carries `success` plus a `message`
+field describing the cause. Scripts may route on `$?`.
 
 **Example:**
 
@@ -72,6 +86,39 @@ axm-init scaffold --member my-lib \\
    🔧 Patched root files: Makefile, mkdocs.yml, pyproject.toml
 ```
 
+**Paper example** (`--kind paper`, into an empty directory):
+
+```bash
+axm-init scaffold my-paper --kind paper \\
+  --org axm-protocols --author "Your Name" --email "you@example.com" \\
+  --description "Attention study"
+```
+
+Renders `PLAN.md`, `PIPELINE.md` (the data-provenance skeleton), `README.md`,
+`paper/` (LaTeX source + bibliography) and the `experiments/` root the tool
+owns. `--description` becomes the paper title;
+`--name` (or the directory name) is slugified into the paper slug.
+
+**Experiment example** (`--kind experiment`, run against a scaffolded paper):
+
+```bash
+axm-init scaffold my-paper --kind experiment --name baseline \\
+  --org axm-protocols --author "Your Name" --email "you@example.com"
+```
+
+The experiment directory is named by the CLI, never by the template: the next
+free zero-padded index followed by the slug (`experiments/01-baseline/`, then
+`experiments/02-…`). Its `manifest.yaml` — the 1.1.0 experiment contract, keyed
+`contract_version` / `id` / `title` / `question` / `type` / `repro_level`, plus
+the optional `supports` list (the identifiers of the investigations the
+experiment serves, rendered as an empty list) — is created at scaffold time,
+before any script runs, and appears in the `files` list under `--json`.
+
+Every entry of that `files` list is named relative to the payload's own `path`
+(the experiment directory the scaffold produced), so joining `path` with an
+entry always resolves on disk — `manifest.yaml`, `inputs/SOURCES.md`, … The
+`paper` kind follows the same rule against the paper root it reports.
+
 ---
 
 ## `reserve` — Reserve Package Name on PyPI
@@ -103,6 +150,15 @@ code 1 and a descriptive error message (text or JSON depending on `--json`).
 1. `PYPI_API_TOKEN` environment variable
 2. `~/.pypirc` `[pypi]` password field
 3. Interactive prompt (if TTY)
+
+**Exit codes:**
+
+- `0` — reservation succeeded (or dry-run completed)
+- `1` — reservation failed (missing identity/token, name taken, …)
+
+As with `scaffold`, the exit code is authoritative in both text and `--json`
+mode — a failed reservation exits `1` and the JSON payload carries `success`
+and `message`.
 
 **Example:**
 
@@ -148,8 +204,8 @@ axm-init check
 📋 AXM Check — my-project
    Path: /path/to/my-project
 
-  pyproject (27/27)
-    ✅ pyproject.exists                 4/4  pyproject.toml found
+  pyproject (29/29)
+    ✅ pyproject.pyproject_exists        4/4  pyproject.toml found
     ...
 
   Score: 97/100 — Grade A 🏆
@@ -173,8 +229,8 @@ axm-init check
    Path: /path/to/my-workspace
    Context: WORKSPACE
 
-  pyproject (27/27)
-    ✅ pyproject.exists                 4/4  pyproject.toml found
+  pyproject (29/29)
+    ✅ pyproject.pyproject_exists        4/4  pyproject.toml found
     ...
 
   Score: 100/100 — Grade A 🏆

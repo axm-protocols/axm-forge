@@ -22,13 +22,16 @@
 
 | Strategy | Category | Effect |
 |---|---|---|
-| `minify` | whitespace | Remove whitespace from JSON |
+| `minify` | whitespace | Remove whitespace from JSON, YAML, and XML |
 | `drop_nulls` | structural | Remove `None`, `""`, `[]`, `{}` values |
 | `flatten` | structural | Collapse single-child wrapper dicts |
 | `tabular` | structural | Convert `list[dict]` to pipe-separated tables |
 | `dedup_values_with_refs` | structural | Replace repeated long strings with aliases |
-| `strip_quotes` | cosmetic | Remove quotes on simple JSON keys |
 | `round_numbers` | cosmetic | Round floats to N decimal places |
+| `strip_quotes` | cosmetic | Remove quotes on simple JSON keys (JSON only) |
+| `collapse_whitespace` | whitespace | Collapse blank lines / trailing spaces in prose (skips code fences) |
+| `compact_tables` | whitespace | Strip padding from Markdown table cells |
+| `strip_html_comments` | cosmetic | Remove `<!-- ... -->` from prose / Markdown |
 
 ## Quick Example
 

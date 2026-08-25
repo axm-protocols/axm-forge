@@ -99,7 +99,7 @@ The outer function receives `(callees, scope: _ResolutionScope, ctx: _CrossModul
 3. **Resolve import** — `_resolve_import` maps the symbol's import statement to `(resolved_path, resolved_dotted)`.
 4. **Locate symbol** — `_locate_symbol` parses the target file with tree-sitter (single file, no full package traversal).
 5. **Follow re-exports** — If not found, `_follow_reexport` chases `__init__.py` re-exports (one level deep).
-6. **Record** — On success, deduplicates via `visited` and appends a `FlowStep` with `resolved_module` populated.
+6. **Record** — On success, deduplicates via `visited` and appends a `FlowStep` with `resolved_module` populated. The resolved callee is **recorded but not enqueued**: cross-module resolution is single-hop — it surfaces the immediate external callee as a leaf and does not continue the BFS into that external module's own callees.
 
 !!! note "Cross-module steps are not re-enqueued"
     Resolved symbols are added to `steps` but **not** pushed back into the BFS queue. Cross-module resolution adds visibility into external dependencies without recursing into them.

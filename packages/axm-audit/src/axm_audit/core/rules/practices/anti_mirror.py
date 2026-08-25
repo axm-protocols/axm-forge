@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.rules.practices.mirror import (
     _TEST_MIRROR_EXEMPT,
@@ -72,7 +74,7 @@ def _collect_anti_mirror_violations(
             candidate = stem[len("test_") :] + ".py"
             if candidate in source_basenames:
                 rel = test_file.relative_to(tests_path).as_posix()
-                violations.append(f"tests/{rel}")
+                violations.append(f"{tests_path.name}/{rel}")
     return sorted(set(violations))
 
 
@@ -130,7 +132,7 @@ class AntiMirrorRule(ProjectRule):
         if early is not None:
             return early
 
-        tests_path = project_path / "tests"
+        tests_path = resolve_suite_dir(project_path) or (project_path / "tests")
         if (
             not (tests_path / "integration").is_dir()
             and not (tests_path / "e2e").is_dir()

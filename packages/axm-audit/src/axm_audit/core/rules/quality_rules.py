@@ -11,6 +11,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from axm_ingot.suite import resolve_suite_dir
+
 from axm_audit.core.rules.base import (
     LINT_PASS_THRESHOLD,
     PASS_THRESHOLD,
@@ -38,6 +40,14 @@ logger = logging.getLogger(__name__)
 # (a missing dependency / missing type stubs), not a code defect.
 _ENV_INCOMPLETE_CODES = frozenset({"import-untyped", "import-not-found"})
 _QUOTED_NAME = re.compile(r'"([^"]+)"')
+_GIT_SUBPROCESS_TIMEOUT: int = 30
+"""Timeout (seconds) for the direct ``git`` subprocesses in DiffSizeRule.
+
+Unlike the scored subprocess rules, DiffSizeRule shells out to ``git``
+directly (no venv needed). A wedged git (index lock, network FS) would
+otherwise block the rule — and the audit thread pool — indefinitely; the
+timeout degrades to a graceful skip instead."""
+
 _ENV_FAILURE_SCORE_CAP: int = 50
 """Score ceiling applied when a scored subprocess rule hits an env-failure.
 
@@ -130,11 +140,11 @@ def _get_audit_targets(project_path: Path) -> tuple[list[str], str]:
         ``(targets, checked)`` — e.g. ``(["src", "tests"], "src/ tests/")``.
     """
     src_path = project_path / "src"
-    tests_path = project_path / "tests"
+    tests_path = resolve_suite_dir(project_path)
     targets = [str(src_path)]
-    if tests_path.exists():
+    if tests_path is not None:
         targets.append(str(tests_path))
-    checked = "src/ tests/" if tests_path.exists() else "src/"
+    checked = f"src/ {tests_path.name}/" if tests_path is not None else "src/"
     return targets, checked
 
 
@@ -272,6 +282,9 @@ class FormattingRule(ProjectRule):
             check=False,
         )
 
+        if interpret_process(result) is ProcessVerdict.ENV_FAILURE:
+            return self._env_failure_result(checked, result.returncode)
+
         unformatted_files = self._parse_unformatted_files(result)
         unformatted_count = len(unformatted_files)
 
@@ -293,6 +306,38 @@ class FormattingRule(ProjectRule):
             },
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=(f"Run: ruff format {checked}" if unformatted_count > 0 else None),
+        )
+
+    def _env_failure_result(self, checked: str, returncode: int) -> CheckResult:
+        """Fail-loud result when the format subprocess did not complete.
+
+        Mirrors :meth:`LintingRule._env_failure_result`: an env-failure
+        (timeout rc=124 / blocking-or-config rc=2) must never yield a green
+        score just because ``ruff format --check`` printed zero unformatted
+        files. Without this branch a timed-out formatter scores a green 100
+        (the exact false-green the ``interpret_process`` contract exists to
+        prevent). Capped score, ``passed=False``, ``ERROR`` severity.
+        """
+        diagnostic = (
+            f"audit environment unreliable — ruff format did not complete "
+            f"(exit code {returncode}: blocking/config error or timeout). "
+            f"The format result is unreliable until the env/config is fixed "
+            f"(run `uv sync`); this is an environment problem, not a code "
+            f"problem."
+        )
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=False,
+            message=f"Format check BLOCKED: {diagnostic}",
+            severity=Severity.ERROR,
+            score=min(0, _ENV_FAILURE_SCORE_CAP),
+            details={
+                "unformatted_count": 0,
+                "unformatted_files": [],
+                "checked": checked,
+                "env_incomplete": True,
+            },
+            fix_hint=diagnostic,
         )
 
     @staticmethod
@@ -534,9 +579,10 @@ class DiffSizeRule(ProjectRule):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=_GIT_SUBPROCESS_TIMEOUT,
             )
             return result.returncode == 0
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             return False
 
     def _measure_diff(self, project_path: Path) -> CheckResult:
@@ -555,8 +601,9 @@ class DiffSizeRule(ProjectRule):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=_GIT_SUBPROCESS_TIMEOUT,
             )
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             return self._skip("git command failed")
 
         stdout = result.stdout.strip()

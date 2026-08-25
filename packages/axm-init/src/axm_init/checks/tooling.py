@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from axm_init.models.check import CheckResult
@@ -153,6 +154,11 @@ def check_precommit_basic(project: Path) -> CheckResult:
     )
 
 
+def _in_ci() -> bool:
+    """True when running in a CI environment (CI or GITHUB_ACTIONS set)."""
+    return bool(os.getenv("CI") or os.getenv("GITHUB_ACTIONS"))
+
+
 def check_precommit_installed(project: Path) -> CheckResult:
     """Check 19: pre-commit hooks activated in .git/hooks/."""
     config = project / ".pre-commit-config.yaml"
@@ -174,6 +180,16 @@ def check_precommit_installed(project: Path) -> CheckResult:
             passed=True,
             weight=2,
             message="Pre-commit hooks installed",
+            details=[],
+            fix="",
+        )
+    if _in_ci():
+        return CheckResult(
+            name="tooling.precommit_installed",
+            category="tooling",
+            passed=True,
+            weight=2,
+            message="Skipped in CI (local-only hook enforcement)",
             details=[],
             fix="",
         )

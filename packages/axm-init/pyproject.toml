@@ -20,7 +20,7 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.0.0",
-    "cyclopts>=4.5.1",
+    "cyclopts>=4.21.0",
     "httpx>=0.28.1",
     "copier>=9.14.1",
     "pyyaml>=6.0",
@@ -77,12 +77,13 @@ managed = true
 dev = [
     "mypy>=1.20.0",
     "pip-audit>=2.7.3",
-    "prek>=0.4.4",
+    "prek>=0.4.9",
     "pytest>=9.0.3",
+    "pytest-xdist>=3.8.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "radon>=6.0.1",
-    "ruff==0.15.18",
+    "ruff==0.16.4",
     "types-PyYAML>=6.0",
 ]
 docs = [
@@ -96,10 +97,18 @@ docs = [
 # Ruff Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.ruff]
+# ruff 0.16 formats Python blocks inside Markdown by default, which reflows
+# hand-aligned snippets in prose docs. Docs are written by hand here, so the
+# formatter stays out of them.
+extend-exclude = ["*.md"]
 target-version = "py312"
 line-length = 88
-src = ["src", "tests"]
-exclude = ["*/_version.py"]
+src = ["src", "tests_axm_init"]
+# Les répertoires de templates Copier portent des noms interpolés
+# ({{module_name}}) : ce ne sont pas des modules Python (N999). Les
+# .py.jinja échappent déjà à ruff par leur suffixe, les __init__.py nus
+# de la suite scaffoldée non.
+exclude = ["*/_version.py", "src/axm_init/templates/workspace-member/tests_*/**"]
 
 [tool.ruff.lint]
 select = [
@@ -124,7 +133,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004", "BLE001"]
+"tests_axm_init/*" = ["S101", "S105", "S106", "S108", "PLR2004", "BLE001"]
 "src/axm_init/checks/*" = ["PLR2004", "BLE001"]
 "src/axm_init/adapters/*" = ["BLE001", "PLR2004"]
 "src/axm_init/core/checker.py" = ["PLR2004"]
@@ -161,7 +170,7 @@ DEP004 = ["mkdocs_gen_files", "pytest"]
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests_axm_init"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
@@ -173,7 +182,7 @@ addopts = [
     "--cov=src/axm_init",
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
-    "--cov-fail-under=0",
+    "--cov-fail-under=93",
     "-m",
     "not slow",
 ]
@@ -207,8 +216,9 @@ pretty = true
 exclude = ["src/axm_init/templates/"]
 
 [[tool.mypy.overrides]]
-module = ["tests.*"]
+module = ["tests_axm_init.*"]
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
 disallow_any_explicit = false
 disable_error_code = [
     "index",
@@ -232,7 +242,7 @@ disallow_subclassing_any = false
 source = ["src/axm_init"]
 branch = true
 relative_files = true
-omit = ["*/tests/*", "*/templates/*"]
+omit = ["*/tests_*/*", "*/templates/*"]
 
 [tool.axm-audit.mirror]
 exempt_paths = [
@@ -324,7 +334,7 @@ reason = "test_marker_present_but_no_list_items (tags marker with non-list child
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "fe9ff27e6b54"
-reason = "test_missing_tests uses ws_root fixture, deletes tests/ directory via shutil.rmtree, and asserts 'tests/' appears in details; test_missing_pyproject_in_member uses raw tmp_path to scaffold a member without src/ and asserts 'src/' in details — different setup approach (fixture-mutation vs tmp_path builder) and different missing-artifact assertion targets."
+reason = "test_missing_tests uses ws_root fixture, deletes tests/ directory via shutil.rmtree, and asserts 'tests_axm_init/' appears in details; test_missing_pyproject_in_member uses raw tmp_path to scaffold a member without src/ and asserts 'src/' in details — different setup approach (fixture-mutation vs tmp_path builder) and different missing-artifact assertion targets."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "d064727e0f25"

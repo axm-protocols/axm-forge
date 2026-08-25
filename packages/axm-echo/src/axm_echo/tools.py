@@ -73,6 +73,15 @@ _MIN_CORPUS = 2
 # count stays visible. Paramétrable on the tool.
 _DEFAULT_TOP_N = 30
 
+# The demoted buckets (parallel-API, boilerplate) are unbounded noise: on a
+# large corpus a single repeated boilerplate promise produces ~k^2/2 pairs at
+# cosine ~1.0. Serializing them whole would blow the MCP transport chunk
+# budget (the ``ast_describe(detail='full')`` failure mode). Bound each bucket
+# in ``data`` to its strongest entries; the true count stays visible.
+# Module-internal-public (no leading underscore) so the guard test can assert
+# the bound without reaching through a private surface.
+MAX_DEMOTED_PAIRS = 50
+
 # echo_code identifies a cluster member by its (package, qualname). The waiver
 # hash is computed over this key schema (duplicate_tests uses (file, name)).
 _ECHO_KEY_FIELDS = ("package", "qualname")
@@ -167,12 +176,33 @@ def _max_pair_score(members: list[int], pairs: list[Pair]) -> float:
     return max(scores) if scores else 0.0
 
 
-def _pair_entries(pairs: list[Pair], symbols: list[SymbolDict]) -> list[PairEntry]:
-    """Serialize demoted pairs, strongest first."""
-    ordered = sorted(pairs, key=lambda p: p[2], reverse=True)
+def pair_entries(
+    pairs: list[Pair], symbols: list[SymbolDict], *, limit: int = MAX_DEMOTED_PAIRS
+) -> list[PairEntry]:
+    """Serialize the ``limit`` strongest demoted pairs (bounded for MCP payload)."""
+    ordered = sorted(pairs, key=lambda p: p[2], reverse=True)[:limit]
     return [
         {"score": round(score, 4), "a": _member(symbols[i]), "b": _member(symbols[j])}
         for i, j, score in ordered
+    ]
+
+
+def _documented_corpus(*, drop_accessors: bool) -> list[SymbolDict]:
+    """The documented monorepo corpus shared by both tools.
+
+    Keeps only symbols carrying a real docstring (``doc_full``). ``echo_code``
+    (dedup) additionally drops trivial accessors -- the POC's calibrated -96%
+    noise cut for cross-package *clustering*. ``echo_check`` (retrieval) keeps
+    them: a terse but reusable helper (``Return the slugified string.``) must
+    stay findable, and the 0.30 retrieval threshold already screens noise, so
+    filtering it here would silently hide canonical helpers and mint the very
+    duplicates the tool exists to prevent.
+    """
+    return [
+        s
+        for s in extract_monorepo()
+        if str(s.get("doc_full", "")).strip()
+        and not (drop_accessors and is_trivial_accessor(s))
     ]
 
 
@@ -285,7 +315,7 @@ class EchoCodeTool(AXMTool):
                 top_n=top_n,
                 max_cluster_size=max_cluster_size,
             )
-        except Exception as exc:  # noqa: BLE001 — final tool boundary
+        except Exception as exc:
             logger.warning("EchoCodeTool failed: %s", exc, exc_info=True)
             return ToolResult(
                 success=False,
@@ -306,11 +336,7 @@ class EchoCodeTool(AXMTool):
         max_cluster_size: int,
     ) -> ToolResult:
         """Execute the corpus -> embed -> pairs -> split -> cluster pipeline."""
-        symbols = [
-            s
-            for s in extract_monorepo()
-            if str(s.get("doc_full", "")).strip() and not is_trivial_accessor(s)
-        ]
+        symbols = _documented_corpus(drop_accessors=True)
         if len(symbols) < _MIN_CORPUS:
             return ToolResult(
                 success=True,
@@ -339,8 +365,8 @@ class EchoCodeTool(AXMTool):
 
         actionable = [c for c in clusters if not c.get("acknowledged")]
         shown = actionable[:top_n]
-        parallel_entries = _pair_entries(parallel, symbols)
-        boilerplate_entries = _pair_entries(boilerplate, symbols)
+        parallel_entries = pair_entries(parallel, symbols)
+        boilerplate_entries = pair_entries(boilerplate, symbols)
 
         data = {
             "corpus_size": len(symbols),
@@ -349,7 +375,9 @@ class EchoCodeTool(AXMTool):
             "actionable_count": len(actionable),
             "shown_count": len(shown),
             "parallel_api": parallel_entries,
+            "parallel_api_count": len(parallel),
             "boilerplate": boilerplate_entries,
+            "boilerplate_count": len(boilerplate),
             "stale_acknowledged": stale,
             "acknowledged_errors": waiver_errors,
         }
@@ -362,6 +390,8 @@ class EchoCodeTool(AXMTool):
                 "total": len(clusters),
                 "actionable": len(actionable),
                 "stale": len(stale),
+                "parallel_total": len(parallel),
+                "boilerplate_total": len(boilerplate),
             },
         )
         return ToolResult(success=True, data=data, text=text)
@@ -395,7 +425,9 @@ class EchoCodeTool(AXMTool):
             "actionable_count": 0,
             "shown_count": 0,
             "parallel_api": [],
+            "parallel_api_count": 0,
             "boilerplate": [],
+            "boilerplate_count": 0,
             "stale_acknowledged": [],
             "acknowledged_errors": [],
         }
@@ -446,6 +478,13 @@ class EchoCodeTool(AXMTool):
         )
         if stale:
             header += f" | {stale} stale waiver(s)"
+        parallel_total = counts.get("parallel_total", len(parallel))
+        boilerplate_total = counts.get("boilerplate_total", len(boilerplate))
+        if parallel_total > len(parallel) or boilerplate_total > len(boilerplate):
+            header += (
+                f" | demoted shown {len(parallel)}/{parallel_total} parallel · "
+                f"{len(boilerplate)}/{boilerplate_total} boilerplate"
+            )
         if not clusters:
             return header
         lines = [header, ""]
@@ -544,11 +583,27 @@ class EchoCheckTool(AXMTool):
             ToolResult with ``intention``, ``corpus_size`` and ``candidates``
             (ranked top-k, each carrying its docstrings and a location verdict).
         """
+        if backend not in ("st", "tfidf"):
+            return ToolResult(
+                success=False,
+                error=f"Invalid backend {backend!r}; must be 'st' or 'tfidf'",
+            )
+        if k < 1:
+            return ToolResult(success=False, error=f"k must be >= 1, got {k}")
+        if not 0.0 <= threshold <= 1.0:
+            return ToolResult(
+                success=False,
+                error=f"threshold must be a cosine in [0.0, 1.0], got {threshold}",
+            )
+        if not intention.strip():
+            return ToolResult(
+                success=False, error="intention must be a non-empty string"
+            )
         try:
             return self._run(
                 intention=intention, backend=backend, k=k, threshold=threshold
             )
-        except Exception as exc:  # noqa: BLE001 — final tool boundary
+        except Exception as exc:
             logger.warning("EchoCheckTool failed: %s", exc, exc_info=True)
             return ToolResult(success=False, error=str(exc))
 
@@ -556,14 +611,7 @@ class EchoCheckTool(AXMTool):
         self, *, intention: str, backend: Backend, k: int, threshold: float
     ) -> ToolResult:
         """Execute the corpus -> embed -> retrieve -> verdict pipeline."""
-        if not intention.strip():
-            raise ValueError("intention must be a non-empty string")
-
-        symbols = [
-            s
-            for s in extract_monorepo()
-            if str(s.get("doc_full", "")).strip() and not is_trivial_accessor(s)
-        ]
+        symbols = _documented_corpus(drop_accessors=False)
         if not symbols:
             return ToolResult(
                 success=True,

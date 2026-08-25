@@ -1,9 +1,10 @@
 """Pydantic models for batch file operations.
 
-Defines the three operation types from the axm-edit spec:
+Defines the operation types from the axm-edit spec:
 - ``ReplaceOp`` — modify lines in an existing file
 - ``CreateOp``  — create a new file
 - ``DeleteOp``  — delete an existing file
+- ``RewriteOp`` — rewrite an existing file in full (checksum-guarded)
 """
 
 from __future__ import annotations
@@ -12,6 +13,18 @@ import logging
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
+
+__all__ = [
+    "BatchResult",
+    "CreateOp",
+    "DeleteOp",
+    "Edit",
+    "Operation",
+    "ReplaceOp",
+    "RewriteOp",
+    "RollbackResult",
+    "ValidationError",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +93,30 @@ class DeleteOp(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes
     model_config = {"extra": "forbid"}
 
 
+class RewriteOp(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+    """Rewrite an existing file in full, guarded by a checksum.
+
+    The caller MUST pass ``expected_checksum`` — the sha256 hex digest of the
+    file bytes it read — so a concurrent modification is detected instead of
+    being silently clobbered.  There is deliberately NO ``overwrite`` escape
+    hatch: a stale digest is a hard refusal.
+    """
+
+    op: Literal["rewrite"] = "rewrite"
+    file: str = Field(..., min_length=1, description="Relative path to the file")
+    content: str = Field(..., description="Full replacement content")
+    expected_checksum: str = Field(
+        ...,
+        min_length=64,
+        max_length=64,
+        description="sha256 hex digest of the file bytes as read",
+    )
+
+    model_config = {"extra": "forbid"}
+
+
 Operation = Annotated[
-    ReplaceOp | CreateOp | DeleteOp,
+    ReplaceOp | CreateOp | DeleteOp | RewriteOp,
     Field(discriminator="op"),
 ]
 """Discriminated union of all operation types."""

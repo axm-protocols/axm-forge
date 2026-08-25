@@ -4,8 +4,11 @@ Parses ``[tool.uv.workspace]`` from a root ``pyproject.toml``, resolves the
 ``members`` globs to directories, applies ``exclude`` and the
 ``require_pyproject`` rule, and returns sorted :class:`Member` records.
 
-STDLIB only (``tomllib`` + ``pathlib``). Defensive parsing: an absent or
-malformed pyproject never raises -- it yields ``None``.
+STDLIB only (``tomllib`` + ``pathlib``). Defensive parsing: an absent,
+malformed, non-UTF-8, or otherwise unreadable pyproject never raises -- it
+yields ``None`` (or ``[]`` for the pure-text primitive). Hostile member globs
+(absolute paths, patterns ``Path.glob`` rejects) are skipped rather than
+propagated.
 """
 
 from __future__ import annotations
@@ -29,10 +32,12 @@ def parse_workspace_members(text: str) -> list[str]:
     """Extract the raw ``[tool.uv.workspace].members`` from pyproject text.
 
     Pure-string helper: parses ``text`` with :func:`tomllib.loads` and returns
-    the declared members verbatim -- no glob expansion, no filesystem access,
-    no ``exclude``/``require_pyproject`` filtering. Globs (``packages/*``) and
-    literal entries are returned exactly as written. Defensive: malformed TOML
-    or an absent ``[tool.uv.workspace]`` table yields ``[]`` rather than raising.
+    the declared string members verbatim -- no glob expansion, no filesystem
+    access, no ``exclude``/``require_pyproject`` filtering. Globs (``packages/*``)
+    and literal string entries are returned exactly as written; non-string
+    entries (malformed TOML with e.g. integer members) are skipped, matching
+    :func:`resolve_workspace`. Defensive: malformed TOML or an absent
+    ``[tool.uv.workspace]`` table yields ``[]`` rather than raising.
 
     Args:
         text: Raw ``pyproject.toml`` content.
@@ -43,7 +48,8 @@ def parse_workspace_members(text: str) -> list[str]:
     """
     try:
         data = tomllib.loads(text)
-    except tomllib.TOMLDecodeError:
+    except ValueError:
+        # tomllib.TOMLDecodeError and UnicodeDecodeError are both ValueError.
         return []
     workspace = _get_workspace_config(data)
     if workspace is None:
@@ -51,7 +57,7 @@ def parse_workspace_members(text: str) -> list[str]:
     members = workspace.get("members")
     if not isinstance(members, list):
         return []
-    return [str(member) for member in members]
+    return [member for member in members if isinstance(member, str)]
 
 
 def _load_pyproject(directory: Path) -> dict[str, object] | None:
@@ -60,7 +66,9 @@ def _load_pyproject(directory: Path) -> dict[str, object] | None:
     try:
         with pyproject.open("rb") as handle:
             return tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError):
+    except (OSError, ValueError):
+        # ValueError covers tomllib.TOMLDecodeError (malformed TOML) and
+        # UnicodeDecodeError (a non-UTF-8 pyproject.toml): both are ValueError.
         return None
 
 
@@ -86,7 +94,13 @@ def _resolve_glob_dirs(root: Path, patterns: object) -> set[Path]:
     for pattern in patterns:
         if not isinstance(pattern, str):
             continue
-        for match in root.glob(pattern):
+        try:
+            matches = list(root.glob(pattern))
+        except (NotImplementedError, ValueError):
+            # Path.glob rejects non-relative (absolute) and otherwise invalid
+            # patterns; a malformed member must degrade to a skip, not a crash.
+            continue
+        for match in matches:
             if match.is_dir():
                 dirs.add(match.resolve())
     return dirs

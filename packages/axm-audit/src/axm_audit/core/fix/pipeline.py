@@ -387,7 +387,13 @@ def _run_apply_atomic(
             f"{type(exc).__name__}: {exc!r}. The tests/ tree was restored "
             "to its pre-call state."
         ) from exc
-    else:
+    finally:
+        # Discard the backup tmpdir on EVERY path. Previously it was only
+        # discarded on success (the ``else`` branch), so each failed/rolled
+        # -back apply leaked a full copy of ``tests/`` under a
+        # ``axm_fix_backup_*`` tmpdir. On success the mutations are already
+        # promoted (no restore ran); on failure the tree was restored above,
+        # so the backup is safe to drop in both cases.
         _discard_snapshot(backup_root)
 
 

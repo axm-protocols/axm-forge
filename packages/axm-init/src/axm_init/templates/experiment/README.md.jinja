@@ -1,0 +1,54 @@
+# {{ experiment_title }}
+
+| Field | Value |
+|---|---|
+| Identifier | `{{ experiment_id }}` |
+| Kind | `{{ type }}` |
+| Reproduction level | `{{ reproduction_level }}` |
+
+## Question
+
+{{ research_question }}
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `manifest.yaml` | The manifest — the 1.0.0 contract, declared before any script runs |
+| `inputs/SOURCES.md` | Where every input comes from, and under what licence |
+| `scripts/` | The code that turns inputs into outputs |
+| `outputs/` | The raw measurements produced by the scripts |
+| `analysis/analysis.md` | The end-of-experiment reading of the outputs |
+| `figures/figures.yaml` | The figures declaration — one entry per rendered figure |
+{%- if type == 'hypothesis_testing' %}
+| `freeze/model_spec.json` | The pre-registered specification, frozen before measuring |
+{%- endif %}
+
+{% if type == 'hypothesis_testing' -%}
+## Pre-registration
+
+`freeze/model_spec.json` is filled and **committed before** the first
+measurement. It stays versioned on purpose: a downstream check proves
+antecedence by git genealogy, so a git-ignored freeze would destroy the proof.
+{%- else -%}
+## No freeze
+
+A `{{ type }}` experiment states no falsifiable hypothesis, so it
+carries no `freeze/` directory. Switch the kind to `hypothesis_testing` when a
+prediction has to be pre-registered before measuring.
+{%- endif %}
+
+## Analysis
+
+`analysis/analysis.md` ships as a declarative skeleton — the reading of the
+experiment, filled once the outputs exist. Metrics are a *constat* produced by
+the run, never an intention declared at scaffold time, so no metrics document
+is scaffolded here: `analysis/metrics.yaml` — the name axm-lab reads — is
+machine-emitted beside the reading when the outputs exist.
+
+## Validation split
+
+This package (axm-init) owns the *rendered* surface: the tree, the manifest
+keys, their choice sets and the git-ignore policy. The *semantic* contract of
+the manifest — its model, its cross-field rules — lives in axm-lab and is
+validated there. Neither side imports the other.

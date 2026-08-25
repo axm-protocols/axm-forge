@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "analyze_package",
     "build_import_graph",
+    "classify_reference_placement",
     "find_module_for_symbol",
     "fingerprint_source_tree",
     "module_dotted_name",
@@ -100,6 +101,8 @@ def analyze_package(path: Path) -> PackageInfo:
     if _is_node_project(path):
         return _analyze_node_package(path)
 
+    source_package_name: str | None = None
+
     # Detect src-layout: src/<pkg>/__init__.py
     src_dir = path / "src"
     if src_dir.is_dir():
@@ -123,6 +126,7 @@ def analyze_package(path: Path) -> PackageInfo:
                     skipped,
                 )
             path = chosen
+            source_package_name = chosen.name
 
     t0 = time.perf_counter()
 
@@ -130,7 +134,12 @@ def analyze_package(path: Path) -> PackageInfo:
     py_files = sorted(_discover_py_files(path))
     modules: list[ModuleInfo] = []
     for py_file in py_files:
-        modules.append(extract_module_info(py_file))
+        module = extract_module_info(py_file)
+        if source_package_name is not None:
+            relative_name = module_dotted_name(py_file, path)
+            if relative_name != source_package_name:
+                module.name = f"{source_package_name}.{relative_name}"
+        modules.append(module)
 
     # Build dependency edges from internal imports
     dep_edges = _build_edges(modules, path)
@@ -192,12 +201,20 @@ def _discover_py_files(root: Path) -> list[Path]:
     return _discover_py_files_inner(root, _find_git_root(root))
 
 
+def _should_skip_source_directory(path: Path) -> bool:
+    """Return whether *path* is generated output rather than Python source."""
+    is_marked_build_package = path.name == "build" and (path / "__init__.py").is_file()
+    return (
+        path.name in _SKIP_DIRS and not is_marked_build_package
+    ) or path.name.endswith(".egg-info")
+
+
 def _discover_py_files_inner(root: Path, git_root: Path | None) -> list[Path]:
     """Recursive helper for :func:`_discover_py_files`."""
     results: list[Path] = []
     for child in sorted(root.iterdir()):
         if child.is_dir():
-            if child.name in _SKIP_DIRS or child.name.endswith(".egg-info"):
+            if _should_skip_source_directory(child):
                 continue
             if git_root is not None and _is_gitignored(child, git_root):
                 continue
@@ -316,7 +333,7 @@ def fingerprint_source_tree(root: Path) -> frozenset[tuple[str, int]]:
             continue
         for entry in entries:
             if entry.is_dir(follow_symlinks=False):
-                if entry.name in _SKIP_DIRS or entry.name.endswith(".egg-info"):
+                if _should_skip_source_directory(Path(entry.path)):
                     continue
                 stack.append(entry.path)
             elif entry.name.endswith(".py"):
@@ -377,6 +394,36 @@ def find_module_for_symbol(
         symbol = symbol.name
 
     return _find_module_by_name(pkg, symbol)
+
+
+def classify_reference_placement(
+    pkg: PackageInfo,
+    symbol: str,
+) -> str:
+    """Classify where a reference to *symbol* should be placed.
+
+    Grounds the decision in real symbol resolution over *pkg* rather than
+    guesswork: a symbol that already exists can be imported at module top
+    level, while a not-yet-created (future) symbol must be referenced at
+    call time (in-body) so a RED test collects cleanly and fails inside the
+    body instead of crashing at collection.
+
+    Resolution delegates to :func:`find_module_for_symbol` (and, as a
+    fallback, :func:`search_symbols`) — no lookup logic is duplicated here.
+
+    Args:
+        pkg: Analyzed package info.
+        symbol: The symbol name to classify.
+
+    Returns:
+        ``"top_level"`` if *symbol* is defined somewhere in *pkg*,
+        ``"call_time"`` otherwise.
+    """
+    if find_module_for_symbol(pkg, symbol) is not None:
+        return "top_level"
+    if any(sym.name == symbol for _, sym in search_symbols(pkg, name=symbol)):
+        return "top_level"
+    return "call_time"
 
 
 def _search_in_module(
@@ -451,6 +498,46 @@ def _resolve_absolute_import(
     return None
 
 
+def _resolve_relative_target(
+    imp: ImportInfo, src_name: str, root_name: str
+) -> str | None:
+    """Resolve a relative import to a fully-qualified internal module name.
+
+    Resolves ``imp.level`` (leading dots) and ``imp.module`` relative to the
+    importer's dotted name so that ``from .helpers import x`` inside
+    ``sub.mod`` yields ``sub.helpers`` (not the bare ``helpers``). The bare
+    module name would only match a root-level module by coincidence and
+    silently mis-attribute homonyms across sub-packages.
+
+    When the resolution lands on the package root itself (e.g.
+    ``from . import X`` from a top-level module), the root ``__init__`` is
+    represented in the module graph by ``root_name``.
+
+    Args:
+        imp: The relative import statement (``is_relative`` is True).
+        src_name: Dotted name of the module containing the import.
+        root_name: Dotted name of the package root ``__init__`` — the value
+            ``module_dotted_name`` yields for the root package.
+
+    Returns:
+        Fully-qualified dotted module name, or ``None`` when the level walks
+        above the package root.
+    """
+    # The importer's own package is its dotted name minus the module segment.
+    base_parts = src_name.split(".")[:-1]
+    # level=1 -> current package; each extra dot climbs one package up.
+    climb = imp.level - 1
+    if climb > len(base_parts):
+        return None
+    target_parts = base_parts[: len(base_parts) - climb] if climb else base_parts
+    if imp.module:
+        target_parts = [*target_parts, *imp.module.split(".")]
+    if target_parts:
+        return ".".join(target_parts)
+    # Empty parts -> the package root ``__init__`` (``from . import X``).
+    return root_name if not imp.module else None
+
+
 def _resolve_import_target(
     imp: ImportInfo,
     mod: ModuleInfo,
@@ -469,13 +556,9 @@ def _resolve_import_target(
             )
         return None
 
-    if imp.module:
-        return imp.module if imp.module in known_names else None
-
-    # from . import X — importing from parent package
-    parent_name = module_dotted_name(mod.path.parent / "__init__.py", root)
-    if parent_name in known_names and parent_name != src_name:
-        return parent_name
+    resolved = _resolve_relative_target(imp, src_name, root.name)
+    if resolved is not None and resolved in known_names and resolved != src_name:
+        return resolved
     return None
 
 

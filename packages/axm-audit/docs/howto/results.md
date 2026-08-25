@@ -120,10 +120,26 @@ The output includes:
 | Section | When shown | Format |
 |---|---|---|
 | Header | Always | `audit_test \| {icon} {counts} \| {duration}s [\| cov {pct}%]` |
+| Non-test cause | `non_test_cause` is set | `cause {code}: {summary}` then the classifier's bounded excerpt |
 | Failure blocks | `failures` is non-empty | `✗ {test} ({file}:{line})` + error + traceback |
 | Coverage | Files below 95% exist | `cov< {basename} {pct}%` |
 
 When `coverage` is `None` (targeted/files runs), the coverage section is omitted entirely.
+
+A red that no test failure explains (coverage threshold, pytest usage error,
+interrupted run) carries a `non_test_cause`. Its machine-readable `code` and its
+one-line human `summary` are rendered immediately after the `pytest exit N`
+header line, followed by the excerpt of the captured output backing the verdict:
+
+```
+audit_test | ❌ 1 passed · 1 collected | 2.1s | pytest exit 1
+cause coverage_threshold: required test coverage of 100% not reached
+FAIL Required test coverage of 100% not reached. Total coverage: 62.50%
+```
+
+That excerpt is the one the classifier already bounded — the renderer never
+truncates it a second time. When the report carries no cause the block is
+omitted entirely and the output is byte-for-byte what it was before.
 
 ## Scoring
 

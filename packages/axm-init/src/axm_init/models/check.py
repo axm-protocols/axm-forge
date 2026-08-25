@@ -61,7 +61,13 @@ class CheckResult(BaseModel):  # type: ignore[explicit-any]
 
 
 class CategoryScore(BaseModel):  # type: ignore[explicit-any]
-    """Aggregated score for a category.
+    """Aggregated score verdict for a category.
+
+    When the summed weight of applicable checks is 0 the category is
+    *not applicable* (N/A): :attr:`applicable` is ``False`` and both
+    :attr:`score` and :attr:`grade` are ``None`` — a distinct status, not a
+    numeric 0/100. An applicable category where every check fails still
+    scores a real ``0`` / Grade ``F`` (:attr:`applicable` stays ``True``).
 
     Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
     internals (third-party).
@@ -73,9 +79,48 @@ class CategoryScore(BaseModel):  # type: ignore[explicit-any]
     earned: int
     total: int
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def applicable(self) -> bool:
+        """Whether any applicable checks ran (summed weight > 0).
+
+        ``False`` marks a not-applicable (N/A) verdict: the category had no
+        weighted checks to score, which is distinct from a real 0/100.
+        """
+        return self.total > 0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def not_applicable(self) -> bool:
+        """Inverse of :attr:`applicable` — True when no weighted checks ran."""
+        return not self.applicable
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def score(self) -> int | None:
+        """0-100 weighted score, or ``None`` when not applicable.
+
+        ``None`` (never a numeric 0) is the N/A signal; an applicable
+        category where every check fails still scores a real ``0``.
+        """
+        if not self.applicable:
+            return None
+        return round(self.earned / self.total * 100)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def grade(self) -> Grade | None:
+        """Letter grade, or ``None`` when not applicable (no numeric grade)."""
+        current = self.score
+        return compute_grade(current) if current is not None else None
+
     @classmethod
     def from_checks(cls, category: str, checks: list[CheckResult]) -> CategoryScore:
-        """Build from a list of checks belonging to this category."""
+        """Build the category verdict from its checks.
+
+        Sums the weighted results; the applicability/N/A status and the
+        derived score/grade fall out of :attr:`total` (0 → N/A).
+        """
         return cls(
             category=category,
             earned=sum(c.earned for c in checks),
@@ -119,6 +164,24 @@ class ProjectResult(BaseModel):  # type: ignore[explicit-any]
     context: str | None = None
     workspace_root: Path | None = None
     excluded_checks: list[str] = []
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def applicable(self) -> bool:
+        """Whether any weighted check ran (summed check weight > 0).
+
+        ``False`` is a not-applicable (N/A) verdict for the whole run — e.g.
+        ``check --category workspace`` on a standalone project skips every
+        workspace check, leaving nothing to score. Distinct from a real
+        0/100 where checks ran but all failed.
+        """
+        return any(c.weight > 0 for c in self.checks)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def not_applicable(self) -> bool:
+        """Inverse of :attr:`applicable` — True when no weighted checks ran."""
+        return not self.applicable
 
     @classmethod
     def from_checks(

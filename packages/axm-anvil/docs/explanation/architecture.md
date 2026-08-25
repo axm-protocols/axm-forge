@@ -54,7 +54,7 @@ should use the public `axm_anvil` API.
 | Module | Responsibility |
 |---|---|
 | `_cst.blocks` | Extract top-level symbol `Block` records (node + leading lines + referenced names) |
-| `_cst.visitors` | `ReferenceCollector` (collect referenced root names) and `dotted_name` (flatten `Attribute` chains) |
+| `_cst.visitors` | `ReferenceCollector` (collect *external* referenced root names — excludes keyword-argument labels and locally-bound names such as parameters and assignment targets, so a homonymous top-level helper is not pulled in as a spurious dependency) and `dotted_name` (flatten `Attribute` chains) |
 | `_cst.transformers` | `RemoveSymbols` transformer that deletes targeted top-level `ClassDef`, `FunctionDef`, and constant (`Assign` / `AnnAssign`) nodes while preserving surrounding formatting; `AttributeRewriter` rewrites `old_module.Symbol` attribute chains (and alias-bound equivalents) to `new_module.Symbol`, using `ScopeProvider` to skip shadowed names and tracking residual `old_module.*` references so the caller layer knows when it can drop the bare `import old_module` line |
 | `_cst.overloads` | `detect_overload_group` — find the ordered `@overload` companions of a symbol, with alias-aware detection. Delegates alias discovery to `_collect_overload_aliases`, which composes two small helpers: `_iter_typing_import_names` (walk `from typing import ...` lines) and `_overload_alias_name` (resolve one `ImportAlias` to the local name bound to `typing.overload`, or `None`) |
 
@@ -114,8 +114,9 @@ source/target rendering:
 | Helper | Responsibility |
 |---|---|
 | `_module_path_from_file` | Derive a dotted module path from a file path under a workspace root (strips `src/`, drops `.py`) |
-| `_discover_callers` | Find workspace `.py` files importing a moved name via `from <from_module> import …`: a cheap textual pre-filter (`from <from_module> import`) narrows candidates, then each is parsed with libcst and matched through `_CollectOldImport` so multi-line `from … import (\n foo,\n)` blocks are caught (a textual scan would miss them); unparseable candidates are kept so the downstream validation gate can roll back |
-| `_discover_module_import_callers` | Scan workspace `.py` files for bare `import old_module` (with optional `as` alias) statements that refer to the source module |
+| `_scan_workspace_py_files` | Materialise the workspace `.py` scan **once** into a list of `(path, source)` pairs (each file read a single time), threaded to both discovery passes so the disk is walked once per move rather than once per pass |
+| `_discover_callers` | Find, among the pre-scanned `(path, source)` pairs, the callers importing a moved name via `from <from_module> import …`: a cheap textual pre-filter (`from <from_module> import`) narrows candidates, then each is parsed with libcst and matched through `_CollectOldImport` so multi-line `from … import (\n foo,\n)` blocks are caught (a textual scan would miss them); unparseable candidates are kept so the downstream validation gate can roll back |
+| `_discover_module_import_callers` | Scan the pre-scanned `(path, source)` pairs for bare `import old_module` (with optional `as` alias) statements that refer to the source module |
 | `_rewrite_caller_text` | Rewrite a caller's text via libcst: remove moved names from the old import, add them to the new import, preserve asnames |
 | `_add_new_imports` | Build a `CodemodContext` with `AddImportsVisitor.add_needed_import` calls for each matched moved name, preserving asnames |
 | `_format_new_import_stmt` | Render the `from new_module import …` statement (with `as` aliases) used as the `new` side of the `CallerRewrite` record |
@@ -123,6 +124,8 @@ source/target rendering:
 | `CallerRewrite` | Per-line record `(file, line, old, new)` surfaced through `MovePlan.callers_updated` |
 
 The `_process_callers` helper in `core/move.py` orchestrates the flow:
+scan the workspace `.py` files **once** via `_scan_workspace_py_files` and
+thread that single `(path, source)` collection into both discovery passes;
 discover candidate callers (both `from`-imports and bare module imports),
 parse + rewrite each via libcst, re-parse the result as a validation
 gate, and stage the `(original, new)` text pairs for atomic write
@@ -286,7 +289,7 @@ only has to assemble the edit set:
 | `detect_new_cycle` | Copy the current graph, apply `GraphEdits`, and return the first *newly introduced* cycle (ignoring pre-existing cycles) |
 | `_TarjanState` | Dataclass holding Tarjan's mutable bookkeeping (indices, lowlinks, stacks, emitted SCCs) so step helpers can share it without long parameter lists |
 | `_tarjan_sccs` | Iterative Tarjan SCC driver (no recursion, safe on large packages); delegates per-frame work to `_tarjan_step_descend` and `_tarjan_step_finalize` |
-| `_cycles` | Filter SCCs to size > 1 plus genuine self-loops |
+| `cycles` | Filter SCCs to size > 1 plus genuine self-loops |
 | `_order_cycle` | Order nodes along a directed walk for readable `A → B → C → A` output |
 
 The same anti-recursion discipline applies to constant ordering in

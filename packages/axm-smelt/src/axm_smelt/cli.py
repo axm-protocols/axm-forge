@@ -57,7 +57,11 @@ def compact(
     from axm_smelt.core.pipeline import smelt
 
     text = read_input(file)
-    strat_list = strategies.split(",") if strategies else None
+    strat_list = (
+        [s for s in (part.strip() for part in strategies.split(",")) if s]
+        if strategies
+        else None
+    )
     try:
         report = smelt(text, strategies=strat_list, preset=preset)
     except ValueError as exc:
@@ -100,6 +104,7 @@ def check(
         lines.append("Strategy estimates:")
         for strat, pct in report.strategy_estimates.items():
             lines.append(f"  {strat}: {pct:.1f}%")
+    lines.append(f"Savings: {report.savings_pct:.1f}%")
     print("\n".join(lines))
 
 

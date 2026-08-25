@@ -67,7 +67,14 @@ class InitReserveTool:
         dry_run_raw = kwargs.get("dry_run", False)
         author: str = author_raw if isinstance(author_raw, str) else ""
         email: str = email_raw if isinstance(email_raw, str) else ""
-        dry_run: bool = bool(dry_run_raw) if isinstance(dry_run_raw, bool) else False
+        if not isinstance(dry_run_raw, bool):
+            return ToolResult(
+                success=False,
+                error=(
+                    f"'dry_run' must be a boolean, got {type(dry_run_raw).__name__}"
+                ),
+            )
+        dry_run: bool = dry_run_raw
 
         error = _validate_identity(author, email)
         if error:

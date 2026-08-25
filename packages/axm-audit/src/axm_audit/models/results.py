@@ -62,6 +62,22 @@ CATEGORY_SUMMARIES: dict[str, str] = {
 }
 
 
+def grade_for_score(score: float) -> str:
+    """Letter grade for a numeric score via the fixed thresholds (A/B/C/D/F).
+
+    Single source of truth for grade derivation, shared by
+    :attr:`AuditResult.grade` and the score-serialization layer
+    (:mod:`axm_audit.score`) so no code path derives a grade differently.
+    """
+    _thresholds = [
+        (_GRADE_A, "A"),
+        (_GRADE_B, "B"),
+        (_GRADE_C, "C"),
+        (_GRADE_D, "D"),
+    ]
+    return next((g for t, g in _thresholds if score >= t), "F")
+
+
 def format_categories_help() -> str:
     """Return a multi-line bullet list of categories with one-line summaries.
 
@@ -263,12 +279,6 @@ class AuditResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesi
         score = self.quality_score
         if score is None:
             return None
-        _thresholds = [
-            (_GRADE_A, "A"),
-            (_GRADE_B, "B"),
-            (_GRADE_C, "C"),
-            (_GRADE_D, "D"),
-        ]
-        return next((g for t, g in _thresholds if score >= t), "F")
+        return grade_for_score(score)
 
     model_config = ConfigDict(extra="forbid")

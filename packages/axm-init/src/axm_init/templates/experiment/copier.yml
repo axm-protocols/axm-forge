@@ -1,0 +1,55 @@
+# Copier configuration for the AXM experiment scaffold.
+#
+# The template renders FLAT at the destination root: naming and indexing of
+# the experiment directory belong to the scaffold tool, never to this
+# template, so no indexed directory level is created here.
+
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+_exclude:
+  # Copier replaces (does not extend) its default exclude list, so the
+  # stock patterns must be re-declared or the template's own build cruft
+  # (``.mypy_cache``, ``__pycache__``, …) gets copied into every scaffold.
+  - "copier.yml"
+  - "__pycache__"
+  - "*.py[co]"
+  - ".mypy_cache"
+  - ".ruff_cache"
+  - ".pytest_cache"
+  - ".DS_Store"
+
+# =============================================================================
+# Questions — the manifest is born declared and complete, before any script
+# =============================================================================
+
+experiment_id:
+  type: str
+  help: "Experiment identifier (lowercase, hyphens, e.g. exp-0001-corpus-shape)"
+
+experiment_title:
+  type: str
+  help: "One-line human title of the experiment"
+
+research_question:
+  type: str
+  help: "The question this experiment answers, in one sentence"
+
+# The answer is named ``type``: it is the very contract key the manifest
+# renders, so the Copier answer and the rendered key carry one single spelling.
+type:
+  type: str
+  help: "Nature of the experiment (hypothesis_testing pre-registers a freeze)"
+  choices:
+    - hypothesis_testing
+    - descriptive
+    - exploratory
+  default: descriptive
+
+reproduction_level:
+  type: str
+  help: "Reproduction contract this experiment commits to"
+  choices:
+    - exact
+    - tolerance
+    - attested
+  default: tolerance

@@ -9,10 +9,10 @@ from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import find_git_root, run_git
+from axm_git.core.runner import find_git_root, not_a_repo_error, run_git
 from axm_git.core.runner import timeout_error_result as _timeout_error_result
 from axm_git.core.semver import classify_commit, compute_bump
-from axm_git.tools.release_diff_text import render_text
+from axm_git.tools.release_diff_text import render_failure_text, render_text
 from axm_git.tools.tag import get_tag_prefix
 
 __all__ = ["GitReleaseDiffTool"]
@@ -140,6 +140,19 @@ class GitReleaseDiffTool(AXMTool):
             suggested next version.
         """
         resolved = Path(path).resolve()
+        if find_git_root(resolved) is None:
+            # False-green guard: without a repo, every read-only git call
+            # returns empty, which would masquerade as a clean "first release
+            # → 0.1.0". Surface the not-a-repo error instead.
+            repo_err = not_a_repo_error("not a git repository", resolved)
+            return ToolResult(
+                success=repo_err.success,
+                error=repo_err.error,
+                data=repo_err.data,
+                text=render_failure_text(
+                    error=repo_err.error or "", data=repo_err.data
+                ),
+            )
         prefix = get_tag_prefix(resolved)
         try:
             data = self._collect(resolved, prefix)

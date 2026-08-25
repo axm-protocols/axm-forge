@@ -14,14 +14,14 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.core.engine import _resolve_safe
-from axm_edit.utils import is_binary
+from axm_edit.utils import is_binary, resolve_safe
 
 __all__ = ["SearchFilesTool"]
 
 logger = logging.getLogger(__name__)
 
 _MAX_RESULTS = 50
+_MAX_LINE_CHARS = 500
 _SKIP_DIRS = frozenset(
     {
         ".git",
@@ -43,6 +43,25 @@ _SKIP_DIRS = frozenset(
 def _matches_include(filename: str, include: list[str]) -> bool:
     """Return True if *filename* matches at least one include glob."""
     return any(fnmatch.fnmatch(filename, pat) for pat in include)
+
+
+def truncate_line(content: str) -> str:
+    """Bound a matched line's *content* to ``_MAX_LINE_CHARS`` characters.
+
+    Mirrors the per-unit size cap idiom already applied to ``read_file``:
+    lines at or under the cap are returned unchanged, while a longer line is
+    clipped to the first ``_MAX_LINE_CHARS`` characters with an explicit
+    truncation marker recording the original length appended. This keeps a
+    match inside a minified single-line file from dragging the whole line
+    into the result payload.
+    """
+    if len(content) <= _MAX_LINE_CHARS:
+        return content
+    return (
+        f"{content[:_MAX_LINE_CHARS]}"
+        f" [truncated: {len(content)} chars total,"
+        f" showing first {_MAX_LINE_CHARS}]"
+    )
 
 
 def _search_file(
@@ -80,7 +99,7 @@ def _search_file(
                 {
                     "file": relative,
                     "line": line_num,
-                    "content": line.rstrip(),
+                    "content": truncate_line(line.rstrip()),
                 }
             )
 
@@ -103,7 +122,7 @@ def _iter_matching_files(
         if include and not _matches_include(filename, include):
             continue
         file_path = Path(dirpath) / filename
-        if _resolve_safe(root, str(file_path.relative_to(root))) is None:
+        if resolve_safe(root, str(file_path.relative_to(root))) is None:
             continue
         if is_binary(file_path):
             continue
