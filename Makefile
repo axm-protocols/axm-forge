@@ -44,19 +44,21 @@ test-smelt:  ## Run axm-smelt tests
 
 # 🛡️ Quality Gates
 
+# Le répertoire de tests est DÉRIVÉ du nom du package (tests_axm_<pkg>, cf. 9688417b0) :
+# un renommage ou un nouveau package ne laisse pas de chemin littéral orphelin.
+MYPY_PACKAGES := axm axm-mcp axm-anvil axm-ast axm-audit axm-edit axm-init axm-git \
+                 axm-smelt axm-ingot axm-echo axm-config axm-vault axm-doctor
+
 lint:  ## Linter + type checker
 	uv run ruff check .
 	uv run ruff format --check .
 	@echo "🔍 Running mypy per package..."
-	uv run --package axm mypy --config-file packages/axm/pyproject.toml packages/axm/src packages/axm/tests
-	uv run --package axm-mcp mypy --config-file packages/axm-mcp/pyproject.toml packages/axm-mcp/src packages/axm-mcp/tests
-	uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src packages/axm-anvil/tests
-	uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src packages/axm-ast/tests
-	uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src packages/axm-audit/tests
-	uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src packages/axm-edit/tests
-	uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src packages/axm-init/tests
-	uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src packages/axm-git/tests
-	uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src packages/axm-smelt/tests
+	@for pkg in $(MYPY_PACKAGES); do \
+		tests="packages/$$pkg/tests_$$(echo $$pkg | tr - _)"; \
+		[ -d "$$tests" ] || { echo "❌ $$pkg: $$tests introuvable"; exit 1; }; \
+		uv run --package $$pkg mypy --config-file packages/$$pkg/pyproject.toml \
+			packages/$$pkg/src "$$tests" || exit 1; \
+	done
 
 format:  ## Auto-format code
 	uv run ruff format .
