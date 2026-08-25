@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-ingot",
-  "score": 98,
+  "score": 97,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -15,7 +15,7 @@
       "total": 16
     },
     "deps": {
-      "earned": 3,
+      "earned": 0,
       "total": 3
     },
     "docs": {
@@ -31,7 +31,7 @@
       "total": 17
     },
     "tooling": {
-      "earned": 14,
+      "earned": 16,
       "total": 16
     }
   },
@@ -103,10 +103,10 @@
     {
       "name": "deps.dev_deps",
       "category": "deps",
-      "passed": true,
-      "earned": 3,
+      "passed": false,
+      "earned": 0,
       "weight": 3,
-      "message": "Dev deps complete"
+      "message": "Dev group missing 1 dep(s)"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -258,7 +258,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "9 test file(s) found across unit/integration/e2e"
+      "message": "14 test file(s) found across unit/integration/e2e"
     },
     {
       "name": "structure.uv_lock",
@@ -303,10 +303,10 @@
     {
       "name": "tooling.precommit_installed",
       "category": "tooling",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "Pre-commit hooks not installed"
+      "message": "Skipped in CI (local-only hook enforcement)"
     },
     {
       "name": "tooling.precommit_mypy",
@@ -327,13 +327,13 @@
   ],
   "failures": [
     {
-      "name": "tooling.precommit_installed",
-      "weight": 2,
-      "message": "Pre-commit hooks not installed",
+      "name": "deps.dev_deps",
+      "weight": 3,
+      "message": "Dev group missing 1 dep(s)",
       "details": [
-        ".pre-commit-config.yaml exists but hooks are not activated"
+        "Missing: pytest-xdist"
       ],
-      "fix": "Run 'prek install' to activate hooks."
+      "fix": "Add pytest-xdist to [dependency-groups] dev."
     }
   ]
 }

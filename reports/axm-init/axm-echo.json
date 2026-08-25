@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo",
-  "score": 96,
+  "score": 95,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -15,7 +15,7 @@
       "total": 16
     },
     "deps": {
-      "earned": 3,
+      "earned": 0,
       "total": 3
     },
     "docs": {
@@ -31,7 +31,7 @@
       "total": 17
     },
     "tooling": {
-      "earned": 14,
+      "earned": 16,
       "total": 16
     }
   },
@@ -103,10 +103,10 @@
     {
       "name": "deps.dev_deps",
       "category": "deps",
-      "passed": true,
-      "earned": 3,
+      "passed": false,
+      "earned": 0,
       "weight": 3,
-      "message": "Dev deps complete"
+      "message": "Dev group missing 1 dep(s)"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -303,10 +303,10 @@
     {
       "name": "tooling.precommit_installed",
       "category": "tooling",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "Pre-commit hooks not installed"
+      "message": "Skipped in CI (local-only hook enforcement)"
     },
     {
       "name": "tooling.precommit_mypy",
@@ -327,6 +327,15 @@
   ],
   "failures": [
     {
+      "name": "deps.dev_deps",
+      "weight": 3,
+      "message": "Dev group missing 1 dep(s)",
+      "details": [
+        "Missing: pytest-xdist"
+      ],
+      "fix": "Add pytest-xdist to [dependency-groups] dev."
+    },
+    {
       "name": "docs.standalone_api_ref",
       "weight": 2,
       "message": "nav declares reference/api/ but standalone build cannot resolve it \u2014 missing 4 item(s)",
@@ -334,15 +343,6 @@
         "Missing locally: gen-files, literate-nav, mkdocstrings, docs/gen_ref_pages.py"
       ],
       "fix": "Add docs/gen_ref_pages.py + gen-files/literate-nav/mkdocstrings plugins so `mkdocs build --strict` passes standalone (do not rely on the workspace-root mkdocs.yml)."
-    },
-    {
-      "name": "tooling.precommit_installed",
-      "weight": 2,
-      "message": "Pre-commit hooks not installed",
-      "details": [
-        ".pre-commit-config.yaml exists but hooks are not activated"
-      ],
-      "fix": "Run 'prek install' to activate hooks."
     }
   ]
 }

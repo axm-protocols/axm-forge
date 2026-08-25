@@ -1,9 +1,9 @@
 {
-  "score": 97.7,
+  "score": 96.6,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 3,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 8,
         "max_fan_in": 12,
-        "avg_coupling": 3.77,
+        "avg_coupling": 3.78,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.54185692541857,
+        "coverage": 92.52830188679245,
         "failures": []
       },
       "metadata": null
@@ -92,7 +92,7 @@
       "message": "Lint score: 100/100 (0 issues)",
       "details": {
         "issue_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_smelt/",
         "issues": []
       },
       "metadata": null
@@ -104,7 +104,7 @@
       "details": {
         "unformatted_count": 0,
         "unformatted_files": [],
-        "checked": "src/ tests/"
+        "checked": "src/ tests_axm_smelt/"
       },
       "metadata": null
     },
@@ -119,11 +119,24 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "top_vulns": []
+        "vuln_count": 1,
+        "top_vulns": [
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21.3",
+            "vuln_ids": [
+              "PYSEC-2026-3609",
+              "PYSEC-2026-3654"
+            ],
+            "fix_versions": [
+              "11.0.0",
+              "11.0.1"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -149,17 +162,20 @@
           "cli.py"
         ],
         "exempt_tests": [
-          "tests/unit/test_registry__smelt.py"
+          "tests_axm_smelt/unit/test_registry__smelt.py"
         ]
       },
       "metadata": null
     },
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "passed": true,
-      "message": "No anti-mirror naming violations",
+      "passed": false,
+      "message": "2 integration/e2e test(s) named after source modules",
       "details": {
-        "anti_mirror": []
+        "anti_mirror": [
+          "tests_axm_smelt/e2e/test_check.py",
+          "tests_axm_smelt/e2e/test_count.py"
+        ]
       },
       "metadata": null
     },
@@ -185,11 +201,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (56/56)",
+      "message": "Docstring coverage: 100% (57/57)",
       "details": {
         "coverage": 1.0,
-        "total": 56,
-        "documented": 56,
+        "total": 57,
+        "documented": 57,
         "missing": []
       },
       "metadata": null
@@ -197,684 +213,29 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "21 cluster(s), 0 clustered pair(s)",
+      "message": "no tests found",
       "details": null,
       "metadata": {
-        "clusters": [
-          {
-            "signal": "ambiguous_multi",
-            "reason": "same SUT: detect_format(1) + same asserts + distinct public SUT rescue (intra-file 100%) + body-size delta rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_json",
-                "line": 16
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_yaml",
-                "line": 20
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_markdown_full",
-                "line": 52
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_yaml_with_comments",
-                "line": 65
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_json_with_markdown_values",
-                "line": 70
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_single_heading_only",
-                "line": 75
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_empty_fenced_block",
-                "line": 80
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_html_heavy_markdown",
-                "line": 85
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_xml",
-                "line": 90
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_plain_text",
-                "line": 94
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_json_array",
-                "line": 98
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_edge_empty_string",
-                "line": 138
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_edge_whitespace_only",
-                "line": 142
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_edge_json_array",
-                "line": 146
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_toml",
-                "line": 162
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_csv",
-                "line": 168
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_prose_with_commas_not_csv",
-                "line": 174
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_yaml_not_toml",
-                "line": 180
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_json_valid",
-                "line": 105
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_markdown_positive_indicators",
-                "line": 40
-              }
-            ],
-            "cluster_hash": "d084bccd99fa",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT json.loads(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_drop_nulls.py",
-                "name": "test_drop_nulls_basic",
-                "line": 20
-              },
-              {
-                "file": "tests/unit/strategies/test_drop_nulls.py",
-                "name": "test_drop_nulls_nested",
-                "line": 26
-              },
-              {
-                "file": "tests/unit/strategies/test_drop_nulls.py",
-                "name": "test_drop_nulls_empty_after_clean",
-                "line": 32
-              },
-              {
-                "file": "tests/unit/strategies/test_drop_nulls.py",
-                "name": "test_drop_nulls_preserves_false_zero",
-                "line": 38
-              },
-              {
-                "file": "tests/unit/strategies/test_drop_nulls.py",
-                "name": "test_drop_nulls_list_of_dicts",
-                "line": 44
-              },
-              {
-                "file": "tests/unit/strategies/test_drop_nulls.py",
-                "name": "test_drop_nulls_all_null_values",
-                "line": 53
-              },
-              {
-                "file": "tests/unit/strategies/test_flatten.py",
-                "name": "test_flatten_basic",
-                "line": 22
-              },
-              {
-                "file": "tests/unit/strategies/test_flatten.py",
-                "name": "test_flatten_deep",
-                "line": 28
-              },
-              {
-                "file": "tests/unit/strategies/test_flatten.py",
-                "name": "test_flatten_multi_key_no_flatten",
-                "line": 34
-              },
-              {
-                "file": "tests/unit/strategies/test_flatten.py",
-                "name": "test_flatten_with_depth_limit",
-                "line": 40
-              },
-              {
-                "file": "tests/unit/strategies/test_flatten.py",
-                "name": "test_flatten_preserves_arrays",
-                "line": 47
-              },
-              {
-                "file": "tests/unit/strategies/test_flatten.py",
-                "name": "test_flatten_circular_like_nesting",
-                "line": 56
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_basic",
-                "line": 21
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_nested",
-                "line": 34
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_custom_precision",
-                "line": 40
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_in_array",
-                "line": 47
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_float_in_string",
-                "line": 56
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_real_float_still_rounded",
-                "line": 63
-              },
-              {
-                "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_negative_floats",
-                "line": 77
-              }
-            ],
-            "cluster_hash": "3d8ebe3efc54",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_collapse_whitespace.py",
-                "name": "test_collapse_multiple_blanks",
-                "line": 17
-              },
-              {
-                "file": "tests/unit/strategies/test_collapse_whitespace.py",
-                "name": "test_all_whitespace",
-                "line": 95
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_compact_single_line_table",
-                "line": 22
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_passthrough_non_table",
-                "line": 30
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_compact_minimal_tables",
-                "line": 100
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_pipe_in_code_span",
-                "line": 108
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_strip_comment",
-                "line": 32
-              }
-            ],
-            "cluster_hash": "4a40af610285",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_collapse_whitespace.py",
-                "name": "test_collapse_noop_json",
-                "line": 80
-              },
-              {
-                "file": "tests/unit/strategies/test_collapse_whitespace.py",
-                "name": "test_no_trailing_whitespace",
-                "line": 102
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_already_compact_table",
-                "line": 86
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_non_markdown_format_passthrough",
-                "line": 122
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_noop_no_comments",
-                "line": 85
-              }
-            ],
-            "cluster_hash": "01be284c6e6e",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_minify_xml_preserves_text",
-                "line": 100
-              },
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_minify_xml_attributes",
-                "line": 106
-              },
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_minify_xml_cdata",
-                "line": 170
-              },
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_minify_xml_declaration",
-                "line": 176
-              }
-            ],
-            "cluster_hash": "761417a37983",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1) + distinct literals rescue (intra-file 80%)",
-            "similarity": 0.8,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_table_inside_fenced_code",
-                "line": 115
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_preserve_code_block_comments",
-                "line": 40
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_strip_real_markdown",
-                "line": 67
-              }
-            ],
-            "cluster_hash": "6c64caffb020",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_raises_divergence",
-            "reason": "same SUT: smelt(1|strategies=List) + same asserts + pytest.raises divergence rescue for SUT smelt(1|strategies=List)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_smelt_yaml_savings",
-                "line": 127
-              },
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_smelt_xml_savings",
-                "line": 135
-              },
-              {
-                "file": "tests/unit/core/test_pipeline.py",
-                "name": "test_unknown_strategy",
-                "line": 312
-              }
-            ],
-            "cluster_hash": "2cf3715bb547",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_json_invalid",
-                "line": 109
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_xml_comment",
-                "line": 120
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_yaml_plain_string",
-                "line": 131
-              }
-            ],
-            "cluster_hash": "73dc33eaff83",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "distinct literals rescue (intra-file 100%) + pytest.raises divergence rescue for SUT get_strategy(1)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_base.py",
-                "name": "test_unknown_strategy",
-                "line": 72
-              },
-              {
-                "file": "tests/unit/strategies/test_base.py",
-                "name": "test_unknown_preset",
-                "line": 89
-              },
-              {
-                "file": "tests/unit/strategies/test_base.py",
-                "name": "test_get_strategy_known",
-                "line": 65
-              }
-            ],
-            "cluster_hash": "a921573c8fe1",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_cleanup_blank_lines",
-                "line": 47
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_multiple_comments",
-                "line": 125
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_empty_comment",
-                "line": 138
-              }
-            ],
-            "cluster_hash": "b7fe5dcf4895",
-            "acknowledged": true
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_strip_quotes.py",
-                "name": "test_prose_is_left_untouched",
-                "line": 38
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_quotes.py",
-                "name": "test_markdown_is_left_untouched",
-                "line": 45
-              }
-            ],
-            "cluster_hash": "1accfb95b015",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT Incomplete(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_models.py",
-                "name": "test_strategy_abc",
-                "line": 74
-              },
-              {
-                "file": "tests/unit/strategies/test_base.py",
-                "name": "test_partial_implementation_raises",
-                "line": 16
-              }
-            ],
-            "cluster_hash": "8a54c822aea8",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT pipeline.smelt(0|strategies=List,text=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_pipeline.py",
-                "name": "test_guard_rejects_regression",
-                "line": 562
-              },
-              {
-                "file": "tests/unit/core/test_pipeline.py",
-                "name": "test_zero_token_change_discarded",
-                "line": 646
-              }
-            ],
-            "cluster_hash": "e95bbb62bd6f",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT replace_strings(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_dedup_values.py",
-                "name": "test_replace_strings_no_match",
-                "line": 85
-              },
-              {
-                "file": "tests/unit/strategies/test_dedup_values.py",
-                "name": "test_replace_strings_nested_dict",
-                "line": 92
-              }
-            ],
-            "cluster_hash": "aacab3a12a4b",
-            "acknowledged": true
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: tool.execute(0|data=None) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test_check.py",
-                "name": "test_check_tool_error",
-                "line": 44
-              },
-              {
-                "file": "tests/unit/tools/test_count.py",
-                "name": "test_count_tool_error",
-                "line": 37
-              }
-            ],
-            "cluster_hash": "28c783a5b834",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_counter.py",
-                "name": "test_claude_model_case_insensitive",
-                "line": 80
-              },
-              {
-                "file": "tests/unit/core/test_counter.py",
-                "name": "test_openai_model_still_exact",
-                "line": 95
-              }
-            ],
-            "cluster_hash": "9f782e0b98e8",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_compact_real_table",
-                "line": 48
-              },
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_compact_mixed_content",
-                "line": 63
-              }
-            ],
-            "cluster_hash": "66f6b4a3fc35",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (intra-file 80%)",
-            "similarity": 0.8,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_dedup_values.py",
-                "name": "test_dedup_passthrough_on_refs_collision",
-                "line": 237
-              },
-              {
-                "file": "tests/unit/strategies/test_dedup_values.py",
-                "name": "test_dedup_passthrough_on_data_collision",
-                "line": 251
-              }
-            ],
-            "cluster_hash": "b3014e97a434",
-            "acknowledged": true
-          },
-          {
-            "signal": "signal3_intra_file_similarity",
-            "reason": "AST similarity 100%",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_tabular_trivial_arrays",
-                "line": 42
-              },
-              {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_tabular_passthrough",
-                "line": 68
-              }
-            ],
-            "cluster_hash": "5128c4938ca4",
-            "acknowledged": true
-          },
-          {
-            "signal": "signal3_intra_file_similarity",
-            "reason": "AST similarity 80%",
-            "similarity": 0.8,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_pipe_in_value",
-                "line": 74
-              },
-              {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_boolean_null_values",
-                "line": 100
-              }
-            ],
-            "cluster_hash": "ed880e45fa13",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_compact_missing_file",
-                "line": 33
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_check_missing_file",
-                "line": 39
-              }
-            ],
-            "cluster_hash": "d33fec7af617",
-            "acknowledged": true
-          }
-        ],
+        "clusters": [],
         "bucket_counts": {
-          "CLUSTERED": 8,
-          "AMBIGUOUS": 84,
-          "UNIQUE": 218
-        },
-        "stale_acknowledged": []
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 0,
+          "UNIQUE": 0
+        }
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
       "passed": true,
-      "message": "every integration/e2e test exercises the package",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -889,20 +250,27 @@
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": true,
-      "message": "pyramid levels match folder layout",
-      "details": {
-        "mismatches": [],
-        "total": 0
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
-      "passed": true,
-      "message": "no tautologies found",
+      "passed": false,
+      "message": "1 tautology finding(s)",
       "details": null,
       "metadata": {
-        "verdicts": []
+        "verdicts": [
+          {
+            "file": "tests_axm_smelt/unit/strategies/test_fences.py",
+            "test": "test_fenced_block_re_matches_quad_backtick",
+            "line": 22,
+            "pattern": "none_check_only",
+            "rule": "step5_default_unknown",
+            "verdict": "UNKNOWN",
+            "reason": "`match` tested elsewhere but ambiguity remains"
+          }
+        ]
       }
     },
     {
@@ -911,7 +279,7 @@
       "message": "Type score: 100/100 (0 errors)",
       "details": {
         "error_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_smelt/",
         "errors": []
       },
       "metadata": null

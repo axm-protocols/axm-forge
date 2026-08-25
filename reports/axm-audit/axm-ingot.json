@@ -1,8 +1,8 @@
 {
-  "score": 97.3,
+  "score": 95.1,
   "grade": "A",
   "total": 31,
-  "failed": 3,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 3)",
       "details": {
         "max_fan_out": 3,
-        "max_fan_in": 2,
-        "avg_coupling": 1.5,
+        "max_fan_in": 3,
+        "avg_coupling": 1.57,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -48,10 +48,10 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 2,
         "top_offenders": [
           {
             "file": "axm_ingot/render.py",
@@ -59,6 +59,14 @@
             "cc": 12,
             "rank": "C",
             "cognitive": 15,
+            "reason": "cc"
+          },
+          {
+            "file": "axm_ingot/suite.py",
+            "function": "_configured_suite_dirs",
+            "cc": 12,
+            "rank": "C",
+            "cognitive": 14,
             "reason": "cc"
           }
         ],
@@ -69,9 +77,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (92/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 92.65536723163842,
+        "coverage": 93.50912778904666,
         "failures": []
       },
       "metadata": null
@@ -92,7 +100,7 @@
       "message": "Lint score: 100/100 (0 issues)",
       "details": {
         "issue_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_ingot/",
         "issues": []
       },
       "metadata": null
@@ -104,7 +112,7 @@
       "details": {
         "unformatted_count": 0,
         "unformatted_files": [],
-        "checked": "src/ tests/"
+        "checked": "src/ tests_axm_ingot/"
       },
       "metadata": null
     },
@@ -119,11 +127,24 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "top_vulns": []
+        "vuln_count": 1,
+        "top_vulns": [
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21.3",
+            "vuln_ids": [
+              "PYSEC-2026-3609",
+              "PYSEC-2026-3654"
+            ],
+            "fix_versions": [
+              "11.0.0",
+              "11.0.1"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -152,11 +173,12 @@
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
       "passed": false,
-      "message": "2 integration/e2e test(s) named after source modules",
+      "message": "3 integration/e2e test(s) named after source modules",
       "details": {
         "anti_mirror": [
-          "tests/e2e/test_render.py",
-          "tests/integration/test_render.py"
+          "tests_axm_ingot/e2e/test_pytest_tally.py",
+          "tests_axm_ingot/e2e/test_render.py",
+          "tests_axm_ingot/integration/test_render.py"
         ]
       },
       "metadata": null
@@ -183,11 +205,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (12/12)",
+      "message": "Docstring coverage: 100% (19/19)",
       "details": {
         "coverage": 1.0,
-        "total": 12,
-        "documented": 12,
+        "total": 19,
+        "documented": 19,
         "missing": []
       },
       "metadata": null
@@ -195,139 +217,29 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "5 cluster(s), 0 clustered pair(s)",
+      "message": "no tests found",
       "details": null,
       "metadata": {
-        "clusters": [
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT find_workspace_root(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_find_workspace_root.py",
-                "name": "test_returns_none_outside_workspace",
-                "line": 29
-              },
-              {
-                "file": "tests/integration/test_find_workspace_root.py",
-                "name": "test_skips_non_utf8_ancestor",
-                "line": 37
-              }
-            ],
-            "cluster_hash": "1dea498d7ec9"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT resolve_workspace(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_resolve_workspace.py",
-                "name": "test_applies_exclude",
-                "line": 39
-              },
-              {
-                "file": "tests/integration/test_resolve_workspace.py",
-                "name": "test_skips_dirs_without_pyproject",
-                "line": 58
-              }
-            ],
-            "cluster_hash": "d7e5d8df11c9",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT resolve_workspace(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_resolve_workspace.py",
-                "name": "test_returns_none_when_not_a_workspace",
-                "line": 82
-              },
-              {
-                "file": "tests/integration/test_resolve_workspace.py",
-                "name": "test_non_utf8_pyproject_degrades_to_none",
-                "line": 104
-              }
-            ],
-            "cluster_hash": "c08e575628da"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/integration/test_render.py",
-                "name": "test_golden_parity_backtest_souche_copy",
-                "line": 72
-              },
-              {
-                "file": "tests/integration/test_render.py",
-                "name": "test_golden_parity_route_travel_variant_copy",
-                "line": 77
-              }
-            ],
-            "cluster_hash": "819554840031"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/test_render.py",
-                "name": "test_header_renders_tool_pipe_summary",
-                "line": 18
-              },
-              {
-                "file": "tests/unit/test_render.py",
-                "name": "test_truncate_leaves_short_text_unchanged",
-                "line": 56
-              }
-            ],
-            "cluster_hash": "67f61ee00288"
-          }
-        ],
+        "clusters": [],
         "bucket_counts": {
           "CLUSTERED": 0,
-          "AMBIGUOUS": 10,
-          "UNIQUE": 26
-        },
-        "stale_acknowledged": []
+          "AMBIGUOUS": 0,
+          "UNIQUE": 0
+        }
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "1 naming finding(s): 1 INFO + 0 WARNING",
-      "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_render.py",
-            "proposed_name": "test_header__truncate.py",
-            "path": "tests/integration/test_render.py",
-            "tuple": [
-              "header",
-              "truncate"
-            ]
-          }
-        ]
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
       "passed": true,
-      "message": "every integration/e2e test exercises the package",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -341,49 +253,9 @@
     },
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": false,
-      "message": "2 test(s) mis-located vs. classified pyramid level",
-      "details": {
-        "mismatches": [
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ingot/tests/integration/test_record_table__render_result.py",
-            "function": "test_record_table_is_lossless_header_and_rows",
-            "level": "unit",
-            "reason": "public API import, no real I/O (pure function unit test)",
-            "current_level": "integration",
-            "has_real_io": false,
-            "has_subprocess": false,
-            "io_signals": [],
-            "imports_public": [
-              "record_table",
-              "render_result"
-            ],
-            "imports_internal": [],
-            "suggested_file": "unit/test_render.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ingot/tests/integration/test_render.py",
-            "function": "test_full_compact_text_assembled_from_composed_primitives",
-            "level": "unit",
-            "reason": "public API import, no real I/O (pure function unit test)",
-            "current_level": "integration",
-            "has_real_io": false,
-            "has_subprocess": false,
-            "io_signals": [],
-            "imports_public": [
-              "compact_table",
-              "header",
-              "labeled_block",
-              "truncate"
-            ],
-            "imports_internal": [],
-            "suggested_file": "unit/test_render.py",
-            "severity": "warning"
-          }
-        ],
-        "total": 2
-      },
+      "passed": true,
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -394,7 +266,7 @@
       "metadata": {
         "verdicts": [
           {
-            "file": "tests/unit/test_render.py",
+            "file": "tests_axm_ingot/unit/test_render.py",
             "test": "test_render_result_never_raises_on_arbitrary_object",
             "line": 107,
             "pattern": "isinstance_only",
@@ -411,7 +283,7 @@
       "message": "Type score: 100/100 (0 errors)",
       "details": {
         "error_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_ingot/",
         "errors": []
       },
       "metadata": null

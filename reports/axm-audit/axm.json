@@ -1,9 +1,9 @@
 {
-  "score": 97.8,
+  "score": 97.2,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
       "details": {
         "max_fan_out": 9,
-        "max_fan_in": 6,
-        "avg_coupling": 2.57,
+        "max_fan_in": 7,
+        "avg_coupling": 2.88,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -69,9 +69,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 93.08641975308642,
+        "coverage": 94.22442244224422,
         "failures": []
       },
       "metadata": null
@@ -92,7 +92,7 @@
       "message": "Lint score: 100/100 (0 issues)",
       "details": {
         "issue_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm/",
         "issues": []
       },
       "metadata": null
@@ -104,7 +104,7 @@
       "details": {
         "unformatted_count": 0,
         "unformatted_files": [],
-        "checked": "src/ tests/"
+        "checked": "src/ tests_axm/"
       },
       "metadata": null
     },
@@ -119,11 +119,24 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "top_vulns": []
+        "vuln_count": 1,
+        "top_vulns": [
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21.3",
+            "vuln_ids": [
+              "PYSEC-2026-3609",
+              "PYSEC-2026-3654"
+            ],
+            "fix_versions": [
+              "11.0.0",
+              "11.0.1"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -146,7 +159,7 @@
         "orphan": [],
         "exempt": [],
         "exempt_tests": [
-          "tests/unit/test___init__.py"
+          "tests_axm/unit/test___init__.py"
         ]
       },
       "metadata": null
@@ -182,11 +195,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (19/19)",
+      "message": "Docstring coverage: 100% (26/26)",
       "details": {
         "coverage": 1.0,
-        "total": 19,
-        "documented": 19,
+        "total": 26,
+        "documented": 26,
         "missing": []
       },
       "metadata": null
@@ -194,186 +207,29 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "5 cluster(s), 0 clustered pair(s)",
+      "message": "no tests found",
       "details": null,
       "metadata": {
-        "clusters": [
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT capsys.readouterr(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_runs_and_prints_text",
-                "line": 215
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_positional_args_bind_to_params",
-                "line": 220
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_nonscalar_json_decoded",
-                "line": 228
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_help_flag_prints_catalog",
-                "line": 347
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_dispatch_runs_tool",
-                "line": 365
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_custom_command_failure_falls_back_to_tool",
-                "line": 387
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_positional_path_dispatches_through_main",
-                "line": 445
-              }
-            ],
-            "cluster_hash": "654df483f294"
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "distinct literals rescue for SUT node(1) + pytest.raises divergence rescue for SUT node(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_text_source_returns_result_text",
-                "line": 63
-              },
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_data_key_source_returns_that_data_field",
-                "line": 71
-              },
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_missing_data_key_raises",
-                "line": 79
-              },
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_unsuccessful_result_raises",
-                "line": 88
-              },
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_unknown_tool_raises_with_registered_list",
-                "line": 95
-              },
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_bad_payload_key_raises_tool_node_error",
-                "line": 102
-              },
-              {
-                "file": "tests/unit/tools/test_node.py",
-                "name": "test_class_entry_point_is_instantiated",
-                "line": 124
-              }
-            ],
-            "cluster_hash": "c2ab56f51038"
-          },
-          {
-            "signal": "ambiguous_call_multiplicity",
-            "reason": "call-multiplicity rescue for SUT is_nonscalar(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_classifies_annotation",
-                "line": 160
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_is_nonscalar_unwraps_annotated",
-                "line": 480
-              }
-            ],
-            "cluster_hash": "6535b44e69ab"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue for shared sig cmd(0|path='.')",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_failure_exits_1",
-                "line": 239
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_exception_exits_1",
-                "line": 272
-              }
-            ],
-            "cluster_hash": "54c40b8fa6e0",
-            "acknowledged": true
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: create_app(0) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_tool_registered_as_command",
-                "line": 297
-              },
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_explicit_command_wins_over_tool",
-                "line": 302
-              }
-            ],
-            "cluster_hash": "935c6a5eef12",
-            "acknowledged": true
-          }
-        ],
+        "clusters": [],
         "bucket_counts": {
-          "CLUSTERED": 2,
-          "AMBIGUOUS": 18,
-          "UNIQUE": 91
-        },
-        "stale_acknowledged": [
-          {
-            "hash": "f7679913e585",
-            "reason": "distinct SUTs/scenarios (build_command stdout vs main --help/dispatch/fallback) sharing only the 'substring in captured stdout' shape \u2014 parametrization would conflate four behaviors"
-          },
-          {
-            "hash": "ea93c07b2fcf",
-            "reason": "mixed observation surfaces: 2 happy-path tests assert on the returned dict, 3 fail-fast tests assert distinct ToolNodeError messages on different branches \u2014 parametrization would erase the return-vs-raise divergence"
-          }
-        ]
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 0,
+          "UNIQUE": 0
+        }
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
       "passed": true,
-      "message": "every integration/e2e test exercises the package",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -388,11 +244,8 @@
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": true,
-      "message": "pyramid levels match folder layout",
-      "details": {
-        "mismatches": [],
-        "total": 0
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -410,7 +263,7 @@
       "message": "Type score: 100/100 (0 errors)",
       "details": {
         "error_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm/",
         "errors": []
       },
       "metadata": null

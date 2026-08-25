@@ -1,9 +1,9 @@
 {
-  "score": 97.0,
+  "score": 94.5,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 3,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -28,14 +28,14 @@
       "passed": true,
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
-        "max_fan_out": 20,
+        "max_fan_out": 23,
         "max_fan_in": 11,
-        "avg_coupling": 4.55,
+        "avg_coupling": 4.57,
         "n_over_threshold": 1,
         "over_threshold": [
           {
             "module": "axm_anvil.core.move",
-            "fan_out": 20,
+            "fan_out": 23,
             "role": "orchestrator",
             "effective_threshold": 15,
             "severity": "warning"
@@ -79,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.14155251141553,
+        "coverage": 91.03408765396735,
         "failures": []
       },
       "metadata": null
@@ -100,7 +100,7 @@
       "message": "Lint score: 100/100 (0 issues)",
       "details": {
         "issue_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_anvil/",
         "issues": []
       },
       "metadata": null
@@ -112,7 +112,7 @@
       "details": {
         "unformatted_count": 0,
         "unformatted_files": [],
-        "checked": "src/ tests/"
+        "checked": "src/ tests_axm_anvil/"
       },
       "metadata": null
     },
@@ -127,11 +127,24 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "top_vulns": []
+        "vuln_count": 1,
+        "top_vulns": [
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21.3",
+            "vuln_ids": [
+              "PYSEC-2026-3609",
+              "PYSEC-2026-3654"
+            ],
+            "fix_versions": [
+              "11.0.0",
+              "11.0.1"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -170,10 +183,12 @@
     },
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "passed": true,
-      "message": "No anti-mirror naming violations",
+      "passed": false,
+      "message": "1 integration/e2e test(s) named after source modules",
       "details": {
-        "anti_mirror": []
+        "anti_mirror": [
+          "tests_axm_anvil/e2e/test_move.py"
+        ]
       },
       "metadata": null
     },
@@ -199,11 +214,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (51/51)",
+      "message": "Docstring coverage: 100% (60/60)",
       "details": {
         "coverage": 1.0,
-        "total": 51,
-        "documented": 51,
+        "total": 60,
+        "documented": 60,
         "missing": []
       },
       "metadata": null
@@ -211,544 +226,206 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "20 cluster(s), 0 clustered pair(s)",
+      "message": "no tests found",
       "details": null,
       "metadata": {
-        "clusters": [
-          {
-            "signal": "ambiguous_multi",
-            "reason": "distinct literals rescue for SUT move_symbols(3|workspace_root=Name) + pytest.raises divergence rescue for SUT move_symbols(3|workspace_root=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
-                "name": "test_move_cross_package_detects_cycle",
-                "line": 64
-              },
-              {
-                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
-                "name": "test_intra_package_cycle_detection_unchanged",
-                "line": 99
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_move_rewrites_multiline_from_import_caller",
-                "line": 369
-              },
-              {
-                "file": "tests/integration/test_move_symbols__symbol_not_found_error.py",
-                "name": "test_move_absent_toplevel_warns_not_raises",
-                "line": 23
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_move_rewrites_module_import_caller",
-                "line": 438
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_forward_ref_warning_real_files",
-                "line": 1644
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_side_effect_decorator_warning_real_files",
-                "line": 1756
-              }
-            ],
-            "cluster_hash": "e6ed377337b4"
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "distinct literals rescue for SUT move_symbols(3|dry_run=True) + pytest.raises divergence rescue for SUT move_symbols(3|dry_run=True)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_string_forward_ref_warns",
-                "line": 1550
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_side_effect_decorator_bare_warns",
-                "line": 1698
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_string_forward_ref_no_false_positive",
-                "line": 1564
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_non_whitelisted_decorator_no_warn",
-                "line": 1717
-              },
-              {
-                "file": "tests/integration/test_move_symbols__overload_partial_move_error.py",
-                "name": "test_overload_partial_move_raises",
-                "line": 12
-              },
-              {
-                "file": "tests/integration/test_move_symbols__symbol_already_exists_error.py",
-                "name": "test_symbol_already_exists_raises",
-                "line": 12
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_string_forward_ref_not_rewritten",
-                "line": 1579
-              }
-            ],
-            "cluster_hash": "0e3a67678730"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT exception_to_result(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test__common.py",
-                "name": "test_exception_symbol_not_found_maps_to_source_module_message",
-                "line": 46
-              },
-              {
-                "file": "tests/unit/tools/test__common.py",
-                "name": "test_exception_already_exists_maps_to_target_module_message",
-                "line": 53
-              },
-              {
-                "file": "tests/unit/tools/test__common.py",
-                "name": "test_exception_shared_helpers_lists_the_helpers",
-                "line": 60
-              },
-              {
-                "file": "tests/unit/tools/test__common.py",
-                "name": "test_exception_unknown_falls_back_to_str",
-                "line": 82
-              }
-            ],
-            "cluster_hash": "a8bfcffbb4b8"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT tgt.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_relative_import_intra_package_preserved",
-                "line": 1773
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_relative_import_cross_package_converted",
-                "line": 1792
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_include_helpers_false_real_files",
-                "line": 1945
-              }
-            ],
-            "cluster_hash": "51bf7082f195"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT tree.visit(1) + distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_remove_symbols_keeps_nested_definition",
-                "line": 362
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_remove_symbols_keeps_multi_target_assignment",
-                "line": 370
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_remove_symbols_preserves_formatting",
-                "line": 24
-              }
-            ],
-            "cluster_hash": "cd5773994a7e",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _protect(1) + distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_protect_try_except_imports_tagged",
-                "line": 171
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_protect_if_guard_body_tagged",
-                "line": 188
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_protect_idempotent_existing_noqa",
-                "line": 214
-              }
-            ],
-            "cluster_hash": "1337a49355e7",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_raises_divergence",
-            "reason": "pytest.raises divergence rescue for SUT move_symbols(3|dry_run=False)>src.read_text(0)>tgt.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_mod__move_validation_error.py",
-                "name": "test_move_parse_error_rollback",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_move_simple_class",
-                "line": 958
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_move_with_direct_constants",
-                "line": 1375
-              }
-            ],
-            "cluster_hash": "b0a57ba93141"
-          },
-          {
-            "signal": "ambiguous_raises_divergence",
-            "reason": "pytest.raises divergence rescue for SUT mod.read_text(0)>rename_symbols(3|workspace_root=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_rename_symbols.py",
-                "name": "test_rename_module_level_assignment",
-                "line": 93
-              },
-              {
-                "file": "tests/integration/test_rename_symbols.py",
-                "name": "test_rename_absent_symbol_warns_and_skips",
-                "line": 121
-              },
-              {
-                "file": "tests/integration/test_rename_symbols__symbol_already_exists_error.py",
-                "name": "test_rename_onto_existing_name_raises_collision",
-                "line": 20
-              }
-            ],
-            "cluster_hash": "7397ec81c05d"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT tgt.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_absolute_import_untouched",
-                "line": 1812
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_relative_import_cross_package_real_files",
-                "line": 1848
-              }
-            ],
-            "cluster_hash": "b6006d88e10e"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _write(2)>move_symbols(3|dry_run=True)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_all_added_to_existing_target",
-                "line": 227
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_all_untouched_for_unexported_symbol",
-                "line": 251
-              }
-            ],
-            "cluster_hash": "0b2c2a1695cd"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT move_symbols(3|workspace_root=Name)>source.read_text(0)>target.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_shared_helper_duplicate_mode_default",
-                "line": 1420
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_transitive_shared_helper_detected",
-                "line": 1465
-              }
-            ],
-            "cluster_hash": "1e08f7a20b74"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT move_symbols(3)>source.read_text(0)>target.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_move_cross_folder_no_relative_to_error",
-                "line": 2026
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_move_same_folder_unchanged",
-                "line": 2094
-              }
-            ],
-            "cluster_hash": "5484f529270a"
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT move_symbols(3|dry_run=False)>source.read_text(0)>target.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_symbols.py",
-                "name": "test_move_resolves_project_root",
-                "line": 39
-              },
-              {
-                "file": "tests/integration/test_move_symbols.py",
-                "name": "test_fallback_when_no_pyproject",
-                "line": 185
-              }
-            ],
-            "cluster_hash": "4ef007749bc2"
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: _protect(1) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_protect_skips_nested_try",
-                "line": 198
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_protect_skips_nested_if",
-                "line": 208
-              }
-            ],
-            "cluster_hash": "39b4242e7761",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _rename(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_rename_leaves_string_annotation_without_match",
-                "line": 266
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_rename_leaves_unparsable_string_annotation",
-                "line": 272
-              }
-            ],
-            "cluster_hash": "ac246d3dd420",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _sync(3)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_sync_handles_tuple_literal",
-                "line": 300
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_sync_concatenated_string_element_removed",
-                "line": 327
-              }
-            ],
-            "cluster_hash": "42b78c2472f4"
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: _sync(3) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_sync_ignores_non_dunder_all_assign",
-                "line": 307
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_sync_ignores_non_list_tuple_value",
-                "line": 313
-              }
-            ],
-            "cluster_hash": "c0eee7ae9c50",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT GraphEdits(0|adds=List,removes=List)>detect_new_cycle(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_cycles.py",
-                "name": "test_detect_new_cycle_none_on_clean_graph",
-                "line": 6
-              },
-              {
-                "file": "tests/unit/core/test_cycles.py",
-                "name": "test_detect_new_cycle_ignores_preexisting_cycle",
-                "line": 21
-              }
-            ],
-            "cluster_hash": "3a81e051d1f0",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT cycles(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_cycles.py",
-                "name": "test_cycles_deep_chain_does_not_recurse",
-                "line": 46
-              },
-              {
-                "file": "tests/unit/core/test_cycles.py",
-                "name": "test_cycles_no_cycle_returns_empty",
-                "line": 65
-              }
-            ],
-            "cluster_hash": "2dad91435120",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_attribute_rewriter_subscript_chain",
-                "line": 91
-              },
-              {
-                "file": "tests/unit/_cst/test_transformers.py",
-                "name": "test_attribute_rewriter_leaves_other_symbols",
-                "line": 102
-              }
-            ],
-            "cluster_hash": "8f2a8b79db2c",
-            "acknowledged": true
-          }
-        ],
+        "clusters": [],
         "bucket_counts": {
-          "CLUSTERED": 4,
-          "AMBIGUOUS": 53,
-          "UNIQUE": 225
-        },
-        "stale_acknowledged": [
-          {
-            "hash": "3898437281a2",
-            "reason": "Three divergent import concerns: intra-package asserts the relative import is PRESERVED, cross-package asserts it is CONVERTED to absolute, and include_helpers_false asserts a skipped helper is ABSENT from the target \u2014 opposite outcomes, not shared data."
-          },
-          {
-            "hash": "caf1e7efb56c",
-            "reason": "Different import kinds and outcomes: absolute_import_untouched asserts `import os` is copied verbatim, while cross_package_real_files asserts a relative `.utils` import is rewritten to absolute `alpha.utils` \u2014 distinct branches of the import-rewrite logic."
-          },
-          {
-            "hash": "43137c935923",
-            "reason": "Opposite __all__ branches: all_added_to_existing_target asserts a moved EXPORTED name is appended to the target __all__, whereas all_untouched_for_unexported_symbol asserts BOTH __all__ lists stay unchanged when the moved symbol is not exported."
-          },
-          {
-            "hash": "c560ca201423",
-            "reason": "Divergent setup and detection path: duplicate_mode_default drives a directly-shared helper via the shared_helper_fixture, while transitive_shared_helper_detected builds an inline two-hop chain (_b -> _a) to exercise TRANSITIVE sharing detection \u2014 different fixtures and a different code path, not the same data."
-          },
-          {
-            "hash": "3c07c9f9c530",
-            "reason": "Different warning categories: string_forward_ref_warns asserts a string-annotation forward-reference warning naming the moved symbol, while side_effect_decorator_bare_warns asserts a 'side-effect decorator' warning naming a bare @fixture \u2014 unrelated detectors with different warning text."
-          },
-          {
-            "hash": "c5e5201d1e9d",
-            "reason": "Negative assertions on different detectors: forward_ref_no_false_positive asserts no 'forward-reference' warning when only a substring-overlapping name is moved, while non_whitelisted_decorator_no_warn asserts no 'side-effect decorator' warning for an unlisted decorator \u2014 distinct false-positive guards."
-          },
-          {
-            "hash": "9ec978333da8",
-            "reason": "Both raise ImportCycleError but over distinct setups and contracts: move_cross_package_detects_cycle builds an inline two-package uv workspace to assert the AC3/AC6 cross-package detection (formerly skipped), while intra_package_cycle_detection_unchanged is the AC5 regression guard for same-package detection \u2014 different fixtures, different code paths."
-          },
-          {
-            "hash": "1f3ae3172b3e",
-            "reason": "Three divergent concerns across files: overload_partial_move_raises asserts OverloadPartialMoveError, symbol_already_exists_raises asserts a different exception SymbolAlreadyExistsError, and string_forward_ref_not_rewritten is a non-raising happy-path dry_run asserting the literal forward-ref string is preserved in source_text_new \u2014 different exceptions plus a return path, not shared data."
-          },
-          {
-            "hash": "577ca9835640",
-            "reason": "Mixes a raises/rollback branch with two happy-path moves: move_parse_error_rollback monkeypatches a render seam to force MoveValidationError and asserts both files roll back, while move_simple_class asserts plan.moved_names and move_with_direct_constants asserts plan.constants_added \u2014 a raise path versus two return paths checking different fields over different setups (fixture copy vs inline write)."
-          }
-        ]
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 0,
+          "UNIQUE": 0
+        }
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
       "passed": true,
-      "message": "every integration/e2e test exercises the package",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "passed": true,
-      "message": "No private imports in tests/ (see docs/test_quality.md#private-imports)",
+      "passed": false,
+      "message": "20 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
+            "line": 7,
+            "import_module": "axm_anvil.core.callers",
+            "private_symbol": "_discover_callers",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
+            "line": 7,
+            "import_module": "axm_anvil.core.callers",
+            "private_symbol": "_discover_module_import_callers",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
+            "line": 7,
+            "import_module": "axm_anvil.core.callers",
+            "private_symbol": "_find_import_line",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
+            "line": 7,
+            "import_module": "axm_anvil.core.callers",
+            "private_symbol": "_iter_workspace_py_files",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
+            "line": 7,
+            "import_module": "axm_anvil.core.callers",
+            "private_symbol": "_rewrite_module_import_caller",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
+            "line": 7,
+            "import_module": "axm_anvil.core.callers",
+            "private_symbol": "_scan_workspace_py_files",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_extract.py",
+            "line": 8,
+            "import_module": "axm_anvil.core.extract",
+            "private_symbol": "_mkdir_tracking",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 8,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_process_callers",
+            "symbol_kind": "function",
+            "access_kind": "import"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 221,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 187,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_graph_cache_session",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 188,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 189,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 190,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 203,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_graph_cache_session",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 204,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 205,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_graph_cache_session",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 206,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 218,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_graph_cache_session",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
+            "line": 219,
+            "import_module": "axm_anvil.core.move",
+            "private_symbol": "_build_current_graph",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          },
+          {
+            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_postprocess.py",
+            "line": 16,
+            "import_module": "axm_anvil.core",
+            "private_symbol": "_ruff_fix",
+            "symbol_kind": "function",
+            "access_kind": "attribute"
+          }
+        ]
       },
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
       "passed": true,
-      "message": "pyramid levels match folder layout",
-      "details": {
-        "mismatches": [],
-        "total": 0
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -766,7 +443,7 @@
       "message": "Type score: 100/100 (0 errors)",
       "details": {
         "error_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_anvil/",
         "errors": []
       },
       "metadata": null
@@ -798,14 +475,14 @@
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1525
+            "line": 1558
           },
           {
             "severity": "LOW",
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1659
+            "line": 1710
           }
         ]
       },

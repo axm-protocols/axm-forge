@@ -1,8 +1,8 @@
 {
-  "score": 97.2,
+  "score": 96.8,
   "grade": "A",
   "total": 31,
-  "failed": 2,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 9,
         "max_fan_in": 5,
-        "avg_coupling": 4.0,
+        "avg_coupling": 4.12,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.30434782608695,
+        "coverage": 91.31483715319662,
         "failures": []
       },
       "metadata": null
@@ -92,7 +92,7 @@
       "message": "Lint score: 100/100 (0 issues)",
       "details": {
         "issue_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_echo/",
         "issues": []
       },
       "metadata": null
@@ -104,7 +104,7 @@
       "details": {
         "unformatted_count": 0,
         "unformatted_files": [],
-        "checked": "src/ tests/"
+        "checked": "src/ tests_axm_echo/"
       },
       "metadata": null
     },
@@ -119,11 +119,24 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "top_vulns": []
+        "vuln_count": 1,
+        "top_vulns": [
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21.3",
+            "vuln_ids": [
+              "PYSEC-2026-3609",
+              "PYSEC-2026-3654"
+            ],
+            "fix_versions": [
+              "11.0.0",
+              "11.0.1"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -148,8 +161,8 @@
           "tools.py"
         ],
         "exempt_tests": [
-          "tests/unit/test_tools_guards.py",
-          "tests/unit/test_version.py"
+          "tests_axm_echo/unit/test_tools_guards.py",
+          "tests_axm_echo/unit/test_version.py"
         ]
       },
       "metadata": null
@@ -199,102 +212,30 @@
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": false,
-      "message": "3 cluster(s), 1 clustered pair(s)",
+      "passed": true,
+      "message": "no tests found",
       "details": null,
       "metadata": {
-        "clusters": [
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT load_scope(0)>root_a.resolve(0)>root_b.resolve(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_scope.py",
-                "name": "test_load_scope_via_config",
-                "line": 22
-              },
-              {
-                "file": "tests/unit/test_scope.py",
-                "name": "test_load_scope_env_string_is_pathsep_split",
-                "line": 61
-              }
-            ],
-            "cluster_hash": "1d0b8d8709ab"
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: load_scope(0)>tmp_path.resolve(0) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_scope.py",
-                "name": "test_load_scope_absent_degrades_to_cwd",
-                "line": 37
-              },
-              {
-                "file": "tests/unit/test_scope.py",
-                "name": "test_load_scope_config_error_degrades_to_cwd",
-                "line": 49
-              }
-            ],
-            "cluster_hash": "84fd26b343f5"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/test_tools_guards.py",
-                "name": "test_echo_code_invalid_input_returns_error_result",
-                "line": 30
-              },
-              {
-                "file": "tests/unit/test_tools_guards.py",
-                "name": "test_echo_check_invalid_input_returns_error_result",
-                "line": 49
-              }
-            ],
-            "cluster_hash": "78edf031948f"
-          }
-        ],
+        "clusters": [],
         "bucket_counts": {
-          "CLUSTERED": 2,
-          "AMBIGUOUS": 4,
-          "UNIQUE": 71
-        },
-        "stale_acknowledged": []
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 0,
+          "UNIQUE": 0
+        }
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "1 naming finding(s): 1 INFO + 0 WARNING",
-      "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_scope__load_scope.py",
-            "proposed_name": "test_load_scope.py",
-            "path": "tests/integration/test_scope__load_scope.py",
-            "tuple": [
-              "load_scope"
-            ]
-          }
-        ]
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
       "passed": true,
-      "message": "every integration/e2e test exercises the package",
-      "details": {
-        "findings": []
-      },
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -308,147 +249,9 @@
     },
     {
       "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": false,
-      "message": "7 test(s) mis-located vs. classified pyramid level",
-      "details": {
-        "mismatches": [
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/e2e/test_echo_check.py",
-            "function": "test_cli_echo_check",
-            "level": "integration",
-            "reason": "real I/O without package import (integration)",
-            "current_level": "e2e",
-            "has_real_io": true,
-            "has_subprocess": true,
-            "io_signals": [
-              "imports subprocess",
-              "call:subprocess.run",
-              "attr:.mkdir()",
-              "attr:.write_text()",
-              "fixture-arg:tmp_path",
-              "tmp_path-as-arg",
-              "tmp_path+write/read"
-            ],
-            "imports_public": [],
-            "imports_internal": [],
-            "suggested_file": "integration/test_echo_check.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/e2e/test_echo_code.py",
-            "function": "test_cli_echo_code",
-            "level": "integration",
-            "reason": "real I/O without package import (integration)",
-            "current_level": "e2e",
-            "has_real_io": true,
-            "has_subprocess": true,
-            "io_signals": [
-              "imports subprocess",
-              "call:subprocess.run",
-              "attr:.mkdir()",
-              "attr:.write_text()",
-              "fixture-arg:tmp_path",
-              "tmp_path-as-arg",
-              "tmp_path+write/read"
-            ],
-            "imports_public": [],
-            "imports_internal": [],
-            "suggested_file": "integration/test_echo_code.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
-            "function": "test_load_scope_via_config",
-            "level": "integration",
-            "reason": "real I/O + public import (integration)",
-            "current_level": "unit",
-            "has_real_io": true,
-            "has_subprocess": false,
-            "io_signals": [
-              "fixture-arg:tmp_path"
-            ],
-            "imports_public": [
-              "load_scope"
-            ],
-            "imports_internal": [],
-            "suggested_file": "integration/test_scope.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
-            "function": "test_load_scope_absent_degrades_to_cwd",
-            "level": "integration",
-            "reason": "real I/O + public import (integration)",
-            "current_level": "unit",
-            "has_real_io": true,
-            "has_subprocess": false,
-            "io_signals": [
-              "fixture-arg:tmp_path"
-            ],
-            "imports_public": [
-              "load_scope"
-            ],
-            "imports_internal": [],
-            "suggested_file": "integration/test_scope.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
-            "function": "test_load_scope_config_error_degrades_to_cwd",
-            "level": "integration",
-            "reason": "real I/O + public import (integration)",
-            "current_level": "unit",
-            "has_real_io": true,
-            "has_subprocess": false,
-            "io_signals": [
-              "fixture-arg:tmp_path"
-            ],
-            "imports_public": [
-              "load_scope"
-            ],
-            "imports_internal": [],
-            "suggested_file": "integration/test_scope.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
-            "function": "test_load_scope_env_string_is_pathsep_split",
-            "level": "integration",
-            "reason": "real I/O + public import (integration)",
-            "current_level": "unit",
-            "has_real_io": true,
-            "has_subprocess": false,
-            "io_signals": [
-              "fixture-arg:tmp_path"
-            ],
-            "imports_public": [
-              "load_scope"
-            ],
-            "imports_internal": [],
-            "suggested_file": "integration/test_scope.py",
-            "severity": "warning"
-          },
-          {
-            "path": "/home/runner/work/axm-forge/axm-forge/packages/axm-echo/tests/unit/test_scope.py",
-            "function": "test_load_scope_non_string_entries_skipped",
-            "level": "integration",
-            "reason": "real I/O + public import (integration)",
-            "current_level": "unit",
-            "has_real_io": true,
-            "has_subprocess": false,
-            "io_signals": [
-              "fixture-arg:tmp_path"
-            ],
-            "imports_public": [
-              "load_scope"
-            ],
-            "imports_internal": [],
-            "suggested_file": "integration/test_scope.py",
-            "severity": "warning"
-          }
-        ],
-        "total": 7
-      },
+      "passed": true,
+      "message": "no tests/ directory",
+      "details": null,
       "metadata": null
     },
     {
@@ -466,7 +269,7 @@
       "message": "Type score: 100/100 (0 errors)",
       "details": {
         "error_count": 0,
-        "checked": "src/ tests/",
+        "checked": "src/ tests_axm_echo/",
         "errors": []
       },
       "metadata": null

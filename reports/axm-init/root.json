@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge",
-  "score": 83,
+  "score": 86,
   "grade": "B",
   "context": "workspace",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -27,12 +27,12 @@
       "total": 8
     },
     "tooling": {
-      "earned": 14,
+      "earned": 16,
       "total": 16
     },
     "workspace": {
-      "earned": 19,
-      "total": 19
+      "earned": 21,
+      "total": 21
     }
   },
   "checks": [
@@ -247,10 +247,10 @@
     {
       "name": "tooling.precommit_installed",
       "category": "tooling",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "Pre-commit hooks not installed"
+      "message": "Skipped in CI (local-only hook enforcement)"
     },
     {
       "name": "tooling.precommit_mypy",
@@ -314,7 +314,7 @@
       "passed": true,
       "earned": 2,
       "weight": 2,
-      "message": "testpaths configured (14 path(s))"
+      "message": "testpaths cover 14 member suite(s)"
     },
     {
       "name": "workspace.quality_workflow",
@@ -339,6 +339,14 @@
       "earned": 3,
       "weight": 3,
       "message": "Root 'axm-forge-workspace' does not collide with 14 member(s)"
+    },
+    {
+      "name": "workspace.suite_dir_uniqueness",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "14 member suite name(s) are unique"
     }
   ],
   "failures": [
@@ -388,15 +396,6 @@
         "docs/index.md"
       ],
       "fix": "Either opt in by force-including the files:\n[tool.hatch.build.targets.wheel.force-include]\n\"docs/contributing.md\" = \"axm_forge_workspace/docs/contributing.md\"\n\"docs/index.md\" = \"axm_forge_workspace/docs/index.md\"\nor opt out by adding `[tool.axm-init.wheel-doc]` with `files = []`."
-    },
-    {
-      "name": "tooling.precommit_installed",
-      "weight": 2,
-      "message": "Pre-commit hooks not installed",
-      "details": [
-        ".pre-commit-config.yaml exists but hooks are not activated"
-      ],
-      "fix": "Run 'prek install' to activate hooks."
     }
   ]
 }
