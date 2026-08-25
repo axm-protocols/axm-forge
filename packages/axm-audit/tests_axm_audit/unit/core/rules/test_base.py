@@ -57,7 +57,8 @@ class TestRegisterRule:
     """Tests for @register_rule decorator."""
 
     def test_register_rule_populates_registry(self) -> None:
-        """Decorated class appears in the registry."""
+        """Decorated class appears in the registry under (category, framework)."""
+        from axm_audit.core.framework import Framework
         from axm_audit.core.rules.base import _RULE_REGISTRY, ProjectRule, register_rule
 
         @register_rule("_test_cat")
@@ -69,14 +70,16 @@ class TestRegisterRule:
             def check(self, project_path: Path) -> CheckResult:
                 return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
 
-        assert _DummyRule in _RULE_REGISTRY["_test_cat"]
+        key = ("_test_cat", Framework.PYTHON)
+        assert _DummyRule in _RULE_REGISTRY[key]
         # Cleanup
-        _RULE_REGISTRY["_test_cat"].remove(_DummyRule)
-        if not _RULE_REGISTRY["_test_cat"]:
-            del _RULE_REGISTRY["_test_cat"]
+        _RULE_REGISTRY[key].remove(_DummyRule)
+        if not _RULE_REGISTRY[key]:
+            del _RULE_REGISTRY[key]
 
     def test_registry_deduplication(self) -> None:
         """Registering the same class twice doesn't duplicate it."""
+        from axm_audit.core.framework import Framework
         from axm_audit.core.rules.base import _RULE_REGISTRY, ProjectRule, register_rule
 
         @register_rule("_test_dedup")
@@ -91,11 +94,12 @@ class TestRegisterRule:
         # Register again manually
         register_rule("_test_dedup")(_DedupeRule)
 
-        assert _RULE_REGISTRY["_test_dedup"].count(_DedupeRule) == 1
+        key = ("_test_dedup", Framework.PYTHON)
+        assert _RULE_REGISTRY[key].count(_DedupeRule) == 1
         # Cleanup
-        _RULE_REGISTRY["_test_dedup"].remove(_DedupeRule)
-        if not _RULE_REGISTRY["_test_dedup"]:
-            del _RULE_REGISTRY["_test_dedup"]
+        _RULE_REGISTRY[key].remove(_DedupeRule)
+        if not _RULE_REGISTRY[key]:
+            del _RULE_REGISTRY[key]
 
 
 class TestGetRegistry:
@@ -123,13 +127,28 @@ class TestGetRegistry:
         assert expected == set(reg.keys())
 
     def test_registry_total_rule_count(self) -> None:
-        """Registry contains 29 total rule classes."""
+        """The Python registry view contains 29 total rule classes.
+
+        ``get_registry()`` is the back-compat view: Python framework only,
+        keyed by category. Node/Svelte rules live under their own framework and
+        are not counted here (see :meth:`test_node_registry_has_lint_rule`).
+        """
         import axm_audit.core.rules  # noqa: F401
         from axm_audit.core.rules.base import get_registry
 
         reg = get_registry()
         total = sum(len(v) for v in reg.values())
         assert total == 29
+
+    def test_node_registry_has_lint_rule(self) -> None:
+        """The node framework registry exposes the ESLint-backed lint rule."""
+        import axm_audit.core.rules  # noqa: F401
+        from axm_audit.core.framework import Framework
+        from axm_audit.core.rules.base import get_registry_for
+        from axm_audit.core.rules.node.lint import NodeLintRule
+
+        node_reg = get_registry_for(Framework.NODE)
+        assert NodeLintRule in node_reg.get("lint", [])
 
 
 # --- Canonical imports (API publique) ---

@@ -425,9 +425,13 @@ def _cached_call_index(pkg_root: Path) -> dict[str, list[CallSite]] | None:
 
 
 def _iter_fresh_calls(pkg: PackageInfo) -> Iterator[CallSite]:
+    # Dispatch by file language so a node package's .ts modules use the TS
+    # call extractor; for .py this is the same Python path as before.
+    from axm_ast.core.extract import extract_calls as extract_calls_dispatch
+
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
-        yield from extract_calls(mod, module_name=mod_name)
+        yield from extract_calls_dispatch(mod, module_name=mod_name)
 
 
 def find_callers(

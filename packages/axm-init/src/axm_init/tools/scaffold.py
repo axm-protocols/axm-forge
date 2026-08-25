@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 from axm.tools.base import ToolResult
 
+from axm_init.core.framework import Framework
+
 if TYPE_CHECKING:
     from axm_init.adapters.workspace_patcher import PatchReport
 
@@ -155,7 +157,19 @@ class InitScaffoldTool:
         self,
         kwargs: dict[str, object],
     ) -> (
-        tuple[str, str | None, str, str, str, str, str, bool, str | None, str | None]
+        tuple[
+            str,
+            str | None,
+            str,
+            str,
+            str,
+            str,
+            str,
+            bool,
+            str | None,
+            str | None,
+            Framework,
+        ]
         | ToolResult
     ):
         """Extract and validate inputs from kwargs.
@@ -196,6 +210,15 @@ class InitScaffoldTool:
                 error="org, author, and email are required",
             )
 
+        try:
+            framework = Framework(_str("framework", Framework.PYTHON.value))
+        except ValueError:
+            valid = ", ".join(f.value for f in Framework)
+            return ToolResult(
+                success=False,
+                error=f"Unknown framework '{_str('framework')}'. Valid: {valid}",
+            )
+
         if workspace and member is not None:
             return ToolResult(
                 success=False,
@@ -213,6 +236,7 @@ class InitScaffoldTool:
             workspace,
             member,
             license_holder,
+            framework,
         )
 
     def _build_template_data(
@@ -253,6 +277,7 @@ class InitScaffoldTool:
                 description: Project description.
                 workspace: If True, scaffold a UV workspace.
                 member: Member package name to scaffold inside a workspace.
+                framework: Target framework (python, node, svelte).
                 kind: Explicit scaffold kind — one of ``SCAFFOLD_KINDS``
                     (standalone, workspace, member, paper, experiment).
 
@@ -274,6 +299,7 @@ class InitScaffoldTool:
             workspace,
             member,
             license_holder,
+            framework,
         ) = validated
 
         kind = _read_kind(kwargs)
@@ -339,7 +365,7 @@ class InitScaffoldTool:
 
             copier_adapter = CopierAdapter()
             copier_config = CopierConfig(
-                template_path=get_template_path(template_type),
+                template_path=get_template_path(template_type, framework),
                 destination=target_path,
                 data=data,
                 trust_template=True,

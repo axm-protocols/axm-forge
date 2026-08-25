@@ -1,0 +1,59 @@
+{
+  "name": "{{ package_name }}",
+  "version": "0.1.0",
+  "description": "{{ description }}",
+  "license": "{{ license }}",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/{{ org }}/{{ package_name }}.git"
+  },
+  "author": "{{ author_name }} <{{ author_email }}>",
+  "overrides": {
+    "minimatch": "^10.2.5"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "deadcode": "knip",
+    "cycles": "madge --circular src",
+    "duplication": "jscpd src",
+    "docs": "typedoc",
+    "prepare": "svelte-kit sync && husky"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2",
+    "@commitlint/cli": "^19",
+    "@commitlint/config-conventional": "^19",
+    "@sveltejs/adapter-auto": "^7",
+    "@vitest/coverage-v8": "^4",
+    "@sveltejs/kit": "^2",
+    "@sveltejs/vite-plugin-svelte": "^7",
+    "eslint": "^9",
+    "eslint-plugin-import-x": "^4",
+    "eslint-plugin-jsdoc": "^50",
+    "eslint-plugin-n": "^17",
+    "eslint-plugin-sonarjs": "^3",
+    "eslint-plugin-svelte": "^3",
+    "husky": "^9",
+    "jscpd": "^5",
+    "knip": "^5",
+    "madge": "^8",
+    "prettier": "^3",
+    "prettier-plugin-svelte": "^3",
+    "svelte": "^5",
+    "svelte-check": "^4",
+    "typedoc": "^0.28",
+    "typescript": "^5",
+    "typescript-eslint": "^8",
+    "vite": "^8",
+    "vitest": "^4"
+  }
+}

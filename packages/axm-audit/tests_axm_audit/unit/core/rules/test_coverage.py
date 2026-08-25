@@ -8,8 +8,8 @@ from axm_audit.models.results import CheckResult
 
 
 def test_rule_id() -> None:
-    """Rule ID should be QUALITY_COVERAGE."""
-    assert TestCoverageRule().rule_id == "QUALITY_COVERAGE"
+    """Rule ID should be QUALITY_TESTS."""
+    assert TestCoverageRule().rule_id == "QUALITY_TESTS"
 
 
 def _make_failure(test: str = "tests/test_x.py::TestX::test_y") -> FailureDetail:

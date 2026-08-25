@@ -1688,7 +1688,7 @@ class TestImprovementsSection:
         result = AuditResult(
             checks=[
                 CheckResult(
-                    rule_id="QUALITY_COVERAGE",
+                    rule_id="QUALITY_TESTS",
                     passed=True,
                     message="Coverage: 89%",
                     score=88,

@@ -24,7 +24,7 @@ class TestRulesRegistration:
             # security
             "QUALITY_SECURITY",
             # coverage
-            "QUALITY_COVERAGE",
+            "QUALITY_TESTS",
             # dependencies
             "DEPS_AUDIT",
             "DEPS_HYGIENE",

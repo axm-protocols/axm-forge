@@ -1,0 +1,36 @@
+# Copier configuration for a SvelteKit project scaffold.
+# Same variable surface as node-project so InitScaffoldTool feeds both from one
+# data dict. POC: no network _tasks (npm install); the generated project passes
+# the svelte gold-standard checks (package.json + tsconfig + svelte.config).
+
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+_exclude:
+  - "copier.yml"
+
+package_name:
+  type: str
+  help: "Package name (lowercase, hyphens allowed, e.g., my-app)"
+  validator: "{% if not package_name | regex_search('^[a-z][a-z0-9-]*$') %}Invalid package name - use lowercase letters, numbers, and hyphens{% endif %}"
+
+description:
+  type: str
+  help: "One-line description"
+  default: "A SvelteKit app"
+
+license:
+  type: str
+  help: "License type"
+  default: Apache-2.0
+
+org:
+  type: str
+  help: "GitHub organization or username that owns the repository (required)"
+
+author_name:
+  type: str
+  help: "Author name"
+
+author_email:
+  type: str
+  help: "Author email"

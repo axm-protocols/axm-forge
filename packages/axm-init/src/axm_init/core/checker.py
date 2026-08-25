@@ -16,6 +16,11 @@ from axm_init.checks._workspace import (
     detect_context,
     find_workspace_root,
 )
+from axm_init.core.framework import (
+    Framework,
+    detect_framework,
+    resolve_frameworks,
+)
 from axm_init.models.check import CheckResult, ProjectResult
 
 if TYPE_CHECKING:
@@ -40,29 +45,89 @@ __all__ = [
 ]
 
 
-def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
-    """Auto-discover ``check_*`` functions from all modules in ``axm_init.checks``.
+# Sub-packages of ``axm_init.checks`` that hold a non-Python framework's
+# checks. They are skipped by the default (Python) discovery scan and picked up
+# only when the project's framework selects them.
+_FRAMEWORK_CHECK_PACKAGES: frozenset[str] = frozenset({"node", "svelte", "react"})
 
-    Scans every public module in the ``checks`` package (skipping private
-    ``_``-prefixed modules) and collects all public ``check_*`` functions.
-    The module name becomes the category key.
-    """
+
+def _collect_check_fns(module: object) -> list[Callable[[Path], CheckResult]]:
+    """Return the public ``check_*`` functions defined on *module*."""
     import inspect
 
+    return [
+        obj
+        for name, obj in inspect.getmembers(module, inspect.isfunction)
+        if name.startswith("check_") and not name.startswith("_")
+    ]
+
+
+def _discover_checks(
+    package: object = _checks_pkg,
+    *,
+    prefix: str = "axm_init.checks",
+    skip_packages: frozenset[str] = _FRAMEWORK_CHECK_PACKAGES,
+) -> dict[str, list[Callable[[Path], CheckResult]]]:
+    """Auto-discover ``check_*`` functions from the modules of *package*.
+
+    Scans every public module (skipping private ``_``-prefixed modules and the
+    framework sub-packages in *skip_packages*) and collects all public
+    ``check_*`` functions. The module name becomes the category key.
+
+    Args:
+        package: The package object to scan (defaults to ``axm_init.checks``).
+        prefix: Import prefix for the package's modules.
+        skip_packages: Sub-package names to skip (the per-framework check sets).
+    """
     registry: dict[str, list[Callable[[Path], CheckResult]]] = {}
-    for info in pkgutil.iter_modules(_checks_pkg.__path__):
-        if info.name.startswith("_"):
-            continue  # Skip private modules like _utils
-        module_path = f"axm_init.checks.{info.name}"
-        mod = importlib.import_module(module_path)
-        fns: list[Callable[[Path], CheckResult]] = [
-            obj
-            for name, obj in inspect.getmembers(mod, inspect.isfunction)
-            if name.startswith("check_") and not name.startswith("_")
-        ]
+    for info in pkgutil.iter_modules(package.__path__):  # type: ignore[attr-defined]
+        if info.name.startswith("_") or info.name in skip_packages:
+            continue
+        mod = importlib.import_module(f"{prefix}.{info.name}")
+        fns = _collect_check_fns(mod)
         if fns:
             registry[info.name] = fns
     return registry
+
+
+def _discover_framework_checks(
+    framework: Framework,
+) -> dict[str, list[Callable[[Path], CheckResult]]]:
+    """Discover the gold-standard checks for a single non-Python *framework*.
+
+    Looks for a ``axm_init.checks.<framework>`` sub-package. Missing packages
+    (a framework with no delta checks yet) yield an empty registry rather than
+    an error, so a UI framework can be added incrementally.
+    """
+    import importlib
+
+    pkg_name = f"axm_init.checks.{framework.value}"
+    try:
+        pkg = importlib.import_module(pkg_name)
+    except ModuleNotFoundError:
+        return {}
+    return _discover_checks(pkg, prefix=pkg_name, skip_packages=frozenset())
+
+
+def _build_checks_by_framework() -> dict[
+    Framework, dict[str, list[Callable[[Path], CheckResult]]]
+]:
+    """Build the per-framework check registry, resolving the node→UI chain.
+
+    Python uses its own check set. Each non-Python framework merges the check
+    sets of its resolution chain (e.g. svelte = node ⊕ svelte), so the shared
+    node checks run for every UI framework without duplication.
+    """
+    per_fw: dict[Framework, dict[str, list[Callable[[Path], CheckResult]]]] = {
+        Framework.PYTHON: ALL_CHECKS,
+    }
+    for framework in (Framework.NODE, Framework.SVELTE, Framework.REACT):
+        merged: dict[str, list[Callable[[Path], CheckResult]]] = {}
+        for fw in resolve_frameworks(framework):
+            for category, fns in _discover_framework_checks(fw).items():
+                merged.setdefault(category, []).extend(fns)
+        per_fw[framework] = merged
+    return per_fw
 
 
 def get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
@@ -133,10 +198,20 @@ def _redirect_to_root(
     return wrapper
 
 
-# Registry: category -> list of check functions
+# Registry: category -> list of check functions (Python gold standard).
 ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 
-VALID_CATEGORIES = set(ALL_CHECKS.keys())
+# Per-framework gold-standard check sets, keyed by framework. Each UI framework
+# merges the node base layer with its own delta (svelte = node ⊕ svelte, …).
+CHECKS_BY_FRAMEWORK: dict[Framework, dict[str, list[Callable[[Path], CheckResult]]]] = (
+    _build_checks_by_framework()
+)
+
+# Union of every category across every framework — used only for the
+# error-message hint; per-framework validation happens in ``run()``.
+VALID_CATEGORIES = {
+    category for registry in CHECKS_BY_FRAMEWORK.values() for category in registry
+}
 
 
 # --- Context-keyed skip / redirect tables --------------------------------
@@ -299,10 +374,21 @@ def validate_context_tables() -> None:
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
-    def __init__(self, project_path: Path, *, category: str | None = None) -> None:
+    def __init__(
+        self,
+        project_path: Path,
+        *,
+        category: str | None = None,
+        framework: Framework | str | None = None,
+    ) -> None:
         validate_context_tables()
         self.project_path = project_path.resolve()
         self.category = category
+        self.framework = (
+            detect_framework(self.project_path)
+            if framework is None
+            else Framework(framework)
+        )
         self.context = detect_context(self.project_path)
         self.workspace_root = find_workspace_root(self.project_path)
 
@@ -377,15 +463,19 @@ class CheckEngine:
         return kept, excluded_names
 
     def run(self) -> ProjectResult:
-        """Run all checks (or filtered by category) and return result."""
+        """Run all checks (or filtered by category) for the project's framework."""
+        registry = CHECKS_BY_FRAMEWORK.get(self.framework, ALL_CHECKS)
         if self.category:
-            if self.category not in VALID_CATEGORIES:
-                valid = ", ".join(sorted(VALID_CATEGORIES))
-                msg = f"Unknown category '{self.category}'. Valid: {valid}"
+            if self.category not in registry:
+                valid = ", ".join(sorted(registry.keys()))
+                msg = (
+                    f"Unknown category '{self.category}' for framework "
+                    f"'{self.framework.value}'. Valid: {valid}"
+                )
                 raise ValueError(msg)
-            checks_to_run = {self.category: ALL_CHECKS[self.category]}
+            checks_to_run = {self.category: registry[self.category]}
         else:
-            checks_to_run = ALL_CHECKS
+            checks_to_run = registry
 
         exclusions = load_exclusions(self.project_path)
         all_fns = self._filter_checks(checks_to_run)

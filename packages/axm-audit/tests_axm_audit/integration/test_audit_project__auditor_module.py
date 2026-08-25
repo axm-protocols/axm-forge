@@ -19,7 +19,10 @@ def test_audit_project_with_dummy_rule_returns_1_check(
     (tmp_path / "src" / "__init__.py").write_text("")
 
     fake_registry = {"test_quality": [LintingRule]}
-    monkeypatch.setattr(auditor_module, "get_registry", lambda: fake_registry)
+    # auditor resolves rules via ``_merged_registry`` (framework-aware) now.
+    monkeypatch.setattr(
+        auditor_module, "_merged_registry", lambda _framework: fake_registry
+    )
 
     result = audit_project(tmp_path, category="test_quality")
 

@@ -280,7 +280,7 @@ _MIXED_CHECKS: list[tuple[str, int]] = [
     ("QUALITY_SECURITY", 100),
     ("DEPS_AUDIT", 100),
     ("DEPS_HYGIENE", 100),
-    ("QUALITY_COVERAGE", 100),
+    ("QUALITY_TESTS", 100),
     ("ARCH_COUPLING", 100),
     ("ARCH_CIRCULAR", 100),
     ("ARCH_GOD_CLASS", 100),
@@ -296,7 +296,7 @@ _MIXED_CHECKS: list[tuple[str, int]] = [
     ("score_inputs", "expected"),
     [
         pytest.param(
-            [("QUALITY_COVERAGE", 100)],
+            [("QUALITY_TESTS", 100)],
             100.0,
             id="single_check_returns_its_score",
         ),

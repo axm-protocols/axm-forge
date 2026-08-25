@@ -104,8 +104,12 @@ class TestCoverageRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "QUALITY_COVERAGE"
+        """Unique identifier (shared cross-framework: test-suite health).
+
+        Renamed from ``QUALITY_COVERAGE``: the rule verifies the whole suite
+        runs, is non-empty, and is covered — not coverage alone.
+        """
+        return "QUALITY_TESTS"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check test coverage and capture failures with pytest-cov.

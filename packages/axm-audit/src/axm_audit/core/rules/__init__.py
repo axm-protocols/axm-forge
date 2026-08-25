@@ -14,6 +14,24 @@ from axm_audit.core.rules.dependencies import (
     DependencyHygieneRule,
 )
 from axm_audit.core.rules.duplication import DuplicationRule
+from axm_audit.core.rules.node import (
+    NodeCircularImportRule,
+    NodeComplexityRule,
+    NodeCouplingRule,
+    NodeDeadCodeRule,
+    NodeDependencyRule,
+    NodeDiffSizeRule,
+    NodeDuplicationRule,
+    NodeFormatRule,
+    NodeGodClassRule,
+    NodeLintRule,
+    NodeSecretsRule,
+    NodeSecurityLintRule,
+    NodeStructureRule,
+    NodeTestRule,
+    NodeTypeCheckRule,
+    NodeVulnerabilityRule,
+)
 from axm_audit.core.rules.practices.bare_except import BareExceptRule
 from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
@@ -26,6 +44,7 @@ from axm_audit.core.rules.quality_rules import (
 )
 from axm_audit.core.rules.security import SecurityPatternRule, SecurityRule
 from axm_audit.core.rules.structure import PyprojectCompletenessRule
+from axm_audit.core.rules.svelte import SvelteCheckRule
 from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     duplicate_tests as _test_quality_duplicate_tests,
 )
@@ -56,10 +75,27 @@ __all__ = [
     "GodClassRule",
     "LintingRule",
     "MirrorRule",
+    "NodeCircularImportRule",
+    "NodeComplexityRule",
+    "NodeCouplingRule",
+    "NodeDeadCodeRule",
+    "NodeDependencyRule",
+    "NodeDiffSizeRule",
+    "NodeDuplicationRule",
+    "NodeFormatRule",
+    "NodeGodClassRule",
+    "NodeLintRule",
+    "NodeSecretsRule",
+    "NodeSecurityLintRule",
+    "NodeStructureRule",
+    "NodeTestRule",
+    "NodeTypeCheckRule",
+    "NodeVulnerabilityRule",
     "ProjectRule",
     "PyprojectCompletenessRule",
     "SecurityPatternRule",
     "SecurityRule",
+    "SvelteCheckRule",
     "TestCoverageRule",
     "ToolAvailabilityRule",
     "TypeCheckRule",

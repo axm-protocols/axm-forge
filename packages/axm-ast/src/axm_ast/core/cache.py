@@ -139,7 +139,7 @@ class PackageCache:
         Returns:
             Dict mapping dotted module names to their call-sites.
         """
-        from axm_ast.core.callers import extract_calls
+        from axm_ast.core.extract import extract_calls
 
         key = path.resolve()
         # Ensure PackageInfo is cached (also handles fingerprint check)
