@@ -56,11 +56,29 @@ class BatchRollbackTool:
     """Restore project state to a previous checkpoint.
 
     Registered as ``batch_rollback`` via axm.tools entry point.
+
+    Not to be confused with the atomicity of ``batch_edit``. A batch that
+    fails mid-apply restores every file it touched by itself, through the
+    same :func:`axm_edit.core.checkpoint.rollback` primitive and without
+    anyone calling this tool. What this tool undoes is a batch that
+    *succeeded*.
+
+    That case is reachable only by a caller holding the checkpoint payload
+    from ``batch_edit``'s structured ``data``. An MCP agent sees the text
+    view, which omits the payload on purpose (it is the base64 of every
+    touched file), so in practice a successful batch is undone with git.
     """
 
     agent_hint: str = (
-        "Undo a batch_edit. Pass back the full checkpoint snapshot payload"
-        " from the batch_edit response verbatim (a JSON string, not a hash)."
+        "Programmatic undo of a batch_edit, for callers that read the tool's"
+        " structured `data`. It needs the full checkpoint snapshot payload"
+        " (a JSON string, not a hash), which lives in batch_edit's"
+        " `data['checkpoint']` and is deliberately absent from its text"
+        " view — the payload is the base64 of every touched file and costs"
+        " tens of thousands of tokens to render. An agent reading only that"
+        " text cannot supply it: undo a successful batch with git instead"
+        " (`git checkout -- .`). A batch that fails mid-apply already rolls"
+        " itself back — nothing to call here."
     )
 
     @property
