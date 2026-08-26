@@ -94,6 +94,8 @@ class ImpactResult(TypedDict, total=False):
     # Workspace-root-relative POSIX paths, populated by workspace analysis.
     test_file_paths: list[str]
     test_files_by_import: list[str]
+    # Project-root-relative POSIX companions for import-based test matches.
+    test_file_paths_by_import: list[str]
     # OPT-IN only (``analyze_impact(..., include_module_importers=True)``):
     # modules that import the edited symbol's *module* (or a re-export shim
     # of it) without referencing the symbol itself — invisible to a
@@ -745,6 +747,9 @@ def _add_import_based_tests(
     import_tests = _find_test_files_by_import(bare_module, project_root)
     if import_tests:
         result["test_files_by_import"] = [str(t.name) for t in import_tests]
+        result["test_file_paths_by_import"] = [
+            test_file.relative_to(project_root).as_posix() for test_file in import_tests
+        ]
 
 
 def _is_symbol_public(pkg: PackageInfo, symbol: str) -> bool:
@@ -980,6 +985,9 @@ def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the 
         "reexports": reexports,
         "affected_modules": sorted(affected_modules),
         "test_files": [str(t.name) for t in test_files],
+        "test_file_paths": sorted(
+            test_file.relative_to(root).as_posix() for test_file in test_files
+        ),
         "git_coupled": [],
         "score": "LOW",
     }

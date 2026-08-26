@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_ast.core.impact import ImpactResult, analyze_impact
+from axm_ast.core.impact import ImpactResult, analyze_impact, map_tests
 from tests_axm_ast.integration._helpers import (
     _make_import_heuristic_project,
     _make_project_with_test_callers,
@@ -40,6 +40,103 @@ def test_project_root_input_uses_its_configured_namespaced_suite(
     result = analyze_impact(tmp_path, "greet")
 
     assert result["test_files"] == ["test_greeting.py"]
+
+
+@pytest.fixture
+def mono_impact_path_project(tmp_path: Path) -> tuple[Path, Path]:
+    """Build a package with colliding test basenames in its configured suite."""
+    project_root = tmp_path / "project"
+    package = project_root / "src" / "sample_pkg"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "mod.py").write_text(
+        "def target() -> int:\n    return 1\n",
+        encoding="utf-8",
+    )
+    for level in ("unit", "integration"):
+        suite = project_root / "tests_sample_pkg" / level
+        suite.mkdir(parents=True)
+        (suite / "test_mod.py").write_text(
+            "from sample_pkg.mod import target\n\n"
+            "def test_target() -> None:\n    assert target() == 1\n",
+            encoding="utf-8",
+        )
+    (project_root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_sample_pkg"]\n',
+        encoding="utf-8",
+    )
+    return project_root, package
+
+
+@pytest.mark.integration
+def test_mono_impact_publishes_project_relative_test_paths(
+    mono_impact_path_project: tuple[Path, Path],
+) -> None:
+    """AC1: publish every mapped test as a sorted project-relative POSIX path."""
+    project_root, package = mono_impact_path_project
+
+    result = analyze_impact(package, "target", project_root=project_root)
+
+    expected = sorted(
+        path.relative_to(project_root).as_posix()
+        for path in map_tests("target", project_root)
+    )
+    assert result["test_file_paths"] == expected
+
+
+@pytest.mark.integration
+def test_mono_impact_test_paths_are_relative_distinct_and_existing(
+    mono_impact_path_project: tuple[Path, Path],
+) -> None:
+    """AC2: colliding basenames retain distinct, relative, resolvable paths."""
+    project_root, package = mono_impact_path_project
+
+    result = analyze_impact(package, "target", project_root=project_root)
+    published = result["test_file_paths"]
+
+    assert published == [
+        "tests_sample_pkg/integration/test_mod.py",
+        "tests_sample_pkg/unit/test_mod.py",
+    ]
+    assert all(not Path(entry).is_absolute() for entry in published)
+    assert all((project_root / entry).exists() for entry in published)
+
+
+@pytest.mark.integration
+def test_import_heuristic_publishes_path_companion_without_changing_basenames(
+    tmp_path: Path,
+) -> None:
+    """AC3: import-based tests gain paths while legacy basenames stay unchanged."""
+    project_root = tmp_path / "project"
+    package = project_root / "src" / "sample_pkg"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "models.py").write_text(
+        "class InternalCfg:\n    pass\n",
+        encoding="utf-8",
+    )
+    suite = project_root / "tests_sample_pkg" / "unit"
+    suite.mkdir(parents=True)
+    (suite / "test_models.py").write_text(
+        "from sample_pkg import models\n\n"
+        "def test_module_import() -> None:\n    assert models is not None\n",
+        encoding="utf-8",
+    )
+    (project_root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_sample_pkg"]\n',
+        encoding="utf-8",
+    )
+
+    result = analyze_impact(package, "InternalCfg", project_root=project_root)
+
+    assert result["test_files_by_import"] == ["test_models.py"]
+    assert result["test_file_paths_by_import"] == [
+        "tests_sample_pkg/unit/test_models.py"
+    ]
+    assert all(
+        not Path(entry).is_absolute() and (project_root / entry).exists()
+        for entry in result["test_file_paths_by_import"]
+    )
 
 
 def _find_git_root(start: Path) -> Path | None:
