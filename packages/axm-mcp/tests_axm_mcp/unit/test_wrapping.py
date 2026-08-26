@@ -157,8 +157,13 @@ def _capture_wrapper(name: str, tool: Any) -> Any:
         ),
         pytest.param(
             FakeToolResult(success=False, data={}, error="bad", text="Error: bad"),
-            {"success": False, "error": "bad"},
-            id="failing_text_flattens",
+            "Error: bad",
+            id="failing_text_owning_its_error_is_not_doubled",
+        ),
+        pytest.param(
+            FakeToolResult(success=False, data={"k": 1}, error="bad"),
+            {"success": False, "k": 1, "error": "bad"},
+            id="failing_without_text_flattens",
         ),
     ],
 )
@@ -518,17 +523,89 @@ def test_tool_exception_is_traced(mock_log: MagicMock) -> None:
 
 
 @patch("axm_mcp.wrapping.log_external_step")
-def test_failing_result_with_text_not_shortcircuited(mock_log: MagicMock) -> None:
-    """AC3: a failing ToolResult with text falls through to the flattened dict."""
+def test_failing_result_with_text_prefixed_with_status(mock_log: MagicMock) -> None:
+    """A failing ToolResult keeps its own text, behind a composed status line.
+
+    The text a tool renders for its failure paths is the diagnostic the reader
+    needs most; it reaches them, while the leading marker and the ``error``
+    keep the failure unmistakable.
+    """
     result = FakeToolResult(success=False, data={}, error="x", text="# md")
     tool = FakeTool(result)
     wrapper = _capture_wrapper("failing_text", tool)
 
     out = wrapper()
 
+    assert isinstance(out, str)
+    assert out == "✗ x\n# md"
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_failing_text_quoting_error_later_still_marked(mock_log: MagicMock) -> None:
+    """An error echoed further down the text does not suppress the marker.
+
+    Only a first line already carrying the error counts as the tool's own
+    status header. An error string quoted inside a diagnostic body (or an
+    anchor excerpt) must not be enough to strip the marker, or a failure could
+    arrive looking unmarked.
+    """
+    result = FakeToolResult(
+        success=False, data={}, error="boom", text="header\n  detail: boom here"
+    )
+    wrapper = _capture_wrapper("late_echo", FakeTool(result))
+
+    out = wrapper()
+
+    assert out.startswith("✗ boom")
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_failing_result_cannot_masquerade_as_success(mock_log: MagicMock) -> None:
+    """A failing tool cannot present itself as passing, whatever its text says.
+
+    Guards the invariant behind the original success-gated short-circuit: a
+    ``ToolResult(success=False)`` must never reach the reader as bare prose.
+    The gate bought that by discarding the text; the status line composed by
+    the wrapper buys it without the loss. Do not re-gate the shortcut on
+    ``success`` to restore this property - this test already holds it.
+    """
+    result = FakeToolResult(
+        success=False, data={}, error="disk full", text="everything is fine"
+    )
+    wrapper = _capture_wrapper("masquerade", FakeTool(result))
+
+    out = wrapper()
+
+    assert isinstance(out, str)
+    assert out.startswith("\u2717 disk full")
+    assert "everything is fine" in out
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_failing_result_without_text_still_flattens(mock_log: MagicMock) -> None:
+    """A failure carrying no text keeps the structured envelope as its fallback."""
+    result = FakeToolResult(success=False, data={"detail": 1}, error="x")
+    wrapper = _capture_wrapper("failing_no_text", FakeTool(result))
+
+    out = wrapper()
+
     assert isinstance(out, dict)
     assert out["success"] is False
     assert out["error"] == "x"
+    assert out["detail"] == 1
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_failing_result_text_carries_hint(mock_log: MagicMock) -> None:
+    """``hint`` survives the text path, as it does on the flattened one."""
+    result = FakeToolResult(
+        success=False, data={}, error="bad anchor", text="details", hint="re-read it"
+    )
+    wrapper = _capture_wrapper("failing_hint", FakeTool(result))
+
+    out = wrapper()
+
+    assert out == "\u2717 bad anchor\ndetails\nhint: re-read it"
 
 
 @patch("axm_mcp.wrapping.log_external_step")

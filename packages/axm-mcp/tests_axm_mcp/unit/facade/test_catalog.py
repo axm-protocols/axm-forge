@@ -165,7 +165,13 @@ class TestCallFailureContract:
         return _catalog(fake=_FakeTool())
 
     def test_call_failure_preserves_signal(self) -> None:
-        """AC2: a failing ToolResult never loses success=False/error to bare text."""
+        """AC2: a failing ToolResult never reaches the caller as bare text.
+
+        The signal is now carried by the status line the wrapper composes
+        rather than by a flattened ``success: False`` key, so the failure and
+        its ``error`` stay unmistakable while the tool's own diagnostic text
+        — the part a reader actually needs — survives alongside them.
+        """
         res = self._Res(
             success=False,
             error="boom",
@@ -174,9 +180,10 @@ class TestCallFailureContract:
         )
         out = self._catalog_for(res).call("fake")
 
-        assert "success: False" in out
-        assert "error: boom" in out
+        assert out.startswith("\u2717 ")
+        assert "boom" in out
         assert out != "human readable failure message"
+        assert "human readable failure message" in out
 
     def test_call_success_short_circuits_to_text(self) -> None:
         """AC2: a successful ToolResult with text still short-circuits to it."""
