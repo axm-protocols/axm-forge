@@ -116,7 +116,7 @@ def test_zero_collection_fails_closed(
         _report(collected=0, verdict=False),
     )
 
-    assert result.success is True
+    assert result.success is False
     assert result.data is not None
     assert result.data["collected"] == 0
     assert result.data["verdict"] is False
@@ -135,7 +135,7 @@ def test_missing_and_mistyped_targets_fail_independently(
         _report(collected=7, target_statuses=statuses, verdict=False),
     )
 
-    assert result.success is True
+    assert result.success is False
     assert result.data is not None
     assert result.data["target_statuses"] == statuses
     assert "tests/test_missing.py" in (result.text or "")
@@ -155,7 +155,7 @@ def test_silently_omitted_target_fails_independently(
         _report(collected=4, target_statuses=statuses, verdict=False),
     )
 
-    assert result.success is True
+    assert result.success is False
     assert result.data is not None
     assert result.data["target_statuses"][1] == statuses[1]
     assert "tests/test_empty.py" in (result.text or "")
@@ -170,7 +170,7 @@ def test_non_success_exit_overrides_empty_failure_lists(
         _report(pytest_return_code=3, collected=1, verdict=False),
     )
 
-    assert result.success is True
+    assert result.success is False
     assert result.data is not None
     assert result.data["pytest_return_code"] == 3
     assert result.data["verdict"] is False

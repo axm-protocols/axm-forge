@@ -23,6 +23,8 @@ class _FakeReport:
     collected: int = 5
     target_statuses: list[dict[str, str]] = dataclasses.field(default_factory=list)
     verdict: bool = True
+    cases: tuple[object, ...] = ()
+    non_test_cause: object | None = None
 
 
 @pytest.fixture()

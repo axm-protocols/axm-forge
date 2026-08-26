@@ -5,12 +5,39 @@ from __future__ import annotations
 import dataclasses
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from axm.tools.base import AXMTool, ToolResult
+
+if TYPE_CHECKING:
+    from axm_audit.core.test_runner import TestReport
 
 __all__ = ["AuditTestTool"]
 
 logger = logging.getLogger(__name__)
+
+
+def _tool_succeeded(report: TestReport) -> bool:
+    """Whether the tool did its job, independent of the test verdict.
+
+    ``success`` answers "did audit_test run a genuine test session?", not "did
+    the tests pass" — that is ``data["verdict"]``. A red run is a successful
+    measurement of a failure, so it is ``success=True``. What is *not* a
+    successful measurement is the tool being unable to validate what was asked:
+    a target that collected nothing, a missing/omitted target, a collection or
+    usage error, a timeout. Those keep ``success=False`` so a caller can still
+    tell a real tool failure from failing tests.
+    """
+    if report.non_test_cause is not None or report.timed_out:
+        return False
+    # pytest exit 0 (all passed) and 1 (tests failed) are the only codes that
+    # mean "a verdict was reached"; 2 (collection/usage), 3 (internal error),
+    # 4 (usage), 5 (no tests) are the tool failing to run a session.
+    if report.pytest_return_code not in (0, 1):
+        return False
+    if (report.collected or 0) == 0:
+        return False
+    return all(status["status"] == "validated" for status in report.target_statuses)
 
 
 class AuditTestTool(AXMTool):
@@ -84,6 +111,6 @@ class AuditTestTool(AXMTool):
 
             text = format_audit_test_text(report)
 
-            return ToolResult(success=True, data=data, text=text)
+            return ToolResult(success=_tool_succeeded(report), data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
