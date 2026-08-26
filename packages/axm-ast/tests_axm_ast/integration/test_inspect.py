@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from axm.tools.base import ToolResult
+
+from axm_ast.tools.inspect import InspectTool
 
 
 @pytest.fixture
@@ -190,3 +193,25 @@ def test_inspect_batch_partial_failure(
     assert "search_symbols" in captured.out
     assert "\u26a0" in captured.out
     assert "nonexistent" in captured.out
+
+
+def test_real_ambiguous_symbol_caps_candidates() -> None:
+    """AC1: a real ambiguous lookup renders exactly five candidate qualnames."""
+    package_root = Path(__file__).resolve().parents[2]
+
+    result = InspectTool().execute(path=str(package_root), symbol="name")
+
+    assert result.success is False
+    assert result.error is not None
+    assert result.error.count(".name") == 5
+
+
+def test_real_ambiguous_symbol_states_total() -> None:
+    """AC3: a real ambiguous lookup reports its explicit total match count."""
+    package_root = Path(__file__).resolve().parents[2]
+
+    result = InspectTool().execute(path=str(package_root), symbol="name")
+
+    assert result.success is False
+    assert result.error is not None
+    assert re.search(r"matches \d+ symbols", result.error)

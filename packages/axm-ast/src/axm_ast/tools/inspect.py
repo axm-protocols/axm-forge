@@ -27,6 +27,19 @@ logger = logging.getLogger(__name__)
 __all__ = ["InspectTool"]
 
 
+def format_ambiguous_symbol_error(symbol: str, candidates: list[str]) -> str:
+    """Render a bounded, actionable error for an ambiguous symbol lookup."""
+    unique_candidates = sorted(set(candidates))
+    shown = unique_candidates[:5]
+    remainder = len(unique_candidates) - len(shown)
+    remainder_text = f", +{remainder} more" if remainder else ""
+    return (
+        f"Multiple symbols: '{symbol}' matches {len(unique_candidates)} symbols: "
+        f"{', '.join(shown)}{remainder_text}. "
+        "Pass a dotted path (Module.symbol or Class.method) to disambiguate."
+    )
+
+
 class InspectTool(AXMTool):
     """Inspect a symbol across the package without knowing its file.
 
@@ -153,11 +166,11 @@ class InspectTool(AXMTool):
         # silently pick a substring superset (mirrors ``resolve_module``).
         exact = [(mod, sym) for mod, sym in results if sym.name == symbol]
 
-        if len(exact) > 1:
-            modules = sorted(f"{mod}.{symbol}" for mod, _ in exact)
+        candidates = sorted({f"{mod}.{symbol}" for mod, _ in exact})
+        if len(candidates) > 1:
             return ToolResult(
                 success=False,
-                error=f"Multiple symbols match '{symbol}': {', '.join(modules)}",
+                error=format_ambiguous_symbol_error(symbol, candidates),
             )
 
         if not exact:

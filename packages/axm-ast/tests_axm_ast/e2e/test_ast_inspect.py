@@ -8,6 +8,7 @@ reaches the shipped binary, not just the in-process tool.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -48,3 +49,26 @@ def test_ast_inspect_cli_surfaces_abstract_kind(abstract_pkg: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
     assert payload["kind"] == "abstract", proc.stdout
+
+
+def test_ast_inspect_cli_explains_ambiguous_symbol() -> None:
+    """AC3/AC5: CLI failure gives the total and dotted-path repair hint."""
+    package_root = Path(__file__).resolve().parents[2]
+
+    proc = subprocess.run(
+        [
+            "axm",
+            "ast_inspect",
+            "--path",
+            str(package_root),
+            "--symbol",
+            "name",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    rendered = f"{proc.stdout}\n{proc.stderr}"
+    assert re.search(r"matches \d+ symbols", rendered)
+    assert "Module.symbol or Class.method" in rendered

@@ -9,6 +9,7 @@ import pytest
 from axm.tools.base import ToolResult
 
 from axm_ast.models.nodes import ClassInfo
+from axm_ast.tools import inspect as inspect_module
 from axm_ast.tools.inspect import InspectTool
 from axm_ast.tools.inspect_detail import (
     class_detail,
@@ -370,3 +371,55 @@ class TestInspectExactMatch:
         assert not result.success
         assert result.error is not None
         assert "not found" in result.error
+
+
+class TestAmbiguousSymbolError:
+    """Compact formatting for ambiguous simple-name lookups."""
+
+    @staticmethod
+    def _candidates(count: int) -> list[str]:
+        return [f"pkg.mod{i:02d}.target" for i in range(count)]
+
+    def test_caps_candidate_list_at_five(self) -> None:
+        """AC1: only five candidate qualnames are rendered for 18 matches."""
+        candidates = self._candidates(18)
+
+        message = inspect_module.format_ambiguous_symbol_error("target", candidates)
+
+        rendered = [candidate for candidate in candidates if candidate in message]
+        assert rendered == candidates[:5]
+
+    def test_appends_remainder_indicator(self) -> None:
+        """AC2: omitted candidates are summarized by an exact remainder count."""
+        message = inspect_module.format_ambiguous_symbol_error(
+            "target", self._candidates(18)
+        )
+
+        assert "+13 more" in message
+
+    def test_states_total_match_count(self) -> None:
+        """AC3: the message states the total number of unique matches."""
+        message = inspect_module.format_ambiguous_symbol_error(
+            "target", self._candidates(18)
+        )
+
+        assert "matches 18 symbols" in message
+
+    def test_deduplicates_candidate_qualnames(self) -> None:
+        """AC4: duplicate qualnames render and count only once."""
+        message = inspect_module.format_ambiguous_symbol_error(
+            "target",
+            ["pkg.a.target", "pkg.a.target", "pkg.a.target", "pkg.b.target"],
+        )
+
+        assert message.count("pkg.a.target") == 1
+        assert message.count("pkg.b.target") == 1
+        assert "matches 2 symbols" in message
+
+    def test_includes_dotted_path_hint(self) -> None:
+        """AC5: callers are told which dotted-path forms disambiguate a name."""
+        message = inspect_module.format_ambiguous_symbol_error(
+            "target", self._candidates(6)
+        )
+
+        assert "Module.symbol or Class.method" in message
