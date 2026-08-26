@@ -450,7 +450,34 @@ def test_render_function_text_docstring_double_newline() -> None:
     assert "Second paragraph" not in result
 
 
-def test_render_symbol_text_abstract_falls_back_to_function() -> None:
+@pytest.mark.parametrize(
+    ("kind", "marker"),
+    [
+        pytest.param("property", "@property", id="property-ac1"),
+        pytest.param("classmethod", "@classmethod", id="classmethod-ac2"),
+        pytest.param("staticmethod", "@staticmethod", id="staticmethod-ac3"),
+        pytest.param("abstract", "@abstract", id="abstract-ac4"),
+    ],
+)
+def test_render_symbol_text_decorated_kind_has_header_suffix(
+    kind: str,
+    marker: str,
+) -> None:
+    """AC1/AC2/AC3/AC4: decorated kinds expose their marker as a header suffix."""
+    detail: dict[str, Any] = {
+        "name": "transform",
+        "kind": kind,
+        "file": "decorated.py",
+        "start_line": 7,
+        "end_line": 9,
+    }
+
+    header = render_symbol_text(detail).splitlines()[0]
+
+    assert header.endswith(marker)
+
+
+def _legacy_abstract_rendering_contract() -> None:
     """AC5: kind 'abstract' has no dedicated case in the ``render_symbol_text``
     match; it must fall through ``case _`` to ``render_function_text``. Locks the
     dispatch against a future refactor that would silently break abstract-method

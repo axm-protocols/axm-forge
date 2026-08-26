@@ -177,6 +177,10 @@ def render_symbol_text(detail: Mapping[str, object]) -> str:
     match kind:
         case "function" | "method":
             return render_function_text(detail)
+        case "property" | "classmethod" | "staticmethod" | "abstract":
+            rendered = render_function_text(detail)
+            header, separator, body = rendered.partition("\n")
+            return f"{header} @{kind}{separator}{body}"
         case "class":
             return render_class_text(detail)
         case "variable":
