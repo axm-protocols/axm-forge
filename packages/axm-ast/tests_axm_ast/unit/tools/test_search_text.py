@@ -4,7 +4,11 @@ import re
 from typing import Any
 
 from axm_ast.models.nodes import SymbolKind
-from axm_ast.tools.search_text import format_symbol_line, format_text_header
+from axm_ast.tools.search_text import (
+    format_symbol_line,
+    format_text_header,
+    render_text,
+)
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,3 +166,50 @@ class TestEdgeCases:
         )
         assert "inherits=AXMTool" in h
         assert "2 hits" in h
+
+
+def _homonymous_search_text() -> str:
+    symbols = [
+        {
+            "name": "logger",
+            "module": "axm_ast.cli",
+            "kind": "variable",
+            "annotation": "logging.Logger",
+        },
+        {
+            "name": "logger",
+            "module": "axm_ast.core.parser",
+            "kind": "variable",
+            "annotation": "logging.Logger",
+        },
+    ]
+    return render_text(
+        symbols,
+        search_filters={
+            "name": "logger",
+            "returns": None,
+            "kind": SymbolKind.VARIABLE,
+            "inherits": None,
+        },
+        suggestions=None,
+    )
+
+
+def test_render_text_surfaces_each_result_module():
+    """AC1: every rendered search result includes its module qualname."""
+    text = _homonymous_search_text()
+
+    assert "axm_ast.cli" in text
+    assert "axm_ast.core.parser" in text
+
+
+def test_render_text_distinguishes_homonymous_results():
+    """AC2: modules make homonymous result lines distinguishable."""
+    lines = [
+        line.strip()
+        for line in _homonymous_search_text().splitlines()
+        if line.startswith("logger")
+    ]
+
+    assert len(lines) == 2
+    assert lines[0] != lines[1]

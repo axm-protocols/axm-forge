@@ -144,11 +144,20 @@ def _group_symbols(
 def _render_symbol_lines(symbols: list[SearchResultEntry]) -> list[str]:
     """Build formatted lines for grouped symbols (funcs, classes, variables)."""
     funcs, classes, variables = _group_symbols(symbols)
-    lines = [format_symbol_line(s) for s in funcs]
-    if classes:
-        lines.append(", ".join(format_symbol_line(s) for s in classes))
-    lines.extend(format_symbol_line(s) for s in variables)
+    lines = [_format_symbol_with_module(s) for s in funcs]
+    class_lines = [_format_symbol_with_module(s) for s in classes]
+    if len({s["name"] for s in classes}) < len(classes):
+        lines.extend(class_lines)
+    elif class_lines:
+        lines.append(", ".join(class_lines))
+    lines.extend(_format_symbol_with_module(s) for s in variables)
     return lines
+
+
+def _format_symbol_with_module(symbol: SearchResultEntry) -> str:
+    line = format_symbol_line(symbol)
+    module = symbol.get("module")
+    return f"{line} [{module}]" if module else line
 
 
 def _render_suggestion_lines(suggestions: list[Suggestion]) -> list[str]:

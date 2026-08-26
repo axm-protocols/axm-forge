@@ -521,11 +521,11 @@ def search(
         print(json.dumps([r.model_dump(mode="json") for _, r in results], indent=2))
     else:
         print(f"🔍 {len(results)} result(s):\n")
-        for _, r in results:
+        for module, r in results:
             if hasattr(r, "signature"):
-                print(f"  · {r.signature}")
+                print(f"  · {r.signature} [{module}]")
             else:
-                print(f"  · class {r.name}")
+                print(f"  · class {r.name} [{module}]")
 
 
 @app.command()
