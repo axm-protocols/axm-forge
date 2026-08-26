@@ -116,6 +116,19 @@ class TestInspectModuleSourceEdgeCases:
         source_lines = detail["source"].splitlines()
         assert len(source_lines) <= 210  # capped around 200 lines
 
+    def test_large_module_source_marks_truncation(self, large_pkg):
+        """A capped module source ends with an explicit truncation marker.
+
+        The cap is deliberate (token economy), but it must not be silent:
+        the rendered source states how many lines were dropped rather than
+        implicitly claiming to be complete.
+        """
+        result = inspect_module(large_pkg, "big", source=True)
+        assert result is not None
+        source = result.data["symbol"]["source"]
+        # 252 lines total (docstring + blank + 250 VARs), 200 kept -> 52 hidden.
+        assert "… (+52 lines truncated)" in source
+
     def test_empty_module_source(self, empty_pkg):
         """Empty module (no functions/classes) with source=True: source included."""
         result = inspect_module(empty_pkg, "bare", source=True)

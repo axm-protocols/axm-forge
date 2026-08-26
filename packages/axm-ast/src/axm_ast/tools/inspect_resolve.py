@@ -99,7 +99,9 @@ def inspect_module(
             text = mod.path.read_text(encoding="utf-8")
             lines = text.splitlines(keepends=True)
             if len(lines) > _MAX_SOURCE_LINES:
-                text = "".join(lines[:_MAX_SOURCE_LINES])
+                hidden = len(lines) - _MAX_SOURCE_LINES
+                kept = "".join(lines[:_MAX_SOURCE_LINES]).rstrip("\n")
+                text = f"{kept}\n… (+{hidden} lines truncated)\n"
             detail["source"] = text
         except OSError:
             pass
