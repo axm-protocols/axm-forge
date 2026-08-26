@@ -133,6 +133,38 @@ class TestDuplicate:
         assert result.passed is False
         assert result.details["duplicate_count"] == 1
 
+    def test_shared_nested_setup_is_not_a_duplicate(self, tmp_path: Path) -> None:
+        """Two tests sharing a mock setup with `{}` differ if their asserts differ.
+
+        Regression: a non-greedy `body.*?}` stops at the first inner brace (the
+        `mockResolvedValue({…})` setup), truncating both bodies to their shared
+        opening and reporting a false duplicate. Brace-balancing reads the whole
+        body, so distinct assertions keep the two tests apart.
+        """
+        root = _node_project(tmp_path)
+        (root / "src" / "h.test.ts").write_text(
+            "test('resume', () => {\n"
+            "  mockState({ ...IN_SYNC, tasks: [task('paused')] });\n"
+            "  expect(button.label).toBe('Reprendre');\n"
+            "});\n"
+            "test('failure', () => {\n"
+            "  mockState({ ...IN_SYNC, tasks: [task('paused')] });\n"
+            "  expect(errorBox.text).toContain('unavailable');\n"
+            "});\n"
+        )
+        assert NodeTestDuplicateRule().check(root).passed is True
+
+    def test_identical_bodies_with_nested_braces_flagged(self, tmp_path: Path) -> None:
+        """Fully-identical bodies still collide even with nested braces."""
+        root = _node_project(tmp_path)
+        body = "mockState({ tasks: [task('x')] }); expect(view.count).toBe(1);"
+        (root / "src" / "i.test.ts").write_text(
+            f"test('a', () => {{ {body} }});\ntest('b', () => {{ {body} }});\n"
+        )
+        result = NodeTestDuplicateRule().check(root)
+        assert result.passed is False
+        assert result.details["duplicate_count"] == 1
+
     def test_node_modules_is_never_scanned(self, tmp_path: Path) -> None:
         """Third-party tests under node_modules must not be counted (regression).
 

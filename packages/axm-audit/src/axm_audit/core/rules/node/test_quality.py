@@ -267,10 +267,14 @@ class NodeTestTautologyRule(ProjectRule):
         )
 
 
-# A test case: it("…", () => { … }) / test("…", … ). Capture the body.
-_TEST_CASE = re.compile(
-    r"""\b(?:it|test)\s*\(\s*['"`].*?['"`]\s*,\s*(?:async\s*)?\(\s*\)\s*=>\s*\{"""
-    r"""(?P<body>.*?)\}\s*\)\s*;?""",
+# Start of a test case: it("…", () => { / test("…", async () => {. Anchors the
+# opening brace; the body is then read by balancing braces (see below), NOT by a
+# non-greedy `.*?}` — that stops at the FIRST inner `}` (e.g. a
+# `mockResolvedValue({…})` setup), truncating the body to its opening lines and
+# reporting two tests that merely share a setup as duplicates. Brace-balancing
+# captures the whole body, so only genuinely identical tests collide.
+_TEST_CASE_OPEN = re.compile(
+    r"""\b(?:it|test)\s*\(\s*['"`].*?['"`]\s*,\s*(?:async\s*)?\(\s*\)\s*=>\s*\{""",
     re.DOTALL,
 )
 
@@ -278,6 +282,29 @@ _TEST_CASE = re.compile(
 # Ignore trivial bodies (e.g. a lone `expect(true).toBe(true)`) — too short to
 # be a meaningful duplicate signal.
 _MIN_BODY_LEN = 20
+
+
+def _iter_test_bodies(text: str) -> list[str]:
+    """Yield each test's full body, read by balancing braces from its ``=> {``.
+
+    A regex cannot match nested braces, so the body is extracted by scanning from
+    the opening brace and counting depth until it returns to zero.
+    """
+    bodies: list[str] = []
+    for match in _TEST_CASE_OPEN.finditer(text):
+        start = match.end()  # first char after the opening `{`
+        depth = 1
+        i = start
+        while i < len(text) and depth > 0:
+            char = text[i]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+            i += 1
+        # i-1 is the matching closing brace (or end-of-text if unbalanced).
+        bodies.append(text[start : i - 1])
+    return bodies
 
 
 def _normalize_body(body: str) -> str:
@@ -302,8 +329,8 @@ class NodeTestDuplicateRule(ProjectRule):
         duplicates = 0
         for test in _all_test_files(project_path):
             text = test.read_text(encoding="utf-8", errors="replace")
-            for match in _TEST_CASE.finditer(text):
-                body = _normalize_body(match.group("body"))
+            for raw_body in _iter_test_bodies(text):
+                body = _normalize_body(raw_body)
                 if len(body) < _MIN_BODY_LEN:
                     continue
                 if body in seen:
