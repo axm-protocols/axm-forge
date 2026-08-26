@@ -170,18 +170,24 @@ class ReadFileTool:
         # Read content
         try:
             text = resolved.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return ToolResult(
-                success=False,
-                error=f"Cannot decode file as UTF-8: {file_rel}",
-            )
-        except OSError as exc:
-            return ToolResult(
-                success=False,
-                error=f"Read failed: {file_rel}: {exc}",
-            )
+        except (UnicodeDecodeError, OSError) as exc:
+            if isinstance(exc, UnicodeDecodeError):
+                error = f"Cannot decode file as UTF-8: {file_rel}"
+            else:
+                error = f"Read failed: {file_rel}: {exc}"
+            return ToolResult(success=False, error=error)
 
         all_lines = text.splitlines(keepends=True)
+        total_lines = len(all_lines)
+        if start_line is not None and start_line > total_lines:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"Invalid range: start_line ({start_line}) exceeds "
+                    f"file length ({total_lines})"
+                ),
+            )
+
         selected, first_line_num = _select_lines(all_lines, start_line, end_line)
 
         # Cap unbounded reads so a large file cannot exceed the MCP
@@ -199,7 +205,6 @@ class ReadFileTool:
 
         logger.debug("read %s: %d/%d lines", file_rel, len(selected), len(all_lines))
 
-        total_lines = len(all_lines)
         start = first_line_num
         end = first_line_num + len(selected) - 1
 

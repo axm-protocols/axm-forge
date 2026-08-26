@@ -115,6 +115,25 @@ class TestReadFileTool:
         assert result.data["showing"]["end"] == 5
         assert result.data["showing"]["count"] == 3
 
+    def test_start_line_past_eof_is_rejected(self, tmp_project: Path) -> None:
+        """AC1: a start_line past EOF is rejected with both bounds named."""
+        target = tmp_project / "src" / "fifty_six.py"
+        target.write_text(
+            "".join(f"line {line_number}\n" for line_number in range(1, 57)),
+            encoding="utf-8",
+        )
+
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="src/fifty_six.py",
+            start_line=100,
+        )
+
+        assert result.success is False
+        assert result.error is not None
+        assert "100" in result.error
+        assert "56" in result.error
+
     def test_invalid_range(self, tmp_project: Path) -> None:
         """start_line > end_line returns error."""
         result = ReadFileTool().execute(
