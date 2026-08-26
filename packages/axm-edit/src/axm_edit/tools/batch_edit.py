@@ -361,16 +361,50 @@ def _render_lint_lines(data: dict[str, object]) -> list[str]:
     return lines
 
 
+def _condense_diff(diff: str) -> str:
+    """Fold a unified-diff excerpt onto one bullet-separated line.
+
+    ``@Lnn`` hunk markers are attached to the change they introduce rather
+    than standing on their own line, and a bare ``+``/``-`` (a blank line
+    added or removed) becomes an explicit ``+blank``/``-blank`` so the
+    rendering never emits a dangling sigil. Purely a layout change: every
+    changed line of *diff* still appears.
+    """
+    parts: list[str] = []
+    at = ""
+    for raw in diff.splitlines():
+        line = raw.rstrip()
+        if line.startswith("@"):
+            at = line
+            continue
+        if not line:
+            continue
+        sigil, body = line[0], line[1:].strip()
+        token = f"{sigil}{body or 'blank'}"
+        if at:
+            token = f"{token}@{at.lstrip('@')}"
+            at = ""
+        parts.append(token)
+    return " · ".join(parts)
+
+
 def _render_lint_diff(entry: dict[str, object]) -> list[str]:
+    """Render one per-file lint diff as a single line.
+
+    The rules and every changed line share one row, because a multi-line
+    unified diff costs more tokens than the generic compaction floor it is
+    meant to beat.
+    """
     raw_rules = entry.get("rules", [])
-    rules = ", ".join(str(r) for r in raw_rules) if isinstance(raw_rules, list) else ""
-    lines = [f"  {entry.get('file', '?')} [{rules}]"]
+    rules = ",".join(str(r) for r in raw_rules) if isinstance(raw_rules, list) else ""
+    head = f"  {entry.get('file', '?')} [{rules}]"
     diff = entry.get("diff")
     if isinstance(diff, str) and diff:
-        lines.extend(f"    {dl}" for dl in diff.splitlines())
-    elif entry.get("diff_skipped"):
-        lines.append(f"    (diff skipped: {entry['diff_skipped']})")
-    return lines
+        condensed = _condense_diff(diff)
+        return [f"{head} {condensed}" if condensed else head]
+    if entry.get("diff_skipped"):
+        return [f"{head} (diff skipped: {entry['diff_skipped']})"]
+    return [head]
 
 
 def _render_import_alerts(data: dict[str, object]) -> list[str]:
@@ -385,18 +419,23 @@ def _render_import_alerts(data: dict[str, object]) -> list[str]:
     removals = data.get("import_removals")
     if not isinstance(removals, list):
         return []
-    lines: list[str] = []
+    grouped: dict[tuple[str, str], list[str]] = {}
     for entry in removals:
         if not isinstance(entry, dict):
             continue
-        name = str(entry.get("name") or "?")
         file = str(entry.get("file") or "?")
         code = str(entry.get("code") or "?")
+        grouped.setdefault((file, code), []).append(str(entry.get("name") or "?"))
+    lines: list[str] = []
+    for (file, code), names in grouped.items():
         label = _REMOVAL_LABELS.get(code, "symbol")
+        plural = "s" if len(names) > 1 else ""
+        listed = ", ".join(f"`{n}`" for n in names)
+        subject = "each" if len(names) > 1 else listed
         lines.append(
-            f"⚠ lint removed {label} `{name}` from {file} ({code})"
-            f" — add `{name}` and its first consumer in the same batch,"
-            f" or this removal will break a later edit"
+            f"⚠ lint removed {label}{plural} {listed} from {file} ({code})"
+            f" — add {subject} and its first consumer in the same batch,"
+            f" or the removal will break a later edit"
         )
     return lines
 
@@ -515,8 +554,13 @@ def render_text(
     miss — followed by the modified/created/deleted/edits counts. Each
     operated-on file is then listed with its op sigil and edit count, every
     validation error is surfaced verbatim, and the full lint summary
-    (fixes, remaining errors, warnings, diffs) is appended. Nothing in
-    ``data`` is dropped; only its JSON structure is.
+    (fixes, remaining errors, warnings, diffs) is appended.
+
+    One key is deliberately absent: ``data["checkpoint"]`` carries the
+    base64 snapshot of every touched file *before* the batch, measured in
+    tens of thousands of tokens on a real batch. It stays in ``data`` for
+    ``batch_rollback`` and never reaches this view. Everything else in
+    ``data`` is rendered; only its JSON structure is dropped.
     """
     alerts = _render_import_alerts(data)
     preflight = _render_preflight_lines(data)
@@ -563,7 +607,6 @@ def _run_batch(
     result = batch_apply(root, parsed)
 
     data: dict[str, object] = {
-        "checkpoint": result.checkpoint,
         "applied": result.applied,
         "summary": result.summary,
         "details": [d.model_dump(exclude_none=True) for d in result.details]
@@ -571,6 +614,8 @@ def _run_batch(
         else [],
         "preflight": _preflight_payload(report),
     }
+    if result.checkpoint is not None:
+        data["checkpoint"] = result.checkpoint
 
     if result.success and options.enabled:
         py_files = _collect_python_files(root, parsed)
@@ -697,7 +742,9 @@ class BatchEditTool:
 
     agent_hint: str = (
         "Apply multiple file edits atomically via op=replace"
-        " with old/new pairs. Safer than sed — validates before writing.\n"
+        " with old/new pairs. Safer than sed — validates before writing."
+        " A batch that fails mid-apply restores every touched file on its"
+        " own; to undo a batch that succeeded, use git.\n"
         f"{ANCHOR_RULES_HINT}"
     )
 
