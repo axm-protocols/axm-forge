@@ -85,3 +85,48 @@ class TestNodeTypeCheckScoring:
         # Would be score 0 / "BLOCKED" if rc=2 were treated as env-failure.
         assert result.score == 95
         assert "BLOCKED" not in result.message
+
+    def test_svelte_module_diagnostics_are_ignored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Named-export errors on ``*.svelte`` are svelte-check's job, not tsc's.
+
+        The ``declare module '*.svelte'`` shipped by svelte only exports the
+        default component, so importing a ``<script module>`` named export trips
+        TS2614 under bare tsc — a false positive covered by SVELTE_CHECK.
+        """
+        _make_node_project(tmp_path)
+        out = (
+            "src/a.test.ts(7,10): error TS2614: Module '\"*.svelte\"' has no "
+            "exported member 'bandColor'.\n"
+            "src/b.test.ts(8,3): error TS2614: Module '\"*.svelte\"' has no "
+            "exported member 'bucketLoad'.\n"
+            "Found 2 errors.\n"
+        )
+        monkeypatch.setattr(base_module, "node_tool_available", lambda _p, _b: True)
+        monkeypatch.setattr(
+            base_module, "run_node_tool", lambda *_a, **_k: _completed(out, 2)
+        )
+        result = NodeTypeCheckRule().check(tmp_path)
+        assert result.score == 100
+        assert result.details["error_count"] == 0
+
+    def test_real_errors_counted_alongside_ignored_svelte_ones(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A genuine TS error still counts even when svelte noise is present."""
+        _make_node_project(tmp_path)
+        out = (
+            "src/a.test.ts(7,10): error TS2614: Module '\"*.svelte\"' has no "
+            "exported member 'bandColor'.\n"
+            "src/b.ts(3,1): error TS7006: Parameter 'l' implicitly has 'any'.\n"
+            "Found 2 errors.\n"
+        )
+        monkeypatch.setattr(base_module, "node_tool_available", lambda _p, _b: True)
+        monkeypatch.setattr(
+            base_module, "run_node_tool", lambda *_a, **_k: _completed(out, 2)
+        )
+        result = NodeTypeCheckRule().check(tmp_path)
+        # Only the real TS7006 counts: 100 - 1*5 = 95.
+        assert result.score == 95
+        assert result.details["error_count"] == 1

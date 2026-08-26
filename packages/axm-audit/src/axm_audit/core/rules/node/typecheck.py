@@ -22,10 +22,29 @@ __all__ = ["NodeTypeCheckRule"]
 # tsc --pretty false emits one line per diagnostic: "file(l,c): error TSxxxx: …".
 _ERROR_LINE = re.compile(r"\berror TS\d+\b")
 
+# A ``.svelte`` module's named exports (from ``<script module>``) are invisible to
+# ``tsc``: the ``declare module '*.svelte'`` shipped by svelte only exports the
+# default component, so any code importing a named export from a ``.svelte`` file
+# trips ``TS2614: Module '"*.svelte"' has no exported member '…'``. Those exports
+# ARE type-checked — by ``svelte-check`` (the SVELTE_CHECK rule), which compiles
+# the component for real. Counting them here would be a false positive on every
+# Svelte project, so drop tsc diagnostics that reference the ``*.svelte`` module.
+# tsc wraps the module name in nested quotes (``Module '"*.svelte"'``), so anchor
+# on the escaped glob itself rather than the surrounding quoting.
+_SVELTE_MODULE_DIAGNOSTIC = re.compile(r"\*\.svelte")
+
 
 def _count_type_errors(stdout: str) -> int:
-    """Count ``error TSxxxx`` diagnostics in ``tsc --pretty false`` output."""
-    return sum(1 for line in stdout.splitlines() if _ERROR_LINE.search(line))
+    """Count ``error TSxxxx`` diagnostics in ``tsc --pretty false`` output.
+
+    Diagnostics about the ``*.svelte`` module are excluded: they are ``tsc``
+    blind spots covered by ``svelte-check``, not real type errors.
+    """
+    return sum(
+        1
+        for line in stdout.splitlines()
+        if _ERROR_LINE.search(line) and not _SVELTE_MODULE_DIAGNOSTIC.search(line)
+    )
 
 
 @register_rule("type", framework=Framework.NODE)
