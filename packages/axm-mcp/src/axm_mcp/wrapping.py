@@ -154,6 +154,35 @@ def _trace_step(
 _RESERVED_KEYS = ("success", "error", "hint")
 
 
+def _failure_text(result: ToolResultLike, text: str) -> str:
+    """Prefix a failing tool's own ``text`` with a status line it cannot forge.
+
+    The status line is composed here, never by the tool: whatever a failing
+    ``ToolResult`` puts in ``text`` — including a cheerful "all good" — the
+    reader still sees a leading ``✗`` and the ``error``. That is the invariant
+    the success-gated short-circuit used to buy by discarding ``text``
+    altogether, at the cost of throwing away every diagnostic a tool had
+    rendered for its failure paths.
+
+    ``hint`` is appended when present, since ``flatten_result`` surfaces it on
+    the dict path and it would otherwise be the one envelope key a text
+    rendering silently drops. The status line itself is skipped only when the
+    tool's own *first* line already quotes the error verbatim - several tools
+    open with a ``name | X | {error}`` header of their own, and repeating it
+    makes a reader hunt for a difference that is not there. Scoping that check
+    to the first line keeps the invariant honest: an error string appearing
+    further down (in a diagnostic body, or a quoted anchor) does not suppress
+    the marker, so a failure never arrives unmarked.
+    """
+    error = str(getattr(result, "error", None) or "failed")
+    first = text.partition("\n")[0]
+    lines = [text] if error in first else [f"✗ {error}", text]
+    hint = getattr(result, "hint", None)
+    if hint and str(hint) not in text:
+        lines.append(f"hint: {hint}")
+    return "\n".join(lines)
+
+
 def flatten_result(result: ToolResultLike) -> dict[str, object]:
     """Flatten a ToolResult into a JSON-friendly dict.
 
@@ -227,9 +256,10 @@ def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
         # to True): a malformed ToolResult-like never silently passes as success.
         success = bool(getattr(result, "success", False))
         text = getattr(result, "text", None)
-        if success and isinstance(text, str):
-            _trace_step(ctx, kwargs, success, text, start_ns)
-            return text
+        if isinstance(text, str) and (success or text):
+            payload = text if success else _failure_text(result, text)
+            _trace_step(ctx, kwargs, success, payload, start_ns)
+            return payload
         output = flatten_result(result)
         _trace_step(ctx, kwargs, success, str(output), start_ns)
         return output
