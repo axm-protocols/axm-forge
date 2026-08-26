@@ -6,6 +6,7 @@ Registered as ``read_file`` via the ``axm.tools`` entry point.
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from pathlib import Path
 
 from axm.tools.base import ToolResult
@@ -50,20 +51,29 @@ def _resolve_file(
     """
     root = Path(root_str).resolve()
     if not root.is_dir():
-        return ToolResult(success=False, error=f"Root is not a directory: {root_str}")
+        return _failure_result(
+            _ReadFileError.ROOT,
+            f"Root is not a directory: {root_str}",
+        )
 
     resolved = resolve_safe(root, file_rel)
     if resolved is None:
-        return ToolResult(
-            success=False,
-            error=f"Path escapes project root: {file_rel}",
+        return _failure_result(
+            _ReadFileError.ESCAPE,
+            f"Path escapes project root: {file_rel}",
         )
 
     if not resolved.is_file():
-        return ToolResult(success=False, error=f"File not found: {file_rel}")
+        return _failure_result(
+            _ReadFileError.NOT_FOUND,
+            f"File not found: {file_rel}",
+        )
 
     if is_binary(resolved):
-        return ToolResult(success=False, error=f"Binary file: {file_rel}")
+        return _failure_result(
+            _ReadFileError.BINARY,
+            f"Binary file: {file_rel}",
+        )
 
     return resolved
 
@@ -111,6 +121,31 @@ def render_text(
     return f"{file_rel} ({span})\n{content}"
 
 
+class _ReadFileError(StrEnum):
+    """Stable categories for failures exposed by the read_file tool."""
+
+    NOT_FOUND = "NOT_FOUND"
+    BAD_RANGE = "BAD_RANGE"
+    MISSING_ARG = "MISSING_ARG"
+    BINARY = "BINARY"
+    ESCAPE = "ESCAPE"
+    DECODE = "DECODE"
+    ROOT = "ROOT"
+    READ = "READ"
+
+
+_TOOL_NAME = "read_file"
+
+
+def _failure_result(category: _ReadFileError, message: str) -> ToolResult:
+    """Build a failed result with compact, scannable agent-facing text."""
+    return ToolResult(
+        success=False,
+        error=message,
+        text=f"{_TOOL_NAME} | {category.value} | {message}",
+    )
+
+
 class ReadFileTool:
     """Read file content with optional line-range support.
 
@@ -128,7 +163,7 @@ class ReadFileTool:
     @property
     def name(self) -> str:
         """Tool name used for MCP registration."""
-        return "read_file"
+        return _TOOL_NAME
 
     def execute(
         self,
@@ -154,7 +189,10 @@ class ReadFileTool:
         file_rel = file
 
         if not file_rel:
-            return ToolResult(success=False, error="Missing required argument: file")
+            return _failure_result(
+                _ReadFileError.MISSING_ARG,
+                "Missing required argument: file",
+            )
 
         # Resolve and validate file path
         result = _resolve_file(root_str, file_rel)
@@ -165,7 +203,7 @@ class ReadFileTool:
         # Validate line range
         range_error = _validate_line_range(start_line, end_line)
         if range_error:
-            return ToolResult(success=False, error=range_error)
+            return _failure_result(_ReadFileError.BAD_RANGE, range_error)
 
         # Read content
         try:
@@ -175,18 +213,21 @@ class ReadFileTool:
                 error = f"Cannot decode file as UTF-8: {file_rel}"
             else:
                 error = f"Read failed: {file_rel}: {exc}"
-            return ToolResult(success=False, error=error)
+            category = (
+                _ReadFileError.DECODE
+                if isinstance(exc, UnicodeDecodeError)
+                else _ReadFileError.READ
+            )
+            return _failure_result(category, error)
 
         all_lines = text.splitlines(keepends=True)
         total_lines = len(all_lines)
         if start_line is not None and start_line > total_lines:
-            return ToolResult(
-                success=False,
-                error=(
-                    f"Invalid range: start_line ({start_line}) exceeds "
-                    f"file length ({total_lines})"
-                ),
+            error = (
+                f"Invalid range: start_line ({start_line}) exceeds "
+                f"file length ({total_lines})"
             )
+            return _failure_result(_ReadFileError.BAD_RANGE, error)
 
         selected, first_line_num = _select_lines(all_lines, start_line, end_line)
 

@@ -191,6 +191,105 @@ class TestReadFileTool:
         assert "read failed" in (result.error or "").lower()
 
 
+@pytest.mark.integration
+class TestReadFileStructuredFailureText:
+    """Integration coverage for structured read_file failure text."""
+
+    def test_not_found_renders_structured_text(self, tmp_project: Path) -> None:
+        """AC1: NOT_FOUND text is non-empty and names the read_file tool."""
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="src/does_not_exist.py",
+        )
+
+        assert result.success is False
+        assert result.text
+        assert "NOT_FOUND" in result.text
+        assert "read_file" in result.text
+
+    def test_bad_range_past_eof_renders_structured_text(
+        self,
+        tmp_project: Path,
+    ) -> None:
+        """AC2: start_line beyond EOF renders non-empty BAD_RANGE text."""
+        target = tmp_project / "src" / "fifty_six.py"
+        target.write_text(
+            "".join(f"line {line_number}\n" for line_number in range(1, 57)),
+            encoding="utf-8",
+        )
+
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="src/fifty_six.py",
+            start_line=100,
+        )
+
+        assert result.success is False
+        assert result.text
+        assert "BAD_RANGE" in result.text
+
+    def test_missing_argument_renders_structured_text(self) -> None:
+        """AC3: omitting the required file argument renders MISSING_ARG text."""
+        result = ReadFileTool().execute()
+
+        assert result.success is False
+        assert result.text
+        assert "MISSING_ARG" in result.text
+
+    def test_binary_file_renders_structured_text(self, tmp_project: Path) -> None:
+        """AC4: a NUL-containing file renders non-empty BINARY text."""
+        target = tmp_project / "binary.dat"
+        target.write_bytes(b"plain-prefix\x00plain-suffix")
+
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="binary.dat",
+        )
+
+        assert result.success is False
+        assert result.text
+        assert "BINARY" in result.text
+
+    def test_escape_renders_structured_text(self, tmp_project: Path) -> None:
+        """AC5: a path outside the root renders non-empty ESCAPE text."""
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="../../etc/passwd",
+        )
+
+        assert result.success is False
+        assert result.text
+        assert "ESCAPE" in result.text
+
+    def test_decode_failure_renders_structured_text(
+        self,
+        tmp_project: Path,
+    ) -> None:
+        """AC6: invalid UTF-8 text renders non-empty DECODE text."""
+        target = tmp_project / "invalid_utf8.txt"
+        target.write_bytes(b"printable-prefix-\xff-printable-suffix\n")
+
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="invalid_utf8.txt",
+        )
+
+        assert result.success is False
+        assert result.text
+        assert "DECODE" in result.text
+
+    def test_invalid_root_renders_structured_text(self, tmp_project: Path) -> None:
+        """AC7: a non-directory root renders non-empty ROOT text."""
+        result = ReadFileTool().execute(
+            path=str(tmp_project / "missing-root"),
+            file="anything.txt",
+        )
+
+        assert result.success is False
+        assert result.text
+        assert "ROOT" in result.text
+
+
 class TestReadFileSkipsBinary:
     """Functional test: ReadFileTool rejects binary files."""
 
