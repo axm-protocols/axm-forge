@@ -91,6 +91,8 @@ class ImpactResult(TypedDict, total=False):
     reexports: list[str]
     affected_modules: list[str]
     test_files: list[str]
+    # Workspace-root-relative POSIX paths, populated by workspace analysis.
+    test_file_paths: list[str]
     test_files_by_import: list[str]
     # OPT-IN only (``analyze_impact(..., include_module_importers=True)``):
     # modules that import the edited symbol's *module* (or a re-export shim
@@ -1038,9 +1040,9 @@ def _collect_workspace_reexports(
 def _collect_workspace_tests(
     ws: WorkspaceInfo,
     symbol: str,
-) -> list[str]:
+) -> list[Path]:
     """Collect test files referencing a symbol across the workspace."""
-    return sorted({test_file.name for test_file in map_tests(symbol, ws.root)})
+    return map_tests(symbol, ws.root)
 
 
 def _add_workspace_git_coupling(
@@ -1150,7 +1152,8 @@ def analyze_impact_workspace(
 
     callers = find_callers_workspace(ws, lookup_name)
     reexports = _collect_workspace_reexports(ws, lookup_name)
-    test_files = _collect_workspace_tests(ws, lookup_name)
+    mapped_test_files = _collect_workspace_tests(ws, lookup_name)
+    test_files = sorted({test_file.name for test_file in mapped_test_files})
     affected_modules = sorted({c.module for c in callers} | set(reexports))
 
     result: ImpactResult = {
@@ -1169,6 +1172,9 @@ def analyze_impact_workspace(
         "reexports": reexports,
         "affected_modules": affected_modules,
         "test_files": test_files,
+        "test_file_paths": sorted(
+            test_file.relative_to(ws.root).as_posix() for test_file in mapped_test_files
+        ),
         "git_coupled": [],
         "score": "LOW",
     }

@@ -193,8 +193,100 @@ def workspace_root(tmp_path: Path) -> Path:
     return tmp_path
 
 
+@pytest.fixture()
+def workspace_with_covering_tests(tmp_path: Path) -> Path:
+    """Create a nested workspace with two same-named covering test files."""
+    workspace = tmp_path / "workspace"
+    packages = workspace / "packages"
+    packages.mkdir(parents=True)
+    _make_workspace(workspace, ["packages/*"])
+    _make_member_package(
+        packages,
+        "pkg-a",
+        py_files={
+            "core.py": "def helper() -> int:\n    return 42\n",
+        },
+    )
+    _make_member_package(
+        packages,
+        "pkg-b",
+        deps=["pkg-a"],
+        py_files={
+            "main.py": (
+                "from pkg_a.core import helper\n\n"
+                "def run() -> int:\n    return helper()\n"
+            ),
+        },
+    )
+
+    for member, suite in (
+        ("pkg-a", "tests_pkg_a"),
+        ("pkg-b", "tests_pkg_b"),
+    ):
+        test_file = packages / member / suite / "unit" / "test_mod.py"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text(
+            "from pkg_a.core import helper\n\ndef test_helper() -> None:\n"
+            "    assert helper() == 42\n",
+            encoding="utf-8",
+        )
+
+    return workspace
+
+
 class TestWorkspaceImpact:
     """Tests for analyze_impact_workspace."""
+
+    @pytest.mark.integration
+    def test_workspace_impact_publishes_relative_test_paths(
+        self,
+        workspace_with_covering_tests: Path,
+    ) -> None:
+        """AC1: publish every mapped test as a sorted workspace-relative path."""
+        from axm_ast.core.impact import analyze_impact_workspace, map_tests
+
+        workspace = workspace_with_covering_tests
+        result = analyze_impact_workspace(workspace, "helper")
+        expected = sorted(
+            path.relative_to(workspace).as_posix()
+            for path in map_tests("helper", workspace)
+        )
+
+        assert result["test_file_paths"] == expected
+        assert all(entry.startswith("packages/") for entry in result["test_file_paths"])
+
+    @pytest.mark.integration
+    def test_published_test_paths_are_relative_and_resolve(
+        self,
+        workspace_with_covering_tests: Path,
+    ) -> None:
+        """AC2: every published test path is relative and exists from the root."""
+        from axm_ast.core.impact import analyze_impact_workspace
+
+        workspace = workspace_with_covering_tests
+        result = analyze_impact_workspace(workspace, "helper")
+
+        assert all(
+            not Path(entry).is_absolute() and (workspace / entry).exists()
+            for entry in result["test_file_paths"]
+        )
+
+    @pytest.mark.integration
+    def test_relative_paths_preserve_legacy_test_file_basenames(
+        self,
+        workspace_with_covering_tests: Path,
+    ) -> None:
+        """AC1/AC3: the added path key leaves sorted legacy basenames unchanged."""
+        from axm_ast.core.impact import analyze_impact_workspace, map_tests
+
+        workspace = workspace_with_covering_tests
+        result = analyze_impact_workspace(workspace, "helper")
+        expected_basenames = sorted(
+            {path.name for path in map_tests("helper", workspace)}
+        )
+
+        assert "test_file_paths" in result
+        assert result["test_files"] == expected_basenames
 
     def test_analyze_impact_workspace(self, workspace_root: Path) -> None:
         """Impact analysis finds cross-package callers."""
