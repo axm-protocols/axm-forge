@@ -53,6 +53,21 @@ class TestMirror:
         result = NodeTestMirrorRule().check(root)
         assert result.passed is True
 
+    def test_svelte_reactive_module_accepts_plain_test_stem(
+        self, tmp_path: Path
+    ) -> None:
+        """A ``<name>.svelte.ts`` rune module is covered by ``<name>.test.ts``.
+
+        Regression: ``Path('chatTab.svelte.ts').stem`` is ``'chatTab.svelte'``,
+        so the rule looked for ``chatTab.svelte.test.ts`` and missed the
+        conventional colocated ``chatTab.test.ts`` — a false positive on every
+        Svelte 5 reactive module.
+        """
+        root = _node_project(tmp_path)
+        (root / "src" / "store.svelte.ts").write_text("export const s = 1;")
+        (root / "src" / "store.test.ts").write_text("test('s', () => {});")
+        assert NodeTestMirrorRule().check(root).passed is True
+
     def test_non_node_dir_skips(self, tmp_path: Path) -> None:
         """A directory with no package.json is skipped (no false positive)."""
         result = NodeTestMirrorRule().check(tmp_path)

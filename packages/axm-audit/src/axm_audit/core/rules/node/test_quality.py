@@ -146,11 +146,20 @@ class NodeTestMirrorRule(ProjectRule):
 
     @staticmethod
     def _has_sibling_test(source: Path) -> bool:
-        """Return True if a ``<stem>.test.ts``/``.spec.ts`` sits beside *source*."""
-        stem = source.stem
-        for suffix in _TEST_SUFFIXES:
-            if (source.parent / f"{stem}{suffix}").is_file():
-                return True
+        """Return True if a ``<stem>.test.ts``/``.spec.ts`` sits beside *source*.
+
+        A Svelte 5 reactive module is named ``<name>.svelte.ts`` (the ``.svelte``
+        marks it as carrying runes, it is not a component). Its colocated test is
+        conventionally ``<name>.test.ts``, not ``<name>.svelte.test.ts`` — so a
+        ``.svelte.ts`` source accepts either stem.
+        """
+        stems = {source.stem}
+        if source.stem.endswith(".svelte"):
+            stems.add(source.stem.removesuffix(".svelte"))
+        for stem in stems:
+            for suffix in _TEST_SUFFIXES:
+                if (source.parent / f"{stem}{suffix}").is_file():
+                    return True
         return False
 
 
