@@ -12,8 +12,8 @@ from axm_audit.core.non_test_cause import (
 from axm_audit.core.test_runner import (
     FailureDetail,
     NonTestCauseDetail,
+    TestCase,
     TestReport,
-    build_test_report,
 )
 from axm_audit.tools.audit_test_text import format_audit_test_text
 
@@ -68,7 +68,7 @@ def test_coverage_section_rounded() -> None:
     report = _make_report(coverage_by_file={"src/foo.py": 88.932806})
     text = format_audit_test_text(report)
     assert "cov<" in text
-    assert "foo.py 88.9%" in text
+    assert "src/foo.py 88.9%" in text
 
 
 def test_header_green_icon_when_no_failures() -> None:
@@ -93,7 +93,7 @@ def test_header_red_icon_when_failed_present() -> None:
     assert "3 skipped" in header
 
 
-def test_failure_block_emitted_with_location_and_truncation() -> None:
+def test_failure_block_emits_complete_location() -> None:
     """Failure rendering shows the node id, location, error_type, message."""
     report = _make_report(
         failed=1,
@@ -109,24 +109,22 @@ def test_failure_block_emitted_with_location_and_truncation() -> None:
         ],
     )
     text = format_audit_test_text(report)
-    assert "tests/unit/test_x.py::test_one (test_x.py:42)" in text
+    assert "tests/unit/test_x.py::test_one (tests/unit/test_x.py:42)" in text
     assert "AssertionError: boom" in text
     assert "    line A" in text
     assert "    line B" in text
 
 
-def test_failure_block_truncates_long_nodeid() -> None:
-    """Node IDs longer than the threshold are abbreviated with ``...``."""
+def test_failure_block_preserves_long_nodeid() -> None:
+    """Long node IDs remain complete so an agent can target the exact test."""
     long_id = "tests/unit/test_x.py::" + "x" * 200
     report = _make_report(
         failed=1,
         failures=[_make_failure(test=long_id, file="", traceback="")],
     )
     text = format_audit_test_text(report)
-    # The line displayed should be shorter than the original and end with ...
     failure_line = next(line for line in text.splitlines() if "✗" in line)
-    assert "..." in failure_line
-    assert long_id not in failure_line
+    assert long_id in failure_line
 
 
 def test_coverage_section_absent_when_no_per_file_data() -> None:
@@ -213,35 +211,30 @@ def test_text_uses_the_structured_verdict(
         assert fragment in text
 
 
-def test_text_rendering_is_independent_of_case_count() -> None:
-    """AC4: zero and five hundred cases render to byte-identical compact text."""
-    empty = _make_report()
-    tests = [
-        {
-            "nodeid": f"tests/unit/test_many.py::test_case[{index}]",
-            "outcome": "passed",
-        }
-        for index in range(500)
-    ]
-    populated = build_test_report(
-        report_data={
-            "summary": {
-                "passed": 1,
-                "failed": 0,
-                "error": 0,
-                "skipped": 0,
-                "warnings": 0,
-            },
-            "tests": tests,
-            "duration": 0.5,
-        },
-        total_cov=None,
-        per_file_cov={},
-        include_cases=True,
+def test_case_evidence_is_grouped_by_outcome() -> None:
+    """AC4: opted-in cases render as grouped lossless evidence."""
+    report = _make_report(
+        passed=2,
+        failed=1,
+        collected=3,
+        verdict=False,
+        cases=(
+            TestCase("tests/unit/test_many.py::test_pass_b", "passed"),
+            TestCase(
+                "tests/unit/test_many.py::test_fail",
+                "failed",
+                "AssertionError: mismatch",
+            ),
+            TestCase("tests/unit/test_many.py::test_pass_a", "passed"),
+        ),
     )
 
-    assert len(populated.cases) == 500
-    assert format_audit_test_text(populated) == format_audit_test_text(empty)
+    text = format_audit_test_text(report)
+    assert "cases | 3" in text
+    assert "failed (1):\ntests/unit/test_many.py::test_fail" in text
+    assert "  AssertionError: mismatch" in text
+    assert "passed (2):\ntests/unit/test_many.py::test_pass_b" in text
+    assert "tests/unit/test_many.py::test_pass_a" in text
 
 
 # --- Non-test cause rendering ---

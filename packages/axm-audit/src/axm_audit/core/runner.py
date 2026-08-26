@@ -171,8 +171,9 @@ def run_in_project(  # noqa: PLR0913
     Locates the nearest ``.venv/`` — either in ``project_path`` itself
     or in an ancestor directory (for uv monorepo workspace members).
     Uses ``uv run --directory`` to execute the command within the
-    correct environment.  Falls back to running the command directly
-    with ``cwd`` set when no virtual environment is found.
+    correct environment. When runtime packages are requested without a
+    project environment, uses an isolated uv environment; otherwise falls back
+    to the command directly with ``cwd`` set.
 
     Args:
         cmd: Command and arguments to run.
@@ -180,10 +181,9 @@ def run_in_project(  # noqa: PLR0913
         timeout: Maximum seconds to wait before killing the subprocess.
             Defaults to 300 (5 minutes).
         with_packages: Optional packages to inject at runtime via
-            ``uv run --with <pkg>``.  Only effective when a ``.venv/``
-            is found (i.e. when ``uv run`` is used).  Allows audit tools
-            to be available in the target project without requiring
-            them as declared dependencies.
+            ``uv run --with <pkg>``. Without a project ``.venv/``, uv uses an
+            isolated environment so the audited tree is not mutated. Allows
+            audit tools to be available without declared dependencies.
         capture_output: Capture stdout/stderr (piped). Preserves the prior
             ``subprocess.run`` contract.
         text: Decode output as text. Preserves the prior contract.
@@ -205,11 +205,20 @@ def run_in_project(  # noqa: PLR0913
     venv = find_venv(project_path)
     cwd: str | None = None
 
-    if venv is not None:
+    if venv is not None or with_packages:
         with_flags: list[str] = []
         for pkg in with_packages or []:
             with_flags.extend(["--with", pkg])
-        full_cmd = ["uv", "run", *with_flags, "--directory", str(project_path), *cmd]
+        isolation = ["--isolated"] if venv is None else []
+        full_cmd = [
+            "uv",
+            "run",
+            *isolation,
+            *with_flags,
+            "--directory",
+            str(project_path),
+            *cmd,
+        ]
     else:
         full_cmd = cmd
         cwd = str(project_path)

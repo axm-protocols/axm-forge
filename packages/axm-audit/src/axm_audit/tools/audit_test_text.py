@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
-
-from axm_audit.core.test_runner import NonTestCauseDetail, TestReport
+from axm_audit.core.test_runner import NonTestCauseDetail, TestCase, TestReport
 
 __all__ = ["format_audit_test_text"]
 
 _COV_THRESHOLD = 95.0
-_MAX_NODEID_LEN = 120
 
 
 def _count_parts(passed: int, failed: int, errors: int, skipped: int) -> list[str]:
@@ -46,11 +43,8 @@ def _build_failure_blocks(report: TestReport) -> list[str]:
         return []
     lines: list[str] = []
     for f in failures:
-        short = f.test
-        if len(short) > _MAX_NODEID_LEN:
-            short = short[: _MAX_NODEID_LEN - 3] + "..."
-        loc = f"{PurePosixPath(f.file).name}:{f.line}" if f.file else ""
-        lines.append(f"\u2717 {short} ({loc})")
+        loc = f"{f.file}:{f.line}" if f.file else ""
+        lines.append(f"\u2717 {f.test} ({loc})")
         lines.append(f"  {f.error_type}: {f.message}")
         if f.traceback:
             for tb_line in f.traceback.splitlines():
@@ -64,14 +58,40 @@ def _build_coverage_section(report: TestReport) -> list[str]:
     if cov_by_file is None:
         return []
     below = [
-        (PurePosixPath(path).name, pct)
-        for path, pct in sorted(cov_by_file.items())
-        if pct < _COV_THRESHOLD
+        (path, pct) for path, pct in sorted(cov_by_file.items()) if pct < _COV_THRESHOLD
     ]
     if not below:
         return []
     parts = [f"{name} {pct:.1f}%" for name, pct in below]
     return ["cov< " + " \u00b7 ".join(parts)]
+
+
+_CASE_OUTCOME_ORDER = ("failed", "error", "xpassed", "skipped", "xfailed", "passed")
+
+
+def _build_case_section(report: TestReport) -> list[str]:
+    """Render opted-in per-case evidence grouped by pytest outcome."""
+    if not report.cases:
+        return []
+
+    grouped: dict[str, list[TestCase]] = {}
+    for case in report.cases:
+        grouped.setdefault(case.outcome, []).append(case)
+
+    ordered_outcomes = [
+        outcome for outcome in _CASE_OUTCOME_ORDER if outcome in grouped
+    ]
+    ordered_outcomes.extend(sorted(set(grouped).difference(ordered_outcomes)))
+
+    lines = [f"cases | {len(report.cases)}"]
+    for outcome in ordered_outcomes:
+        cases = grouped[outcome]
+        lines.append(f"{outcome} ({len(cases)}):")
+        for case in cases:
+            lines.append(case.node_id)
+            if case.detail:
+                lines.extend(f"  {line}" for line in case.detail.splitlines())
+    return lines
 
 
 def _build_cause_block(report: TestReport) -> list[str]:
@@ -102,5 +122,6 @@ def format_audit_test_text(report: TestReport) -> str:
     lines.extend(_build_cause_block(report))
     lines.extend(_build_target_section(report))
     lines.extend(_build_failure_blocks(report))
+    lines.extend(_build_case_section(report))
     lines.extend(_build_coverage_section(report))
     return "\n".join(lines)

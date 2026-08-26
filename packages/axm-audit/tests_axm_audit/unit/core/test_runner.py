@@ -96,8 +96,8 @@ class TestRunInProjectUnit:
 
             assert proc.communicate.call_args[1]["timeout"] == 300
 
-    def test_with_packages_ignored_without_venv(self, tmp_path: Path) -> None:
-        """AC3: with_packages has no effect when no .venv exists (bare cmd)."""
+    def test_with_packages_uses_isolated_uv_without_venv(self, tmp_path: Path) -> None:
+        """AC3: runtime packages use a disposable uv environment without .venv."""
         from axm_audit.core.runner import run_in_project
 
         with patch("axm_audit.core.runner.subprocess.Popen") as mock_popen:
@@ -109,8 +109,18 @@ class TestRunInProjectUnit:
             )
 
             args = mock_popen.call_args[0][0]
-            assert args == ["pytest", "--json-report"]
-            assert "--with" not in args
+            assert args == [
+                "uv",
+                "run",
+                "--isolated",
+                "--with",
+                "pytest-json-report",
+                "--directory",
+                str(tmp_path),
+                "pytest",
+                "--json-report",
+            ]
+            assert mock_popen.call_args[1]["cwd"] is None
 
 
 class TestRulesUseRunInProjectUnit:
@@ -238,6 +248,46 @@ def test_run_tests_passes_explicit_timeout() -> None:
         run_tests(_DEAD_PROJECT)
 
     assert run_in_project.call_args.kwargs.get("timeout", 300) >= 900
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        pytest.param("assert 4 == 5", "AssertionError", id="assertion"),
+        pytest.param("ValueError: invalid", "ValueError", id="typed"),
+        pytest.param(
+            "E   ModuleNotFoundError: missing",
+            "ModuleNotFoundError",
+            id="pytest-prefix",
+        ),
+        pytest.param("plain failure", "Error", id="fallback"),
+    ],
+)
+def test_parse_failures_recovers_actionable_error_type(
+    message: str,
+    expected: str,
+) -> None:
+    """Failure details name assertions and explicit exception classes."""
+    from axm_audit.core.test_runner import parse_failures
+
+    failures = parse_failures(
+        [
+            {
+                "outcome": "failed",
+                "nodeid": "tests/test_value.py::test_value",
+                "call": {
+                    "crash": {
+                        "message": message,
+                        "path": "tests/test_value.py",
+                        "lineno": 3,
+                    },
+                    "longrepr": message,
+                },
+            }
+        ]
+    )
+
+    assert failures[0].error_type == expected
 
 
 def test_parse_json_report_rejects_missing_summary(tmp_path: Path) -> None:

@@ -162,6 +162,18 @@ class TestReport:
 # ---------------------------------------------------------------------------
 
 
+def _failure_error_type(message: str) -> str:
+    """Recover the exception class from pytest's crash message when available."""
+    stripped = message.lstrip()
+    if stripped.startswith("assert "):
+        return "AssertionError"
+    if ":" in stripped:
+        candidate = stripped.split(":", maxsplit=1)[0].removeprefix("E   ").strip()
+        if candidate:
+            return candidate
+    return "Error"
+
+
 def parse_failures(tests: list[dict[str, object]]) -> list[FailureDetail]:
     """Extract ``FailureDetail`` items from pytest-json-report tests list."""
     failures: list[FailureDetail] = []
@@ -185,9 +197,7 @@ def parse_failures(tests: list[dict[str, object]]) -> list[FailureDetail]:
 
         # Extract error type from the crash message
         message = cast(str, crash.get("message", ""))
-        error_type = "Error"
-        if ":" in message:
-            error_type = message.split(":")[0].strip()
+        error_type = _failure_error_type(message)
 
         failures.append(
             FailureDetail(
