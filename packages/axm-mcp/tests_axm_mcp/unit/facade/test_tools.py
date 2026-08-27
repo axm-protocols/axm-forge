@@ -42,7 +42,14 @@ def _call_text(server: FastMCP, tool: str, **arguments: object) -> str:
 @pytest.fixture
 def server() -> FastMCP:
     mcp = FastMCP("test")
-    register_facade(mcp, _catalog(echo=_EchoTool()))
+    register_facade(
+        mcp,
+        _catalog(
+            echo=_EchoTool(),
+            git_commit=_EchoTool(),
+            nope_not_tool=_EchoTool(),
+        ),
+    )
     return mcp
 
 
@@ -78,8 +85,42 @@ def test_call_bad_args_includes_param_hint(server: FastMCP) -> None:
     assert "msg" in text
 
 
-def test_describe_unknown_returns_error_dict() -> None:
-    mcp = FastMCP("t")
-    register_facade(mcp, _catalog())
-    rendered = _call_text(mcp, "axm_describe", name="ghost")
-    assert "ghost" in rendered or "error" in rendered.lower()
+def test_describe_returns_compact_rendered_contract(server: FastMCP) -> None:
+    """AC1: describe renders its header, signature, and docstring as text."""
+    rendered = _call_text(server, "axm_describe", name="git_commit")
+
+    assert rendered.startswith("git_commit | demo | echo")
+    assert "msg: str" in rendered
+    assert "Echo a message back." in rendered
+
+
+def test_search_returns_rendered_text(server: FastMCP) -> None:
+    """AC2: search returns the compact render_search text contract."""
+    rendered = _call_text(server, "axm_search", query="git")
+
+    assert rendered.startswith("axm_search | 1 hits\n")
+    assert "git_commit [demo]" in rendered
+
+
+def test_capabilities_returns_one_rendered_line_per_domain(server: FastMCP) -> None:
+    """AC3: capabilities renders every domain on a single text line."""
+    rendered = _call_text(server, "axm_capabilities")
+
+    assert rendered.startswith("demo: ")
+    assert set(rendered.removeprefix("demo: ").split()) == {
+        "echo",
+        "git_commit",
+        "nope_not_tool",
+    }
+    assert "\n" not in rendered
+
+
+def test_describe_unknown_returns_near_match_without_catalog_dump(
+    server: FastMCP,
+) -> None:
+    """AC4: an unknown description is compact and suggests a near match."""
+    rendered = _call_text(server, "axm_describe", name="nope_not_a_tool")
+
+    assert "Did you mean: nope_not_tool" in rendered
+    assert "echo" not in rendered
+    assert "git_commit" not in rendered

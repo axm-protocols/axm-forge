@@ -15,7 +15,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from axm_mcp.facade.catalog import ToolCatalog, UnknownToolError
+from axm_mcp.facade.catalog import (
+    ToolCatalog,
+    UnknownToolError,
+    render_capabilities,
+    render_describe,
+    render_search,
+    render_unknown,
+)
 
 if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
@@ -52,7 +59,7 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
         query: str = "",
         domain: str | None = None,
         limit: int = 20,
-    ) -> dict[str, object]:
+    ) -> str:
         """Search the AXM tool catalog.
 
         Args:
@@ -65,10 +72,10 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
             ``{results: [{name, summary, domain, tags}], count}``.
         """
         hits = catalog.search(query, domain=domain, limit=limit)
-        return {"results": hits, "count": len(hits)}
+        return render_search(hits)
 
     @mcp.tool(name="axm_describe")
-    def axm_describe(name: str) -> dict[str, object]:
+    def axm_describe(name: str) -> str:
         """Return the full invocation contract for one tool.
 
         Args:
@@ -79,9 +86,9 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
             ``{error}`` if the tool is unknown.
         """
         try:
-            return catalog.describe(name)
-        except UnknownToolError as exc:
-            return {"error": str(exc)}
+            return render_describe(catalog.describe(name))
+        except UnknownToolError:
+            return render_unknown(name, catalog)
 
     @mcp.tool(name="axm_call")
     async def axm_call(name: str, arguments: dict[str, object] | None = None) -> str:
@@ -119,7 +126,7 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
             return f"error: bad arguments for {name!r}: {exc}{suffix}"
 
     @mcp.tool(name="axm_capabilities")
-    def axm_capabilities(domain: str | None = None) -> dict[str, object]:
+    def axm_capabilities(domain: str | None = None) -> str:
         """List AXM tools grouped by domain.
 
         Args:
@@ -129,5 +136,4 @@ def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema bounda
             ``{domains: {domain: [names]}, count}``.
         """
         groups = catalog.capabilities(domain=domain)
-        total = sum(len(v) for v in groups.values())
-        return {"domains": groups, "count": total}
+        return render_capabilities(groups)
