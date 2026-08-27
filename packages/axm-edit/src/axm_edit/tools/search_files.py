@@ -119,7 +119,7 @@ def _iter_matching_files(
     for filename in sorted(filenames):
         if filename.startswith("."):
             continue
-        if include and not _matches_include(filename, include):
+        if include is not None and not _matches_include(filename, include):
             continue
         file_path = Path(dirpath) / filename
         if resolve_safe(root, str(file_path.relative_to(root))) is None:

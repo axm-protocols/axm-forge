@@ -207,6 +207,62 @@ class TestSearchFilesToolIO:
         assert "is_regex=True" in hint_lines[0]
         assert "fix" in hint_lines[0].lower()
 
+    @pytest.mark.integration
+    def test_empty_include_yields_zero_count(self, tmp_path: Path) -> None:
+        """AC1: an empty include filter yields zero matching files."""
+        (tmp_path / "first.py").write_text("shared needle\n", encoding="utf-8")
+        (tmp_path / "second.txt").write_text("shared needle\n", encoding="utf-8")
+
+        result = SearchFilesTool().execute(
+            path=str(tmp_path),
+            pattern="shared needle",
+            include=[],
+        )
+
+        assert result.success is True
+        assert result.data is not None
+        assert result.data["count"] == 0
+
+    @pytest.mark.integration
+    def test_empty_include_yields_empty_matches(self, tmp_path: Path) -> None:
+        """AC2: an empty include filter returns an empty matches list."""
+        (tmp_path / "first.py").write_text("shared needle\n", encoding="utf-8")
+        (tmp_path / "second.txt").write_text("shared needle\n", encoding="utf-8")
+
+        result = SearchFilesTool().execute(
+            path=str(tmp_path),
+            pattern="shared needle",
+            include=[],
+        )
+
+        assert result.success is True
+        assert result.data is not None
+        assert result.data["matches"] == []
+
+    @pytest.mark.integration
+    def test_none_include_searches_more_files_than_empty(self, tmp_path: Path) -> None:
+        """AC3: None disables filtering while an empty list matches nothing."""
+        (tmp_path / "first.py").write_text("shared needle\n", encoding="utf-8")
+        (tmp_path / "second.txt").write_text("shared needle\n", encoding="utf-8")
+
+        none_result = SearchFilesTool().execute(
+            path=str(tmp_path),
+            pattern="shared needle",
+            include=None,
+        )
+        empty_result = SearchFilesTool().execute(
+            path=str(tmp_path),
+            pattern="shared needle",
+            include=[],
+        )
+
+        assert none_result.success is True
+        assert none_result.data is not None
+        assert empty_result.success is True
+        assert empty_result.data is not None
+        assert none_result.data["count"] > 0
+        assert none_result.data["count"] > empty_result.data["count"]
+
     def test_text_field_groups_matches_by_file(self, tmp_path: Path) -> None:
         """A successful search exposes a compact ``text`` grouped by file."""
         (tmp_path / "a.py").write_text("alpha\nbeta alpha\n", encoding="utf-8")
