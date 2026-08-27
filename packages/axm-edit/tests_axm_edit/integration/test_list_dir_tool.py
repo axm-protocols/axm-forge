@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.tools.list_dir import ListDirTool
+
+pytestmark = pytest.mark.integration
 
 
 class TestListDirTool:
@@ -190,3 +194,35 @@ class TestListDirTool:
         assert result.success is False
         assert result.error is not None
         assert "directory" in result.error.lower()
+
+
+def test_file_failure_has_rendered_path(tmp_path: Path) -> None:
+    """AC3: A real file path produces non-empty failure text naming it."""
+    target = tmp_path / "ac3-file.txt"
+    target.write_text("content")
+
+    result = ListDirTool().execute(path=str(target))
+
+    assert result.success is False
+    assert result.text
+    assert str(target) in result.text
+
+
+def test_missing_path_failure_suggests_remedy(tmp_path: Path) -> None:
+    """AC4: A missing path produces non-empty text with an actionable remedy."""
+    missing = tmp_path / "ac4-missing"
+
+    result = ListDirTool().execute(path=str(missing))
+
+    assert result.success is False
+    assert result.text
+    guidance = "\n".join(part for part in (result.text, result.hint) if part).lower()
+    assert any(
+        remedy in guidance
+        for remedy in (
+            "read_file",
+            "pass a directory",
+            "existing directory",
+            "create the directory",
+        )
+    )

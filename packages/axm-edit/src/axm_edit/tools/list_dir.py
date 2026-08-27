@@ -153,6 +153,14 @@ def _collect_entries(
     return len(entries) >= _MAX_ENTRIES
 
 
+def render_failure_text(path: str, error: str) -> str:
+    """Render one actionable diagnostic for a failed directory listing."""
+    return (
+        f"list_dir | {error}\n"
+        "Remedy: pass an existing directory, or use read_file to read a file."
+    )
+
+
 class ListDirTool:
     """Directory listing with file metadata for AI agents.
 
@@ -196,9 +204,11 @@ class ListDirTool:
 
         root = Path(root_str).resolve()
         if not root.is_dir():
+            error = f"Path is not a directory: {root_str}"
             return ToolResult(
                 success=False,
-                error=f"Path is not a directory: {root_str}",
+                error=error,
+                text=render_failure_text(root_str, error),
             )
 
         entries: list[dict[str, object]] = []
