@@ -19,7 +19,9 @@ itself uses — so ``axm_describe`` and the per-tool MCP schema agree.
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import inspect
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
@@ -31,7 +33,15 @@ if TYPE_CHECKING:
     from axm_mcp.discovery import ToolEntry
     from axm_mcp.wrapping import _AnyWrapper, _SyncWrapper
 
-__all__ = ["ToolCatalog", "UnknownToolError"]
+__all__ = [
+    "ToolCatalog",
+    "UnknownToolError",
+    "render_capabilities",
+    "render_describe",
+    "render_list_tools",
+    "render_search",
+    "render_unknown",
+]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,6 +78,78 @@ def _exec_fn(tool: ToolEntry) -> IntrospectableFn:
 def _doc(tool: ToolEntry) -> str:
     """Full docstring of a tool's executable, or empty string."""
     return inspect.getdoc(_exec_fn(tool)) or ""
+
+
+def _text(value: object) -> str:
+    """Render a scalar catalog value, keeping absent metadata compact."""
+    return "" if value is None else str(value)
+
+
+def _strings(value: object) -> list[str]:
+    """Narrow a serialized catalog sequence to display strings."""
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        return []
+    return [str(item) for item in value]
+
+
+def _param_mappings(value: object) -> list[dict[str, object]]:
+    """Narrow serialized describe params without weakening public typing."""
+    if not isinstance(value, list):
+        return []
+    return [cast("dict[str, object]", item) for item in value if isinstance(item, dict)]
+
+
+def render_describe(spec: Mapping[str, object]) -> str:
+    """Render a tool invocation contract as compact facade text."""
+    tags = " ".join(_strings(spec.get("tags")))
+    lines = [f"{_text(spec.get('name'))} | {_text(spec.get('domain'))} | {tags}"]
+    for param in _param_mappings(spec.get("params")):
+        line = f"{_text(param.get('name'))}: {_text(param.get('annotation'))}"
+        if param.get("required") is not True:
+            line += f" = {_text(param.get('default'))}"
+        lines.append(line)
+    docstring = _text(spec.get("docstring"))
+    if docstring:
+        lines.extend(("", docstring))
+    return "\n".join(lines)
+
+
+def render_unknown(name: str, catalog: ToolCatalog) -> str:
+    """Render a compact unknown-tool diagnostic with near matches."""
+    suggestions = difflib.get_close_matches(name, catalog.names(), n=3)
+    if suggestions:
+        return f"Unknown tool {name!r}. Did you mean: {' '.join(suggestions)}?"
+    return f"Unknown tool {name!r}. Use axm_capabilities() to browse tools."
+
+
+def render_search(results: Sequence[Mapping[str, object]]) -> str:
+    """Render search hits with their discovery metadata on one line each."""
+    lines = [f"axm_search | {len(results)} hits"]
+    for result in results:
+        tags = " ".join(f"#{tag}" for tag in _strings(result.get("tags")))
+        line = (
+            f"{_text(result.get('name'))} [{_text(result.get('domain'))}] "
+            f"{_text(result.get('summary'))}"
+        )
+        lines.append(f"{line} {tags}".rstrip())
+    return "\n".join(lines)
+
+
+def render_capabilities(domains: Mapping[str, Sequence[str]]) -> str:
+    """Render every domain and its tools on a single line."""
+    return "\n".join(
+        f"{domain}: {' '.join(tool_names)}" for domain, tool_names in domains.items()
+    )
+
+
+def render_list_tools(tools: Sequence[Mapping[str, object]]) -> str:
+    """Render a compact full tool listing."""
+    lines = [f"list_tools | {len(tools)} tools"]
+    lines.extend(
+        f"{_text(tool.get('name'))} — {_text(tool.get('description'))}"
+        for tool in tools
+    )
+    return "\n".join(lines)
 
 
 def _summary(tool: ToolEntry) -> str:

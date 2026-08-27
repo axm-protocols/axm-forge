@@ -11,6 +11,7 @@ import pytest
 from axm.tools.base import ToolResult
 
 from axm_mcp.discovery import ToolEntry
+from axm_mcp.facade import catalog as catalog_module
 from axm_mcp.facade.catalog import ToolCatalog, UnknownToolError
 
 
@@ -308,3 +309,114 @@ class TestCapabilities:
 
     def test_single_domain_filter(self, catalog: ToolCatalog) -> None:
         assert catalog.capabilities(domain="audit") == {"audit": ["audit"]}
+
+
+class TestTextRenderers:
+    def test_render_describe_emits_contract_and_verbatim_docstring(self) -> None:
+        """AC1: describe text has its header, params, and verbatim docstring."""
+        docstring = "Commit staged changes.\n\nArgs:\n    path: Repository root."
+        spec = {
+            "name": "git_commit",
+            "summary": "Commit staged changes.",
+            "domain": "git",
+            "tags": ["commit", "vcs"],
+            "docstring": docstring,
+            "params": [
+                {
+                    "name": "path",
+                    "annotation": "str",
+                    "required": False,
+                    "default": "'.'",
+                },
+                {
+                    "name": "message",
+                    "annotation": "str",
+                    "required": True,
+                    "default": None,
+                },
+            ],
+        }
+
+        rendered = catalog_module.render_describe(spec)
+
+        assert isinstance(rendered, str)
+        assert rendered.splitlines()[0] == "git_commit | git | commit vcs"
+        assert "path: str = '.'" in rendered.splitlines()
+        assert "message: str" in rendered.splitlines()
+        assert rendered.endswith(docstring)
+
+    def test_render_describe_omits_standalone_summary(self) -> None:
+        """AC2: the docstring first line is not duplicated as summary metadata."""
+        spec = {
+            "name": "git_commit",
+            "summary": "Commit staged changes.",
+            "domain": "git",
+            "tags": ["commit"],
+            "docstring": "Commit staged changes.",
+            "params": [],
+        }
+
+        rendered = catalog_module.render_describe(spec)
+
+        assert not any(line.startswith("summary:") for line in rendered.splitlines())
+        assert rendered.count("Commit staged changes.") == 1
+
+    def test_render_unknown_suggests_without_dumping_catalog(self) -> None:
+        """AC3: unknown-tool text gives compact difflib near-matches only."""
+        catalog = _catalog(
+            git_commit=_plain,
+            ticket_create=_plain,
+            distant_catalog_tool=_plain,
+        )
+
+        rendered = catalog_module.render_unknown("git_commt", catalog)
+
+        assert "Did you mean:" in rendered
+        assert "git_commit" in rendered
+        assert "distant_catalog_tool" not in rendered
+        assert ", ".join(catalog.names()) not in rendered
+        assert len(rendered) < 200
+
+    def test_render_search_headers_count_and_lists_hits(
+        self, catalog: ToolCatalog
+    ) -> None:
+        """AC4: search text has a count header and one informative hit line."""
+        results = catalog.search("")
+
+        rendered = catalog_module.render_search(results)
+        lines = rendered.splitlines()
+
+        assert lines[0] == f"axm_search | {len(results)} hits"
+        assert len(lines[1:]) == len(results)
+        for result, line in zip(results, lines[1:], strict=True):
+            assert str(result["name"]) in line
+            assert str(result["summary"]) in line
+
+    def test_render_capabilities_inlines_each_domain(self) -> None:
+        """AC5: every domain occupies one line with space-separated tools."""
+        domains = {
+            "git": ["git_commit", "git_preflight"],
+            "audit": ["audit", "verify"],
+        }
+
+        rendered = catalog_module.render_capabilities(domains)
+        lines = rendered.splitlines()
+
+        assert len(lines) == len(domains)
+        assert "git: git_commit git_preflight" in lines
+        assert "audit: audit verify" in lines
+
+    def test_render_list_tools_headers_count_and_lists_descriptions(self) -> None:
+        """AC6: tool listing has its count header and one description per line."""
+        tools = [
+            {"name": "audit", "description": "Audit project quality."},
+            {"name": "git_commit", "description": "Commit staged changes."},
+        ]
+
+        rendered = catalog_module.render_list_tools(tools)
+
+        assert rendered.splitlines() == [
+            "list_tools | 2 tools",
+            "audit — Audit project quality.",
+            "git_commit — Commit staged changes.",
+        ]
