@@ -459,14 +459,15 @@ def not_a_repo_error(stderr: str, path: Path) -> ToolResult:
     suggestions = suggest_git_repos(path)
     if suggestions:
         hint = ", ".join(suggestions)
+        error = (
+            f"{msg}. This directory contains git repos: {hint}. "
+            f"Pass one of these as the path instead."
+        )
         return ToolResult(
             success=False,
-            error=(
-                f"{msg}. This directory contains git repos: {hint}. "
-                f"Pass one of these as the path instead."
-            ),
+            error=error,
             data={"suggestions": suggestions},
-            text=f"{msg}: {hint}",
+            text=error,
         )
 
     return ToolResult(success=False, error=msg, text=msg)

@@ -164,13 +164,22 @@ class TestFailureResultText:
     def test_not_a_repo_error_text_beats_raw_json(
         self, mock_suggest_git_repos: MagicMock
     ) -> None:
-        """AC4: compact failure text beats raw JSON and contains no braces."""
+        """AC4: text beats the raw JSON the LLM would otherwise see, no braces.
+
+        The baseline is the *flattened* envelope the MCP wrapper emits when a
+        failure carries no ``text`` (``data`` spread + ``success`` + ``error``),
+        not the bare ``data`` fragment — that is what dual-format actually
+        replaces.
+        """
         mock_suggest_git_repos.return_value = ["/p/childA", "/p/childB"]
 
         result = runner.not_a_repo_error("not a git repository", Path("/p"))
+        raw_json = json.dumps(
+            {**(result.data or {}), "success": False, "error": result.error}
+        )
 
         assert isinstance(result.text, str) and result.text
-        assert len(result.text) < len(json.dumps(result.data))
+        assert len(result.text) < len(raw_json)
         assert "{" not in result.text
         assert "}" not in result.text
 
