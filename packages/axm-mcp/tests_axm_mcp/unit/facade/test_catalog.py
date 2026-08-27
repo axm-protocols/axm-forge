@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from axm.tools.base import ToolResult
+from pydantic import ValidationError
 
 from axm_mcp.discovery import ToolEntry
 from axm_mcp.facade import catalog as catalog_module
@@ -49,6 +50,33 @@ class _BibTool:
     def execute(self, *, ref: str) -> ToolResult:
         """Resolve a citation reference."""
         return ToolResult(success=True, data={"doi": "10.x"})
+
+
+class _TypedListTool:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def execute(self, *, symbols: list[str]) -> ToolResult:
+        self.calls += 1
+        return ToolResult(success=True, text=str(symbols))
+
+
+class _TypedScalarTool:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def execute(self, *, count: int) -> ToolResult:
+        self.calls += 1
+        return ToolResult(success=True, text=str(count))
+
+
+class _CoercibleIntTool:
+    def __init__(self) -> None:
+        self.received: list[int] = []
+
+    def execute(self, *, items: int) -> ToolResult:
+        self.received.append(items)
+        return ToolResult(success=True, text=str(items))
 
 
 def _plain(**kwargs: Any) -> dict[str, Any]:
@@ -138,6 +166,38 @@ class TestCall:
         # tool layer turns this into a param hint).
         with pytest.raises(TypeError):
             catalog.call("bib_resolve", {})
+
+
+class TestFacadeTypeValidation:
+    def test_rejects_mistyped_list_item_before_dispatch(self) -> None:
+        """AC1: a non-string list item raises validation before execute."""
+        tool = _TypedListTool()
+        typed_catalog = _catalog(typed_list=tool)
+
+        with pytest.raises((TypeError, ValidationError)):
+            typed_catalog.call("typed_list", {"symbols": [123]})
+
+        assert tool.calls == 0
+
+    def test_rejects_mistyped_scalar_before_dispatch(self) -> None:
+        """AC2: a scalar mismatch raises validation before execute."""
+        tool = _TypedScalarTool()
+        typed_catalog = _catalog(typed_scalar=tool)
+
+        with pytest.raises((TypeError, ValidationError)):
+            typed_catalog.call("typed_scalar", {"count": "not-an-int"})
+
+        assert tool.calls == 0
+
+    def test_coerces_bool_to_int_before_dispatch(self) -> None:
+        """AC5: a pydantic-coercible JSON list reaches execute as a list."""
+        tool = _CoercibleIntTool()
+        typed_catalog = _catalog(coercible_int=tool)
+
+        typed_catalog.call("coercible_int", {"items": True})
+
+        assert tool.received == [1]
+        assert type(tool.received[0]) is int
 
 
 class TestCallFailureContract:

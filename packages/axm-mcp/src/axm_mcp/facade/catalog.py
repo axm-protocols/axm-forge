@@ -25,8 +25,9 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
+from pydantic import TypeAdapter
 
-from axm_mcp.schema import IntrospectableFn, signature_params
+from axm_mcp.schema import IntrospectableFn, apply_signature, signature_params
 from axm_mcp.wrapping import build_wrappers
 
 if TYPE_CHECKING:
@@ -289,9 +290,9 @@ class ToolCatalog:
             UnknownToolError: If *name* is not in the catalog.
         """
         tool = self._get(name)  # validate name → UnknownToolError
-        self._bind_check(tool, arguments)
+        validated = self._bind_check(tool, arguments)
         sync_wrapper, _ = self._wrappers[name]
-        return self._render(sync_wrapper(**(arguments or {})))
+        return self._render(sync_wrapper(**validated))
 
     async def acall(self, name: str, arguments: dict[str, object] | None = None) -> str:
         """Execute *name* through the lock-aware async wrapper.
@@ -313,13 +314,15 @@ class ToolCatalog:
             UnknownToolError: If *name* is not in the catalog.
         """
         tool = self._get(name)  # validate name → UnknownToolError
-        self._bind_check(tool, arguments)
+        validated = self._bind_check(tool, arguments)
         _, async_wrapper = self._wrappers[name]
-        result = await async_wrapper(**(arguments or {}))
+        result = await async_wrapper(**validated)
         return self._render(result)
 
     @staticmethod
-    def _bind_check(tool: ToolEntry, arguments: dict[str, object] | None) -> None:
+    def _bind_check(
+        tool: ToolEntry, arguments: dict[str, object] | None
+    ) -> dict[str, object]:
         """Bind *arguments* to the tool's signature, raising ``TypeError`` early.
 
         Separates a genuine **argument mismatch** (missing required / unexpected
@@ -329,11 +332,29 @@ class ToolCatalog:
         propagates here as a ``TypeError``; a dispatcher's ``**kwargs`` makes
         the bind permissive, so those tools never false-positive.
         """
+        supplied = arguments or {}
+        exec_fn = _exec_fn(tool)
         try:
-            sig = inspect.signature(_exec_fn(tool))
+            sig = inspect.signature(exec_fn)
         except (ValueError, TypeError):
-            return  # un-introspectable signature — let the wrapper handle it
-        sig.bind(**(arguments or {}))
+            return supplied  # un-introspectable — let the wrapper handle it
+        sig.bind(**supplied)
+
+        def signature_target(**kwargs: object) -> dict[str, object]:
+            return kwargs
+
+        apply_signature(signature_target, exec_fn, None)
+        typed_params = inspect.signature(signature_target).parameters
+        validated: dict[str, object] = {}
+        for name, value in supplied.items():
+            parameter = typed_params.get(name)
+            if parameter is None or parameter.annotation is inspect.Parameter.empty:
+                validated[name] = value
+            else:
+                validated[name] = TypeAdapter(parameter.annotation).validate_python(
+                    value
+                )
+        return validated
 
     @staticmethod
     def _render(result: dict[str, object] | str) -> str:
