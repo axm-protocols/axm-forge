@@ -20,6 +20,7 @@ from axm_config.paths import (
     warden_log_path,
     warden_max_concurrent,
     warden_mode,
+    warden_park_threshold,
     warden_socket,
 )
 from axm_config.resolver import (
@@ -67,5 +68,6 @@ __all__ = [
     "warden_log_path",
     "warden_max_concurrent",
     "warden_mode",
+    "warden_park_threshold",
     "warden_socket",
 ]

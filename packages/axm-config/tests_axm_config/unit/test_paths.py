@@ -243,3 +243,38 @@ def test_warden_max_concurrent_returns_a_positive_value(
     monkeypatch.setenv("AXM_WARDEN_MAX_CONCURRENT", "12")
 
     assert paths.warden_max_concurrent() == 12
+
+
+def test_warden_park_threshold_returns_builtin_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: the unconfigured public getter returns the built-in threshold 3."""
+    monkeypatch.delenv("AXM_WARDEN_PARK_THRESHOLD", raising=False)
+
+    assert paths.warden_park_threshold() == 3
+
+
+def test_warden_park_threshold_coerces_environment_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: the environment overrides the default and is coerced to int."""
+    monkeypatch.setenv("AXM_WARDEN_PARK_THRESHOLD", "5")
+
+    result = paths.warden_park_threshold()
+
+    assert result == 5
+    assert isinstance(result, int)
+
+
+def test_warden_park_threshold_rejects_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: zero is rejected with the public domain-validation diagnostic."""
+    monkeypatch.setenv("AXM_WARDEN_PARK_THRESHOLD", "0")
+
+    with pytest.raises(ConfigError) as exc_info:
+        paths.warden_park_threshold()
+
+    assert str(exc_info.value) == (
+        "invalid value for warden.park_threshold: expected >= 1, got 0"
+    )

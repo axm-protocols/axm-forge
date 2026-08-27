@@ -55,6 +55,7 @@ __all__ = [
     "warden_log_path",
     "warden_max_concurrent",
     "warden_mode",
+    "warden_park_threshold",
     "warden_socket",
 ]
 
@@ -210,6 +211,7 @@ def protocols_dir(*, default: Path | None = None) -> Path:
 
 
 _WARDEN_NAMESPACE = "warden"
+_DEFAULT_WARDEN_PARK_THRESHOLD = 3
 _DEFAULT_WARDEN_MODE = "embedded"
 _DEFAULT_WARDEN_MAX_CONCURRENT = 4
 _DEFAULT_WARDEN_AUTOSTART = True
@@ -243,6 +245,20 @@ def warden_max_concurrent(*, default: int | None = None) -> int:
     value = get_int("max_concurrent", fallback, namespace=_WARDEN_NAMESPACE)
     if value <= 0:
         msg = f"invalid value for warden.max_concurrent: expected > 0, got {value}"
+        raise ConfigError(msg)
+    return value
+
+
+def warden_park_threshold(*, default: int | None = None) -> int:
+    """Return the minimum number of failed generations before parking."""
+    fallback = default if default is not None else _DEFAULT_WARDEN_PARK_THRESHOLD
+    configured = _resolve_configured(_WARDEN_NAMESPACE, "park_threshold")
+    if configured is _MISSING:
+        return fallback
+
+    value = get_int("park_threshold", fallback, namespace=_WARDEN_NAMESPACE)
+    if value < 1:
+        msg = f"invalid value for warden.park_threshold: expected >= 1, got {value}"
         raise ConfigError(msg)
     return value
 
