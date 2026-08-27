@@ -266,6 +266,17 @@ def _lint_diffs(
     )
 
 
+def _flatten_removals(auto_fixed: list[str], root: Path) -> list[dict[str, str]]:
+    removals = extract_import_removals(
+        auto_fixed, path_resolver=_make_path_resolver(root)
+    )
+    return [
+        {"name": r.name, "file": r.file, "code": r.code}
+        for file_removals in removals.values()
+        for r in file_removals
+    ]
+
+
 def _apply_lint(
     root: Path,
     py_files: list[Path],
@@ -289,17 +300,8 @@ def _apply_lint(
     if lint_warnings:
         data["warnings"] = lint_warnings
 
-    if auto_fixed:
-        removals = extract_import_removals(
-            auto_fixed, path_resolver=_make_path_resolver(root)
-        )
-        flat = [
-            {"name": r.name, "file": r.file, "code": r.code}
-            for file_removals in removals.values()
-            for r in file_removals
-        ]
-        if flat:
-            data["import_removals"] = flat
+    if auto_fixed and (flat := _flatten_removals(auto_fixed, root)):
+        data["import_removals"] = flat
 
     if lint_diff and auto_fixed:
         post_lint = _snapshot_files(root, py_files)
@@ -407,6 +409,31 @@ def _render_lint_diff(entry: dict[str, object]) -> list[str]:
     return [head]
 
 
+def _group_removals(
+    removals: list[object],
+) -> dict[tuple[str, str], list[str]]:
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for entry in removals:
+        if not isinstance(entry, dict):
+            continue
+        file = str(entry.get("file") or "?")
+        code = str(entry.get("code") or "?")
+        grouped.setdefault((file, code), []).append(str(entry.get("name") or "?"))
+    return grouped
+
+
+def _format_removal_alert(file: str, code: str, names: list[str]) -> str:
+    label = _REMOVAL_LABELS.get(code, "symbol")
+    plural = "s" if len(names) > 1 else ""
+    listed = ", ".join(f"`{n}`" for n in names)
+    subject = "each" if len(names) > 1 else listed
+    return (
+        f"⚠ lint removed {label}{plural} {listed} from {file} ({code})"
+        f" — add {subject} and its first consumer in the same batch,"
+        f" or the removal will break a later edit"
+    )
+
+
 def _render_import_alerts(data: dict[str, object]) -> list[str]:
     """Render one leading ⚠ alert line per dangerous F401/F811 removal.
 
@@ -419,25 +446,11 @@ def _render_import_alerts(data: dict[str, object]) -> list[str]:
     removals = data.get("import_removals")
     if not isinstance(removals, list):
         return []
-    grouped: dict[tuple[str, str], list[str]] = {}
-    for entry in removals:
-        if not isinstance(entry, dict):
-            continue
-        file = str(entry.get("file") or "?")
-        code = str(entry.get("code") or "?")
-        grouped.setdefault((file, code), []).append(str(entry.get("name") or "?"))
-    lines: list[str] = []
-    for (file, code), names in grouped.items():
-        label = _REMOVAL_LABELS.get(code, "symbol")
-        plural = "s" if len(names) > 1 else ""
-        listed = ", ".join(f"`{n}`" for n in names)
-        subject = "each" if len(names) > 1 else listed
-        lines.append(
-            f"⚠ lint removed {label}{plural} {listed} from {file} ({code})"
-            f" — add {subject} and its first consumer in the same batch,"
-            f" or the removal will break a later edit"
-        )
-    return lines
+    grouped = _group_removals(removals)
+    return [
+        _format_removal_alert(file, code, names)
+        for (file, code), names in grouped.items()
+    ]
 
 
 def _render_error_lines(result: BatchResult) -> list[str]:

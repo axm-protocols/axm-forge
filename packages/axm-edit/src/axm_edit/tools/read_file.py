@@ -146,6 +146,28 @@ def _failure_result(category: _ReadFileError, message: str) -> ToolResult:
     )
 
 
+def _read_text(resolved: Path, file_rel: str) -> str | ToolResult:
+    try:
+        return resolved.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return _failure_result(
+            _ReadFileError.DECODE, f"Cannot decode file as UTF-8: {file_rel}"
+        )
+    except OSError as exc:
+        return _failure_result(_ReadFileError.READ, f"Read failed: {file_rel}: {exc}")
+
+
+def _cap_selection(
+    selected: list[str],
+    start_line: int | None,
+    end_line: int | None,
+) -> tuple[list[str], bool]:
+    unbounded = start_line is None and end_line is None
+    if unbounded and len(selected) > _DEFAULT_MAX_LINES:
+        return selected[:_DEFAULT_MAX_LINES], True
+    return selected, False
+
+
 class ReadFileTool:
     """Read file content with optional line-range support.
 
@@ -206,19 +228,9 @@ class ReadFileTool:
             return _failure_result(_ReadFileError.BAD_RANGE, range_error)
 
         # Read content
-        try:
-            text = resolved.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError) as exc:
-            if isinstance(exc, UnicodeDecodeError):
-                error = f"Cannot decode file as UTF-8: {file_rel}"
-            else:
-                error = f"Read failed: {file_rel}: {exc}"
-            category = (
-                _ReadFileError.DECODE
-                if isinstance(exc, UnicodeDecodeError)
-                else _ReadFileError.READ
-            )
-            return _failure_result(category, error)
+        text = _read_text(resolved, file_rel)
+        if isinstance(text, ToolResult):
+            return text
 
         all_lines = text.splitlines(keepends=True)
         total_lines = len(all_lines)
@@ -233,14 +245,7 @@ class ReadFileTool:
 
         # Cap unbounded reads so a large file cannot exceed the MCP
         # transport limit. Only applies when no explicit range was given.
-        capped = False
-        if (
-            start_line is None
-            and end_line is None
-            and len(selected) > _DEFAULT_MAX_LINES
-        ):
-            selected = selected[:_DEFAULT_MAX_LINES]
-            capped = True
+        selected, capped = _cap_selection(selected, start_line, end_line)
 
         content = _format_numbered(selected, first_line_num)
 
