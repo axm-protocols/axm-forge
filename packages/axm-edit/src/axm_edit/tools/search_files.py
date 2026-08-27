@@ -176,6 +176,20 @@ def render_text(
         header += f" · TRUNCATED at {count}"
 
     lines = [header]
+    unique_content_lines = {str(match["content"]) for match in matches}
+    ratio = len(unique_content_lines) / count
+    grouping_threshold = 0.5
+    if ratio <= grouping_threshold:
+        sites_by_content: dict[str, list[str]] = {}
+        for match in matches:
+            content = str(match["content"])
+            site = f"{match['file']}:{match['line']}"
+            sites_by_content.setdefault(content, []).append(site)
+        for content, sites in sites_by_content.items():
+            lines.append(content)
+            lines.extend(f"  {site}" for site in sites)
+        return "\n".join(lines)
+
     current: str | None = None
     for match in matches:
         file_rel = str(match["file"])
@@ -223,8 +237,9 @@ class SearchFilesTool:
             include: Glob patterns to filter files (e.g. ["*.py"]).
 
         Returns:
-            ToolResult with matches list (file, line, content),
-            count, and truncated flag.
+            ToolResult with matches list (file, line, content), count, and
+            truncated flag. The text view groups by content when at most half
+            of the matches have distinct content, while preserving every site.
         """
         root_str = path
 

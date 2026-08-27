@@ -2,11 +2,58 @@
 
 from __future__ import annotations
 
+import tiktoken
+
 from axm_edit.tools.search_files import (
     SearchFilesTool,
     render_text,
     truncate_line,
 )
+
+
+def _high_duplication_matches() -> list[dict[str, object]]:
+    contents = [
+        (
+            "def resolve_runtime_backend(configuration: RuntimeConfiguration, *, "
+            "strict: bool = True) -> Backend:"
+        ),
+        (
+            "class DurableJournalWriter(AppendOnlyWriter[RunEvent], SupportsFlush, "
+            "Protocol):"
+        ),
+        (
+            "async def persist_checkpoint(session_id: str, "
+            "payload: Mapping[str, object]) -> None:"
+        ),
+        (
+            "result = await executor.execute(node=node, context=context, "
+            "retry_policy=retry_policy)"
+        ),
+        (
+            "return ToolResult(success=True, data=serialized_payload, "
+            "text=compact_rendering)"
+        ),
+        (
+            "with transaction.atomic(isolation_level=IsolationLevel.SERIALIZABLE) "
+            "as transaction:"
+        ),
+        (
+            'raise ConfigurationError(f"Unsupported backend {backend_name!r} '
+            'f"for profile {profile_name!r}")'
+        ),
+        (
+            "metadata: dict[str, JsonValue] = normalize_metadata(event.metadata, "
+            "schema=EVENT_SCHEMA)"
+        ),
+    ]
+    return [
+        {
+            "file": f"src/service_{index % 13:02d}.py",
+            "line": 40 + index * 7,
+            "content": contents[index % len(contents)],
+        }
+        for index in range(26)
+    ]
 
 
 class TestSearchFilesTool:
@@ -56,6 +103,26 @@ class TestRenderText:
         ]
         text = render_text(matches=matches, count=1, truncated=False)
         assert text == "search_files | 1 match · 1 file\na.py\n  7: needle"
+
+    def test_high_duplication_is_grouped_by_content(self) -> None:
+        """AC1: 26 sites over 8 contents render each content once without loss."""
+        matches = _high_duplication_matches()
+
+        text = render_text(matches=matches, count=len(matches), truncated=False)
+
+        distinct_contents = {str(match["content"]) for match in matches}
+        assert len(distinct_contents) == 8
+        assert all(text.count(content) == 1 for content in distinct_contents)
+        assert all(f"{match['file']}:{match['line']}" in text for match in matches)
+
+    def test_high_duplication_stays_under_token_budget(self) -> None:
+        """AC2: the content-grouped 26/8 rendering uses fewer than 500 tokens."""
+        matches = _high_duplication_matches()
+
+        text = render_text(matches=matches, count=len(matches), truncated=False)
+        token_count = len(tiktoken.get_encoding("o200k_base").encode(text))
+
+        assert token_count < 500
 
 
 class TestTruncateLine:
