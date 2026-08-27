@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -139,6 +140,48 @@ class TestRunnerTimeouts:
         self, _which: MagicMock, _mock_run: MagicMock
     ) -> None:
         assert gh_available() is False
+
+
+class TestFailureResultText:
+    """Unit tests for compact, dual-format failure results."""
+
+    @patch("axm_git.core.runner.suggest_git_repos")
+    def test_not_a_repo_error_text_lists_suggestions(
+        self, mock_suggest_git_repos: MagicMock
+    ) -> None:
+        """AC1: failure text quotes the error and lists every suggested repo."""
+        error = "not a git repository"
+        mock_suggest_git_repos.return_value = ["/p/childA", "/p/childB"]
+
+        result = runner.not_a_repo_error(error, Path("/p"))
+
+        assert isinstance(result.text, str) and result.text
+        assert error in result.text.splitlines()[0]
+        assert "/p/childA" in result.text
+        assert "/p/childB" in result.text
+
+    @patch("axm_git.core.runner.suggest_git_repos")
+    def test_not_a_repo_error_text_beats_raw_json(
+        self, mock_suggest_git_repos: MagicMock
+    ) -> None:
+        """AC4: compact failure text beats raw JSON and contains no braces."""
+        mock_suggest_git_repos.return_value = ["/p/childA", "/p/childB"]
+
+        result = runner.not_a_repo_error("not a git repository", Path("/p"))
+
+        assert isinstance(result.text, str) and result.text
+        assert len(result.text) < len(json.dumps(result.data))
+        assert "{" not in result.text
+        assert "}" not in result.text
+
+    def test_timeout_error_result_text_quotes_error(self) -> None:
+        """AC2: timeout failure text quotes its error on the first line."""
+        result = runner.timeout_error_result(
+            subprocess.TimeoutExpired(cmd=["git", "status"], timeout=5)
+        )
+
+        assert isinstance(result.text, str) and result.text
+        assert result.error in result.text.splitlines()[0]
 
 
 class TestStagedDelta:

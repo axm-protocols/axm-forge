@@ -231,10 +231,8 @@ def timeout_error_result(exc: subprocess.TimeoutExpired) -> ToolResult:
         cmd_str = str(cmd[0])
     else:
         cmd_str = str(cmd)
-    return ToolResult(
-        success=False,
-        error=f"{cmd_str} timed out after {exc.timeout}s",
-    )
+    error = f"{cmd_str} timed out after {exc.timeout}s"
+    return ToolResult(success=False, error=error, text=error)
 
 
 _ORIGIN_HEAD_PREFIX = "refs/remotes/origin/"
@@ -456,7 +454,7 @@ def not_a_repo_error(stderr: str, path: Path) -> ToolResult:
     msg = stderr.strip()
 
     if "not a git repository" not in msg:
-        return ToolResult(success=False, error=msg)
+        return ToolResult(success=False, error=msg, text=msg)
 
     suggestions = suggest_git_repos(path)
     if suggestions:
@@ -468,6 +466,7 @@ def not_a_repo_error(stderr: str, path: Path) -> ToolResult:
                 f"Pass one of these as the path instead."
             ),
             data={"suggestions": suggestions},
+            text=f"{msg}: {hint}",
         )
 
-    return ToolResult(success=False, error=msg)
+    return ToolResult(success=False, error=msg, text=msg)

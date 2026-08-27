@@ -3,6 +3,8 @@
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from axm_git.tools.commit_preflight import GitPreflightTool
 
 
@@ -54,6 +56,24 @@ class TestPreflightFlow:
         assert not result.data["clean"]
         paths = [f["path"] for f in result.data["files"]]
         assert "README.md" in paths
+
+    @pytest.mark.integration
+    def test_preflight_with_child_repos_has_failure_text(self, tmp_path: Path) -> None:
+        """AC3: a non-repo parent with git children returns visible text."""
+        for name in ("childA", "childB"):
+            child = tmp_path / name
+            child.mkdir()
+            subprocess.run(
+                ["git", "init"],
+                cwd=str(child),
+                capture_output=True,
+                check=True,
+            )
+
+        result = GitPreflightTool().execute(path=str(tmp_path))
+
+        assert not result.success
+        assert isinstance(result.text, str) and result.text
 
     def test_preflight_on_non_git_dir_fails(self, tmp_path: Path) -> None:
         """Failure path: preflight outside a repo returns a readable error."""
