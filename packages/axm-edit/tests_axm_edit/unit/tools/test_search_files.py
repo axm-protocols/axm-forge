@@ -22,6 +22,17 @@ class TestSearchFilesTool:
         assert result.success is False
         assert "not a directory" in (result.error or "").lower()
 
+    def test_missing_pattern_yields_actionable_hint_text(self) -> None:
+        """AC1: missing pattern text names the required ``pattern=`` argument."""
+        result = SearchFilesTool().execute(pattern=None)
+
+        assert result.text
+        hint_lines = [
+            line for line in result.text.splitlines() if line.startswith("hint:")
+        ]
+        assert hint_lines
+        assert "pattern=" in hint_lines[0]
+
 
 class TestRenderText:
     """Tests for the ``render_text`` compact rendering helper."""

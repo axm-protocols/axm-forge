@@ -230,16 +230,28 @@ class SearchFilesTool:
 
         # ── Validate inputs ──────────────────────────────────────────
         if pattern is None or pattern == "":
+            hint = "Pass a non-empty search term as pattern=."
             return ToolResult(
                 success=False,
                 error="Missing required argument: pattern",
+                hint=hint,
+                text=(
+                    "search_files | error: Missing required argument: pattern\n"
+                    f"hint: {hint}"
+                ),
             )
 
         root = Path(root_str).resolve()
         if not root.is_dir():
+            hint = "Pass an existing directory as path=."
             return ToolResult(
                 success=False,
                 error=f"Root is not a directory: {root_str}",
+                hint=hint,
+                text=(
+                    f"search_files | error: Root is not a directory: {root_str}\n"
+                    f"hint: {hint}"
+                ),
             )
 
         # Compile regex if needed
@@ -248,9 +260,16 @@ class SearchFilesTool:
             try:
                 matcher = re.compile(pattern)
             except re.error as exc:
+                hint = "Fix pattern= so it is a valid regex, or drop is_regex=True."
                 return ToolResult(
                     success=False,
                     error=f"Invalid regex pattern: {exc}",
+                    hint=hint,
+                    text=(
+                        f"search_files | error: Invalid regex pattern "
+                        f"{pattern!r}: {exc}\n"
+                        f"hint: {hint}"
+                    ),
                 )
         else:
             matcher = pattern

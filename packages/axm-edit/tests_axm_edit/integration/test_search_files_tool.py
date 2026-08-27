@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.tools.search_files import SearchFilesTool
 
 
@@ -167,6 +169,43 @@ class TestSearchFilesSkipsBinary:
 
 class TestSearchFilesToolIO:
     """Integration: SearchFilesTool.execute over real filesystem I/O."""
+
+    @pytest.mark.integration
+    def test_invalid_root_yields_actionable_hint_text(self, tmp_path: Path) -> None:
+        """AC2: invalid-root text prescribes an existing directory as ``path=``."""
+        missing_dir = tmp_path / "not-created"
+
+        result = SearchFilesTool().execute(path=str(missing_dir), pattern="x")
+
+        assert result.text
+        hint_lines = [
+            line for line in result.text.splitlines() if line.startswith("hint:")
+        ]
+        assert hint_lines
+        assert "existing directory" in hint_lines[0].lower()
+        assert "path=" in hint_lines[0]
+
+    @pytest.mark.integration
+    def test_invalid_regex_yields_pattern_and_remediation_hint(
+        self, tmp_path: Path
+    ) -> None:
+        """AC3: invalid-regex text cites the pattern and gives two remedies."""
+        faulty_pattern = "["
+
+        result = SearchFilesTool().execute(
+            path=str(tmp_path),
+            pattern=faulty_pattern,
+            is_regex=True,
+        )
+
+        assert result.text
+        assert faulty_pattern in result.text
+        hint_lines = [
+            line for line in result.text.splitlines() if line.startswith("hint:")
+        ]
+        assert hint_lines
+        assert "is_regex=True" in hint_lines[0]
+        assert "fix" in hint_lines[0].lower()
 
     def test_text_field_groups_matches_by_file(self, tmp_path: Path) -> None:
         """A successful search exposes a compact ``text`` grouped by file."""
