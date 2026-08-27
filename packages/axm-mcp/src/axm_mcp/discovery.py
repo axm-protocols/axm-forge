@@ -7,6 +7,7 @@ import os
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
+from axm_mcp.facade.catalog import render_list_tools
 from axm_mcp.schema import (
     IntrospectableFn,
     apply_signature,
@@ -202,7 +203,7 @@ def register_list_tools(  # type: ignore[explicit-any]
     """Register the list_tools meta-tool."""
 
     @mcp.tool(name="list_tools")
-    def _list_tools(**kwargs: object) -> dict[str, object]:
+    def _list_tools(**kwargs: object) -> str:
         """List all available AXM tools with their names and descriptions."""
         tool_list = []
         for name, tool in tools.items():
@@ -212,6 +213,6 @@ def register_list_tools(  # type: ignore[explicit-any]
         # Single canonical name-sort over the merged list (the per-segment
         # ``sorted()`` calls above were redundant — this is the only sort).
         tool_list.sort(key=lambda t: t["name"])
-        return {"tools": tool_list, "count": len(tool_list)}
+        return render_list_tools(tool_list)
 
     logger.info("Registered meta-tool: list_tools")

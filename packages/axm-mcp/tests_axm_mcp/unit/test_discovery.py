@@ -803,7 +803,10 @@ class TestRegisterListTools:
     """Cover register_list_tools inner fn (discovery.py:113-120)."""
 
     def test_lists_all_tools(self) -> None:
-        """list_tools returns discovered + extra tools, sorted."""
+        (
+            """AC1: compact header and one line per tool."""
+            """list_tools returns discovered + extra tools, sorted."""
+        )
         fake_mcp = FakeMCP()
         tools = {
             "beta_tool": FakeTool(name="beta_tool"),
@@ -813,6 +816,11 @@ class TestRegisterListTools:
         register_list_tools(fake_mcp, tools, extra)
 
         result = fake_mcp.tools["list_tools"]()
-        assert result["count"] == 3
-        names = [t["name"] for t in result["tools"]]
-        assert names == ["alpha_tool", "beta_tool", "verify"]
+        assert isinstance(result, str)
+        lines = result.splitlines()
+        assert lines[0] == "list_tools | 3 tools"
+        assert len(lines[1:]) == 3
+        assert all(
+            any(name in line for line in lines[1:])
+            for name in ("alpha_tool", "beta_tool", "verify")
+        )
