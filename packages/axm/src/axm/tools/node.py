@@ -37,7 +37,13 @@ if TYPE_CHECKING:
 
     from axm.tools.base import AXMTool
 
-__all__ = ["TOOLS_ENTRY_POINT_GROUP", "ToolNodeError", "override_tools", "tool_node"]
+__all__ = [
+    "TOOLS_ENTRY_POINT_GROUP",
+    "ToolNodeError",
+    "load_tool",
+    "override_tools",
+    "tool_node",
+]
 
 #: Active tool substitutions (``override_tools``), scoped by contextvars so a
 #: substitution installed by a test body is seen by the tasks/threads the DAG
@@ -91,7 +97,7 @@ def override_tools(tools: Mapping[str, AXMTool]) -> Iterator[None]:
         _OVERRIDES.reset(token)
 
 
-def _load_tool(name: str) -> AXMTool:
+def load_tool(name: str) -> AXMTool:
     """Resolve and instantiate the ``axm.tools`` entry point named *name*."""
     # An active ``override_tools`` substitute wins over discovery, for direct
     # callers as well as for ``tool_node`` (which consults it before its cache).
@@ -223,3 +229,10 @@ def _shape_output(
             msg = f"tool {name!r}: no {source!r} in result.data for write {write_key!r}"
             raise ToolNodeError(msg)
     return out
+
+
+#: Backwards-compatible alias. ``load_tool`` was private for a long time and
+#: ~76 call sites plus ~42 test modules import it by the underscored name;
+#: keeping the alias makes the promotion non-breaking, and the public name is
+#: what new code should use.
+_load_tool = load_tool
