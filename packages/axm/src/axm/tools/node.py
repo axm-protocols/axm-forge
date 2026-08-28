@@ -15,21 +15,36 @@ the node's ``writes``. :func:`tool_node` builds such a callable around a tool:
   ``"text"`` (the tool's ``ToolResult.text``) or a key inside ``ToolResult.data``;
 * **failure** — fail-fast: a tool returning ``success=False`` raises
   :class:`ToolNodeError`. Guard preconditions with a conditional node (router /
-  ``if_``) so the tool is only invoked when it can succeed.
+  ``if_``) so the tool is only invoked when it can succeed;
+* **substitution** — :func:`override_tools` swaps named tools for the dynamic
+  extent of a block (a :mod:`contextvars` scope, so it follows ``asyncio`` tasks
+  and ``asyncio.to_thread`` — the paths a DAG run executes nodes on). It is the
+  tool-side twin of an injected agent backend: a graph's *logic* can run against
+  in-memory fakes of ``audit_test``/``git_*``/… without forking the real
+  toolchain, while the node's own payload/output shaping stays exercised.
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 from axm.tools._discovery import entry_points_for
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterator, Mapping
 
     from axm.tools.base import AXMTool
 
-__all__ = ["TOOLS_ENTRY_POINT_GROUP", "ToolNodeError", "tool_node"]
+__all__ = ["TOOLS_ENTRY_POINT_GROUP", "ToolNodeError", "override_tools", "tool_node"]
+
+#: Active tool substitutions (``override_tools``), scoped by contextvars so a
+#: substitution installed by a test body is seen by the tasks/threads the DAG
+#: scheduler spawns from it — and by nothing outside that dynamic extent.
+_OVERRIDES: ContextVar[Mapping[str, AXMTool] | None] = ContextVar(
+    "axm_tool_overrides", default=None
+)
 
 #: The entry-point group tools are discovered under (one declaration, three uses).
 TOOLS_ENTRY_POINT_GROUP = "axm.tools"
@@ -40,6 +55,35 @@ _TEXT = "text"
 
 class ToolNodeError(RuntimeError):
     """A tool invoked as a DAG node failed (``ToolResult.success`` was ``False``)."""
+
+
+@contextmanager
+def override_tools(tools: Mapping[str, AXMTool]) -> Iterator[None]:
+    """Substitute *tools* (``{entry_point_name: tool}``) for the duration of a block.
+
+    Inside the block, a :func:`tool_node` built for one of the named tools calls
+    the substitute instead of resolving the ``axm.tools`` entry point — whether
+    the node was built before or after entering the block, and whether or not
+    the real tool had already been resolved and memoized. Blocks nest: an inner
+    block adds to (or shadows, per name) the enclosing one, and leaving it
+    restores exactly what was active before.
+
+    The scope is a :mod:`contextvars` context, not a global: it propagates to
+    ``asyncio`` tasks and :func:`asyncio.to_thread` calls started inside the
+    block (how ``axm_dag`` executes python nodes) and is invisible to concurrent
+    work started outside it. Substitutes are never memoized, so the real tool
+    resolves again as soon as the block exits.
+
+    Args:
+        tools: Entry-point name → substitute implementing ``execute(**kwargs)
+            -> ToolResult``.
+    """
+    active = _OVERRIDES.get() or {}
+    token = _OVERRIDES.set({**active, **tools})
+    try:
+        yield
+    finally:
+        _OVERRIDES.reset(token)
 
 
 def _load_tool(name: str) -> AXMTool:
@@ -101,10 +145,15 @@ def tool_node(
     cache: dict[str, AXMTool] = {}
 
     def _run(payload: Mapping[str, object]) -> dict[str, object]:
-        tool = cache.get(name)
+        overrides = _OVERRIDES.get()
+        tool = overrides.get(name) if overrides else None
+        if tool is None:
+            tool = cache.get(name)
         if tool is None:
             # Resolve entry points + instantiate once, lazily on first call
-            # (late-binding): building the node scans nothing.
+            # (late-binding): building the node scans nothing. A substitute
+            # from ``override_tools`` never enters this cache: it lives exactly
+            # as long as its block.
             tool = _load_tool(name)
             cache[name] = tool
         kwargs = _kwargs_from_payload(payload, rename)

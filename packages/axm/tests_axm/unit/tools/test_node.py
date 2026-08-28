@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm.tools import ToolNodeError, tool_node
+from axm.tools import ToolNodeError, override_tools, tool_node
 from axm.tools.base import ToolResult
 
 
@@ -197,6 +198,75 @@ class TestResolutionMemoized:
         with patch("axm.tools.node.entry_points_for") as eps:
             tool_node("ast_impact", returns={"r": "text"})
         assert eps.call_count == 0
+
+
+def _text(value: str) -> ToolResult:
+    return ToolResult(success=True, data={}, text=value)
+
+
+class TestOverrideTools:
+    """``override_tools`` substitutes a tool for the dynamic extent of a block."""
+
+    def test_override_wins_over_entry_point_without_loading_it(self) -> None:
+        ep = _ep("ast_impact", _Tool(_text("real")))
+        fake = _Tool(_text("fake"))
+        node = tool_node("ast_impact", returns={"out": "text"})
+        with patch("axm.tools.node.entry_points_for", return_value={"ast_impact": ep}):
+            with override_tools({"ast_impact": fake}):
+                assert node({"x": 1}) == {"out": "fake"}
+        assert fake.seen == {"x": 1}
+        ep.load.assert_not_called()
+
+    def test_override_does_not_leak_past_its_block(self) -> None:
+        real, fake = _Tool(_text("real")), _Tool(_text("fake"))
+        node = tool_node("ast_impact", returns={"out": "text"})
+        with _with_tool(real):
+            with override_tools({"ast_impact": fake}):
+                assert node({}) == {"out": "fake"}
+            assert node({}) == {"out": "real"}
+
+    def test_override_is_never_memoized_and_shadows_a_memoized_real_tool(self) -> None:
+        real, fake = _Tool(_text("real")), _Tool(_text("fake"))
+        node = tool_node("ast_impact", returns={"out": "text"})
+        with _with_tool(real):
+            assert node({}) == {"out": "real"}  # real tool now cached in the node
+            with override_tools({"ast_impact": fake}):
+                assert node({}) == {"out": "fake"}
+            assert node({}) == {"out": "real"}
+
+    def test_nested_blocks_add_and_shadow_then_restore(self) -> None:
+        outer_a, outer_b, inner_a = (
+            _Tool(_text("outer-a")),
+            _Tool(_text("outer-b")),
+            _Tool(_text("inner-a")),
+        )
+        node_a = tool_node("tool_a", returns={"out": "text"})
+        node_b = tool_node("tool_b", returns={"out": "text"})
+        with override_tools({"tool_a": outer_a, "tool_b": outer_b}):
+            with override_tools({"tool_a": inner_a}):
+                assert node_a({}) == {"out": "inner-a"}
+                assert node_b({}) == {"out": "outer-b"}
+            assert node_a({}) == {"out": "outer-a"}
+
+    def test_unknown_names_are_not_resolved_by_an_unrelated_override(self) -> None:
+        node = tool_node("nope", returns={"out": "text"})
+        with patch("axm.tools.node.entry_points_for", return_value={}):
+            with override_tools({"other": _Tool(_text("x"))}):
+                with pytest.raises(ToolNodeError, match="No tool registered"):
+                    node({})
+
+    def test_override_follows_asyncio_to_thread_like_the_dag_runtime(self) -> None:
+        """axm_dag runs sync python nodes via ``asyncio.to_thread``; the
+        substitution must travel with that context switch."""
+        fake = _Tool(_text("fake"))
+        node = tool_node("ast_impact", returns={"out": "text"})
+
+        async def run_like_a_node() -> dict[str, object]:
+            return await asyncio.to_thread(node, {})
+
+        with patch("axm.tools.node.entry_points_for", return_value={}):
+            with override_tools({"ast_impact": fake}):
+                assert asyncio.run(run_like_a_node()) == {"out": "fake"}
 
 
 class TestClassEntryPoint:
