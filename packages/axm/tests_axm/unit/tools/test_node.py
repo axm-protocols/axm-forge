@@ -9,6 +9,7 @@ import pytest
 
 from axm.tools import ToolNodeError, override_tools, tool_node
 from axm.tools.base import ToolResult
+from axm.tools.node import _load_tool
 
 
 class _Tool:
@@ -254,6 +255,18 @@ class TestOverrideTools:
             with override_tools({"other": _Tool(_text("x"))}):
                 with pytest.raises(ToolNodeError, match="No tool registered"):
                     node({})
+
+    def test_override_covers_direct_load_tool_callers_not_only_tool_node(self) -> None:
+        """Graph nodes that resolve a tool by name themselves (a python node
+        calling ``_load_tool("echo_check")``) must see the substitute too — that
+        is where the expensive real tools are actually resolved."""
+        ep = _ep("echo_check", _Tool(_text("real")))
+        fake = _Tool(_text("fake"))
+        with patch("axm.tools.node.entry_points_for", return_value={"echo_check": ep}):
+            with override_tools({"echo_check": fake}):
+                assert _load_tool("echo_check") is fake
+            assert _load_tool("echo_check").execute() == _text("real")
+        ep.load.assert_called_once()
 
     def test_override_follows_asyncio_to_thread_like_the_dag_runtime(self) -> None:
         """axm_dag runs sync python nodes via ``asyncio.to_thread``; the

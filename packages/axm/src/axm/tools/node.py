@@ -68,6 +68,11 @@ def override_tools(tools: Mapping[str, AXMTool]) -> Iterator[None]:
     block adds to (or shadows, per name) the enclosing one, and leaving it
     restores exactly what was active before.
 
+    The substitution applies to every resolution *by name* — :func:`tool_node`
+    nodes and direct :func:`_load_tool` callers alike — so a graph node that
+    resolves a tool itself (``_load_tool("echo_check")`` in a python node) is
+    covered too, not only ``tool_node`` wrappers.
+
     The scope is a :mod:`contextvars` context, not a global: it propagates to
     ``asyncio`` tasks and :func:`asyncio.to_thread` calls started inside the
     block (how ``axm_dag`` executes python nodes) and is invisible to concurrent
@@ -88,6 +93,11 @@ def override_tools(tools: Mapping[str, AXMTool]) -> Iterator[None]:
 
 def _load_tool(name: str) -> AXMTool:
     """Resolve and instantiate the ``axm.tools`` entry point named *name*."""
+    # An active ``override_tools`` substitute wins over discovery, for direct
+    # callers as well as for ``tool_node`` (which consults it before its cache).
+    overrides = _OVERRIDES.get()
+    if overrides and name in overrides:
+        return overrides[name]
     eps = entry_points_for(TOOLS_ENTRY_POINT_GROUP)
     ep = eps.get(name)
     if ep is not None:
@@ -146,16 +156,18 @@ def tool_node(
 
     def _run(payload: Mapping[str, object]) -> dict[str, object]:
         overrides = _OVERRIDES.get()
-        tool = overrides.get(name) if overrides else None
-        if tool is None:
-            tool = cache.get(name)
-        if tool is None:
-            # Resolve entry points + instantiate once, lazily on first call
-            # (late-binding): building the node scans nothing. A substitute
-            # from ``override_tools`` never enters this cache: it lives exactly
-            # as long as its block.
-            tool = _load_tool(name)
-            cache[name] = tool
+        if overrides and name in overrides:
+            # A substitute shadows even a memoized real tool and never enters
+            # the cache: it lives exactly as long as its block.
+            tool: AXMTool = overrides[name]
+        else:
+            cached = cache.get(name)
+            if cached is None:
+                # Resolve entry points + instantiate once, lazily on first call
+                # (late-binding): building the node scans nothing.
+                cached = _load_tool(name)
+                cache[name] = cached
+            tool = cached
         kwargs = _kwargs_from_payload(payload, rename)
         try:
             result = tool.execute(**kwargs)
