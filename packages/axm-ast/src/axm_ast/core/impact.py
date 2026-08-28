@@ -1039,6 +1039,7 @@ def _filter_precise_callers(
     pkg: PackageInfo,
     callers: list[CallSite],
     definition: DefinitionInfo,
+    symbol: str,
 ) -> list[CallSite]:
     """Remove callers proven to import only a distinct homonymous symbol."""
     definition_module = definition["module"]
@@ -1062,11 +1063,20 @@ def _filter_precise_callers(
             filtered.append(caller)
             continue
         module = modules.get(caller.module)
-        if module is None or _imports_definition_module(
-            _module_import_names(module),
+        if module is None:
+            filtered.append(caller)
+            continue
+        imported_modules = _module_import_names(module)
+        if imported_modules and _imports_definition_module(
+            imported_modules,
             dotted_definition,
             pkg.name,
         ):
+            filtered.append(caller)
+            continue
+        if _is_defined_in_module(module, symbol):
+            continue
+        if not imported_modules:
             filtered.append(caller)
     return filtered
 
@@ -1195,7 +1205,7 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
     definition = find_definition(pkg, symbol)
     callers = find_callers(pkg, lookup_name)
     if module_qualified and definition is not None:
-        callers = _filter_precise_callers(pkg, callers, definition)
+        callers = _filter_precise_callers(pkg, callers, definition, lookup_name)
     reexports = find_reexports(pkg, lookup_name)
     test_files = map_tests(lookup_name, root)
 
@@ -1203,7 +1213,7 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
         _definition_module_name(pkg, definition) if definition is not None else None
     )
     if precise_callers and definition is not None and dotted_definition is not None:
-        callers = _filter_precise_callers(pkg, callers, definition)
+        callers = _filter_precise_callers(pkg, callers, definition, lookup_name)
         test_files = _filter_precise_test_files(
             test_files,
             dotted_definition,

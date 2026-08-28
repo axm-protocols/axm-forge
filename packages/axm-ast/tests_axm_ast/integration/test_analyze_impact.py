@@ -1216,3 +1216,74 @@ def test_precise_callers_keeps_unresolvable_star_import(tmp_path: Path) -> None:
     caller_modules = {caller["module"] for caller in result["callers"]}
 
     assert "e" in caller_modules
+
+
+def _make_locally_shadowed_resolve_project(
+    tmp_path: Path,
+    shadow_definition: str,
+    *,
+    add_shadow_importer: bool = False,
+) -> tuple[Path, Path]:
+    """Build a package where c.py owns a homonymous resolve."""
+    project_root = tmp_path / "project"
+    package = project_root / "src" / "acme_pkg"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "a.py").write_text(
+        "def resolve() -> str:\n    return 'target'\n",
+        encoding="utf-8",
+    )
+    (package / "b.py").write_text(
+        "from .a import resolve\n\ndef use_target() -> str:\n    return resolve()\n",
+        encoding="utf-8",
+    )
+    (package / "c.py").write_text(
+        f"{shadow_definition}\n\ndef use_local() -> object:\n    return resolve()\n",
+        encoding="utf-8",
+    )
+    if add_shadow_importer:
+        (package / "d.py").write_text(
+            "from .c import resolve\n\n"
+            "def use_shadow() -> object:\n    return resolve()\n",
+            encoding="utf-8",
+        )
+    return project_root, package
+
+
+@pytest.mark.integration
+def test_precise_callers_excludes_local_function_shadow(tmp_path: Path) -> None:
+    """AC1: a module's own function homonym is not a caller of a.resolve."""
+    project_root, package = _make_locally_shadowed_resolve_project(
+        tmp_path,
+        "def resolve() -> str:\n    return 'local'",
+        add_shadow_importer=True,
+    )
+
+    result = analyze_impact(
+        package,
+        "a.resolve",
+        project_root=project_root,
+        precise_callers=True,
+    )
+    caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
+
+    assert caller_files == {"b.py"}
+
+
+@pytest.mark.integration
+def test_precise_callers_excludes_local_class_shadow(tmp_path: Path) -> None:
+    """AC2: a module's own class homonym is not a caller of a.resolve."""
+    project_root, package = _make_locally_shadowed_resolve_project(
+        tmp_path,
+        "class resolve:\n    pass",
+    )
+
+    result = analyze_impact(
+        package,
+        "a.resolve",
+        project_root=project_root,
+        precise_callers=True,
+    )
+    caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
+
+    assert caller_files == {"b.py"}
