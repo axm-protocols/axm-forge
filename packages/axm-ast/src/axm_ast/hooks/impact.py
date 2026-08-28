@@ -17,7 +17,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeGuard, cast
 
 from axm.hooks.base import HookResult
 
@@ -108,11 +108,12 @@ def _merge_impact_reports(
 def _parse_impact_params(
     context: dict[str, object],
     params: dict[str, object],
-) -> tuple[Path, str, list[str], bool, str | None] | HookResult:
+) -> _LegacyImpactParams | _ImpactParams | HookResult:
     """Parse and validate ImpactHook parameters.
 
     Returns:
-        ``(working_dir, symbol, symbols, exclude_tests, detail)`` on success,
+        ``(working_dir, symbol, symbols, exclude_tests, precise_callers, detail)``
+        on success,
         or a ``HookResult`` on validation failure.
     """
     symbol = params.get("symbol")
@@ -129,6 +130,7 @@ def _parse_impact_params(
         return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
     exclude_tests = bool(params.get("exclude_tests", False))
+    precise_callers = bool(params.get("precise_callers", False))
     raw_detail = params.get("detail")
     detail: str | None
     if raw_detail is None or isinstance(raw_detail, str):
@@ -139,7 +141,7 @@ def _parse_impact_params(
         )
     symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
 
-    return working_dir, symbol, symbols, exclude_tests, detail
+    return working_dir, symbol, symbols, exclude_tests, precise_callers, detail
 
 
 def _enrich_report(report: ImpactResult) -> EnrichedImpactResult:
@@ -162,6 +164,37 @@ def _enrich_report(report: ImpactResult) -> EnrichedImpactResult:
     else:
         enriched["packages"] = ""
     return enriched
+
+
+type _LegacyImpactParams = tuple[Path, str, list[str], bool, str | None]
+type _ImpactParams = tuple[Path, str, list[str], bool, bool, str | None]
+
+_LEGACY_IMPACT_PARAM_COUNT = 5
+_IMPACT_PARAM_COUNT = 6
+
+
+def _is_legacy_impact_params(
+    parsed: _LegacyImpactParams | _ImpactParams,
+) -> TypeGuard[_LegacyImpactParams]:
+    return len(parsed) == _LEGACY_IMPACT_PARAM_COUNT
+
+
+def _is_impact_params(
+    parsed: _LegacyImpactParams | _ImpactParams,
+) -> TypeGuard[_ImpactParams]:
+    return len(parsed) == _IMPACT_PARAM_COUNT
+
+
+def _normalize_impact_params(
+    parsed: _LegacyImpactParams | _ImpactParams,
+) -> _ImpactParams:
+    """Normalize the legacy hook tuple while preserving patched integrations."""
+    if _is_legacy_impact_params(parsed):
+        working_dir, symbol, symbols, exclude_tests, detail = parsed
+        return working_dir, symbol, symbols, exclude_tests, False, detail
+    if _is_impact_params(parsed):
+        return parsed
+    raise ValueError("Invalid impact parameter tuple")
 
 
 @dataclass
@@ -194,7 +227,14 @@ class ImpactHook:
         parsed = _parse_impact_params(context, params)
         if isinstance(parsed, HookResult):
             return parsed
-        working_dir, symbol, symbols, exclude_tests, detail = parsed
+        (
+            working_dir,
+            symbol,
+            symbols,
+            exclude_tests,
+            precise_callers,
+            detail,
+        ) = _normalize_impact_params(parsed)
 
         try:
             from axm_ast.core.impact import analyze_impact
@@ -205,15 +245,32 @@ class ImpactHook:
 
             text: str | None = None
             if len(symbols) == 1:
-                single_report: ImpactResult = analyze_impact(
-                    working_dir,
-                    symbols[0],
-                    project_root=working_dir.parent,
-                    exclude_tests=exclude_tests,
-                )
+                if precise_callers:
+                    single_report: ImpactResult = analyze_impact(
+                        working_dir,
+                        symbols[0],
+                        project_root=working_dir.parent,
+                        exclude_tests=exclude_tests,
+                        precise_callers=True,
+                    )
+                else:
+                    single_report = analyze_impact(
+                        working_dir,
+                        symbols[0],
+                        project_root=working_dir.parent,
+                        exclude_tests=exclude_tests,
+                    )
             else:
 
                 def _analyze(sym: str) -> ImpactResult:
+                    if precise_callers:
+                        return analyze_impact(
+                            working_dir,
+                            sym,
+                            project_root=working_dir.parent,
+                            exclude_tests=exclude_tests,
+                            precise_callers=True,
+                        )
                     return analyze_impact(
                         working_dir,
                         sym,

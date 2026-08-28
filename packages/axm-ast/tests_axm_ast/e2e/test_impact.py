@@ -49,3 +49,44 @@ def test_cli_impact_compact_prints_markdown(mini_pkg: Path) -> None:
     assert "KeyError" not in proc.stderr
     assert "helper" in proc.stdout
     assert proc.stdout.strip()
+
+
+@pytest.fixture
+def homonymous_callers_pkg(tmp_path: Path) -> Path:
+    """Create one target caller and one caller of a homonymous symbol."""
+    pkg = tmp_path / "homonymous_pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "a.py").write_text("def resolve() -> str:\n    return 'target'\n")
+    (pkg / "b.py").write_text(
+        "from .a import resolve\n\ndef call_target() -> str:\n    return resolve()\n"
+    )
+    (pkg / "d.py").write_text(
+        "from external_lib import resolve\n\n"
+        "def call_homonym() -> object:\n"
+        "    return resolve()\n"
+    )
+    return pkg
+
+
+def test_cli_precise_callers_filters_homonymous_import(
+    homonymous_callers_pkg: Path,
+) -> None:
+    """AC3: --precise-callers keeps b.py and removes homonymous d.py."""
+    proc = subprocess.run(
+        [
+            "axm-ast",
+            "impact",
+            str(homonymous_callers_pkg),
+            "--symbol",
+            "resolve",
+            "--precise-callers",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert "b.py" in proc.stdout
+    assert "d.py" not in proc.stdout

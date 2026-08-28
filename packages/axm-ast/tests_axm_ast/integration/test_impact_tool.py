@@ -636,3 +636,44 @@ def test_impact_mcp_test_filter_param(tmp_path: Path) -> None:
     test_modules = {c["module"] for c in test_callers}
     assert any("test_a" in m for m in test_modules)
     assert not any("test_b" in m for m in test_modules)
+
+
+@pytest.fixture
+def homonymous_callers_pkg(tmp_path: Path) -> Path:
+    """Create one target caller and one caller of a homonymous symbol."""
+    pkg = tmp_path / "homonymous_pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "a.py").write_text("def resolve() -> str:\n    return 'target'\n")
+    (pkg / "b.py").write_text(
+        "from .a import resolve\n\ndef call_target() -> str:\n    return resolve()\n"
+    )
+    (pkg / "d.py").write_text(
+        "from external_lib import resolve\n\n"
+        "def call_homonym() -> object:\n"
+        "    return resolve()\n"
+    )
+    return pkg
+
+
+@pytest.mark.integration
+def test_execute_precise_callers_filters_homonymous_import(
+    homonymous_callers_pkg: Path,
+) -> None:
+    """AC1: precise callers keep b.py and discard homonymous d.py."""
+    result = ImpactTool().execute(
+        path=str(homonymous_callers_pkg),
+        symbol="resolve",
+        precise_callers=True,
+    )
+
+    assert result.success is True
+    callers = result.data["callers"]
+    assert isinstance(callers, list)
+    caller_files = {
+        f"{str(caller['module']).rsplit('.', maxsplit=1)[-1]}.py"
+        for caller in callers
+        if isinstance(caller, dict)
+    }
+    assert "b.py" in caller_files
+    assert "d.py" not in caller_files

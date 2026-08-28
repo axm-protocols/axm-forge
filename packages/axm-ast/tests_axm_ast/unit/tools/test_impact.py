@@ -8,7 +8,8 @@ path, and severity/score handling.
 
 from __future__ import annotations
 
-from typing import Any, cast
+import inspect
+from typing import Any, cast, get_type_hints
 
 import pytest
 
@@ -721,3 +722,13 @@ class TestImpactToolUnit:
         result = tool.execute(path=".", symbols=[])
         assert result.success is False
         assert "required" in (result.error or "")
+
+
+def test_parameter_schema_declares_precise_callers() -> None:
+    """AC2: the tool schema exposes a boolean precise_callers defaulting false."""
+    parameters = inspect.signature(ImpactTool.execute).parameters
+
+    assert "precise_callers" in parameters
+    parameter = parameters["precise_callers"]
+    assert get_type_hints(ImpactTool.execute)["precise_callers"] is bool
+    assert parameter.default is False

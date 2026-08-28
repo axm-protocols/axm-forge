@@ -769,6 +769,16 @@ def impact(
             help="Test caller filter mode: none, all, or related",
         ),
     ] = None,
+    precise_callers: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--precise-callers"],
+            help=(
+                "Exclude callers proven to import a homonymous symbol; "
+                "ambiguous imports remain included (fail-open)"
+            ),
+        ),
+    ] = False,
     compact: Annotated[
         bool,
         cyclopts.Parameter(
@@ -787,6 +797,7 @@ def impact(
         symbol=symbol,
         exclude_tests=exclude_tests,
         test_filter=test_filter,
+        precise_callers=precise_callers,
         detail=detail,
     )
 
@@ -799,10 +810,12 @@ def impact(
     elif json_output:
         print(json.dumps(tool_result.data, indent=2))
     else:
-        _print_impact(cast(ImpactResult, tool_result.data))
+        _print_impact(
+            cast(ImpactResult, tool_result.data), caller_paths=precise_callers
+        )
 
 
-def _print_impact(result: ImpactResult) -> None:
+def _print_impact(result: ImpactResult, *, caller_paths: bool = False) -> None:
     """Pretty-print impact analysis."""
     sym = result["symbol"]
     score = result["score"]
@@ -813,21 +826,23 @@ def _print_impact(result: ImpactResult) -> None:
         print(f"  📍 Defined in: {defn['module']} (L{defn['line']})")
         print()
 
-    _print_impact_callers(result.get("callers", []))
+    _print_impact_callers(result.get("callers", []), paths=caller_paths)
     _print_impact_type_refs(result.get("type_refs", []))
     _print_impact_list("📄 Affected modules", result.get("affected_modules", []))
     _print_impact_list("🧪 Tests to rerun", result.get("test_files", []))
     _print_impact_list("📦 Re-exported in", result.get("reexports", []))
 
 
-def _print_impact_callers(callers: list[CallerEntry]) -> None:
+def _print_impact_callers(callers: list[CallerEntry], *, paths: bool = False) -> None:
     """Print callers section."""
     if not callers:
         return
     print(f"  📞 Direct callers ({len(callers)}):")
     for c in callers:
         ctx = f" in {c['context']}()" if c.get("context") else ""
-        print(f"    {c['module']}:{c['line']}{ctx}")
+        module = c["module"]
+        location = f"{module.replace('.', '/')}.py" if paths else module
+        print(f"    {location}:{c['line']}{ctx}")
     print()
 
 
