@@ -9,6 +9,12 @@ from typing import Protocol, TypedDict, cast
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.core.analyzer import (
+    find_module_for_symbol,
+    module_dotted_name,
+    search_symbols,
+)
+from axm_ast.core.cache import get_package
 from axm_ast.core.impact import ImpactResult
 from axm_ast.tools._base import log_and_fallback, safe_execute
 from axm_ast.tools.impact_text import (
@@ -85,6 +91,9 @@ class ImpactTool(AXMTool):
         Args:
             path: Path to package or workspace directory.
             symbol: Symbol name to analyze (required if symbols is not provided).
+                An ambiguous bare name expands to one report per module-qualified
+                candidate; use one of those qualified names to replay a targeted
+                query.
             symbols: Optional list of symbol names for batch inspection.
             exclude_tests: If True, exclude test files from impact analysis.
             detail: Output detail level. Use ``"compact"`` for a markdown
@@ -144,7 +153,7 @@ class ImpactTool(AXMTool):
 
             if symbol is None:
                 return ToolResult(success=False, error="symbol parameter is required")
-            return self._execute_single(
+            return self._execute_symbol(
                 project_path,
                 symbol,
                 exclude_tests,
@@ -156,6 +165,59 @@ class ImpactTool(AXMTool):
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
 
+    def _execute_symbol(  # noqa: PLR0913 - mirrors the public option surface
+        self,
+        project_path: Path,
+        symbol: str,
+        exclude_tests: bool,
+        detail: str | None,
+        *,
+        test_filter: str | None = None,
+        include_module_importers: bool = False,
+        precise_callers: bool = False,
+    ) -> ToolResult:
+        candidates = self._qualified_candidates(project_path, symbol)
+        target_symbols = sorted(candidates) if len(candidates) > 1 else None
+        if target_symbols is not None:
+            return self._execute_batch(
+                project_path,
+                target_symbols,
+                exclude_tests,
+                detail,
+                test_filter=test_filter,
+                include_module_importers=include_module_importers,
+                precise_callers=precise_callers,
+                definition_files=candidates,
+            )
+        return self._execute_single(
+            project_path,
+            symbol,
+            exclude_tests,
+            detail,
+            test_filter=test_filter,
+            include_module_importers=include_module_importers,
+            precise_callers=precise_callers,
+        )
+
+    @staticmethod
+    def _qualified_candidates(project_path: Path, symbol: str) -> dict[str, str]:
+        if "." in symbol:
+            return {}
+        try:
+            pkg = get_package(project_path)
+            candidates: dict[str, str] = {}
+            for _, candidate in search_symbols(pkg, name=symbol):
+                if candidate.name != symbol:
+                    continue
+                module = find_module_for_symbol(pkg, candidate)
+                if module is None:
+                    continue
+                module_name = module.name or module_dotted_name(module.path, pkg.root)
+                candidates[f"{module_name}.{symbol}"] = str(module.path)
+            return candidates
+        except Exception:  # noqa: BLE001 - ambiguity probing is best-effort
+            return {}
+
     def _execute_batch(  # noqa: PLR0913 - opt-in toggles join the existing option surface
         self,
         project_path: Path,
@@ -166,6 +228,7 @@ class ImpactTool(AXMTool):
         test_filter: str | None = None,
         include_module_importers: bool = False,
         precise_callers: bool = False,
+        definition_files: Mapping[str, str] | None = None,
     ) -> ToolResult:
         """Run batch impact analysis for multiple symbols.
 
@@ -203,6 +266,13 @@ class ImpactTool(AXMTool):
                         **tf,
                     )
                 )
+        if definition_files is not None:
+            for result in results:
+                candidate_file = definition_files.get(result.get("symbol", ""))
+                definition = result.get("definition")
+                if candidate_file is not None and definition is not None:
+                    definition_data = cast("dict[str, object]", definition)
+                    definition_data["file"] = candidate_file
         if detail == "compact":
             return ToolResult(
                 success=True,

@@ -677,3 +677,76 @@ def test_execute_precise_callers_filters_homonymous_import(
     }
     assert "b.py" in caller_files
     assert "d.py" not in caller_files
+
+
+@pytest.fixture
+def ambiguous_symbol_pkg(tmp_path: Path) -> Path:
+    """Create a package with two definitions of the same bare symbol."""
+    pkg = tmp_path / "ambiguous_pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "a.py").write_text("def resolve() -> str:\n    return 'from a'\n")
+    (pkg / "b.py").write_text(
+        "from .a import resolve\n\ndef call_a() -> str:\n    return resolve()\n"
+    )
+    (pkg / "c.py").write_text(
+        "def resolve() -> str:\n"
+        "    return 'from c'\n\n"
+        "def call_c() -> str:\n"
+        "    return resolve()\n"
+    )
+    return pkg
+
+
+@pytest.mark.integration
+def test_ambiguous_bare_symbol_returns_report_per_candidate(
+    ambiguous_symbol_pkg: Path,
+) -> None:
+    """AC1: an ambiguous bare name returns one report for each candidate."""
+    result = ImpactTool().execute(
+        path=str(ambiguous_symbol_pkg),
+        symbol="resolve",
+    )
+
+    assert result.success is True
+    reports = result.data["symbols"]
+    assert isinstance(reports, list)
+    assert {report["symbol"] for report in reports} == {
+        "a.resolve",
+        "c.resolve",
+    }
+
+
+@pytest.mark.integration
+def test_ambiguous_bare_symbol_reports_candidate_definition(
+    ambiguous_symbol_pkg: Path,
+) -> None:
+    """AC2: each candidate report resolves its own definition file."""
+    result = ImpactTool().execute(
+        path=str(ambiguous_symbol_pkg),
+        symbol="resolve",
+    )
+
+    assert result.success is True
+    reports = result.data["symbols"]
+    assert isinstance(reports, list)
+    by_symbol = {report["symbol"]: report for report in reports}
+    definition = by_symbol["a.resolve"]["definition"]
+    assert isinstance(definition, dict)
+    assert Path(str(definition["file"])).name == "a.py"
+
+
+@pytest.mark.integration
+def test_ambiguous_bare_symbol_text_names_candidates(
+    ambiguous_symbol_pkg: Path,
+) -> None:
+    """AC3: rendered text names both qualified candidates for replay."""
+    result = ImpactTool().execute(
+        path=str(ambiguous_symbol_pkg),
+        symbol="resolve",
+    )
+
+    assert result.success is True
+    assert isinstance(result.text, str)
+    assert "a.resolve" in result.text
+    assert "c.resolve" in result.text
