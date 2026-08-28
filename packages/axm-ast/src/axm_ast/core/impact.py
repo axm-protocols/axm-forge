@@ -151,9 +151,11 @@ def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
     Returns:
         Absolute path to the module file, or None if not found.
     """
+    normalized = mod_name.removeprefix(f"{pkg.name}.")
     for mod in pkg.modules:
         dotted = module_dotted_name(mod.path, pkg.root)
-        if dotted == mod_name:
+        dotted = dotted.removeprefix(f"{pkg.name}.")
+        if dotted == normalized:
             return mod.path
     return None
 
@@ -161,15 +163,24 @@ def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
 # ─── Definition finder ──────────────────────────────────────────────────────
 
 
-def _split_dotted_symbol(symbol: str) -> tuple[str, str] | None:
+def _split_dotted_symbol(
+    symbol: str,
+    *,
+    package_name: str | None = None,
+) -> tuple[str, str] | None:
     """Split a dotted symbol into (class_name, method_name).
 
     Returns None for bare (non-dotted) symbols.
     For deeply nested paths like ``Outer.Inner.method``,
     returns ``("Outer", "Inner.method")``.
     """
+    if package_name is not None:
+        symbol = symbol.removeprefix(f"{package_name}.")
     if "." not in symbol:
         return None
+    if package_name is not None:
+        module_name, _, target = symbol.rpartition(".")
+        return module_name, target
     parts = symbol.split(".", 1)
     return parts[0], parts[1]
 
@@ -275,6 +286,38 @@ def _find_plain_definition(
     return None
 
 
+def _find_module_definition(
+    pkg: PackageInfo,
+    module_name: str,
+    symbol: str,
+) -> DefinitionInfo | None:
+    """Resolve a top-level symbol within one explicitly qualified module."""
+    module_file = _resolve_module_file(pkg, module_name)
+    if module_file is None:
+        return None
+    for mod in pkg.modules:
+        if mod.path != module_file:
+            continue
+        dotted = module_dotted_name(mod.path, pkg.root)
+        for fn in mod.functions:
+            if fn.name == symbol:
+                return DefinitionInfo(
+                    module=dotted,
+                    line=fn.line_start,
+                    kind="function",
+                    signature=fn.signature,
+                )
+        for cls in mod.classes:
+            if cls.name == symbol:
+                return DefinitionInfo(
+                    module=dotted,
+                    line=cls.line_start,
+                    kind="class",
+                    name=cls.name,
+                )
+    return None
+
+
 def find_definition(pkg: PackageInfo, symbol: str) -> DefinitionInfo | None:
     """Locate where a symbol is defined.
 
@@ -290,6 +333,12 @@ def find_definition(pkg: PackageInfo, symbol: str) -> DefinitionInfo | None:
     Returns:
         Dict with module, line, kind — or None if not found.
     """
+    module_target = _split_dotted_symbol(symbol, package_name=pkg.name)
+    if module_target is not None:
+        module_definition = _find_module_definition(pkg, *module_target)
+        if module_definition is not None:
+            return module_definition
+
     dotted = _split_dotted_symbol(symbol)
     if dotted is not None:
         return _find_dotted_definition(pkg, dotted[0], dotted[1])
@@ -1129,14 +1178,24 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
     pkg = get_package(path)
     root = _resolve_project_root(path, project_root)
 
-    # For dotted symbols (Class.method), resolve definition with full
-    # path but search callers/tests by the bare method name — that is
-    # what appears in actual source code (self.method(), obj.method()).
-    dotted = _split_dotted_symbol(symbol)
-    lookup_name = dotted[1].split(".")[-1] if dotted else symbol
+    # Module-qualified symbols resolve their module first. Class methods
+    # retain the legacy first-segment split and bare-method caller lookup.
+    module_target = _split_dotted_symbol(symbol, package_name=pkg.name)
+    if (
+        module_target is not None
+        and _resolve_module_file(pkg, module_target[0]) is not None
+    ):
+        module_qualified = True
+        lookup_name = module_target[1]
+    else:
+        module_qualified = False
+        dotted = _split_dotted_symbol(symbol)
+        lookup_name = dotted[1].split(".")[-1] if dotted is not None else symbol
 
     definition = find_definition(pkg, symbol)
     callers = find_callers(pkg, lookup_name)
+    if module_qualified and definition is not None:
+        callers = _filter_precise_callers(pkg, callers, definition)
     reexports = find_reexports(pkg, lookup_name)
     test_files = map_tests(lookup_name, root)
 

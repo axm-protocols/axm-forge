@@ -218,6 +218,32 @@ def test_find_definition_unique_name_resolves() -> None:
     assert result["kind"] == "function"
 
 
+def test_find_definition_package_prefixed_module_symbol_resolves() -> None:
+    """AC3: package-prefixed module qualification resolves the target function."""
+    pkg = PackageInfo(
+        name="acme_pkg",
+        root=Path("/pkg/acme_pkg"),
+        modules=[
+            ModuleInfo(
+                path=Path("/pkg/acme_pkg/a.py"),
+                functions=[_fn("resolve", 11)],
+                classes=[],
+            ),
+            ModuleInfo(
+                path=Path("/pkg/acme_pkg/c.py"),
+                functions=[_fn("resolve", 23)],
+                classes=[],
+            ),
+        ],
+    )
+
+    result = find_definition(pkg, "acme_pkg.a.resolve")
+
+    assert result is not None
+    assert result["module"] == "a"
+    assert result["line"] == 11
+
+
 def test_find_definition_dotted_unaffected() -> None:
     """AC3: the dotted ``ClassName.method`` path is unaffected."""
     cls = ClassInfo(

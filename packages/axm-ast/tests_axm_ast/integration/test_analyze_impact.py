@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from axm_ast.core.impact import ImpactResult, analyze_impact, map_tests
+from axm_ast.core import get_package
+from axm_ast.core.impact import (
+    ImpactResult,
+    analyze_impact,
+    find_definition,
+    map_tests,
+)
 from tests_axm_ast.integration._helpers import (
     _make_import_heuristic_project,
     _make_project_with_test_callers,
@@ -1040,6 +1046,68 @@ def test_wildcard_import_detected(tmp_path: Path) -> None:
     # so map_tests cannot match — the heuristic must pick up test_utils.py.
     result = analyze_impact(pkg, "UnreferencedHelper", project_root=tmp_path)
     assert "test_utils.py" in _import_tests(result)
+
+
+def _make_module_qualified_project(tmp_path: Path) -> Path:
+    """Build a package with two homonymous functions and one target caller."""
+    package = tmp_path / "src" / "acme_pkg"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "a.py").write_text(
+        "def resolve(value: str) -> str:\n    return value\n",
+        encoding="utf-8",
+    )
+    (package / "b.py").write_text(
+        "from .a import resolve\n\n"
+        "def use_target() -> str:\n    return resolve('target')\n",
+        encoding="utf-8",
+    )
+    (package / "c.py").write_text(
+        "def resolve(value: str) -> str:\n    return value.upper()\n",
+        encoding="utf-8",
+    )
+    return package
+
+
+@pytest.mark.integration
+def test_module_qualified_symbol_resolves_definition(tmp_path: Path) -> None:
+    """AC1: a.resolve selects a.py's definition despite a homonym in c.py."""
+    package = _make_module_qualified_project(tmp_path)
+
+    definition = find_definition(get_package(package), "a.resolve")
+
+    assert definition is not None
+    assert definition["module"] == "a"
+    assert definition["line"] == 1
+    assert (package / f"{definition['module']}.py").name == "a.py"
+
+
+@pytest.mark.integration
+def test_module_qualified_impact_reports_target_callers(tmp_path: Path) -> None:
+    """AC2: a.resolve reports b.py, which imports and calls a.resolve."""
+    package = _make_module_qualified_project(tmp_path)
+
+    result = analyze_impact(package, "a.resolve")
+    caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
+
+    assert "b.py" in caller_files
+
+
+@pytest.mark.integration
+def test_package_prefixed_impact_matches_module_qualified_form(
+    tmp_path: Path,
+) -> None:
+    """AC3: acme_pkg.a.resolve has the same definition and callers as a.resolve."""
+    package = _make_module_qualified_project(tmp_path)
+
+    module_qualified = analyze_impact(package, "a.resolve")
+    package_prefixed = analyze_impact(package, "acme_pkg.a.resolve")
+
+    assert module_qualified["definition"] is not None
+    assert package_prefixed["definition"] == module_qualified["definition"]
+    assert {caller["module"] for caller in package_prefixed["callers"]} == {
+        caller["module"] for caller in module_qualified["callers"]
+    }
 
 
 def _make_precise_callers_project(tmp_path: Path) -> tuple[Path, Path]:
