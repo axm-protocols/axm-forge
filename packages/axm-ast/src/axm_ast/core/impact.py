@@ -1195,17 +1195,20 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
         module_target is not None
         and _resolve_module_file(pkg, module_target[0]) is not None
     ):
-        module_qualified = True
         lookup_name = module_target[1]
     else:
-        module_qualified = False
         dotted = _split_dotted_symbol(symbol)
         lookup_name = dotted[1].split(".")[-1] if dotted is not None else symbol
 
-    definition = find_definition(pkg, symbol)
+    try:
+        definition = find_definition(pkg, symbol)
+    except ValueError:
+        # Bare homonyms still have a meaningful aggregate caller report even
+        # though no single definition can represent the ambiguous target.
+        if "." in symbol:
+            raise
+        definition = None
     callers = find_callers(pkg, lookup_name)
-    if module_qualified and definition is not None:
-        callers = _filter_precise_callers(pkg, callers, definition, lookup_name)
     reexports = find_reexports(pkg, lookup_name)
     test_files = map_tests(lookup_name, root)
 

@@ -1063,7 +1063,8 @@ def _make_module_qualified_project(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (package / "c.py").write_text(
-        "def resolve(value: str) -> str:\n    return value.upper()\n",
+        "def resolve(value: str) -> str:\n    return value.upper()\n\n"
+        "def use_local() -> str:\n    return resolve('local')\n",
         encoding="utf-8",
     )
     return package
@@ -1091,6 +1092,46 @@ def test_module_qualified_impact_reports_target_callers(tmp_path: Path) -> None:
     caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
 
     assert "b.py" in caller_files
+
+
+@pytest.mark.integration
+def test_qualified_default_reports_every_homonym_caller(tmp_path: Path) -> None:
+    """AC1: a.resolve without precision reports callers in b.py and c.py."""
+    package = _make_module_qualified_project(tmp_path)
+
+    result = analyze_impact(package, "a.resolve")
+    caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
+
+    assert {"b.py", "c.py"} <= caller_files
+
+
+@pytest.mark.integration
+def test_bare_and_qualified_defaults_report_the_same_callers(
+    tmp_path: Path,
+) -> None:
+    """AC2: bare resolve and a.resolve have equal unfiltered caller sets."""
+    package = _make_module_qualified_project(tmp_path)
+
+    bare = analyze_impact(package, "resolve")
+    qualified = analyze_impact(package, "a.resolve")
+    bare_files = {f"{caller['module']}.py" for caller in bare["callers"]}
+    qualified_files = {f"{caller['module']}.py" for caller in qualified["callers"]}
+
+    assert bare_files == qualified_files
+    assert {"b.py", "c.py"} <= bare_files
+
+
+@pytest.mark.integration
+def test_qualified_homonym_default_reports_every_homonym_caller(
+    tmp_path: Path,
+) -> None:
+    """AC3: c.resolve without precision reports callers in b.py and c.py."""
+    package = _make_module_qualified_project(tmp_path)
+
+    result = analyze_impact(package, "c.resolve")
+    caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
+
+    assert {"b.py", "c.py"} <= caller_files
 
 
 @pytest.mark.integration
