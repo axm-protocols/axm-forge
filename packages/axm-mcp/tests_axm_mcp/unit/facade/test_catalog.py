@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from axm.tools.base import ToolResult
+from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import ValidationError
 
 from axm_mcp.discovery import ToolEntry
@@ -174,7 +175,7 @@ class TestFacadeTypeValidation:
         tool = _TypedListTool()
         typed_catalog = _catalog(typed_list=tool)
 
-        with pytest.raises((TypeError, ValidationError)):
+        with pytest.raises((TypeError, ValidationError, ToolError)):
             typed_catalog.call("typed_list", {"symbols": [123]})
 
         assert tool.calls == 0
@@ -184,7 +185,7 @@ class TestFacadeTypeValidation:
         tool = _TypedScalarTool()
         typed_catalog = _catalog(typed_scalar=tool)
 
-        with pytest.raises((TypeError, ValidationError)):
+        with pytest.raises((TypeError, ValidationError, ToolError)):
             typed_catalog.call("typed_scalar", {"count": "not-an-int"})
 
         assert tool.calls == 0

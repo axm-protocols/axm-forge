@@ -25,7 +25,8 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
-from pydantic import TypeAdapter
+from mcp.server.fastmcp.exceptions import ToolError
+from pydantic import TypeAdapter, ValidationError
 
 from axm_mcp.schema import IntrospectableFn, apply_signature, signature_params
 from axm_mcp.wrapping import build_wrappers
@@ -290,7 +291,7 @@ class ToolCatalog:
             UnknownToolError: If *name* is not in the catalog.
         """
         tool = self._get(name)  # validate name → UnknownToolError
-        validated = self._bind_check(tool, arguments)
+        validated = self._bind_check(tool, arguments, name)
         sync_wrapper, _ = self._wrappers[name]
         return self._render(sync_wrapper(**validated))
 
@@ -314,14 +315,14 @@ class ToolCatalog:
             UnknownToolError: If *name* is not in the catalog.
         """
         tool = self._get(name)  # validate name → UnknownToolError
-        validated = self._bind_check(tool, arguments)
+        validated = self._bind_check(tool, arguments, name)
         _, async_wrapper = self._wrappers[name]
         result = await async_wrapper(**validated)
         return self._render(result)
 
     @staticmethod
     def _bind_check(
-        tool: ToolEntry, arguments: dict[str, object] | None
+        tool: ToolEntry, arguments: dict[str, object] | None, name: str = ""
     ) -> dict[str, object]:
         """Bind *arguments* to the tool's signature, raising ``TypeError`` early.
 
@@ -346,14 +347,23 @@ class ToolCatalog:
         apply_signature(signature_target, exec_fn, None)
         typed_params = inspect.signature(signature_target).parameters
         validated: dict[str, object] = {}
-        for name, value in supplied.items():
-            parameter = typed_params.get(name)
+        for param_name, value in supplied.items():
+            parameter = typed_params.get(param_name)
             if parameter is None or parameter.annotation is inspect.Parameter.empty:
-                validated[name] = value
+                validated[param_name] = value
             else:
-                validated[name] = TypeAdapter(parameter.annotation).validate_python(
-                    value
-                )
+                # Wrap Pydantic's ValidationError in the SAME error type the
+                # direct MCP gate raises. A caller must not have to branch on
+                # which door it came through: FastMCP surfaces an argument
+                # mistype as ToolError, so the facade does too, keeping
+                # Pydantic's message as the payload rather than inventing one.
+                try:
+                    validated[param_name] = TypeAdapter(
+                        parameter.annotation
+                    ).validate_python(value)
+                except ValidationError as exc:
+                    msg = f"Error executing tool {name}: {exc}"
+                    raise ToolError(msg) from exc
         return validated
 
     @staticmethod
