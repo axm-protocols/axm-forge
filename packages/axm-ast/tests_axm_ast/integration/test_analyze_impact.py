@@ -1,5 +1,6 @@
 """Split from ``test_git_coupling.py``."""
 
+import inspect
 import subprocess
 import warnings
 from pathlib import Path
@@ -1039,3 +1040,111 @@ def test_wildcard_import_detected(tmp_path: Path) -> None:
     # so map_tests cannot match — the heuristic must pick up test_utils.py.
     result = analyze_impact(pkg, "UnreferencedHelper", project_root=tmp_path)
     assert "test_utils.py" in _import_tests(result)
+
+
+def _make_precise_callers_project(tmp_path: Path) -> tuple[Path, Path]:
+    """Build a package and suite containing resolved and ambiguous homonyms."""
+    project_root = tmp_path / "project"
+    package = project_root / "src" / "acme_pkg"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "a.py").write_text(
+        "def resolve(value: str) -> str:\n    return value\n",
+        encoding="utf-8",
+    )
+    vendor = project_root / "src" / "vendor_pkg"
+    vendor.mkdir()
+    (vendor / "__init__.py").write_text("", encoding="utf-8")
+    (vendor / "other.py").write_text(
+        "def resolve(value: str) -> str:\n    return value.upper()\n",
+        encoding="utf-8",
+    )
+    (package / "helpers.py").write_text(
+        '__all__ = ["fallback"]\ndef fallback(value: str) -> str:\n    return value\n',
+        encoding="utf-8",
+    )
+    (package / "b.py").write_text(
+        "from .a import resolve\n\n"
+        "def use_target() -> str:\n    return resolve('target')\n",
+        encoding="utf-8",
+    )
+    (package / "d.py").write_text(
+        "from vendor_pkg.other import resolve\n\n"
+        "def use_homonym() -> str:\n    return resolve('other')\n",
+        encoding="utf-8",
+    )
+    (package / "e.py").write_text(
+        "from .helpers import *\n\n"
+        "def use_uncertain() -> str:\n    return resolve('uncertain')\n",
+        encoding="utf-8",
+    )
+
+    suite = project_root / "tests_acme_pkg" / "integration"
+    suite.mkdir(parents=True)
+    (suite / "test_a.py").write_text(
+        "from acme_pkg.a import resolve\n\n"
+        "def test_target() -> None:\n    assert resolve('x') == 'x'\n",
+        encoding="utf-8",
+    )
+    (suite / "test_other.py").write_text(
+        "from vendor_pkg.other import resolve\n\n"
+        "def test_other() -> None:\n    assert resolve('x') == 'X'\n",
+        encoding="utf-8",
+    )
+    (project_root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_acme_pkg"]\n',
+        encoding="utf-8",
+    )
+    return project_root, package
+
+
+@pytest.mark.integration
+def test_precise_callers_excludes_resolved_homonym(tmp_path: Path) -> None:
+    """AC1: precise callers retain b.py and reject d.py's other resolve."""
+    project_root, package = _make_precise_callers_project(tmp_path)
+    assert "precise_callers" in inspect.signature(analyze_impact).parameters
+
+    result = analyze_impact(
+        package,
+        "resolve",
+        project_root=project_root,
+        precise_callers=True,
+    )
+    caller_modules = {caller["module"] for caller in result["callers"]}
+
+    assert "b" in caller_modules
+    assert "d" not in caller_modules
+
+
+@pytest.mark.integration
+def test_precise_callers_filters_homonymous_test_file(tmp_path: Path) -> None:
+    """AC2: test paths retain a.py's importer and reject the other homonym."""
+    project_root, package = _make_precise_callers_project(tmp_path)
+    assert "precise_callers" in inspect.signature(analyze_impact).parameters
+
+    result = analyze_impact(
+        package,
+        "resolve",
+        project_root=project_root,
+        precise_callers=True,
+    )
+
+    assert "tests_acme_pkg/integration/test_a.py" in result["test_file_paths"]
+    assert "tests_acme_pkg/integration/test_other.py" not in result["test_file_paths"]
+
+
+@pytest.mark.integration
+def test_precise_callers_keeps_unresolvable_star_import(tmp_path: Path) -> None:
+    """AC3: an uncertain star-import caller remains reported fail-open."""
+    project_root, package = _make_precise_callers_project(tmp_path)
+    assert "precise_callers" in inspect.signature(analyze_impact).parameters
+
+    result = analyze_impact(
+        package,
+        "resolve",
+        project_root=project_root,
+        precise_callers=True,
+    )
+    caller_modules = {caller["module"] for caller in result["callers"]}
+
+    assert "e" in caller_modules

@@ -29,11 +29,17 @@ if TYPE_CHECKING:
         WorkspaceInfo,
     )
 
-from axm_ast.core.analyzer import build_import_graph, module_dotted_name
+from axm_ast.core.analyzer import (
+    _resolve_absolute_import,
+    build_import_graph,
+    module_dotted_name,
+)
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
+from axm_ast.core.parser import extract_module_info
 from axm_ast.core.workspace import analyze_workspace
+from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
 # ─── Structured payload shapes ──────────────────────────────────────────────
@@ -907,7 +913,173 @@ def _safe_module_importers(
         return []
 
 
-def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
+def _imports_definition_module(  # noqa: PLR0911 - explicit fail-open branches
+    imported_modules: list[str],
+    definition_module: str,
+    package_name: str,
+) -> bool:
+    """Return whether imports can refer to the symbol's defining module.
+
+    The decision is deliberately fail-open: missing or ambiguous import
+    information preserves the candidate caller.
+    """
+    try:
+        if not imported_modules or not definition_module or not package_name:
+            return True
+        if definition_module == package_name:
+            internal_definition = package_name
+        elif definition_module.startswith(f"{package_name}."):
+            internal_definition = definition_module.removeprefix(f"{package_name}.")
+        else:
+            return True
+
+        known_names = {internal_definition}
+        for imported_module in imported_modules:
+            if not imported_module or "*" in imported_module:
+                return True
+            if imported_module.startswith(".."):
+                return True
+            absolute_module = (
+                f"{package_name}{imported_module}"
+                if imported_module.startswith(".")
+                else imported_module
+            )
+            resolved = _resolve_absolute_import(
+                absolute_module,
+                package_name,
+                known_names,
+                "",
+            )
+            if resolved == internal_definition:
+                return True
+        return False
+    except Exception:  # noqa: BLE001 - precision must always fail open
+        return True
+
+
+def _module_import_names(module: ModuleInfo) -> list[str]:
+    """Render analyzed imports as module candidates for provenance matching."""
+    imported_modules: list[str] = []
+    for imported in module.imports:
+        prefix = "." * max(imported.level, 1) if imported.is_relative else ""
+        if imported.module is None:
+            imported_modules.extend(f"{prefix}{name}" for name in imported.names)
+            continue
+
+        base = f"{prefix}{imported.module}"
+        imported_modules.append(base)
+        separator = "" if base.endswith(".") else "."
+        imported_modules.extend(f"{base}{separator}{name}" for name in imported.names)
+    return imported_modules
+
+
+def _definition_module_name(
+    pkg: PackageInfo,
+    definition: DefinitionInfo,
+) -> str | None:
+    """Return the package-qualified defining module when it is known."""
+    module = definition["module"]
+    if not module:
+        return None
+    if module == pkg.name or module.startswith(f"{pkg.name}."):
+        return module
+    return f"{pkg.name}.{module}"
+
+
+def _filter_precise_callers(
+    pkg: PackageInfo,
+    callers: list[CallSite],
+    definition: DefinitionInfo,
+) -> list[CallSite]:
+    """Remove callers proven to import only a distinct homonymous symbol."""
+    definition_module = definition["module"]
+    dotted_definition = _definition_module_name(pkg, definition)
+    if dotted_definition is None:
+        return callers
+    try:
+        import_graph = build_import_graph(pkg)
+    except Exception:  # noqa: BLE001 - precision must always fail open
+        return callers
+
+    modules = {
+        module_dotted_name(module.path, pkg.root): module for module in pkg.modules
+    }
+    filtered: list[CallSite] = []
+    for caller in callers:
+        if caller.module == definition_module:
+            filtered.append(caller)
+            continue
+        if definition_module in import_graph.get(caller.module, []):
+            filtered.append(caller)
+            continue
+        module = modules.get(caller.module)
+        if module is None or _imports_definition_module(
+            _module_import_names(module),
+            dotted_definition,
+            pkg.name,
+        ):
+            filtered.append(caller)
+    return filtered
+
+
+def _test_imports_definition_module(
+    test_file: Path,
+    definition_module: str,
+    package_name: str,
+) -> bool:
+    """Return whether a test imports the definition, failing open on parsing."""
+    try:
+        module = extract_module_info(test_file)
+        return _imports_definition_module(
+            _module_import_names(module),
+            definition_module,
+            package_name,
+        )
+    except Exception:  # noqa: BLE001 - unreadable tests must be preserved
+        return True
+
+
+def _filter_precise_test_files(
+    test_files: list[Path],
+    definition_module: str,
+    package_name: str,
+) -> list[Path]:
+    """Keep tests importing the defining module or carrying uncertain imports."""
+    return [
+        test_file
+        for test_file in test_files
+        if _test_imports_definition_module(
+            test_file,
+            definition_module,
+            package_name,
+        )
+    ]
+
+
+def _filter_import_based_test_results(
+    result: ImpactResult,
+    root: Path,
+    definition_module: str,
+    package_name: str,
+) -> None:
+    """Apply precise provenance to import-heuristic test result companions."""
+    paths = result.get("test_file_paths_by_import")
+    if paths is None:
+        return
+    filtered = [
+        path
+        for path in paths
+        if _test_imports_definition_module(
+            root / path,
+            definition_module,
+            package_name,
+        )
+    ]
+    result["test_file_paths_by_import"] = filtered
+    result["test_files_by_import"] = [Path(path).name for path in filtered]
+
+
+def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surface
     path: Path,
     symbol: str,
     *,
@@ -915,6 +1087,7 @@ def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the 
     exclude_tests: bool = False,
     test_filter: str | None = None,
     include_module_importers: bool = False,
+    precise_callers: bool = False,
 ) -> ImpactResult:
     """Full impact analysis for a symbol.
 
@@ -940,6 +1113,10 @@ def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the 
             default the field is absent and the result is byte-for-byte the
             legacy output; best-effort, so a missing import graph silently
             yields an empty list rather than raising.
+        precise_callers: OPT-IN (default ``False``). When enabled, discard
+            callers and mapped tests proven to import a distinct homonymous
+            symbol. Ambiguous, unresolvable, or unreadable import information
+            remains included (fail-open).
 
     Returns:
         Complete impact analysis dict.
@@ -962,6 +1139,17 @@ def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the 
     callers = find_callers(pkg, lookup_name)
     reexports = find_reexports(pkg, lookup_name)
     test_files = map_tests(lookup_name, root)
+
+    dotted_definition = (
+        _definition_module_name(pkg, definition) if definition is not None else None
+    )
+    if precise_callers and definition is not None and dotted_definition is not None:
+        callers = _filter_precise_callers(pkg, callers, definition)
+        test_files = _filter_precise_test_files(
+            test_files,
+            dotted_definition,
+            pkg.name,
+        )
 
     type_refs = find_type_refs(pkg, lookup_name)
     type_ref_modules = {r["module"] for r in type_refs}
@@ -994,6 +1182,13 @@ def analyze_impact(  # noqa: PLR0913 - opt-in module-importers toggle joins the 
 
     _add_git_coupling(result, definition, pkg, root)
     _add_import_based_tests(result, definition, test_files, root)
+    if precise_callers and dotted_definition is not None:
+        _filter_import_based_test_results(
+            result,
+            root,
+            dotted_definition,
+            pkg.name,
+        )
     if root is not None:
         result["cross_package_impact"] = _find_cross_package_impact(
             path,

@@ -295,3 +295,43 @@ def test_analyze_impact_optin_graph_unavailable_falls_back(
     # Best-effort: field present but empty, and nothing raised.
     assert result["module_level_importers"] == []
     assert result["symbol"] == "target"
+
+    # ────────────────────────────────────────────────────────────────────────────
+    # precise callers — import provenance predicate
+    # ────────────────────────────────────────────────────────────────────────────
+
+
+def test_caller_importing_unrelated_module_is_rejected() -> None:
+    """AC1: an unrelated resolved import does not identify the target caller."""
+    assert hasattr(impact_mod, "_imports_definition_module")
+    keep = impact_mod._imports_definition_module(
+        ["other.mod"],
+        "acme_pkg.a",
+        "acme_pkg",
+    )
+
+    assert keep is False
+
+
+def test_caller_importing_definition_module_relatively_is_kept() -> None:
+    """AC1: a relative import of the defining module identifies the caller."""
+    assert hasattr(impact_mod, "_imports_definition_module")
+    keep = impact_mod._imports_definition_module(
+        [".a"],
+        "acme_pkg.a",
+        "acme_pkg",
+    )
+
+    assert keep is True
+
+
+def test_caller_with_indeterminate_star_import_is_kept() -> None:
+    """AC3: an unresolvable star import keeps the caller fail-open."""
+    assert hasattr(impact_mod, "_imports_definition_module")
+    keep = impact_mod._imports_definition_module(
+        ["acme_pkg.helpers.*"],
+        "acme_pkg.a",
+        "acme_pkg",
+    )
+
+    assert keep is True
