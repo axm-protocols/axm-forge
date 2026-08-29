@@ -20,6 +20,10 @@ _HOUR = 3_600_000
 def format_duration(millis: float) -> str:
     """Render a millisecond duration as a short human string.
 
+    Rendering bands are milliseconds for ``0 <= millis < 1000``, seconds for
+    ``1000 <= millis < 60000``, minutes for
+    ``60000 <= millis < 3600000``, and hours for ``millis >= 3600000``.
+
     ``450`` → ``'450ms'``, ``1500`` → ``'1.5s'``, ``90000`` → ``'1.5min'``,
     ``5400000`` → ``'1.5h'``. Bands round to at most one decimal (rounded,
     not truncated). Negative, non-numeric or non-finite input returns
