@@ -12,6 +12,18 @@ from axm_config.store import NamespaceStore
 pytestmark = pytest.mark.integration
 
 
+def test_mapping_value_round_trips_through_public_surface() -> None:
+    """AC1: get returns a mapping persisted through the public setter."""
+    expected = {
+        "backend": "local",
+        "options": {"retries": 3, "enabled": True},
+    }
+
+    set_("demo", "worker", expected)
+
+    assert get("demo", "worker", default={"missing": True}) == expected
+
+
 def test_delete_then_resolves_default() -> None:
     """AC4, AC5: delete removes the key, then get falls back to the default.
 

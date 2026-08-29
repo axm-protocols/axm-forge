@@ -38,6 +38,7 @@ __all__ = [
     "delete_execution_policy",
     "get",
     "get_execution_policy",
+    "get_file",
     "list_execution_policies",
     "load",
     "set_",
@@ -150,10 +151,7 @@ def resolve(ns: str, key: str, default: object = None) -> object:
     env_value = os.environ.get(_env_name(ns, key), _MISSING)
     if env_value is not _MISSING:
         return env_value
-    file_value = _store.read(ns).get(key, _MISSING)
-    if file_value is not _MISSING:
-        return file_value
-    return default
+    return _get_file_value(ns, key, default)
 
 
 if TYPE_CHECKING:
@@ -527,6 +525,45 @@ for _execution_policy_api in (
         f"{_execution_policy_api.__doc__}\n\n{_EXECUTION_POLICY_PERSISTENCE_CONTRACT}"
     )
 del _execution_policy_api
+
+
+def _get_file_value(namespace: str, key: str, default: object) -> object:
+    direct_value = _store.read(namespace).get(key, _MISSING)
+    if direct_value is not _MISSING:
+        return direct_value
+
+    child_namespace = f"{namespace}.{key}"
+    mapping = _store.read(child_namespace)
+    if not hasattr(_store, "namespaces"):
+        return mapping or default
+    descendants = [
+        candidate
+        for candidate in _store.namespaces()
+        if candidate == child_namespace or candidate.startswith(f"{child_namespace}.")
+    ]
+    if not mapping and not descendants:
+        return default
+
+    for descendant in descendants:
+        if descendant == child_namespace:
+            continue
+        relative_path = descendant.removeprefix(f"{child_namespace}.").split(".")
+        cursor = mapping
+        for segment in relative_path[:-1]:
+            nested = cursor.get(segment)
+            if not isinstance(nested, dict):
+                nested = {}
+                cursor[segment] = nested
+            cursor = nested
+        cursor[relative_path[-1]] = _store.read(descendant)
+    return mapping
+
+
+def get_file(namespace: str, key: str, *, default: object = None) -> object:
+    """Return a persisted value without consulting environment overrides."""
+    validate_segment(namespace, kind="namespace")
+    validate_segment(key, kind="key")
+    return _get_file_value(namespace, key, default)
 
 
 def get(namespace: str, key: str, *, default: object = None) -> object:
