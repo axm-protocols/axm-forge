@@ -107,7 +107,11 @@ def truncate(text: str, limit: int) -> str:
 
 
 def format_count(n: int) -> str:
-    """Render an item count, abbreviating thousands (``1500`` → ``'1.5K'``)."""
+    """Format counts in 1000 steps through no suffix, K, M, then B.
+
+    Counts below 1000 have no decimal; all abbreviated bands have one. Negative
+    input follows the same scaling, so ``-1500`` renders as ``'-1.5K'``.
+    """
     magnitude = abs(n)
     if magnitude < _COUNT_STEP:
         return str(n)
@@ -118,7 +122,11 @@ def format_count(n: int) -> str:
 
 
 def format_size(num_bytes: int) -> str:
-    """Render a byte count in human units (``2048`` → ``'2.0 KB'``)."""
+    """Format bytes in 1024 steps through B, KB, MB, GB, TB, then PB.
+
+    B has no decimal; all other bands have one. Negative input follows the same
+    scaling, so ``-2048`` renders as ``'-2.0 KB'``.
+    """
     size = float(num_bytes)
     units = ("B", "KB", "MB", "GB", "TB", "PB")
     for unit in units:
