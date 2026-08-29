@@ -534,8 +534,6 @@ def _get_file_value(namespace: str, key: str, default: object) -> object:
 
     child_namespace = f"{namespace}.{key}"
     mapping = _store.read(child_namespace)
-    if not hasattr(_store, "namespaces"):
-        return mapping or default
     descendants = [
         candidate
         for candidate in _store.namespaces()

@@ -24,6 +24,15 @@ class _FakeStore:
     def delete(self, ns: str, key: str) -> None:
         self._data.get(ns, {}).pop(key, None)
 
+    def namespaces(self) -> list[str]:
+        """Every namespace path held, as :class:`NamespaceStore` reports them.
+
+        Part of the store contract the resolver relies on to rebuild a mapping
+        value from its child namespaces; a stand-in that omitted it would let
+        that path go untested here.
+        """
+        return sorted(self._data)
+
 
 def test_unsafe_home_error_is_config_error() -> None:
     """P0-3: ``UnsafeHomeError`` is a ``ConfigError`` so consumers catch it.
