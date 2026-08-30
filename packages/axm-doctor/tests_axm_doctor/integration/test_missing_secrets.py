@@ -11,6 +11,83 @@ from axm_doctor.orchestrate import missing_secrets
 
 
 @pytest.mark.integration
+def test_missing_secrets_preserves_mixed_requiredness(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+    memory_keyring: object,
+) -> None:
+    """AC2: unresolved indispensable and optional specs remain distinguishable."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("FIXTURE_REQUIRED_TOKEN", raising=False)
+    monkeypatch.delenv("FIXTURE_OPTIONAL_TOKEN", raising=False)
+    catalog = Catalog(
+        groups=(
+            CredentialGroup(
+                id="fixture.mixed",
+                package="axm-fixture",
+                title="Mixed",
+                specs=(
+                    CredentialSpec(
+                        name="required_token",
+                        env="FIXTURE_REQUIRED_TOKEN",
+                        kind="token",
+                        required=True,
+                    ),
+                    CredentialSpec(
+                        name="optional_token",
+                        env="FIXTURE_OPTIONAL_TOKEN",
+                        kind="token",
+                        required=False,
+                    ),
+                ),
+            ),
+        )
+    )
+    monkeypatch.setattr("axm_doctor.orchestrate.load_catalog", lambda: catalog)
+
+    missing = missing_secrets()
+    required_by_key = {(item.group, item.name): item.required for item in missing}
+
+    assert required_by_key == {
+        ("fixture.mixed", "required_token"): True,
+        ("fixture.mixed", "optional_token"): False,
+    }
+
+
+@pytest.mark.integration
+def test_missing_secrets_defaults_required_to_true(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+    memory_keyring: object,
+) -> None:
+    """AC3: an omitted catalog required flag propagates its True default."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("FIXTURE_DEFAULT_REQUIRED_TOKEN", raising=False)
+    catalog = Catalog(
+        groups=(
+            CredentialGroup(
+                id="fixture.default",
+                package="axm-fixture",
+                title="Default",
+                specs=(
+                    CredentialSpec(
+                        name="token",
+                        env="FIXTURE_DEFAULT_REQUIRED_TOKEN",
+                        kind="token",
+                    ),
+                ),
+            ),
+        )
+    )
+    monkeypatch.setattr("axm_doctor.orchestrate.load_catalog", lambda: catalog)
+
+    missing = missing_secrets()
+
+    assert len(missing) == 1
+    assert missing[0].required is True
+
+
+@pytest.mark.integration
 def test_missing_secrets_real_vault_provenance(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,

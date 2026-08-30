@@ -35,14 +35,17 @@ class MissingSecret(BaseModel, frozen=True):  # type: ignore[explicit-any]
     """A credential spec that resolves to ``"missing"`` across every layer.
 
     Value-less by construction: it carries only the coordinates of the spec
-    and a copy-pasteable recovery hint (``setup_hint``). The secret value
-    itself NEVER transits axm_doctor.
+    and a copy-pasteable recovery hint (``setup_hint``). ``required``
+    preserves the catalog distinction between indispensable and optional
+    credentials (the catalog default is ``True``). The secret value itself
+    NEVER transits axm_doctor.
     """
 
     group: str
     name: str
     package: str
     setup_hint: str
+    required: bool
 
 
 class ProvisionResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
@@ -90,6 +93,7 @@ def missing_secrets() -> list[MissingSecret]:
                     name=spec.name,
                     package=group.package,
                     setup_hint=f"axm-vault set {group.id}.{spec.name}",
+                    required=spec.required,
                 )
             )
     return missing

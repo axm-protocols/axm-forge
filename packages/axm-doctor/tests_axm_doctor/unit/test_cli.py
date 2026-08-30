@@ -95,6 +95,7 @@ def test_check_strict_exits_one_when_unhealthy(
                 name="api_key",
                 package="axm-llm",
                 setup_hint="axm-vault set openai.api_key",
+                required=True,
             )
         ],
     )
@@ -293,6 +294,7 @@ def test_bootstrap_surfaces_provision_reason(
                 name="api_key",
                 package="axm-llm",
                 setup_hint="axm-vault set openai.api_key",
+                required=True,
             )
         ],
     )
@@ -344,6 +346,7 @@ def test_bootstrap_surfaces_still_missing(
                 name="api_key",
                 package="axm-llm",
                 setup_hint="axm-vault set openai.api_key",
+                required=True,
             )
         ],
     )

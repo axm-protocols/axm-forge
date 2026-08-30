@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from axm_vault.catalog import Catalog
 from axm_vault.models import CredentialGroup, CredentialSpec
+from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
 from axm_doctor.orchestrate import (
@@ -21,6 +22,39 @@ def _group() -> CredentialGroup:
         title="FRED",
         specs=(CredentialSpec(name="api_key", env="FRED_API_KEY", kind="token"),),
     )
+
+
+def test_missing_secret_requires_required_field() -> None:
+    """AC1: required is mandatory even when all shipped coordinates are supplied."""
+    with pytest.raises(ValidationError, match="required"):
+        MissingSecret.model_validate(
+            {
+                "group": "research.fred",
+                "name": "api_key",
+                "package": "axm-research",
+                "setup_hint": "axm-vault set research.fred.api_key",
+            }
+        )
+
+
+def test_missing_secret_preserves_required_verbatim_and_is_frozen() -> None:
+    """AC1: required round-trips as a bool and does not weaken frozen semantics."""
+    common = {
+        "group": "research.fred",
+        "name": "api_key",
+        "package": "axm-research",
+        "setup_hint": "axm-vault set research.fred.api_key",
+    }
+
+    indispensable = MissingSecret(**common, required=True)
+    optional = MissingSecret(**common, required=False)
+
+    assert indispensable.required is True
+    assert optional.required is False
+    assert type(indispensable.required) is bool
+    assert type(optional.required) is bool
+    with pytest.raises(ValidationError):
+        indispensable.__setattr__("required", False)
 
 
 def test_missing_secrets_empty_catalog(mocker: MockerFixture) -> None:

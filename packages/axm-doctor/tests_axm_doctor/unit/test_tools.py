@@ -34,6 +34,7 @@ def test_env_doctor_success(monkeypatch: pytest.MonkeyPatch) -> None:
                 name="token",
                 package="pkg",
                 setup_hint="axm-vault set svc.token",
+                required=True,
             )
         ],
     )
