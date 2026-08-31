@@ -584,3 +584,110 @@ def test_autofix_retry_via_shared_core_helper(
         text=True,
     ).stdout
     assert "docs: foo" in log
+
+
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def _seed_repo(root: Path) -> str:
+    """Initialize a repository with one commit and return its HEAD."""
+    _init_repo(root)
+    (root / "seed.txt").write_text("seed\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-m", "init", "--no-verify")
+    return _git(root, "rev-parse", "HEAD")
+
+
+def _write_hook(repo: Path, script: str) -> None:
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    _write_executable(hook, script)
+
+
+_SELF_COMMIT_HOOK = (
+    "#!/bin/sh\n"
+    'gd="$(git rev-parse --git-dir)"\n'
+    'if [ ! -f "$gd/autofix-done" ]; then\n'
+    '  : > "$gd/autofix-done"\n'
+    "  printf 'autofixed\\n' >> target.py\n"
+    '  echo "files were modified by this hook"\n'
+    "  exit 1\n"
+    "fi\n"
+    "unset GIT_INDEX_FILE\n"
+    'git commit --no-verify -m "landed by hook" >"$gd/nested.log" 2>&1\n'
+    "exit 1\n"
+)
+
+_ALWAYS_FAIL_HOOK = "#!/bin/sh\necho 'hook rejected the commit' >&2\nexit 1\n"
+
+_ALWAYS_AUTOFIX_HOOK = (
+    "#!/bin/sh\n"
+    "printf 'autofixed\\n' >> target.py\n"
+    'echo "files were modified by this hook"\n'
+    "exit 1\n"
+)
+
+
+def test_hook_landed_commit_is_reported_as_success(tmp_path: Path) -> None:
+    before = _seed_repo(tmp_path)
+    (tmp_path / "target.py").write_text("x = 1\n")
+    _write_hook(tmp_path, _SELF_COMMIT_HOOK)
+
+    result = GitCommitTool().execute(
+        path=str(tmp_path),
+        commits=[{"files": ["target.py"], "message": "feat: add target"}],
+    )
+
+    assert result.success is True, result.error
+    assert _git(tmp_path, "rev-parse", "HEAD") != before
+    assert _git(tmp_path, "status", "--porcelain") == ""
+    assert result.data["results"][0]["retried"] is True
+    assert result.data["results"][0]["sha"] == _git(tmp_path, "rev-parse", "HEAD")[:7]
+
+
+def test_permanent_hook_refusal_is_reported_as_failure(tmp_path: Path) -> None:
+    before = _seed_repo(tmp_path)
+    (tmp_path / "target.py").write_text("x = 1\n")
+    _write_hook(tmp_path, _ALWAYS_FAIL_HOOK)
+
+    result = GitCommitTool().execute(
+        path=str(tmp_path),
+        commits=[{"files": ["target.py"], "message": "feat: add target"}],
+    )
+
+    assert result.success is False
+    assert result.data["failed_commit"]["retried"] is False
+    assert _git(tmp_path, "rev-parse", "HEAD") == before
+
+
+def test_unchanged_file_is_reported_as_failure(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "target.py").write_text("x = 1\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "init", "--no-verify")
+    before = _git(tmp_path, "rev-parse", "HEAD")
+
+    result = GitCommitTool().execute(
+        path=str(tmp_path),
+        commits=[{"files": ["target.py"], "message": "feat: unchanged"}],
+    )
+
+    assert result.success is False
+    assert _git(tmp_path, "rev-parse", "HEAD") == before
+
+
+def test_autofix_retries_once_without_false_success(tmp_path: Path) -> None:
+    before = _seed_repo(tmp_path)
+    (tmp_path / "target.py").write_text("x = 1\n")
+    _write_hook(tmp_path, _ALWAYS_AUTOFIX_HOOK)
+
+    result = GitCommitTool().execute(
+        path=str(tmp_path),
+        commits=[{"files": ["target.py"], "message": "feat: add target"}],
+    )
+
+    assert result.success is False
+    assert result.data["failed_commit"]["retried"] is True
+    assert _git(tmp_path, "rev-parse", "HEAD") == before

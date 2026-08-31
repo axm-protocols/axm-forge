@@ -2,7 +2,7 @@
 
 Single source of truth for the commit helpers used by both surfaces
 (:class:`axm_git.tools.commit.GitCommitTool` and
-:class:`axm_git.hooks.commit_phase.CommitPhaseHook`).  The validation is
+:class:`axm_git.tools.commit.GitCommitTool`).  The validation is
 pure (returns ``(spec, err)``) so each surface wraps the error string in
 its own result type; the autofix-retry and HookResult builder are shared
 verbatim.

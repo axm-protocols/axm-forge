@@ -18,12 +18,12 @@ def get_phase_commit(
     """Retrieve the commit hash associated with an AXM phase.
 
     Searches git log for commits whose message matches the format
-    used by :class:`CommitPhaseHook`.
+    used by legacy phase integrations.
 
     Args:
         working_dir: Repository root path.
         phase_name: Phase name to search for.
-        message_format: Message pattern used by CommitPhaseHook
+        message_format: Message pattern used by the phase integration.
             (default ``"[axm] {phase}"``).
 
     Returns:

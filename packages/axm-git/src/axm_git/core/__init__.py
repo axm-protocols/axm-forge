@@ -1,5 +1,6 @@
 """Core logic — subprocess runners and semver computation."""
 
+from axm_git.core.commit_cmd import build_commit_cmd
 from axm_git.core.commit_spec import (
     attempt_commit_with_autofix_retry,
     build_commit_result,
@@ -19,6 +20,7 @@ __all__ = [
     "GitProfileConfig",
     "attempt_commit_with_autofix_retry",
     "author_args",
+    "build_commit_cmd",
     "build_commit_result",
     "load_config",
     "resolve_identity",

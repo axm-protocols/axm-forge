@@ -35,7 +35,6 @@ git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
 git_release_diff = "axm_git.tools.release_diff:GitReleaseDiffTool"
 
 [project.entry-points."axm.hooks"]
-"git:commit-phase"   = "axm_git.hooks.commit_phase:CommitPhaseHook"
 "git:merge-squash"   = "axm_git.hooks.merge_squash:MergeSquashHook"
 "git:push"            = "axm_git.hooks.push:PushHook"
 "git:create-pr"       = "axm_git.hooks.create_pr:CreatePRHook"

@@ -10,10 +10,10 @@ from typing import cast
 
 from axm.hooks.base import HookResult
 
+from axm_git.core.commit_cmd import build_commit_cmd
 from axm_git.core.identity import resolve_identity
 from axm_git.core.runner import find_git_root, run_git
 from axm_git.hooks._resolve import resolve_working_dir
-from axm_git.hooks.commit_phase import build_commit_cmd
 
 __all__ = ["MergeSquashHook"]
 

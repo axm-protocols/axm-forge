@@ -660,3 +660,32 @@ class TestEmptyCommitList:
 
         assert result.success is False
         assert result.error == "No commits provided"
+
+
+def test_commit_command_runs_hooks() -> None:
+    """GitCommitTool does not bypass repository commit hooks."""
+
+    def _side_effect(
+        args: list[str], cwd: object, **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if args[0] == "log":
+            return _ok("abc1234")
+        return _ok()
+
+    mock_git = MagicMock(side_effect=_side_effect)
+    with (
+        patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test")),
+        patch("axm_git.tools.commit.stage_spec_files", return_value=None),
+        patch("axm_git.tools.commit.run_git", new=mock_git),
+    ):
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["src/foo.py"], "message": "fix: bug"}],
+        )
+
+    assert result.success
+    commit_calls = [
+        call for call in mock_git.call_args_list if call[0][0][0] == "commit"
+    ]
+    assert len(commit_calls) == 1
+    assert "--no-verify" not in commit_calls[0][0][0]
