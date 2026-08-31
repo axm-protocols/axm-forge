@@ -15,7 +15,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from axm_vault import MissingCredentialError, as_secret, resolver
+from axm_vault import KeyringStore, MissingCredentialError, as_secret, resolver
 
 from axm_init.credentials_catalog import pypi_credentials
 
@@ -77,7 +77,7 @@ class CredentialManager:
         return token.startswith("pypi-")
 
     def save_pypi_token(self, token: str) -> bool:
-        """Save PyPI token to ~/.pypirc.
+        """Save the PyPI token to its declared axm-vault credential.
 
         Args:
             token: Token to save.
@@ -85,32 +85,26 @@ class CredentialManager:
         Returns:
             True if saved successfully.
         """
-        config = configparser.ConfigParser()
-
-        if self.pypirc_path.exists():
-            config.read(self.pypirc_path)
-
-        if not config.has_section("pypi"):
-            config.add_section("pypi")
-
-        config.set("pypi", "username", "__token__")
-        config.set("pypi", "password", token)
+        group = pypi_credentials()[0]
+        spec = group.specs[0]
+        secret = as_secret(token)
+        assert secret is not None
 
         try:
-            import io
-
-            buf = io.StringIO()
-            config.write(buf)
-            self.pypirc_path.write_text(buf.getvalue())
-            # Set restrictive permissions
-            self.pypirc_path.chmod(0o600)
-        except (PermissionError, OSError) as exc:
-            logger.warning("Failed to save %s: %s", self.pypirc_path, exc)
+            KeyringStore().set(group.id, spec.name, secret.get_secret_value())
+        except RuntimeError:
+            logger.warning(
+                "Failed to save credential %s.%s to axm-vault; "
+                "set %s or repair OS keyring access",
+                group.id,
+                spec.name,
+                spec.env,
+            )
             return False
         return True
 
     def resolve_pypi_token(self, *, interactive: bool = True) -> str:
-        """Resolve PyPI token: env → .pypirc → prompt → save.
+        """Resolve PyPI token: env → vault → .pypirc → prompt → vault.
 
         Args:
             interactive: If True, prompt user when token is not configured.
@@ -147,6 +141,12 @@ class CredentialManager:
             raise SystemExit(1)
 
         # Persist
-        self.save_pypi_token(token)
-        print(f"✅ Saved to {self.pypirc_path}")  # noqa: T201
+        if not self.save_pypi_token(token):
+            print(  # noqa: T201
+                "Warning: PyPI credential was not saved to axm-vault; "
+                "set PYPI_API_TOKEN or repair OS keyring access.",
+                file=sys.stderr,
+            )
+            return token
+        print("✅ Saved PyPI credential to axm-vault")  # noqa: T201
         return token
