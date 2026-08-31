@@ -24,7 +24,8 @@ __all__ = ["NonTestCause", "classify_non_test_cause"]
 # ``_truncate_excerpt``) rather than duplicating the discipline.
 _STDERR_EXCERPT_CHARS = 1200
 
-_TRUNCATION_MARKER = "\n[... stderr truncated]"
+_TRUNCATION_MARKER = ""  # Backward-compatible private import sentinel.
+_TRUNCATION_MARKER_TEMPLATE = "[... {count} characters elided ...]"
 
 NonTestCauseCode = Literal[
     "coverage_threshold",
@@ -60,12 +61,25 @@ def _truncate_excerpt(text: str) -> str:
     """Return *text* stripped and bounded to :data:`_STDERR_EXCERPT_CHARS`.
 
     The single truncation discipline of the package: an over-long excerpt keeps
-    its head (where the cause lives) and ends with the truncation marker.
+    both diagnostic ends and explicitly marks the elided middle.
     """
     stripped = text.strip()
     if len(stripped) <= _STDERR_EXCERPT_CHARS:
         return stripped
-    return stripped[:_STDERR_EXCERPT_CHARS] + _TRUNCATION_MARKER
+    elided = len(stripped) - _STDERR_EXCERPT_CHARS
+    for _ in range(3):
+        marker = _TRUNCATION_MARKER_TEMPLATE.format(count=elided)
+        retained = _STDERR_EXCERPT_CHARS - len(marker)
+        updated = len(stripped) - retained
+        if updated == elided:
+            break
+        elided = updated
+
+    marker = _TRUNCATION_MARKER_TEMPLATE.format(count=elided)
+    retained = _STDERR_EXCERPT_CHARS - len(marker)
+    head_length = retained * 2 // 3
+    tail_length = retained - head_length
+    return f"{stripped[:head_length]}{marker}{stripped[-tail_length:]}"
 
 
 # ``type: ignore[explicit-any]``: the pydantic mypy plugin synthesizes

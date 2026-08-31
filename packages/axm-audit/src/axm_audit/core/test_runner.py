@@ -263,8 +263,8 @@ def _subprocess_failure(
 
     Returns *exc* untouched when the run exited cleanly — a zero exit with an
     unreadable report is a genuine report defect, and the subprocess has nothing
-    to add. Otherwise the returncode and the head of ``stderr`` are prepended,
-    since that is where the actual cause lives. The stderr is truncated to
+    to add. Otherwise the returncode and both diagnostic ends of ``stderr`` are
+    prepended. The stderr is truncated to
     :data:`_STDERR_EXCERPT_CHARS`: a failed dependency resolution runs to
     several kilobytes and must not be dumped whole into an exception message.
     """

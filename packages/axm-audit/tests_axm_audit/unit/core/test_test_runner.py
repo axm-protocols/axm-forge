@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import subprocess
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -328,6 +329,22 @@ class TestRunTestsIgnoresMode:
         assert len(report.failures) == 1
 
 
+def test_subprocess_failure_keeps_final_stderr_exception_line() -> None:
+    """AC5: an unusable-report error retains stderr's final exception line."""
+    from axm_audit.core.test_runner import _subprocess_failure
+
+    stderr = (
+        "filler line of subprocess noise\n" * 400
+    ) + "ModuleNotFoundError: No module named 'zzz'"
+    completed = subprocess.CompletedProcess(
+        args=["pytest"], returncode=1, stdout="", stderr=stderr
+    )
+
+    error = _subprocess_failure(ValueError("no usable JSON report"), completed)
+
+    assert "ModuleNotFoundError: No module named 'zzz'" in str(error)
+
+
 class TestSubprocessFailureDiagnostic:
     """AC2/AC3: the diagnostic is bounded, and a timeout keeps its own path."""
 
@@ -348,10 +365,10 @@ class TestSubprocessFailureDiagnostic:
             run_tests(tmp_path)
 
         message = str(excinfo.value)
-        # The diagnostic must quote the head of the stderr...
+        # The bounded diagnostic keeps both decisive ends of stderr.
         assert "HEAD-MARKER" in message, message[:200]
-        # ...but stay bounded: the tail of a multi-kilobyte dump is dropped.
-        assert "TAIL-MARKER" not in message, message[:200]
+        # The final exception line is retained without dumping the middle.
+        assert "TAIL-MARKER" in message, message[-200:]
         assert len(message) < len(stderr), message[:200]
 
     def test_timed_out_run_short_circuits_before_the_new_error_path(

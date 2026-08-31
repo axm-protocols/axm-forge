@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 
 import pytest
@@ -13,7 +14,8 @@ from axm_audit.core.non_test_cause import (
     classify_non_test_cause,
 )
 
-_TRUNCATION_MARKER = "\n[... stderr truncated]"
+_ELISION_PATTERN = re.compile(r"\[\.\.\. (\d+) characters elided \.\.\.\]")
+_OVER_BUDGET_TEXT = ("filler line\n" * 400) + "RuntimeError: boom"
 
 _COVERAGE_STDOUT = (
     "FAIL Required test coverage of 85% not reached. Total coverage: 72.10%"
@@ -119,8 +121,50 @@ def test_excerpt_is_bounded_by_the_shared_truncation_budget() -> None:
     )
 
     assert cause is not None
-    assert len(cause.excerpt) <= _STDERR_EXCERPT_CHARS + len(_TRUNCATION_MARKER)
-    assert cause.excerpt.endswith(_TRUNCATION_MARKER)
+    assert len(cause.excerpt) <= _STDERR_EXCERPT_CHARS
+    assert _ELISION_PATTERN.search(cause.excerpt) is not None
+
+
+def test_over_budget_excerpt_keeps_final_exception_line() -> None:
+    """AC1: a bounded two-ended excerpt retains its final exception line."""
+    result = _truncate_excerpt(_OVER_BUDGET_TEXT)
+
+    assert "RuntimeError: boom" in result
+
+
+def test_elision_marker_reports_exact_number_of_dropped_characters() -> None:
+    """AC2: the elision marker states the exact omitted character count."""
+    result = _truncate_excerpt(_OVER_BUDGET_TEXT)
+    marker = _ELISION_PATTERN.search(result)
+
+    assert marker is not None
+    expected_count = len(_OVER_BUDGET_TEXT.strip()) - (
+        len(result) - len(marker.group(0))
+    )
+    assert int(marker.group(1)) == expected_count
+
+
+def test_over_budget_excerpt_stays_within_budget_including_marker() -> None:
+    """AC3: the complete window, including its marker, fits the shared budget."""
+    result = _truncate_excerpt(_OVER_BUDGET_TEXT)
+
+    assert len(result) <= _STDERR_EXCERPT_CHARS
+    assert _ELISION_PATTERN.search(result) is not None
+
+
+def test_unknown_cause_excerpt_keeps_final_stderr_exception() -> None:
+    """AC4: fallback classification retains the final stderr exception line."""
+    cause = classify_non_test_cause(
+        return_code=1,
+        failed=0,
+        errors=0,
+        stdout="x" * 4000,
+        stderr="ZeroDivisionError: division by zero",
+    )
+
+    assert cause is not None
+    assert cause.code == "unknown"
+    assert "ZeroDivisionError: division by zero" in cause.excerpt
 
 
 def test_truncation_constant_and_helper_are_shared_with_subprocess_failure() -> None:
@@ -144,5 +188,5 @@ def test_truncation_constant_and_helper_are_shared_with_subprocess_failure() -> 
     message = str(enriched)
 
     assert "HEAD-MARKER" in message
-    assert "TAIL-MARKER" not in message
-    assert _TRUNCATION_MARKER in message
+    assert "TAIL-MARKER" in message
+    assert _ELISION_PATTERN.search(message) is not None
