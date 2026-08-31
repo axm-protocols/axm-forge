@@ -2,13 +2,33 @@
 
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 from unittest.mock import patch
 
+import keyring
 import pytest
+from axm_vault import KeyringStore
+from keyring.backend import KeyringBackend
 
 from axm_init.adapters.credentials import CredentialManager
+
+
+class _MemoryKeyring(KeyringBackend):
+    priority = 1
+
+    def __init__(self) -> None:
+        self._values: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service: str, username: str) -> str | None:
+        return self._values.get((service, username))
+
+    def set_password(self, service: str, username: str, password: str) -> None:
+        self._values[(service, username)] = password
+
+    def delete_password(self, service: str, username: str) -> None:
+        self._values.pop((service, username), None)
 
 
 class TestCredentialManager:
@@ -160,3 +180,23 @@ class TestResolvePypiToken:
             mock_stdin.isatty.return_value = True
             creds = CredentialManager(pypirc_path=pypirc)
             creds.resolve_pypi_token()
+
+    @pytest.mark.integration
+    def test_vault_token_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: vault supplies PyPI token when env and .pypirc are absent."""
+        token = "pypi-AgEIcHlwaS5vcmc-vault"
+        monkeypatch.delenv("PYPI_API_TOKEN", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path))
+        catalog_module = importlib.import_module("axm_init.credentials_catalog")
+        group = catalog_module.pypi_credentials()[0]
+        spec = next(spec for spec in group.specs if spec.env == "PYPI_API_TOKEN")
+        previous_backend = keyring.get_keyring()
+        keyring.set_keyring(_MemoryKeyring())
+        try:
+            KeyringStore().set(group.id, spec.name, token)
+            manager = CredentialManager()
+            assert manager.resolve_pypi_token(interactive=False) == token
+        finally:
+            keyring.set_keyring(previous_backend)

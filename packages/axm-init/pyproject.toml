@@ -26,6 +26,7 @@ dependencies = [
     "pyyaml>=6.0",
     "axm",
     "axm-ingot",
+    "axm-vault",
 ]
 
 [project.urls]
@@ -41,6 +42,9 @@ axm-init = "axm_init.cli:main"
 init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
 init_check    = "axm_init.tools.check:InitCheckTool"
 init_reserve  = "axm_init.tools.reserve:InitReserveTool"
+
+[project.entry-points."axm.credentials"]
+pypi = "axm_init.credentials_catalog:pypi_credentials"
 
 [project.entry-points."axm.commands"]
 init_scaffold = "axm_init.cli:scaffold"

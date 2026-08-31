@@ -11,10 +11,13 @@ from __future__ import annotations
 import configparser
 import getpass
 import logging
-import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from axm_vault import MissingCredentialError, as_secret, resolver
+
+from axm_init.credentials_catalog import pypi_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +28,8 @@ class CredentialManager:
 
     Token resolution order:
     1. PYPI_API_TOKEN environment variable
-    2. ~/.pypirc [pypi] password field
+    2. axm-vault
+    3. ~/.pypirc [pypi] password field
     """
 
     pypirc_path: Path = field(default_factory=lambda: Path.home() / ".pypirc")
@@ -36,11 +40,18 @@ class CredentialManager:
         Returns:
             Token string if found, None otherwise.
         """
-        # Priority 1: Environment variable
-        if token := os.environ.get("PYPI_API_TOKEN"):
-            return token
+        group = pypi_credentials()[0]
+        try:
+            resolved = resolver.resolve(group, "token")
+        except MissingCredentialError:
+            pass
+        else:
+            if resolved.value is not None:
+                secret = as_secret(resolved.value)
+                assert secret is not None
+                return secret.get_secret_value()
 
-        # Priority 2: ~/.pypirc file
+        # Final fallback: ~/.pypirc uses its own INI format.
         if self.pypirc_path.exists():
             config = configparser.ConfigParser()
             config.read(self.pypirc_path)
