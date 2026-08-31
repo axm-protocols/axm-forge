@@ -20,12 +20,8 @@ graph TD
 
     subgraph "Hooks"
         PF["PreflightHook"]
-        CB["CreateBranchHook"]
-        BD["BranchDeleteHook"]
         CP["CommitPhaseHook"]
         MS["MergeSquashHook"]
-        WA["WorktreeAddHook"]
-        WR["WorktreeRemoveHook"]
     end
 
     subgraph "Core"
@@ -60,29 +56,17 @@ graph TD
     Push --> Runner
     PF --> Runner
     PF -->|"render_text()"| Preflight
-    CB --> Runner
     CP --> Runner
     CP --> PhaseCommit
     MS --> Runner
-    WA --> Runner
-    WR --> Runner
-    BD --> Runner
     Runner --> Git
     Runner --> GH
     PF -.-> HookBase
-    CB -.-> HookBase
     CP -.-> HookBase
     MS -.-> HookBase
-    WA -.-> HookBase
-    WR -.-> HookBase
-    BD -.-> HookBase
     Registry -.->|"entry-point discovery"| PF
-    Registry -.-> CB
     Registry -.-> CP
     Registry -.-> MS
-    Registry -.-> WA
-    Registry -.-> WR
-    Registry -.-> BD
 ```
 
 ## Layers
@@ -115,12 +99,9 @@ Lifecycle hook actions conforming to the `HookAction` protocol from `axm.hooks.b
 All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to skip git operations entirely (returns `HookResult.ok(skipped=True, reason="git disabled")`).
 
 - **`PreflightHook`** — Runs a structured working tree status check before a phase begins. Returns a compact `text` render (via `render_text` from `commit_preflight`) alongside structured metadata. Entry point: `git:preflight`.
-- **`CreateBranchHook`** — Creates a session branch. Accepts `branch`, `ticket_id`, `ticket_title`, and `ticket_labels` params; `_resolve_branch()` derives the final branch name from those inputs. Skips if not a git repo.
-- **`BranchDeleteHook`** — Deletes a branch via `git branch -D`. Branch name resolved from `branch` param then `branch` context key. Entry point: `git:branch-delete`.
 - **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Pass `from_outputs=True` to derive staged files from protocol outputs instead of staging everything. Skips if nothing to commit.
 - **`MergeSquashHook`** — Squash-merges a branch back to the target branch. Accepts `branch` and `message` params; `_resolve_branch()` reads the branch from context when `branch` is not explicitly supplied. The squash commit resolves its author via `resolve_identity` and injects `--author` through the shared `build_commit_cmd`, so squash merges honour the identity-profile system (falls back to the default git identity when no profile is configured). When a `profile_override` names an unknown profile, `resolve_identity` logs a `WARNING` for an unknown profile (naming the typo and the available profiles, or noting that no profiles are configured) and still falls back to the default identity.
-- **`WorktreeAddHook`** — Creates a git worktree + branch for a ticket at `/tmp/axm-worktrees/<ticket_id>/`, deriving the branch name from ticket metadata. Entry point: `git:worktree-add`.
-- **`WorktreeRemoveHook`** — Removes a worktree previously created by `WorktreeAddHook` using `git worktree remove --force`. Entry point: `git:worktree-remove`.
+Branch and worktree lifecycle are **no longer hooks**: `CreateBranchHook`, `BranchDeleteHook`, `WorktreeAddHook` and `WorktreeRemoveHook` (and their `git:create-branch`, `git:branch-delete`, `git:worktree-add`, `git:worktree-remove` entry points) have been removed — the live surface is the `git_branch` (`GitBranchTool`) and `git_worktree` (`GitWorktreeTool`) MCP tools.
 
 ## Design Decisions
 

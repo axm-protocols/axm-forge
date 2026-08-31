@@ -24,16 +24,14 @@ Hook actions auto-discovered via the `axm.hooks` entry-point group by `HookRegis
 | Hook | Entry point | Description |
 |---|---|---|
 | `git:preflight` | `PreflightHook` | Structured working tree status check before a phase |
-| `git:create-branch` | `CreateBranchHook` | Create session branch; accepts `branch`, `ticket_id`, `ticket_title`, `ticket_labels` to override or derive branch name |
-| `git:branch-delete` | `BranchDeleteHook` | Delete a branch via `git branch -D`; reads name from `branch` param then `branch` context key |
 | `git:commit-phase` | `CommitPhaseHook` | Stage all + commit with `[axm] {phase}`; pass `from_outputs=True` to derive staged files from protocol outputs |
 | `git:merge-squash` | `MergeSquashHook` | Squash-merge branch back to target; accepts `branch` and `message` params, reads branch from context when not supplied |
-| `git:worktree-add` | `WorktreeAddHook` | Create a worktree + branch for a ticket at `/tmp/axm-worktrees/<ticket_id>/` |
-| `git:worktree-remove` | `WorktreeRemoveHook` | Remove a worktree previously created by `WorktreeAddHook` |
 | `git:push` | `PushHook` | Push the current branch to `origin -u`; reads `branch` from context or detects HEAD |
 | `git:pull-main` | `PullHook` | Pull `origin main` (override via `remote`/`branch` params) into the local repository |
 | `git:create-pr` | `CreatePRHook` | Run `gh pr create` then `gh pr merge --auto --squash`; skips when `gh` is unavailable |
 | `git:await-merge` | `AwaitMergeHook` | Poll a PR (`pr_number`/`pr_url`) until merged or timeout |
+
+Branch and worktree hooks (`git:create-branch`, `git:branch-delete`, `git:worktree-add`, `git:worktree-remove`) have been removed — use the `git_branch` and `git_worktree` MCP tools above instead.
 
 ## Python API
 

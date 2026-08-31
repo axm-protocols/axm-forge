@@ -35,13 +35,9 @@ git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
 git_release_diff = "axm_git.tools.release_diff:GitReleaseDiffTool"
 
 [project.entry-points."axm.hooks"]
-"git:branch-delete"  = "axm_git.hooks.branch_delete:BranchDeleteHook"
-"git:create-branch"  = "axm_git.hooks.create_branch:CreateBranchHook"
 "git:commit-phase"   = "axm_git.hooks.commit_phase:CommitPhaseHook"
 "git:merge-squash"   = "axm_git.hooks.merge_squash:MergeSquashHook"
 "git:preflight"      = "axm_git.hooks.preflight:PreflightHook"
-"git:worktree-add"   = "axm_git.hooks.worktree_add:WorktreeAddHook"
-"git:worktree-remove" = "axm_git.hooks.worktree_remove:WorktreeRemoveHook"
 "git:push"            = "axm_git.hooks.push:PushHook"
 "git:create-pr"       = "axm_git.hooks.create_pr:CreatePRHook"
 "git:await-merge"     = "axm_git.hooks.await_merge:AwaitMergeHook"
@@ -255,11 +251,7 @@ known_first_party = ["axm_git"]
 # exercise real subprocess calls. Unit-level mock-everything tests would
 # duplicate coverage with weaker assertions.
 exempt_paths = [
-    "hooks/branch_delete.py",
-    "hooks/create_branch.py",
     "hooks/merge_squash.py",
-    "hooks/worktree_add.py",
-    "hooks/worktree_remove.py",
     "core/phase_commit.py",
 ]
 
