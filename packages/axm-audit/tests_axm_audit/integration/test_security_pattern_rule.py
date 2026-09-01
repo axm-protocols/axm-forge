@@ -196,3 +196,29 @@ def test_multiple_patterns_same_file(tmp_path: Path, rule: SecurityPatternRule) 
     assert len(lines) == 2
     assert "bad.py:1" in lines[0]
     assert "bad.py:2" in lines[1]
+
+
+@pytest.mark.integration
+def test_credential_remediation_uses_vault_catalogue(tmp_path: Path) -> None:
+    """AC1: remediation sends credentials to axm-vault, never to an env var."""
+    _make_src_file(tmp_path, "credential.py", 'password = "super_secret_123"\n')
+
+    result = SecurityPatternRule().check(tmp_path)
+
+    assert result.fix_hint is not None
+    remediation = result.fix_hint.lower()
+    assert "axm-vault" in remediation
+    assert "credential catalogue" in remediation
+    assert "axm.credentials" in remediation
+    assert "environment variable" not in remediation
+
+
+@pytest.mark.integration
+def test_credential_remediation_references_practices_rule(tmp_path: Path) -> None:
+    """AC2: remediation cross-references PRACTICE_ENV_CREDENTIAL_READ."""
+    _make_src_file(tmp_path, "credential.py", 'password = "super_secret_123"\n')
+
+    result = SecurityPatternRule().check(tmp_path)
+
+    assert result.fix_hint is not None
+    assert "PRACTICE_ENV_CREDENTIAL_READ" in result.fix_hint

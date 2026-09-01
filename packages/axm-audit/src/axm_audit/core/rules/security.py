@@ -384,7 +384,10 @@ class SecurityPatternRule(ProjectRule):
             score=int(score),
             details={"secret_count": count, "matches": matches},
             text="\n".join(text_lines) if text_lines else None,
-            fix_hint="Use environment variables or secret managers"
+            fix_hint=(
+                "Use the axm-vault credential catalogue (axm.credentials); "
+                "see PRACTICE_ENV_CREDENTIAL_READ"
+            )
             if not passed
             else None,
         )
