@@ -133,7 +133,7 @@ Categories `structure` and `tooling` emit findings but are not scored.
 | `testing` | `TestCoverageRule` | 1 |
 | `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | 6 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule` | 5 |
+| `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule`, `EnvCredentialsRule` | 6 |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | 2 |
 | `tooling` | `ToolAvailabilityRule` | 1 |
 

@@ -138,7 +138,7 @@ class TestGetRegistry:
 
         reg = get_registry()
         total = sum(len(v) for v in reg.values())
-        assert total == 29
+        assert total == 30
 
     def test_node_registry_has_lint_rule(self) -> None:
         """The node framework registry exposes the ESLint-backed lint rule."""

@@ -14,9 +14,14 @@ Focus your audit on specific areas instead of running all checks.
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
 | `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | Test-suite hygiene: pyramid level, duplicates, canonical file naming, package-symbol coverage, private-symbol imports, tautologies |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
-| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `MirrorRule`, `AntiMirrorRule` | Best practices (mirror = unit-tests 1:1 with src; anti-mirror = integration/e2e must be scenario-named) |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `MirrorRule`, `AntiMirrorRule`, `EnvCredentialsRule` | Best practices, including direct credential-value reads from the environment |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | pyproject.toml completeness; test pyramid layout (unit/integration/e2e + pytest markers) |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
+
+`EnvCredentialsRule` reports credential environment variables consumed as values.
+Boolean-only guards, test modules, non-credential settings, and modules in the
+`axm_vault` credential layer are excluded. Remediation points to the axm-vault
+credential catalogue exposed through the `axm.credentials` entry-point group.
 
 ## CLI
 
@@ -48,7 +53,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (31 instances)
+# All rules (32 instances)
 rules = get_rules_for_category(None)
 
 # Single category
