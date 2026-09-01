@@ -34,12 +34,6 @@ git_pull        = "axm_git.tools.pull:GitPullTool"
 git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
 git_release_diff = "axm_git.tools.release_diff:GitReleaseDiffTool"
 
-[project.entry-points."axm.hooks"]
-"git:merge-squash"   = "axm_git.hooks.merge_squash:MergeSquashHook"
-"git:push"            = "axm_git.hooks.push:PushHook"
-"git:create-pr"       = "axm_git.hooks.create_pr:CreatePRHook"
-"git:await-merge"     = "axm_git.hooks.await_merge:AwaitMergeHook"
-"git:pull-main"       = "axm_git.hooks.pull:PullHook"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-git"
@@ -108,7 +102,6 @@ ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests_axm_git/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004", "PLR0913"]
-"src/axm_git/hooks/await_merge.py" = ["PLR0911"]
 "src/axm_git/tools/tag.py" = ["PLR0911"]
 
 [tool.ruff.lint.mccabe]
@@ -245,13 +238,7 @@ known_first_party = ["axm_git"]
 # axm-audit Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.axm-audit.mirror]
-# I/O-heavy git hooks: fully covered by tests/integration/ scenarios that
-# exercise real subprocess calls. Unit-level mock-everything tests would
-# duplicate coverage with weaker assertions.
-exempt_paths = [
-    "hooks/merge_squash.py",
-    "core/phase_commit.py",
-]
+exempt_paths = ["core/phase_commit.py"]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "99ce49e6bcd9"

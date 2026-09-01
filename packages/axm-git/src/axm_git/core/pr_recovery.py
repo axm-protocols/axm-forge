@@ -1,11 +1,8 @@
 """Shared recovery for an already-existing GitHub pull request.
 
 When ``gh pr create`` fails because a PR already exists for the branch,
-both :class:`~axm_git.tools.pr.GitPRTool` and
-:class:`~axm_git.hooks.create_pr.CreatePRHook` recover the existing PR via
-``gh pr view``. This module factors that recovery into a single helper that
-returns a result-agnostic structure; each caller adapts it to its own
-result type (``ToolResult`` / ``HookResult``).
+:class:`~axm_git.tools.pr.GitPRTool` recovers it via ``gh pr view``. This
+module factors that recovery into a result-agnostic helper.
 """
 
 from __future__ import annotations

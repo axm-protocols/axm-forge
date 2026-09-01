@@ -17,21 +17,6 @@
 | `git_await_merge` | `GitAwaitMergeTool` | Poll a PR (`pr`: number or URL) until merged or timeout |
 | `git_pr` | `GitPRTool` | Create GitHub pull requests with optional auto-merge; idempotent — recovers the existing PR (`already_existed`) when one is already open |
 
-## Lifecycle Hooks
-
-Hook actions auto-discovered via the `axm.hooks` entry-point group by `HookRegistry.with_builtins()` in `axm-engine`.
-
-| Hook | Entry point | Description |
-|---|---|---|
-| `git:preflight` | `PreflightHook` | Structured working tree status check before a phase |
-| `git:commit-phase` | `CommitPhaseHook` | Stage all + commit with `[axm] {phase}`; pass `from_outputs=True` to derive staged files from protocol outputs |
-| `git:merge-squash` | `MergeSquashHook` | Squash-merge branch back to target; accepts `branch` and `message` params, reads branch from context when not supplied |
-| `git:push` | `PushHook` | Push the current branch to `origin -u`; reads `branch` from context or detects HEAD |
-| `git:pull-main` | `PullHook` | Pull `origin main` (override via `remote`/`branch` params) into the local repository |
-| `git:create-pr` | `CreatePRHook` | Run `gh pr create` then `gh pr merge --auto --squash`; skips when `gh` is unavailable |
-| `git:await-merge` | `AwaitMergeHook` | Poll a PR (`pr_number`/`pr_url`) until merged or timeout |
-
-Branch and worktree hooks (`git:create-branch`, `git:branch-delete`, `git:worktree-add`, `git:worktree-remove`) have been removed — use the `git_branch` and `git_worktree` MCP tools above instead.
 
 ## Python API
 
