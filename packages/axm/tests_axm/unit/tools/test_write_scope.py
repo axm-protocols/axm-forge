@@ -205,3 +205,79 @@ def test_unknown_operations_shape_is_denied(tmp_path: Path) -> None:
 
     assert decision.allowed is False
     assert "unclassifiable mutation" in decision.reason
+
+
+def test_markdown_only_prefix_grants_markdown_and_refuses_the_rest(
+    tmp_path: Path,
+) -> None:
+    """A prefix carrying the Markdown nature grants sidecars, never code."""
+    contract = WriteContract.from_mapping(
+        {
+            "execution_root": str(tmp_path),
+            "allowed_prefixes": ["docs"],
+            "markdown_only_prefixes": ["docs"],
+        }
+    )
+
+    assert contract.permits(str(tmp_path / "docs" / "index.md")) is True
+    assert contract.permits(str(tmp_path / "docs" / "guide" / "deep.MD")) is True
+    assert contract.permits(str(tmp_path / "docs" / "gen_ref_pages.py")) is False
+    assert contract.permits(str(tmp_path / "docs" / "assets" / "logo.svg")) is False
+
+
+def test_an_unrestricted_prefix_still_grants_a_location_it_covers(
+    tmp_path: Path,
+) -> None:
+    """The nature narrows only what it alone grants, never a wider prefix."""
+    contract = WriteContract.from_mapping(
+        {
+            "execution_root": str(tmp_path),
+            "allowed_prefixes": ["packages/a", "packages/a/src"],
+            "markdown_only_prefixes": ["packages/a"],
+        }
+    )
+
+    assert contract.permits(str(tmp_path / "packages/a/src/mod.py")) is True
+    assert contract.permits(str(tmp_path / "packages/a/README.md")) is True
+    assert contract.permits(str(tmp_path / "packages/a/pyproject.toml")) is False
+
+
+def test_markdown_nature_is_dropped_when_the_prefix_is_not_allowed(
+    tmp_path: Path,
+) -> None:
+    """A nature naming an ungranted prefix never widens the surface."""
+    contract = WriteContract.from_mapping(
+        {
+            "execution_root": str(tmp_path),
+            "allowed_prefixes": ["docs"],
+            "markdown_only_prefixes": ["packages/absent"],
+        }
+    )
+
+    assert contract.markdown_only_prefixes == ()
+    assert contract.permits(str(tmp_path / "packages/absent/x.md")) is False
+
+
+def test_a_contract_without_the_nature_field_is_unchanged(tmp_path: Path) -> None:
+    """Omitting the field keeps every historic grant, extension-blind."""
+    contract = WriteContract.from_mapping(
+        {"execution_root": str(tmp_path), "allowed_prefixes": ["docs"]}
+    )
+
+    assert contract.markdown_only_prefixes == ()
+    assert contract.permits(str(tmp_path / "docs" / "gen_ref_pages.py")) is True
+
+
+@pytest.mark.parametrize("malformed", ["docs", [1]])
+def test_a_malformed_markdown_nature_is_rejected(
+    tmp_path: Path, malformed: object
+) -> None:
+    """The nature sequence is validated like every other wire field."""
+    with pytest.raises(ValueError, match="markdown_only_prefixes"):
+        WriteContract.from_mapping(
+            {
+                "execution_root": str(tmp_path),
+                "allowed_prefixes": ["docs"],
+                "markdown_only_prefixes": malformed,
+            }
+        )

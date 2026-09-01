@@ -15,6 +15,7 @@ __all__ = [
 ]
 
 WRITE_CONTRACT_ENV = "AXM_WRITE_CONTRACT"
+_MARKDOWN_SUFFIXES = (".md", ".markdown")
 _AXM_PREFIX_ALIASES = (
     "mcp__axm-mcp__",
     "mcp__axm_mcp__",
@@ -45,12 +46,35 @@ def _absolute_location(base: str, candidate: str) -> str:
     return os.path.realpath(os.path.join(base, trimmed))
 
 
+def _normalized_prefixes(
+    raw: Mapping[str, object],
+    key: str,
+    root: str,
+) -> tuple[str, ...]:
+    """Validate one prefix sequence of the wire payload and absolutize it."""
+    value = raw.get(key, ())
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise ValueError(f"{key} must be a sequence of strings")
+    if any(not isinstance(prefix, str) for prefix in value):
+        raise ValueError(f"{key} must contain only strings")
+    return tuple(dict.fromkeys(_absolute_location(root, prefix) for prefix in value))
+
+
 @dataclass(frozen=True)
 class WriteContract:
-    """Validated wire representation of a session filesystem write scope."""
+    """Validated wire representation of a session filesystem write scope.
+
+    A prefix listed in ``markdown_only_prefixes`` carries a **nature** on top
+    of its path: it grants Markdown sidecars only. Without it, a documentation
+    prefix would have to be narrowed by whoever *produces* the contract, and
+    every producer would reinvent that filter — the divergence this field
+    exists to prevent. Such a prefix must also appear in ``allowed_prefixes``;
+    one that does not is dropped rather than silently granting a wider path.
+    """
 
     execution_root: str
     allowed_prefixes: tuple[str, ...] = ()
+    markdown_only_prefixes: tuple[str, ...] = ()
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object]) -> WriteContract:
@@ -59,19 +83,15 @@ class WriteContract:
         if not isinstance(raw_root, str) or not raw_root.strip():
             raise ValueError("execution_root must be a non-empty string")
         root = os.path.realpath(raw_root.strip())
-        raw_prefixes = raw.get("allowed_prefixes", ())
-        if isinstance(raw_prefixes, str) or not isinstance(raw_prefixes, Sequence):
-            raise ValueError("allowed_prefixes must be a sequence of strings")
-        if any(not isinstance(prefix, str) for prefix in raw_prefixes):
-            raise ValueError("allowed_prefixes must contain only strings")
-        prefixes = tuple(
-            dict.fromkeys(
-                _absolute_location(root, prefix)
-                for prefix in raw_prefixes
-                if isinstance(prefix, str)
-            )
+        prefixes = _normalized_prefixes(raw, "allowed_prefixes", root)
+        markdown_only = _normalized_prefixes(raw, "markdown_only_prefixes", root)
+        return cls(
+            execution_root=root,
+            allowed_prefixes=prefixes,
+            markdown_only_prefixes=tuple(
+                prefix for prefix in markdown_only if prefix in prefixes
+            ),
         )
-        return cls(execution_root=root, allowed_prefixes=prefixes)
 
     @classmethod
     def from_json(cls, raw: str) -> WriteContract:
@@ -86,11 +106,22 @@ class WriteContract:
         return _absolute_location(base, candidate)
 
     def permits(self, location: str) -> bool:
-        """Return whether a resolved location is under an allowed prefix."""
-        return any(
-            location == prefix or location.startswith(prefix + os.sep)
+        """Return whether a resolved location is under an allowed prefix.
+
+        A location granted *only* by Markdown-restricted prefixes must itself
+        be Markdown: those prefixes carry a nature, not merely a path. A
+        location also covered by an unrestricted prefix keeps that grant.
+        """
+        granting = [
+            prefix
             for prefix in self.allowed_prefixes
-        )
+            if location == prefix or location.startswith(prefix + os.sep)
+        ]
+        if not granting:
+            return False
+        if any(prefix not in self.markdown_only_prefixes for prefix in granting):
+            return True
+        return location.casefold().endswith(_MARKDOWN_SUFFIXES)
 
     def contains(self, location: str) -> bool:
         """Return whether a resolved location is under the execution root."""
