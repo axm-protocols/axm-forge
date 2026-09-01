@@ -157,3 +157,41 @@ token = os.environ.get(prefix + "_TOKEN")
     env_var = env_credentials._environment_variable(call, constants)
 
     assert env_var is None
+
+
+def test_class_attribute_env_names_retain_subclass_literals() -> None:
+    """AC1: index subclass literals while excluding the base placeholder."""
+    env_credentials = _load_module()
+    tree = ast.parse(
+        """\
+class BaseProvider:
+    env_var: str = ""
+
+class StripeProvider(BaseProvider):
+    env_var = "STRIPE_API_KEY"
+
+class OpenAIProvider(BaseProvider):
+    env_var = "OPENAI_API_KEY"
+"""
+    )
+
+    names = env_credentials._class_attribute_env_names([tree])
+
+    assert names == {
+        "env_var": {"STRIPE_API_KEY", "OPENAI_API_KEY"},
+    }
+
+
+def test_class_attribute_env_names_ignore_computed_values() -> None:
+    """AC3: exclude class attributes whose values are computed at runtime."""
+    env_credentials = _load_module()
+    tree = ast.parse(
+        """\
+class DynamicProvider:
+    env_var = compute_name()
+"""
+    )
+
+    names = env_credentials._class_attribute_env_names([tree])
+
+    assert names.get("env_var", set()) == set()

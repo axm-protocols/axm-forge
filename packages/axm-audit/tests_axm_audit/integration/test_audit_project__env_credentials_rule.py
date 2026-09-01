@@ -197,6 +197,155 @@ token = os.environ.get(STRIPE_ENV)
     assert violations[0]["env_var"] == "STRIPE_API_KEY"
 
 
+def test_subclass_attribute_credentials_report_resolved_names(
+    tmp_path: Path,
+) -> None:
+    """AC1: report every literal credential name supplied by subclasses."""
+    _write_module(
+        tmp_path,
+        "app/base.py",
+        """import os
+class BaseProvider:
+    env_var: str = ""
+
+    def load(self):
+        token = os.environ.get(self.env_var)
+        return token
+""",
+    )
+    _write_module(
+        tmp_path,
+        "app/providers.py",
+        """from app.base import BaseProvider
+class StripeProvider(BaseProvider):
+    env_var = "STRIPE_API_KEY"
+
+class OpenAIProvider(BaseProvider):
+    env_var = "OPENAI_API_KEY"
+
+class AnthropicProvider(BaseProvider):
+    env_var = "ANTHROPIC_API_KEY"
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 3
+    assert {item["env_var"] for item in violations} == {
+        "STRIPE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+    }
+
+
+def test_only_credential_subclass_attribute_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC2: ignore a resolved subclass attribute that is not a credential."""
+    _write_module(
+        tmp_path,
+        "app/base.py",
+        """import os
+class BaseProvider:
+    env_var: str = ""
+
+    def load(self):
+        token = os.environ.get(self.env_var)
+        return token
+""",
+    )
+    _write_module(
+        tmp_path,
+        "app/providers.py",
+        """from app.base import BaseProvider
+class StripeProvider(BaseProvider):
+    env_var = "STRIPE_API_KEY"
+
+class OfflineProvider(BaseProvider):
+    env_var = "AXM_OFFLINE"
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["env_var"] == "STRIPE_API_KEY"
+
+
+def test_computed_subclass_attribute_remains_unresolved(
+    tmp_path: Path,
+) -> None:
+    """AC3: ignore a computed attribute beside a literal credential family."""
+    _write_module(
+        tmp_path,
+        "app/bases.py",
+        """import os
+class CredentialBase:
+    env_var: str = ""
+
+    def load(self):
+        token = os.environ.get(self.env_var)
+        return token
+
+class DynamicBase:
+    env_var: str = ""
+
+    def load(self):
+        token = os.environ.get(self.env_var)
+        return token
+""",
+    )
+    _write_module(
+        tmp_path,
+        "app/providers.py",
+        """from app.bases import CredentialBase, DynamicBase
+class StripeProvider(CredentialBase):
+    env_var = "STRIPE_API_KEY"
+
+class DynamicProvider(DynamicBase):
+    env_var = compute_name()
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["env_var"] == "STRIPE_API_KEY"
+
+
+def test_boolean_only_subclass_attribute_read_is_ignored(
+    tmp_path: Path,
+) -> None:
+    """AC4: retain only the bound read after resolving a class attribute."""
+    _write_module(
+        tmp_path,
+        "app/base.py",
+        """import os
+class BaseProvider:
+    env_var: str = ""
+
+    def load(self):
+        token = os.environ.get(self.env_var)
+        enabled = bool(os.environ.get(self.env_var))
+        return token, enabled
+""",
+    )
+    _write_module(
+        tmp_path,
+        "app/providers.py",
+        """from app.base import BaseProvider
+class StripeProvider(BaseProvider):
+    env_var = "STRIPE_API_KEY"
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["env_var"] == "STRIPE_API_KEY"
+    assert violations[0]["line"] == 6
+
+
 def test_credentials_layer_constant_read_remains_exempt(
     tmp_path: Path,
 ) -> None:

@@ -19,12 +19,14 @@ Focus your audit on specific areas instead of running all checks.
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 
 `EnvCredentialsRule` reports credential environment variables consumed as values.
-It resolves both names written literally at the read site and module-level names
-assigned a literal string; names composed at runtime remain unresolved and are
-ignored. Boolean-only guards, test modules, non-credential settings, and modules
-in the `axm_vault` credential layer are excluded. Remediation points to the
-axm-vault credential catalogue exposed through the `axm.credentials` entry-point
-group.
+It resolves names written literally at the read site, module-level names assigned
+a literal string, and `self.<attribute>` reads whose concrete subclasses assign
+non-empty literal names—even when the base and subclasses live in different
+modules. Each distinct credential name produces its own finding. Runtime-computed
+attribute values and other composed names remain unresolved and are ignored.
+Boolean-only guards, test modules, non-credential settings, and modules in the
+`axm_vault` credential layer are excluded. Remediation points to the axm-vault
+credential catalogue exposed through the `axm.credentials` entry-point group.
 
 ## CLI
 
