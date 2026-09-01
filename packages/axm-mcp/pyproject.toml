@@ -17,7 +17,11 @@ dependencies = [
     "axm",
     "cyclopts>=4.21.0",
     "httpx>=0.28",
-    "mcp[cli]>=1.25.0",
+    # Plafonne a la 1.x : la 2.0 renomme FastMCP en MCPServer et change les
+    # APIs (mcp_app.py importe encore `mcp.server.fastmcp.FastMCP`). Sans le
+    # plafond, une resolution neuve tire la 2.x et le serveur ne demarre plus
+    # (ModuleNotFoundError au boot). A lever avec la migration vers MCPServer.
+    "mcp[cli]>=1.25.0,<2",
     "starlette>=1.2",
 ]
 
