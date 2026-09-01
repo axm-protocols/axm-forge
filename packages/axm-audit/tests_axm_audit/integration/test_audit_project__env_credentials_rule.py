@@ -114,3 +114,101 @@ API_KEY = os.environ.get("S2_API_KEY")
     assert check.fix_hint is not None
     assert "axm-vault credential catalogue" in check.fix_hint
     assert "axm.credentials" in check.fix_hint
+
+
+def test_module_constant_credential_read_reports_resolved_name(
+    tmp_path: Path,
+) -> None:
+    """AC1: report a module-constant read under its resolved environment name."""
+    _write_module(
+        tmp_path,
+        "app/service.py",
+        """import os
+STRIPE_ENV = "STRIPE_API_KEY"
+token = os.environ.get(STRIPE_ENV)
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["env_var"] == "STRIPE_API_KEY"
+
+
+def test_only_constant_resolving_to_credential_is_reported(
+    tmp_path: Path,
+) -> None:
+    """AC2: ignore a constant whose resolved value is not a credential name."""
+    _write_module(
+        tmp_path,
+        "app/service.py",
+        """import os
+SOCKET_ENV = "AXM_SOCKET_PATH"
+STRIPE_ENV = "STRIPE_API_KEY"
+sock = os.environ.get(SOCKET_ENV)
+token = os.environ.get(STRIPE_ENV)
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["env_var"] == "STRIPE_API_KEY"
+
+
+def test_boolean_only_constant_read_is_ignored_after_resolution(
+    tmp_path: Path,
+) -> None:
+    """AC3: report only the bound read when the same constant guards with bool."""
+    _write_module(
+        tmp_path,
+        "app/service.py",
+        """import os
+STRIPE_ENV = "STRIPE_API_KEY"
+token = os.environ.get(STRIPE_ENV)
+enabled = bool(os.environ.get(STRIPE_ENV))
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["line"] == 3
+
+
+def test_runtime_composed_name_is_ignored_beside_resolved_constant(
+    tmp_path: Path,
+) -> None:
+    """AC4: ignore a runtime-composed name beside one resolved credential."""
+    _write_module(
+        tmp_path,
+        "app/service.py",
+        """import os
+prefix = "STRIPE"
+STRIPE_ENV = "STRIPE_API_KEY"
+dynamic = os.environ.get(prefix + "_TOKEN")
+token = os.environ.get(STRIPE_ENV)
+""",
+    )
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["env_var"] == "STRIPE_API_KEY"
+
+
+def test_credentials_layer_constant_read_remains_exempt(
+    tmp_path: Path,
+) -> None:
+    """AC5: exempt a resolved constant read in the credentials layer."""
+    source = """import os
+STRIPE_ENV = "STRIPE_API_KEY"
+token = os.environ.get(STRIPE_ENV)
+"""
+    _write_module(tmp_path, "axm_vault/credentials.py", source)
+    _write_module(tmp_path, "app/service.py", source)
+
+    violations = _violations(_credential_check(tmp_path))
+
+    assert len(violations) == 1
+    assert violations[0]["file"] == "app/service.py"

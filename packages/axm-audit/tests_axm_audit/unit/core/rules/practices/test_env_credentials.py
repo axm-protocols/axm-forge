@@ -105,3 +105,55 @@ key = os.getenv("S2_API_KEY")
 
     assert len(reads) == 1
     assert reads[0].env_var == "S2_API_KEY"
+
+
+def test_module_constant_env_names_retain_only_module_literals() -> None:
+    """AC1: retain only module-level names assigned literal strings."""
+    env_credentials = _load_module()
+    tree = ast.parse(
+        """\
+STRIPE_ENV = "STRIPE_API_KEY"
+COMPUTED_ENV = build_name()
+def configure():
+    LOCAL_ENV = "LOCAL_API_KEY"
+"""
+    )
+
+    constants = env_credentials._module_constant_env_names(tree)
+
+    assert constants == {"STRIPE_ENV": "STRIPE_API_KEY"}
+
+
+def test_environment_variable_resolves_name_from_module_constants() -> None:
+    """AC1: resolve an environment Name to its module literal value."""
+    env_credentials = _load_module()
+    tree = ast.parse(
+        """\
+import os
+STRIPE_ENV = "STRIPE_API_KEY"
+token = os.environ.get(STRIPE_ENV)
+"""
+    )
+    constants = env_credentials._module_constant_env_names(tree)
+    call = next(node for node in ast.walk(tree) if isinstance(node, ast.Call))
+
+    env_var = env_credentials._environment_variable(call, constants)
+
+    assert env_var == "STRIPE_API_KEY"
+
+
+def test_environment_variable_leaves_runtime_composition_unresolved() -> None:
+    """AC4: leave an environment name composed at runtime unresolved."""
+    env_credentials = _load_module()
+    tree = ast.parse(
+        """\
+import os
+token = os.environ.get(prefix + "_TOKEN")
+"""
+    )
+    constants = env_credentials._module_constant_env_names(tree)
+    call = next(node for node in ast.walk(tree) if isinstance(node, ast.Call))
+
+    env_var = env_credentials._environment_variable(call, constants)
+
+    assert env_var is None

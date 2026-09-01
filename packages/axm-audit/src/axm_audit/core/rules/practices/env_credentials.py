@@ -65,12 +65,33 @@ def is_credential_layer_module(module_path: str) -> bool:
     )
 
 
+def _module_constant_env_names(tree: ast.AST) -> dict[str, str]:
+    """Return literal string assignments made directly in a module."""
+    if not isinstance(tree, ast.Module):
+        return {}
+
+    names: dict[str, str] = {}
+    for statement in tree.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        value = _string_literal(statement.value)
+        if value is None:
+            continue
+        names.update(
+            (target.id, value)
+            for target in statement.targets
+            if isinstance(target, ast.Name)
+        )
+    return names
+
+
 def find_env_credential_value_reads(
     tree: ast.AST,
     *,
     module_path: str,
 ) -> list[EnvCredentialValueRead]:
     """Find credential environment reads used as values rather than guards."""
+    module_constants = _module_constant_env_names(tree)
     parents = _parent_map(tree)
     reads = (
         EnvCredentialValueRead(
@@ -80,7 +101,7 @@ def find_env_credential_value_reads(
         )
         for node in ast.walk(tree)
         if isinstance(node, (ast.Call, ast.Subscript))
-        and (env_var := _environment_variable(node)) is not None
+        and (env_var := _environment_variable(node, module_constants)) is not None
         and is_credential_env_var(env_var)
         and not _is_boolean_only_read(node, parents)
     )
@@ -173,11 +194,27 @@ def _parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
     }
 
 
-def _environment_variable(node: ast.AST) -> str | None:
+def _environment_variable(
+    node: ast.AST,
+    module_constants: dict[str, str],
+) -> str | None:
     if isinstance(node, ast.Call):
-        return _call_environment_variable(node)
-    if isinstance(node, ast.Subscript) and _is_os_environ(node.value):
-        return _string_literal(node.slice)
+        literal = _call_environment_variable(node)
+        if literal is not None:
+            return literal
+        if not node.args or not _is_environment_getter(node.func):
+            return None
+        argument = node.args[0]
+    elif isinstance(node, ast.Subscript) and _is_os_environ(node.value):
+        argument = node.slice
+    else:
+        return None
+
+    literal = _string_literal(argument)
+    if literal is not None:
+        return literal
+    if isinstance(argument, ast.Name):
+        return module_constants.get(argument.id)
     return None
 
 
