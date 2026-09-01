@@ -245,7 +245,7 @@ def _mock_flows(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-# ─── Functional: FlowsTool + FlowsHook with compact ─────────────────────────
+# ─── Functional: FlowsTool compact rendering ──────────────────────────
 
 SAMPLE_PKG_FILES: dict[str, str] = {
     "__init__.py": "",

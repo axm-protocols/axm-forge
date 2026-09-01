@@ -96,9 +96,9 @@ class FlowStep(BaseModel):
 class TraceKwargs(TypedDict):
     """Keyword arguments forwarded to :func:`trace_flow`.
 
-    Public mirror of the kwargs accepted by :func:`trace_flow` so call sites
-    (notably :mod:`axm_ast.hooks.flows`) can build typed kwargs dicts without
-    redefining the contract locally.
+    Public mirror of the kwargs accepted by :func:`trace_flow` so direct tool
+    call sites can build typed kwargs dicts without redefining the contract
+    locally.
     """
 
     max_depth: int

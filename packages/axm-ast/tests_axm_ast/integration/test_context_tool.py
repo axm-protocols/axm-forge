@@ -147,24 +147,24 @@ def test_context_tool_explicit_depth_1_matches_default(tmp_path):
 
 
 @pytest.mark.usefixtures("_no_workspace", "_mock_context")
-class TestContextHookDepth:
+class TestContextToolDepth:
     """Retain depth coverage through the supported ContextTool surface."""
 
-    def test_hook_depth_zero_compact(self, tmp_path: Path) -> None:
+    def test_tool_depth_zero_compact(self, tmp_path: Path) -> None:
         result = ContextTool().execute(path=str(tmp_path), depth=0)
 
         assert result.success
         assert "top_modules" in result.data
         assert "modules" not in result.data
 
-    def test_hook_depth_none_full(self, tmp_path: Path) -> None:
+    def test_tool_depth_none_full(self, tmp_path: Path) -> None:
         result = ContextTool().execute(path=str(tmp_path), depth=None)
 
         assert result.success
         assert "modules" in result.data
         assert "dependency_graph" in result.data
 
-    def test_hook_depth_one_packages(self, tmp_path: Path) -> None:
+    def test_tool_depth_one_packages(self, tmp_path: Path) -> None:
         result = ContextTool().execute(path=str(tmp_path), depth=1)
 
         assert result.success
