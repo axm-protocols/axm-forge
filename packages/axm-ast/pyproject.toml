@@ -19,7 +19,17 @@ dependencies = [
     "axm-ingot",
     "cyclopts>=4.21.0",
     "pydantic>=2.12.5",
-    "tree-sitter>=0.24",
+    # Plafonne sous la 0.26 : elle introduit un use-after-free qui corrompt
+    # l'allocateur et tue le processus par SIGBUS/SIGSEGV des qu'on lit un
+    # Point sur un fichier d'un millier de lignes. Cause amont : la refonte de
+    # Point en sous-classe de tuple fait retourner aux getters row/column une
+    # reference EMPRUNTEE au lieu d'une nouvelle, si bien que l'int est libere
+    # trop tot -- d'ou le declenchement seulement sur les ints non-immortels,
+    # c'est-a-dire les numeros de ligne > 256 (les vrais gros modules).
+    # tree-sitter/py-tree-sitter#472 : corrige en amont, PAS ENCORE PUBLIE
+    # (derniere release PyPI : 0.26.0 du 30/06/2026). A relever des qu'une
+    # 0.26.1 sort.
+    "tree-sitter>=0.24,<0.26",
     "tree-sitter-python>=0.23",
 ]
 
