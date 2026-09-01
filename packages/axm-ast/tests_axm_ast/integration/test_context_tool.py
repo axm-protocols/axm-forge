@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from axm_ast.core.context import build_context
-from axm_ast.hooks.context import ContextHook
 from axm_ast.tools.context import ContextTool
 from tests_axm_ast.integration._helpers import _assert_tool_result
 
@@ -130,11 +129,6 @@ class TestContextToolException:
         assert "ctx boom" in (result.error or "")
 
 
-@pytest.fixture()
-def context_hook():
-    return ContextHook()
-
-
 @pytest.mark.usefixtures("_no_workspace", "_mock_context")
 def test_context_tool_depth_none(tmp_path):
     """depth=None triggers full context with modules and dependency_graph."""
@@ -152,35 +146,29 @@ def test_context_tool_explicit_depth_1_matches_default(tmp_path):
     assert default_result.data == explicit_result.data
 
 
-@pytest.mark.usefixtures("_patch_context")
+@pytest.mark.usefixtures("_no_workspace", "_mock_context")
 class TestContextHookDepth:
-    """Verify depth parameter controls output granularity."""
+    """Retain depth coverage through the supported ContextTool surface."""
 
-    def test_hook_depth_zero_compact(self, context_hook, _patch_context):
-        ctx = {"working_dir": str(_patch_context)}
-        result = context_hook.execute(ctx, depth=0)
-
-        assert result.success
-        meta = result.metadata["project_context"]
-        assert "top_modules" in meta
-        assert "modules" not in meta
-
-    def test_hook_depth_none_full(self, context_hook, _patch_context):
-        ctx = {"working_dir": str(_patch_context)}
-        result = context_hook.execute(ctx)
+    def test_hook_depth_zero_compact(self, tmp_path: Path) -> None:
+        result = ContextTool().execute(path=str(tmp_path), depth=0)
 
         assert result.success
-        meta = result.metadata["project_context"]
-        assert "modules" in meta
-        assert "dependency_graph" in meta
+        assert "top_modules" in result.data
+        assert "modules" not in result.data
 
-    def test_hook_depth_one_packages(self, context_hook, _patch_context):
-        ctx = {"working_dir": str(_patch_context)}
-        result = context_hook.execute(ctx, depth=1)
+    def test_hook_depth_none_full(self, tmp_path: Path) -> None:
+        result = ContextTool().execute(path=str(tmp_path), depth=None)
 
         assert result.success
-        meta = result.metadata["project_context"]
-        assert "packages" in meta
+        assert "modules" in result.data
+        assert "dependency_graph" in result.data
+
+    def test_hook_depth_one_packages(self, tmp_path: Path) -> None:
+        result = ContextTool().execute(path=str(tmp_path), depth=1)
+
+        assert result.success
+        assert "packages" in result.data
 
 
 @pytest.fixture()
@@ -212,23 +200,3 @@ def _no_workspace(tmp_path):
     """Patch detect_workspace to return None (single-package mode)."""
     with patch("axm_ast.core.workspace.detect_workspace", return_value=None) as mock:
         yield mock
-
-
-@pytest.fixture()
-def _patch_context(monkeypatch, tmp_path):
-    """Patch lazy-loaded context functions so no real AST parsing runs."""
-    import axm_ast.hooks.context as mod
-
-    monkeypatch.setattr(mod, "detect_workspace", lambda _: None)
-    monkeypatch.setattr(mod, "build_context", lambda _: {"dummy": True})
-    monkeypatch.setattr(mod, "build_workspace_context", lambda _: {})
-
-    def fake_format(ctx, *, depth=None):
-        if depth == 0:
-            return {"top_modules": ["mod_a", "mod_b"]}
-        if depth == 1:
-            return {"packages": ["pkg_a"]}
-        return {"modules": {"mod_a": {}}, "dependency_graph": {"mod_a": []}}
-
-    monkeypatch.setattr(mod, "format_context_json", fake_format)
-    return tmp_path
