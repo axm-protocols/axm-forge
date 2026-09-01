@@ -138,15 +138,17 @@ Pydantic models for structured data exchange between layers:
 | `CallSite` | Call-site location (module, line, context) |
 | `WorkspaceInfo` | Multi-package workspace (packages, dependency edges) |
 
-### 5. Hooks (`hooks/`)
+### 5. AXM Tools (`tools/`)
 
-Protocol hooks registered via `axm.hooks` entry points. These are called by `axm-engine` as pre/post-hooks in protocol execution.
+Request/response analysis surfaces are registered through the `axm.tools` entry-point group. They are available through MCP, the `axm` CLI, and `tool_node` DAG composition without an adapter layer. The deprecated `axm.hooks` adapters have been removed; protocol and DAG consumers call the corresponding AST tools directly.
 
-| Hook | Entry Point | Purpose |
-|---|---|---|
-| `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject the trace into session context. Consumes the `(steps, truncated)` tuple; only the steps are injected — the truncation flag is not surfaced through this path |
-| `SourceBodyHook` | `ast:source-body` | Extract symbol source bodies and return as a grouped markdown string (`symbols=<str>`) with a `files` list of relative paths. Supports dotted names via three resolution strategies: `_resolve_as_class_method` (`Class.method`, delegates to `_build_method_body`), `_resolve_as_nested_class` (`Outer.Inner.method`), and `_resolve_as_module_symbol` (`module.func`). Extraction logic lives in `_run_extraction` (with `_dedup_symbols` to remove methods already covered by their parent class); formatting in `_format_as_markdown`. |
-| `FileHeaderHook` | `ast:file-header` | Extract file-level header (module docstring, `__all__`, top-level imports) and inject into session context |
+| Capability | Tool |
+|---|---|
+| Project context | `ast_context` |
+| Flow tracing, including source detail | `ast_flows` |
+| Symbol source inspection | `ast_inspect` |
+| Impact and documentation impact | `ast_impact`, `ast_doc_impact` |
+| File headers | `ast_file_header` |
 
 ## Design Decisions
 

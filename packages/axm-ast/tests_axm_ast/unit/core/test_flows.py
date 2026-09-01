@@ -23,8 +23,7 @@ from axm_ast.core.flows import (
     format_flows,
     trace_flow,
 )
-from axm_ast.hooks.flows import build_trace_opts
-from axm_ast.tools.flows import FlowsTool
+from axm_ast.tools.flows import FlowsTool, build_trace_opts
 
 # ── pydantic models (extra=forbid) ────────────────────────────────────
 

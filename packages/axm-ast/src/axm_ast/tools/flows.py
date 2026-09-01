@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -50,6 +51,34 @@ __all__ = [
     "render_source_text",
     "render_trace_text",
 ]
+
+
+@dataclass(frozen=True)
+class _TraceOpts:
+    max_depth: int
+    cross_module: bool
+    detail: str
+    exclude_stdlib: bool
+
+
+def build_trace_opts(params: dict[str, object]) -> tuple[_TraceOpts, bool]:
+    """Build trace options and compact flag from hook parameters."""
+    from axm_ast.core.flows import VALID_DETAILS
+
+    detail = str(params.get("detail", "trace"))
+    if detail not in VALID_DETAILS:
+        msg = f"Invalid detail={detail!r}; must be one of {sorted(VALID_DETAILS)}"
+        raise ValueError(msg)
+    is_compact = detail == "compact"
+    raw_max_depth = params.get("max_depth", 5)
+    max_depth = int(raw_max_depth) if isinstance(raw_max_depth, (int, str)) else 5
+    opts = _TraceOpts(
+        max_depth=max_depth,
+        cross_module=bool(params.get("cross_module", False)),
+        detail=detail,
+        exclude_stdlib=bool(params.get("exclude_stdlib", True)),
+    )
+    return opts, is_compact
 
 
 class FlowsTool(AXMTool):
