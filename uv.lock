@@ -289,7 +289,7 @@ requires-dist = [
     { name = "axm-ingot", editable = "packages/axm-ingot" },
     { name = "cyclopts", specifier = ">=4.21.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "tree-sitter", specifier = ">=0.24" },
+    { name = "tree-sitter", specifier = ">=0.24,<0.26" },
     { name = "tree-sitter-python", specifier = ">=0.23" },
     { name = "tree-sitter-typescript", marker = "extra == 'typescript'", specifier = ">=0.23" },
 ]
@@ -926,7 +926,7 @@ requires-dist = [
     { name = "axm-ticket", marker = "extra == 'ticket'" },
     { name = "cyclopts", specifier = ">=4.21.0" },
     { name = "httpx", specifier = ">=0.28" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.25.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.25.0,<2" },
     { name = "scrapling", marker = "extra == 'web'" },
     { name = "starlette", specifier = ">=1.2" },
 ]

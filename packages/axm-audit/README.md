@@ -220,16 +220,6 @@ duplicate signals/rescues, and the 22-step triage ladder.
 
 **Valid categories = the auditor's, not a private subset.** The witness accepts exactly the categories `audit_project` knows how to run (`architecture`, `complexity`, `deps`, `lint`, `practices`, `security`, `structure`, `test_quality`, `testing`, `tooling`, `type`). A category outside that set is a **hard config error**: the gate returns `WitnessResult.failure(...)` (RED) rather than silently skipping it. An **empty** `categories` list is likewise RED. This is deliberate: a quality gate must never pass green having audited nothing — a mis-configured gate that swallowed unknown categories used to do exactly that.
 
-## Hooks
-
-`axm-audit` ships hooks for use with the `axm.hooks` entry point group:
-
-| Hook | Entry point key | Description |
-|---|---|---|
-| `AutofixHook` | `audit:autofix` | Run `ruff check --fix` + `ruff format` |
-| `QualityCheckHook` | `audit:quality-check` | Run audit categories and report violations |
-
-`QualityCheckHook` accepts `working_dir` (str) and `categories` (list, default `["lint", "type"]`) via params. It returns `HookResult.ok(has_violations=bool, violations=list[dict], summary=str)` for injection into protocol session context. Each violation dict includes a `snippet` field with ±5 lines of source around the violation line (line-numbered, with `>` marker), or `None` when the file/line is unresolvable. When `working_dir` points at a multi-package workspace (`packages/*/src/`), each package is audited independently and violations are reported per-package.
 
 ## Development
 

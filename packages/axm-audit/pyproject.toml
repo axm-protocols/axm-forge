@@ -49,10 +49,6 @@ doc_gate = "axm_audit.doc_gate.tool:DocGateTool"
 [project.entry-points."axm.witnesses"]
 audit_quality = "axm_audit.witnesses.audit_quality:AuditQualityRule"
 
-[project.entry-points."axm.hooks"]
-"audit:autofix" = "axm_audit.hooks.autofix:AutofixHook"
-"audit:quality-check" = "axm_audit.hooks.quality_check:QualityCheckHook"
-
 [project.entry-points."axm.commands"]
 audit = "axm_audit.cli:app"
 
@@ -401,10 +397,6 @@ reason = "Inter-file cluster spans 3 unrelated rule SUTs: PyprojectCompletenessR
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "d1ac62c64bc6"
 reason = "Inter-file cluster covers 3 distinct `passed-entry stays as string` branches of format_agent across different rule_id types: PRACTICE_DOCSTRING with no details payload (test_passed_clean_is_string asserts a QUALITY_TYPE check with score=100 and no details renders as string), PRACTICE_DOCSTRING with details={'missing': []} empty-missing case (test_passed_empty_missing_is_string asserts empty actionable list still folds to string), and QUALITY_COMPLEXITY with details={'top_offenders': []} empty-offenders case (test_passed_complexity_no_offenders_is_string asserts an unrelated rule's empty-actionable branch). Each guards a different rule_id's actionable-keys check inside the formatter's passed-rendering branch. No shared helper signature. ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "90878e753845"
-reason = "Tests guard two disjoint defensive branches of QualityCheckHook.execute that both yield `has_violations is False`: test_audit_crash (integration) mocks audit_project to raise RuntimeError('boom') and asserts the hook swallows the exception, while test_invalid_working_dir (unit) supplies an invalid working_dir path so the hook short-circuits before audit_project is ever called. Same negative postcondition but different code paths (exception-handling vs pre-check), different setup (mocker.patch vs raw bad path), different pyramid levels. ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e22bd2c1e679"

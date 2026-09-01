@@ -11,7 +11,6 @@ graph TB
     Rules -->|subprocess| Runner["run_in_project()"]
     Rules -->|direct| AST["ast · radon · tomllib"]
     Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
-    Hooks["AutofixHook"] -->|subprocess| Runner
     Rules --> Result["AuditResult"]
     Result --> Fmt["format_report · format_json · format_agent"]
 ```
@@ -80,15 +79,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
 
-### 4. Hooks
-
-Pre-gate hooks run before quality evaluation to auto-fix common issues:
-
-| Hook | Commands | Behavior |
-|---|---|---|
-| `AutofixHook` | `ruff check --fix .`, `ruff format .` | Registered as `audit:autofix` in the `axm.hooks` entry-point group. Runs via `run_in_project()`. Returns `HookResult.ok(fixed=N)` with fix count parsed from ruff stdout. Skips gracefully when ruff is missing (`skipped=True`). Tolerates config errors (returncode 2) without failing. |
-
-### 5. Fix System — CST rewriters
+### 4. Fix System — CST rewriters
 
 The fix subsystem (`core/fix/cst_rewrite.py`) carries two parallel
 surfaces over the same libcst primitives. File-level helpers (the
@@ -163,7 +154,7 @@ corpus](glossary.md#concepts) — six synthetic mini-packages
 a paired `input/` and `expected/` tree, consumed via the
 `fix_corpus_case(name)` factory defined in the corpus `conftest.py`.
 
-### 6. Scoring
+### 5. Scoring
 
 9-category weighted composite (see [Scoring & Grades](scoring.md)). The
 `structure` and `tooling` categories emit findings but are not scored:
@@ -180,11 +171,11 @@ a paired `input/` and `expected/` tree, consumed via the
 | Architecture | 10% |
 | Practices | 5% |
 
-### 7. Models
+### 6. Models
 
 `AuditResult`, `CheckResult`, `Severity` — Pydantic models with `extra = "forbid"` for strict validation.
 
-### 8. Output
+### 7. Output
 
 - **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable), `format_agent()` (agent-optimized), `format_agent_text()` (compact text for LLM consumption). `format_agent` uses `_has_actionable_detail()` to promote passing checks with non-empty list-valued detail keys (e.g. `missing`, `top_offenders`) from summary strings to full dicts. `format_agent_text` consumes the dict from `format_agent` and renders a minimal text representation with `✓`/`✗` lines, achieving ~55-60% token savings.
 
