@@ -57,6 +57,7 @@ from axm_config import (
     inference_origin,
     load,
     set_,
+    tickets_db,
 )
 
 # Resolve (and create, 0700) the per-user ~/.axm directory.
@@ -69,6 +70,11 @@ profile = current_profile()  # dev
 root = profile_root()  # ~/.axm/profiles/dev
 config_file = profile_config_path()  # ~/.axm/profiles/dev/config.toml
 child_env_overlay = profile_env()  # {"AXM_PROFILE": "dev"}
+
+# Resolve the shared ticket database. Production keeps ~/axm/tickets/tickets.db;
+# AXM_PROFILE=dev relocates the default below ~/.axm/profiles/dev/. A configured
+# [tickets] db_path (or AXM_TICKETS_DB_PATH) takes precedence.
+ticket_store = tickets_db()
 
 # Resolve local inference settings. AXM_INFERENCE_BASE_URL and
 # AXM_INFERENCE_MODEL override these defaults without rewriting either value.
@@ -128,6 +134,11 @@ axm-config doctor research.fred              # per-key provenance, read-only
   through to the caller default instead of production, and the profile
   directory is created on first write. `profile_env()` propagates the active
   profile to a child process
+- ✅ **Profile-aware ticket store** — `tickets_db()` preserves the production
+  default `~/axm/tickets/tickets.db`, while a named profile derives an isolated
+  default below `~/.axm/profiles/<name>/`. The active profile's `[tickets]`
+  `db_path` setting and `AXM_TICKETS_DB_PATH` environment override follow the
+  same `env > file > default` precedence
 - ✅ **Layered resolution** — `get()` / `set_()` / `delete()` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace

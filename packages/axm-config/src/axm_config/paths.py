@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import cast
 
 from axm_config.home import axm_home, resolve_safe
+from axm_config.profile import profile_root
 from axm_config.resolver import ConfigError, resolve
 
 __all__ = [
@@ -53,6 +54,7 @@ __all__ = [
     "protocols_dir",
     "quality_dir",
     "sessions_root",
+    "tickets_db",
     "warden_autostart",
     "warden_binary_path",
     "warden_log_path",
@@ -326,6 +328,18 @@ def warden_log_path(*, default: Path | None = None) -> Path:
     """Return the configured or AXM-home-relative warden log path."""
     fallback = default if default is not None else axm_home() / "warden.log"
     return get_path("log_path", fallback, namespace=_WARDEN_NAMESPACE)
+
+
+def tickets_db(*, default: Path | None = None) -> Path:
+    """Return the ticket database path for the active state profile."""
+    active_root = profile_root()
+    if default is not None:
+        fallback = default
+    elif active_root is None:
+        fallback = Path.home() / "axm" / "tickets" / "tickets.db"
+    else:
+        fallback = active_root / "tickets" / "tickets.db"
+    return get_path("db_path", default=fallback, namespace="tickets")
 
 
 def warden_socket(*, default: Path | None = None) -> Path:
