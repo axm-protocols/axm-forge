@@ -21,6 +21,28 @@ from axm_doctor.orchestrate import (
 _COORD = KeyringStore.username("research.fred", "api_key")
 
 
+class _Instances:
+    def __init__(self, names: list[str]) -> None:
+        self._names = names
+
+    def list_instances(self) -> list[str]:
+        return self._names
+
+    def declare(self, instance: str) -> None:
+        self._names.append(instance)
+
+
+def _multi_group(instances: list[str]) -> CredentialGroup:
+    return CredentialGroup(
+        id="fixture.multi",
+        package="axm-fixture",
+        title="Multi",
+        specs=(CredentialSpec(name="token", env="FIXTURE_TOKEN", kind="token"),),
+        multi=True,
+        instances=_Instances(instances),
+    )
+
+
 def _group() -> CredentialGroup:
     """A one-spec fixture group (research.fred.api_key)."""
     return CredentialGroup(
@@ -288,3 +310,61 @@ def test_is_served_accepts_exact_account() -> None:
     }
 
     assert _is_served(provenance, "g", "n", instance="b") is True
+
+
+def test_missing_secrets_reports_only_starving_account(
+    mocker: MockerFixture,
+) -> None:
+    """AC1: a served sibling does not hide the starving account."""
+    catalog = Catalog(groups=(_multi_group(["a", "b"]),))
+    a_coordinate = KeyringStore.username("fixture.multi", "token", "a")
+    b_coordinate = KeyringStore.username("fixture.multi", "token", "b")
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    mocker.patch(
+        "axm_doctor.orchestrate.doctor_data",
+        return_value={
+            a_coordinate: {"layer": "missing", "present": False},
+            b_coordinate: {"layer": "keyring", "present": True},
+        },
+    )
+
+    result = missing_secrets()
+
+    assert len(result) == 1
+    assert result[0].instance == "a"
+
+
+def test_missing_secrets_reports_group_awaiting_instance(
+    mocker: MockerFixture,
+) -> None:
+    """AC2: a multi group with no account is flagged as awaiting one."""
+    catalog = Catalog(groups=(_multi_group([]),))
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    mocker.patch("axm_doctor.orchestrate.doctor_data", return_value={})
+
+    result = missing_secrets()
+
+    assert len(result) == 1
+    assert result[0].group == "fixture.multi"
+    assert result[0].awaiting_instance is True
+
+
+def test_missing_secrets_instance_recomposes_provenance_coordinate(
+    mocker: MockerFixture,
+) -> None:
+    """AC3: the returned identity recomposes the starving account coordinate."""
+    catalog = Catalog(groups=(_multi_group(["a", "b"]),))
+    a_coordinate = KeyringStore.username("fixture.multi", "token", "a")
+    b_coordinate = KeyringStore.username("fixture.multi", "token", "b")
+    provenance = {
+        a_coordinate: {"layer": "missing", "present": False},
+        b_coordinate: {"layer": "keyring", "present": True},
+    }
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    mocker.patch("axm_doctor.orchestrate.doctor_data", return_value=provenance)
+
+    entry = missing_secrets()[0]
+
+    assert (
+        KeyringStore.username(entry.group, entry.name, entry.instance) == a_coordinate
+    )

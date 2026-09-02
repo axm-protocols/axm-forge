@@ -121,18 +121,29 @@ def missing_secrets() -> list[MissingSecret]:
     provenance = doctor_data(catalog=catalog)
     missing: list[MissingSecret] = []
     for group in catalog.groups():
+        if group.multi and group.instances is not None:
+            declared_instances = tuple(group.instances.list_instances())
+            awaiting_instance = not declared_instances
+            instances: tuple[str | None, ...] = declared_instances or (None,)
+        else:
+            awaiting_instance = False
+            instances = (None,)
+
         for spec in group.specs:
-            if _is_served(provenance, group.id, spec.name, instance=None):
-                continue
-            missing.append(
-                MissingSecret(
-                    group=group.id,
-                    name=spec.name,
-                    package=group.package,
-                    setup_hint=f"axm-vault set {group.id} {spec.name}",
-                    required=spec.required,
+            for instance in instances:
+                if _is_served(provenance, group.id, spec.name, instance):
+                    continue
+                missing.append(
+                    MissingSecret(
+                        group=group.id,
+                        name=spec.name,
+                        package=group.package,
+                        setup_hint=f"axm-vault set {group.id} {spec.name}",
+                        required=spec.required,
+                        instance=instance,
+                        awaiting_instance=awaiting_instance,
+                    )
                 )
-            )
     return missing
 
 
