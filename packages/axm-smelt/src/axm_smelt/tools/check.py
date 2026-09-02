@@ -16,6 +16,9 @@ __all__ = ["SmeltCheckTool"]
 class SmeltCheckTool(AXMTool):
     """Analyze text/data for token waste without transforming it.
 
+    Input is resolved in order: caller-provided data, ``input_path``, then
+    non-interactive standard input.
+
     Registered as ``smelt_check`` via axm.tools entry point.
     """
 

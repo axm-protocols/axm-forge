@@ -8,14 +8,20 @@ Compaction is registered once as the `smelt` AXMTool. That declaration powers
 MCP, the AXM CLI, and DAG nodes; there is no standalone `axm-smelt compact`
 command.
 
+Redirect text to standard input or designate a UTF-8 file:
+
 ```bash
-axm smelt --help
+printf '{"name": "Alice", "notes": null}\n' | axm smelt
+axm smelt --input-path ./payload.json
 ```
 
-Pass `data`, `strategies`, and `preset` as tool inputs. The tool returns the
-compacted value and metrics in a structured `ToolResult`. Reading an input file
-or persisting the output remains the caller's responsibility. See
-[Use via MCP](mcp.md) for a complete programmatic example.
+Pass `data`, `strategies`, and `preset` as tool inputs. Input is resolved in this
+order: explicit data, `--input-path`, then non-interactive standard input. The
+tool returns the compacted value and metrics in a structured `ToolResult`;
+persisting that output remains the caller's responsibility. If the designated
+path does not exist or is not valid UTF-8, the command exits with a non-zero
+status and a diagnostic that names the path. See [Use via MCP](mcp.md) for a
+complete programmatic example.
 
 ## Python API
 

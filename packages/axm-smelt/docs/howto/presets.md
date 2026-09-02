@@ -18,7 +18,7 @@ Pass the preset name to the registered `smelt` tool through MCP or a DAG node. T
 axm smelt --help
 ```
 
-The removed standalone CLI and its `--file` option have no compatibility shim; callers read files before invoking the tool.
+The removed standalone CLI and its `--file` option have no compatibility shim. Use the registered tool's `--input-path` option for a UTF-8 file, or redirect text to its standard input.
 
 ## Python API
 

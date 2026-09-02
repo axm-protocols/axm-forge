@@ -17,6 +17,9 @@ __all__ = ["SmeltTool"]
 class SmeltTool(AXMTool):
     """Compact text/data for LLM consumption.
 
+    Input is resolved in order: caller-provided data, ``input_path``, then
+    non-interactive standard input.
+
     Registered as ``smelt`` via axm.tools entry point.
     """
 

@@ -43,19 +43,39 @@ uv add axm-smelt
 
 ### AXM CLI
 
-The CLI surface is derived from the registered AXMTools. Inspect the exact signature shipped by the installed version:
+The CLI surface is derived from the registered AXMTools. Each command accepts redirected text or a UTF-8 file.
+
+Compact data with `smelt`:
 
 ```bash
-axm smelt --help
-axm smelt_check --help
-axm smelt_count --help
-
-printf 'alpha beta gamma delta epsilon' | axm smelt_count
-axm smelt --input-path ./payload.txt
-axm smelt_check --input-path ./payload.txt
+printf '{"name": "Alice", "notes": null}\n' | axm smelt
+# smelt | json | 11->9 tok (-18.18%) | minify | tiktoken
+# {"name":"Alice","notes":null}
+axm smelt --input-path ./payload.json
 ```
 
-All three commands accept UTF-8 input through `--input-path` and read redirected stdin when no data or path is supplied. Explicit data takes precedence over `--input-path`, which takes precedence over non-interactive stdin. A missing file or invalid UTF-8 makes the command fail and names the path.
+Analyze possible savings with `smelt_check`:
+
+```bash
+printf '{"name": "Alice", "notes": null}\n' | axm smelt_check
+# smelt_check | json | 11 tok
+#   drop_nulls: -54.55%
+#   minify: -18.18%
+#   flatten: -18.18%
+#   round_numbers: -18.18%
+#   strip_quotes: -18.18%
+axm smelt_check --input-path ./payload.json
+```
+
+Count tokens with `smelt_count`:
+
+```bash
+printf 'alpha beta gamma delta epsilon\n' | axm smelt_count
+# smelt_count | 6 tokens | 31 chars | o200k_base | tiktoken
+axm smelt_count --input-path ./payload.txt
+```
+
+Explicit data takes precedence over `--input-path`, which takes precedence over non-interactive stdin. If the designated path does not exist or its contents are not valid UTF-8, the command exits with a non-zero status and a diagnostic that names that path.
 
 There is no standalone `axm-smelt` executable and `python -m axm_smelt` is intentionally unsupported.
 

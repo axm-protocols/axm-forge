@@ -15,6 +15,9 @@ __all__ = ["SmeltCountTool"]
 class SmeltCountTool(AXMTool):
     """Count tokens in text/data.
 
+    Input is resolved in order: caller-provided data, ``input_path``, then
+    non-interactive standard input.
+
     Registered as ``smelt_count`` via axm.tools entry point.
     """
 

@@ -7,14 +7,18 @@ Use `check` to analyze a payload and see how much each strategy would save — w
 Analysis is exposed as the `smelt_check` AXMTool through MCP, the AXM CLI, and
 DAG nodes:
 
+Redirect text to standard input or designate a UTF-8 file:
+
 ```bash
-axm smelt_check --help
+printf '{"name": "Alice", "notes": null}\n' | axm smelt_check
+axm smelt_check --input-path ./payload.json
 ```
 
-Provide the payload as the tool's `data` input. Its `ToolResult` reports the
-detected format, token count, isolated strategy estimates, and real cumulative
-savings. There is no standalone `axm-smelt check` command or `--file` shim;
-file reading belongs to the caller.
+You can also provide the payload as the tool's `data` input. Input is resolved
+in this order: explicit data, `--input-path`, then non-interactive standard
+input. Its `ToolResult` reports the detected format, token count, isolated
+strategy estimates, and real cumulative savings. There is no standalone
+`axm-smelt check` command or `--file` shim.
 
 Only strategies with positive savings are included — strategies that would
 produce no savings or increase tokens are filtered out.

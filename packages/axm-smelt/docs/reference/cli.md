@@ -23,8 +23,12 @@ axm smelt_count --help
 
 The former `compact`, `check`, `count`, and `version` subcommands, along
 with their `--file` and `--output` plumbing, are not compatibility aliases.
-Callers provide values to the AXMTools and consume their `ToolResult`; file
-reading and output persistence belong to the caller.
+Provide explicit data, use `--input-path` for a UTF-8 file, or redirect text to
+standard input; that is also their precedence order. Output persistence remains
+the caller's responsibility.
+
+If the designated path does not exist or its contents are not valid UTF-8, the
+command exits with a non-zero status and a diagnostic that names that path.
 
 For structured programmatic calls and result fields, see
 [Use via MCP](../howto/mcp.md).
