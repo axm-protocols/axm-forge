@@ -8,13 +8,12 @@ You need a PyPI API token. `axm-init` resolves it automatically (first match win
 
 | Priority | Source |
 |---|---|
-| 1 | `PYPI_API_TOKEN` environment variable |
-| 2 | `~/.pypirc` file (`[pypi]` section) |
-| 3 | Interactive prompt (saved to `~/.pypirc` for next time) |
+| 1 | axm-vault credentials catalog (`PYPI_API_TOKEN` environment variable or `pypi.token` credential) |
+| 2 | Interactive prompt (persisted to the axm-vault credentials catalog) |
 
 !!! tip "First-time setup"
     On first run without a token, you'll be prompted once.
-    The token is saved to `~/.pypirc` with `0600` permissions — no need to configure again.
+    The token is persisted to the axm-vault credentials catalog for future runs.
 
 ## Reserve
 
@@ -52,5 +51,5 @@ Returns structured JSON for CI integration. Exits with code 1 and JSON error if 
 |---|---|---|
 | `Name already taken on PyPI` | Package name is already registered | Choose a different name, or check if you own it at `pypi.org/project/<name>/` |
 | `Author and email are required` | Neither `--author`/`--email` flags nor `git config` values found | Pass `--author "Name" --email "email@example.com"` explicitly |
-| `No PyPI token configured` | None of the 3 token sources returned a value | Set `PYPI_API_TOKEN` env var or run interactively to be prompted |
+| `No PyPI token configured` | Neither catalog resolution nor the interactive prompt returned a value | Set `PYPI_API_TOKEN`, configure the axm-vault credential `pypi.token`, or run interactively |
 | `Build failed` | Package build error (rare) | Check that `uv` and `hatchling` are installed: `uv pip install hatchling` |

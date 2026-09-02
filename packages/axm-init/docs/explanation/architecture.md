@@ -117,15 +117,15 @@ Each adapter wraps a single external dependency:
 |---|---|---|
 | `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding (`CopierConfig` is the Pydantic input model) |
 | `PyPIAdapter` / `AvailabilityStatus` | PyPI JSON API | Package name availability check |
-| `CredentialManager` | axm-vault catalog (`PYPI_API_TOKEN` included) | Token retrieval, validation, and persistence; no INI-file fallback (returns `False` on `PermissionError`) |
+| `CredentialManager` | axm-vault catalog (`PYPI_API_TOKEN` or `pypi.token`), then interactive prompt | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
 | `patch_all()` / `PatchReport` | `pyproject.toml`, `Makefile`, CI workflows | Workspace root file patching after member scaffold; returns a `PatchReport` that truthfully partitions files into `patched` (real writes only), `skipped` (no-op or absent), and `failed` (caught `PermissionError`/`UnicodeDecodeError` — partial-state signal, never raised) |
 
 #### Credential resolution
 
 `CredentialManager.get_pypi_token()` resolves the declared `pypi/token`
 credential from the axm-vault catalog. The catalog owns its own resolution
-layers, including `PYPI_API_TOKEN`; the adapter does not consult `~/.pypirc` or
-maintain a second token source.
+layers, including `PYPI_API_TOKEN`; the adapter then falls back only to the
+interactive prompt.
 
 `CredentialManager.resolve_pypi_token()` returns that catalog value when it is
 available. Otherwise, it exits with code 1 in non-interactive sessions and

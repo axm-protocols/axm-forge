@@ -147,9 +147,8 @@ with code 1 and a descriptive error message.
 
 **Token resolution:**
 
-1. `PYPI_API_TOKEN` environment variable
-2. `~/.pypirc` `[pypi]` password field
-3. Interactive prompt (if TTY)
+1. axm-vault credentials catalog (`PYPI_API_TOKEN` environment variable or `pypi.token` credential)
+2. Interactive prompt (if TTY; persisted to the catalog)
 
 **Exit codes:**
 
