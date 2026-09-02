@@ -234,3 +234,23 @@ def test_timeout_fails_closed_without_measured_empty_cases(
     assert result.error
     assert "timeout" in result.error.lower() or "timed out" in result.error.lower()
     assert result.data is None or "cases" not in result.data
+
+
+@pytest.mark.integration
+def test_nested_package_failure_is_a_successful_measurement(tmp_path: Path) -> None:
+    """AC5: a nested-root failing target is validated and keeps its red verdict."""
+    package_root = tmp_path / "packages" / "pkg"
+    tests_root = package_root / "tests"
+    tests_root.mkdir(parents=True)
+    (package_root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n'
+    )
+    (tests_root / "test_sample.py").write_text("def test_fails():\n    assert 1 == 2\n")
+    target = "packages/pkg/tests/test_sample.py::test_fails"
+
+    result = AuditTestTool().execute(path=str(tmp_path), files=[target])
+
+    assert result.success is True
+    assert result.data is not None
+    assert result.data["verdict"] is False
+    assert result.data["target_statuses"] == [{"target": target, "status": "validated"}]

@@ -74,7 +74,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | `SecurityRule` | Bandit | `run_in_project(["bandit", ...])` |
 | `DependencyAuditRule` | pip-audit | `run_in_project(["pip-audit", ...])` |
 | `DependencyHygieneRule` | deptry | `run_in_project(["deptry", ...])` |
-| `TestCoverageRule` | pytest-cov | `run_tests()` via `test_runner.py` (collects failures + coverage; skips coverage when `files` is specified; `mode` param accepted for backward compat but ignored; runs with a 900s timeout and reports an explicit *"coverage not measured"* failure on timeout instead of a partial coverage %) |
+| `TestCoverageRule` | pytest-cov | `run_tests()` via `test_runner.py` (collects failures + coverage; skips coverage when `files` is specified; validates requested targets by resolving them from the invocation root and collected node IDs from pytest's reported rootdir, including nested workspace packages and without suffix-based cross-package matches; `mode` param accepted for backward compat but ignored; runs with a 900s timeout and reports an explicit *"coverage not measured"* failure on timeout instead of a partial coverage %) |
 | Architecture rules | Python `ast` | Direct AST parsing |
 | Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |

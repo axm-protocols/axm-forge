@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import subprocess
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -11,6 +12,7 @@ import pytest
 
 from axm_audit.core.test_runner import (
     FailureDetail,
+    _target_was_collected,
     parse_collector_errors,
     parse_failures,
     run_tests,
@@ -651,3 +653,27 @@ def test_test_report_defaults_the_non_test_cause_to_none_and_serializes_it() -> 
     assert report.non_test_cause is None
     assert "non_test_cause" in payload
     assert payload["non_test_cause"] is None
+
+
+def test_workspace_relative_target_matches_package_root_node_id() -> None:
+    """AC1: absolute identity matches paths expressed from different roots."""
+    collected = _target_was_collected(
+        "packages/pkg/tests/test_sample.py::test_ok",
+        ["tests/test_sample.py::test_ok"],
+        project_path=Path("/w"),
+        report_root=Path("/w/packages/pkg"),
+    )
+
+    assert collected is True
+
+
+def test_parametrized_selector_survives_different_path_roots() -> None:
+    """AC3: the exact parametrized selector matches across different roots."""
+    collected = _target_was_collected(
+        "packages/pkg/tests/test_sample.py::test_ok[case-1]",
+        ["tests/test_sample.py::test_ok[case-1]"],
+        project_path=Path("/w"),
+        report_root=Path("/w/packages/pkg"),
+    )
+
+    assert collected is True

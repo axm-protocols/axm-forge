@@ -371,37 +371,44 @@ def _collected_count(report_data: dict[str, object]) -> int:
     return len(tests)
 
 
-def _normalize_target(project_path: Path, target: str) -> str:
+def _normalize_target(project_path: Path, target: str) -> tuple[Path, str]:
     """Normalize a requested pytest target for comparison with node IDs."""
     path_text, separator, selector = target.partition("::")
     candidate = Path(path_text)
-    if candidate.is_absolute():
-        try:
-            candidate = candidate.relative_to(project_path)
-        except ValueError:
-            pass
-    normalized = candidate.as_posix()
-    if normalized.startswith("./"):
-        normalized = normalized[2:]
-    return f"{normalized}{separator}{selector}"
+    if not candidate.is_absolute():
+        candidate = project_path / candidate
+    return candidate.resolve(), f"{separator}{selector}"
 
 
-def _target_was_collected(target: str, nodeids: list[str]) -> bool:
+def _target_was_collected(
+    target: str,
+    nodeids: list[str],
+    *,
+    project_path: Path | None = None,
+    report_root: Path | None = None,
+) -> bool:
     """Return whether pytest emitted a node belonging to the target."""
-    if "::" in target:
-        return any(
-            nodeid == target
-            or nodeid.startswith(f"{target}[")
-            or nodeid.startswith(f"{target}::")
-            for nodeid in nodeids
-        )
-    prefix = target.rstrip("/")
-    return any(
-        nodeid == prefix
-        or nodeid.startswith(f"{prefix}::")
-        or nodeid.startswith(f"{prefix}/")
-        for nodeid in nodeids
-    )
+    target_root = project_path or Path.cwd()
+    node_root = report_root or target_root
+    target_path, target_selector = _normalize_target(target_root, target)
+    target_is_directory = target_path.is_dir()
+
+    for nodeid in nodeids:
+        node_path, node_selector = _normalize_target(node_root, nodeid)
+        same_file = node_path == target_path
+        below_directory = target_is_directory and target_path in node_path.parents
+        if not (same_file or below_directory):
+            continue
+        if not target_selector:
+            return True
+        if node_selector == target_selector:
+            return True
+        if "[" not in target_selector and (
+            node_selector.startswith(f"{target_selector}[")
+            or node_selector.startswith(f"{target_selector}::")
+        ):
+            return True
+    return False
 
 
 def _build_target_statuses(
@@ -414,10 +421,22 @@ def _build_target_statuses(
         return []
     tests = cast("list[dict[str, object]]", report_data.get("tests", []))
     nodeids = [cast(str, test.get("nodeid", "")).replace("\\", "/") for test in tests]
+    raw_report_root = report_data.get("root")
+    report_root = (
+        Path(raw_report_root) if isinstance(raw_report_root, str) else project_path
+    )
+    if not report_root.is_absolute():
+        report_root = project_path / report_root
+    report_root = report_root.resolve()
+
     statuses: list[dict[str, str]] = []
     for target in files:
-        normalized = _normalize_target(project_path, target)
-        if _target_was_collected(normalized, nodeids):
+        if _target_was_collected(
+            target,
+            nodeids,
+            project_path=project_path,
+            report_root=report_root,
+        ):
             status = "validated"
         else:
             path_text = target.partition("::")[0]
