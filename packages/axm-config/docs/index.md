@@ -50,6 +50,9 @@ from axm_config import (
     profile_config_path,
     profile_env,
     profile_root,
+    protocols_dir,
+    quality_dir,
+    sessions_root,
     delete,
     get,
     inference_base_url,
@@ -58,6 +61,8 @@ from axm_config import (
     load,
     set_,
     tickets_db,
+    warden_log_path,
+    warden_socket,
 )
 
 # Resolve (and create, 0700) the per-user ~/.axm directory.
@@ -75,6 +80,14 @@ child_env_overlay = profile_env()  # {"AXM_PROFILE": "dev"}
 # AXM_PROFILE=dev relocates the default below ~/.axm/profiles/dev/. A configured
 # [tickets] db_path (or AXM_TICKETS_DB_PATH) takes precedence.
 ticket_store = tickets_db()
+
+# Unconfigured runtime paths also follow the active profile. In production they
+# retain their historical defaults; configured environment or file values win.
+sessions = sessions_root()  # ~/.axm/profiles/dev/sessions
+quality = quality_dir()  # ~/.axm/profiles/dev/quality
+protocols = protocols_dir()  # ~/.axm/profiles/dev/protocols
+warden_log = warden_log_path()  # ~/.axm/profiles/dev/warden.log
+warden_control = warden_socket()  # ~/.axm/profiles/dev/warden.sock
 
 # Resolve local inference settings. AXM_INFERENCE_BASE_URL and
 # AXM_INFERENCE_MODEL override these defaults without rewriting either value.
@@ -139,6 +152,12 @@ axm-config doctor research.fred              # per-key provenance, read-only
   default below `~/.axm/profiles/<name>/`. The active profile's `[tickets]`
   `db_path` setting and `AXM_TICKETS_DB_PATH` environment override follow the
   same `env > file > default` precedence
+- ✅ **Profile-aware runtime paths** — with a named profile, unconfigured
+  `sessions_root()`, `quality_dir()`, `protocols_dir()`, `warden_log_path()`,
+  and `warden_socket()` derive their defaults below
+  `~/.axm/profiles/<name>/`. Environment and file configuration retain
+  precedence. Production keeps the historical defaults, while under a named
+  profile its isolated root also outranks a caller-supplied fallback
 - ✅ **Layered resolution** — `get()` / `set_()` / `delete()` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace

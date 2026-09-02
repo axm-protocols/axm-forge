@@ -8,11 +8,11 @@ owner: consumers call a getter here instead of rebuilding ``Path.home() / ...``.
 
 Two properties make adoption safe, and they are the whole point:
 
-* **The default stays in the caller's code.** Every getter takes the caller's
-  current constant as ``default``, so with no ``~/.axm/config.toml`` the
-  resolved value is byte-for-byte what it is today. Wiring a package up is
-  therefore purely additive -- no behaviour changes until someone actually
-  configures a path.
+* **Production keeps the caller's default.** Without an active profile, every
+  getter returns the caller's current constant byte-for-byte when no value is
+  configured. Under a non-production profile, the default branch is instead
+  rooted below ``~/.axm/profiles/<profile>/`` so state is isolated by default.
+  Configured environment and file values keep their higher precedence.
 * **Normalisation happens here, once.** :func:`get_path` turns the resolver's
   raw value (an env var is always a ``str``; a TOML value keeps its parsed
   type) into an expanded, resolved :class:`~pathlib.Path`. If each consumer
@@ -96,6 +96,15 @@ def _resolve_configured(namespace: str, key: str) -> object:
     return cast(object, section.get(key, _MISSING))
 
 
+_PROFILE_RELATIVE_PATHS = {
+    (PATHS_NAMESPACE, "sessions_root"): Path("sessions"),
+    (PATHS_NAMESPACE, "quality_dir"): Path("quality"),
+    (PATHS_NAMESPACE, "protocols_dir"): Path("protocols"),
+    ("warden", "log_path"): Path("warden.log"),
+    (PATHS_NAMESPACE, "warden_socket"): Path("warden.sock"),
+}
+
+
 def get_path(
     key: str,
     default: Path,
@@ -104,9 +113,10 @@ def get_path(
 ) -> Path:
     """Resolve ``key`` in ``[paths]`` as a normalised :class:`~pathlib.Path`.
 
-    ``default`` is the caller's existing constant and is returned **unchanged**
-    when nothing is configured -- neither expanded nor validated -- so wiring a
-    consumer up cannot alter today's behaviour.
+    ``default`` is the caller's existing constant. In production it is returned
+    **unchanged** when nothing is configured. For the state paths registered in
+    ``_PROFILE_RELATIVE_PATHS``, a non-production profile replaces that fallback
+    with a path rooted below :func:`profile_root`.
 
     A configured value (env or file) is expanded (``~``), resolved to an
     absolute path, and refused via :func:`resolve_safe` if it sits inside a git
@@ -116,6 +126,10 @@ def get_path(
     """
     configured = _resolve_configured(namespace, key)
     if configured is _MISSING:
+        root = profile_root()
+        relative = _PROFILE_RELATIVE_PATHS.get((namespace, key))
+        if root is not None and relative is not None:
+            return root / relative
         return default
     if not isinstance(configured, str | Path):
         msg = (
@@ -238,8 +252,9 @@ def sessions_root(*, default: Path | None = None) -> Path:
 
     Declared identically in ``axm-loom``, ``axm-knowledge`` and ``axm-orison``
     (whose docstrings already say they *mirror* loom); this is the seam those
-    three delegate to. ``default`` overrides the built-in ``~/axm/sessions``
-    for a caller that must keep its own constant during migration.
+    three delegate to. In production, ``default`` overrides the built-in
+    ``~/axm/sessions`` for callers retaining their migration constant; an
+    active non-production profile instead owns the unconfigured state root.
     """
     fallback = default if default is not None else Path.home() / "axm" / "sessions"
     return get_path("sessions_root", default=fallback)
