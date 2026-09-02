@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from axm_init.adapters.workspace_patcher import patch_ci
+from axm_init.adapters.workspace_patcher import PatchReport, patch_all, patch_ci
 from tests_axm_init.integration._helpers import _make_realistic_ci
 
 
@@ -135,3 +135,80 @@ def test_patch_ci_is_idempotent_for_exact_member(tmp_path: Path) -> None:
     parsed = yaml.safe_load(content)
     packages = parsed["jobs"]["test"]["strategy"]["matrix"]["package"]
     assert packages.count("foo-bar") == 1
+
+
+_INLINE_MATRIX_WORKFLOW = """name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [axm-a, axm-b]
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test
+        run: uv run pytest --package ${{ matrix.package }}
+"""
+
+_NO_MATRIX_LIST_WORKFLOW = """name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test
+        run: uv run pytest
+"""
+
+
+def _write_ci_workflow(tmp_path: Path, content: str) -> Path:
+    ci = tmp_path / ".github" / "workflows" / "ci.yml"
+    ci.parent.mkdir(parents=True)
+    ci.write_text(content)
+    return ci
+
+
+@pytest.mark.integration
+def test_patch_ci_updates_inline_matrix_without_touching_steps(tmp_path: Path) -> None:
+    """AC3: inline matrix insertion leaves the steps bytes unchanged."""
+    ci = _write_ci_workflow(tmp_path, _INLINE_MATRIX_WORKFLOW)
+    before_steps = _INLINE_MATRIX_WORKFLOW.split("    steps:\n", maxsplit=1)[1]
+
+    changed = patch_ci(tmp_path, "axm-c")
+
+    after = ci.read_text()
+    after_steps = after.split("    steps:\n", maxsplit=1)[1]
+    assert changed is True
+    assert "        package: [axm-a, axm-b, axm-c]\n" in after
+    assert after_steps == before_steps
+
+
+@pytest.mark.integration
+def test_patch_ci_without_sequence_is_unchanged_and_reported_skipped(
+    tmp_path: Path,
+) -> None:
+    """AC4: an unresolved marker causes no write and a truthful report entry."""
+    ci = _write_ci_workflow(tmp_path, _NO_MATRIX_LIST_WORKFLOW)
+    before = ci.read_bytes()
+
+    report = patch_all(tmp_path, "axm-c")
+
+    assert isinstance(report, PatchReport)
+    assert ci.read_bytes() == before
+    assert ".github/workflows/ci.yml" in report.skipped
+    assert ".github/workflows/ci.yml" not in report.patched

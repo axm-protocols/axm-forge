@@ -5,6 +5,7 @@ from __future__ import annotations
 from axm_init.adapters.workspace_patcher import (
     _append_to_toml_array_lines,
     _find_top_level_key_index,
+    _find_yaml_list_range,
     _insert_into_yaml_list,
 )
 
@@ -76,3 +77,45 @@ class TestFindTopLevelKeyIndex:
         lines = ["# jobs: only a decoy\n", "steps:\n", "  - run: echo hi\n"]
 
         assert _find_top_level_key_index(lines, "jobs") is None
+
+
+class TestInlineYamlList:
+    """Inline YAML matrix sequences are resolved and updated in place."""
+
+    def test_marker_line_is_the_target_instead_of_later_steps(self) -> None:
+        """AC1: an inline marker resolves itself, never a later steps list."""
+        lines = [
+            "jobs:\n",
+            "  test:\n",
+            "    strategy:\n",
+            "      matrix:\n",
+            "        package: [axm-a, axm-b]\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+        ]
+        marker_index = 4
+
+        bounds = _find_yaml_list_range(lines, "package:")
+
+        assert bounds == (marker_index, marker_index + 1)
+        assert bounds[1] <= lines.index("    steps:\n")
+
+    def test_insertion_changes_only_inline_marker_line(self) -> None:
+        """AC2: insertion extends the inline sequence and preserves all else."""
+        lines = [
+            "jobs:\n",
+            "  test:\n",
+            "    strategy:\n",
+            "      matrix:\n",
+            "        package: [axm-a, axm-b]\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+        ]
+        marker_index = 4
+
+        result, changed = _insert_into_yaml_list(lines, "axm-c", list_marker="package:")
+
+        assert changed is True
+        assert result[marker_index] == "        package: [axm-a, axm-b, axm-c]\n"
+        assert result[:marker_index] == lines[:marker_index]
+        assert result[marker_index + 1 :] == lines[marker_index + 1 :]

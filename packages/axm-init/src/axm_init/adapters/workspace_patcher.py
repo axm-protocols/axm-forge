@@ -204,34 +204,76 @@ def _advance_past_marker(lines: list[str], list_marker: str | None) -> int:
     return len(lines)
 
 
-def _find_yaml_list_range(
-    lines: list[str],
+def _yaml_marker_offset(line: str, list_marker: str | None) -> int | None:
+    if list_marker is None:
+        return None
+    offset = len(line) - len(line.lstrip())
+    if line[offset:].startswith(list_marker):
+        return offset
+    return None
+
+
+def _inline_yaml_sequence_span(
+    line: str,
     list_marker: str | None,
 ) -> tuple[int, int] | None:
-    """Find the (start, end) indices of a YAML list.
+    marker_offset = _yaml_marker_offset(line, list_marker)
+    if marker_offset is None or list_marker is None:
+        return None
 
-    *start* is the index of the first ``- `` item.
-    *end* is the index of the line **after** the last ``- `` item.
-    If *list_marker* is given, the search begins only after that marker.
-    Returns ``None`` if no list is found.
+    value_start = marker_offset + len(list_marker)
+    opening = line.find("[", value_start)
+    if opening == -1 or line[value_start:opening].strip():
+        return None
+    closing = line.find("]", opening + 1)
+    if closing == -1:
+        return None
+    return opening, closing
 
-    The range is bounded by YAML indentation: once a non-empty line is
-    found at an indent level at or above the first list item, the list is
-    considered closed. This prevents the search from leaking into
-    sibling / parent blocks (e.g. ``steps:`` siblings of
-    ``matrix.package:``).
-    """
+
+def _yaml_list_scan_window(
+    lines: list[str],
+    list_marker: str | None,
+) -> tuple[int, int, int] | None:
+    if list_marker is None:
+        return 0, -1, -1
+
+    for marker_index, line in enumerate(lines):
+        marker_offset = _yaml_marker_offset(line, list_marker)
+        if marker_offset is None:
+            continue
+        inline_index = (
+            marker_index
+            if _inline_yaml_sequence_span(line, list_marker) is not None
+            else -1
+        )
+        return marker_index + 1, marker_offset, inline_index
+    return None
+
+
+def _is_ignored_yaml_scan_line(line: str) -> bool:
+    stripped = line.strip()
+    return not stripped or stripped.startswith("#")
+
+
+def _find_vertical_yaml_list_range(
+    lines: list[str],
+    scan_start: int,
+    marker_indent: int,
+) -> tuple[int, int] | None:
     first = -1
     last = -1
     list_indent = -1
 
-    for i in range(_advance_past_marker(lines, list_marker), len(lines)):
+    for i in range(scan_start, len(lines)):
         line = lines[i]
-        stripped = line.strip()
-        if not stripped:
+        if _is_ignored_yaml_scan_line(line):
             continue
+        stripped = line.strip()
         current_indent = len(line) - len(line.lstrip())
 
+        if first == -1 and marker_indent >= 0 and current_indent <= marker_indent:
+            break
         if stripped.startswith("- "):
             if first == -1:
                 first = i
@@ -240,15 +282,69 @@ def _find_yaml_list_range(
             elif current_indent == list_indent:
                 last = i
             else:
-                # `- ` at a different indent — belongs to another list.
                 break
         elif first >= 0 and current_indent <= list_indent:
-            # Non-list line at or above the list's indent → list closed.
             break
 
     if first == -1:
         return None
     return first, last + 1
+
+
+def _find_yaml_list_range(
+    lines: list[str],
+    list_marker: str | None,
+) -> tuple[int, int] | None:
+    """Find the (start, end) indices of a YAML list.
+
+    For a block sequence, *start* is the first ``- `` item and *end*
+    is the line after its last item. For an inline sequence carried by the
+    marker (for example ``package: [a, b]``), the range is the marker line
+    itself. If *list_marker* is given, a block-sequence search is confined
+    to that key's indentation scope. Returns ``None`` if the marker does not
+    resolve to either sequence form.
+
+    Bounding the scan to the marker's YAML block prevents a later sibling
+    list, such as a job's ``steps:``, from being mistaken for the target.
+    """
+    window = _yaml_list_scan_window(lines, list_marker)
+    if window is None:
+        return None
+    scan_start, marker_indent, inline_index = window
+    if inline_index >= 0:
+        return inline_index, inline_index + 1
+    return _find_vertical_yaml_list_range(lines, scan_start, marker_indent)
+
+
+def _quote_like_inline_yaml_item(item: str, existing: str) -> str:
+    sample = existing.lstrip()
+    if sample.startswith("'"):
+        return "'" + item.replace("'", "''") + "'"
+    if sample.startswith('"'):
+        escaped = item.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return item
+
+
+def _insert_into_inline_yaml_sequence(
+    line: str,
+    item: str,
+    span: tuple[int, int],
+) -> str:
+    opening, closing = span
+    body = line[opening + 1 : closing]
+    leading = body[: len(body) - len(body.lstrip())]
+    trailing = body[len(body.rstrip()) :]
+    existing = body.strip()
+    rendered_item = _quote_like_inline_yaml_item(item, existing)
+
+    if existing:
+        separators = list(re.finditer(r",([ \t]*)", existing))
+        spacing = separators[-1].group(1) if separators else " "
+        replacement = f"{leading}{existing},{spacing}{rendered_item}{trailing}"
+    else:
+        replacement = f"{leading}{rendered_item}{trailing}"
+    return f"{line[: opening + 1]}{replacement}{line[closing:]}"
 
 
 def _insert_into_yaml_list(
@@ -259,9 +355,9 @@ def _insert_into_yaml_list(
 ) -> tuple[list[str], bool]:
     """Insert an item into a YAML list after the last element.
 
-    If *list_marker* is provided, insertion begins only after
-    encountering it.  Uses a 2-pass approach: first locate the
-    list boundaries, then insert at the correct position.
+    If *list_marker* is provided, only the sequence resolved for that key
+    is changed. Inline sequences are rewritten on their marker line while
+    retaining the existing spacing and item quote style.
 
     Returns:
         A ``(lines, changed)`` pair. ``changed`` is ``False`` (and *lines*
@@ -271,7 +367,15 @@ def _insert_into_yaml_list(
     if bounds is None:
         return list(lines), False
 
-    _, end = bounds
+    start, end = bounds
+    inline_span = _inline_yaml_sequence_span(lines[start], list_marker)
+    if inline_span is not None:
+        result = list(lines)
+        result[start] = _insert_into_inline_yaml_sequence(
+            lines[start], item_to_insert, inline_span
+        )
+        return result, True
+
     indent = _detect_yaml_indent(lines[:end], default=default_indent)
     new_line = f"{indent}- {item_to_insert}\n"
     return [*lines[:end], new_line, *lines[end:]], True
