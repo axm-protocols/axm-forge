@@ -67,21 +67,30 @@ def _load(ep: importlib.metadata.EntryPoint) -> Any:
 # ── signature / wrapper construction ──────────────────────────────────────────
 
 
-def is_nonscalar(annotation: Any) -> bool:
+def is_nonscalar(annotation: object) -> bool:
     """Whether *annotation* should be passed as JSON (not a plain scalar).
 
     Unwraps ``Optional`` / ``X | None`` and inspects the non-``None`` member:
     container types (``list``/``dict``/``tuple``/``set``) and arbitrary classes
     that are not ``str``/``int``/``float``/``bool`` count as non-scalar.
     """
+    return _is_nonscalar(annotation, frozenset())
+
+
+def _is_nonscalar(annotation: object, seen_aliases: frozenset[int]) -> bool:
     if annotation is inspect.Parameter.empty:
         return False
+    if isinstance(annotation, typing.TypeAliasType):
+        alias_id = id(annotation)
+        return alias_id not in seen_aliases and _is_nonscalar(
+            annotation.__value__, seen_aliases | {alias_id}
+        )
     origin = typing.get_origin(annotation)
     if origin is Annotated:
-        return is_nonscalar(typing.get_args(annotation)[0])
+        return _is_nonscalar(typing.get_args(annotation)[0], seen_aliases)
     if origin in (Union, types.UnionType):
         members = [a for a in typing.get_args(annotation) if a is not type(None)]
-        return any(is_nonscalar(m) for m in members)
+        return any(_is_nonscalar(member, seen_aliases) for member in members)
     if origin in (list, dict, tuple, set):
         return True
     return isinstance(annotation, type) and not issubclass(annotation, _SCALARS)

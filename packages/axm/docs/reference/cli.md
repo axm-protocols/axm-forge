@@ -30,9 +30,10 @@ Commands depend on which AXM packages are installed:
 
 Each tool's CLI signature mirrors its `execute` signature exactly, including the
 `Annotated[..., cyclopts.Parameter(...)]` convention. Non-scalar parameters
-(`list` / `dict` / `tuple` / `set` / pydantic models), whether bare, wrapped in
-`Optional` / `X | None`, or wrapped in `Annotated[...]`, are passed as a single
-JSON string and decoded before the call:
+(`list` / `dict` / `tuple` / `set` / pydantic models), including recursive PEP
+695 type aliases whose value contains those containers, are passed as a single
+JSON string and decoded before the call. This also applies when the annotation
+is wrapped in `Optional` / `X | None` or `Annotated[...]`:
 
 ```bash
 axm batch_edit --path . --operations '[{"op": "replace", "file": "x.py"}]'

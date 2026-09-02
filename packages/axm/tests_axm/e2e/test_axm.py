@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 from importlib.metadata import entry_points
+from pathlib import Path
 
 import pytest
 
@@ -90,6 +91,53 @@ def test_axm_unknown_command_exits_2() -> None:
     proc = _run("nope")
     assert proc.returncode == _EXIT_USAGE
     assert "Unknown command" in proc.stderr
+
+
+def test_recursive_alias_cli_preserves_unicode(tmp_path: Path) -> None:
+    """AC3: a generated CLI decodes a recursive alias in a subprocess."""
+    script = tmp_path / "recursive_alias_cli.py"
+    script.write_text(
+        """from __future__ import annotations
+
+import cyclopts
+
+from axm.cli import build_command_for_tool
+from axm.tools.base import ToolResult
+
+type JsonValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list[JsonValue]
+    | dict[str, JsonValue]
+)
+
+
+class EchoTool:
+    def execute(self, *, data: JsonValue) -> ToolResult:
+        return ToolResult(success=True, text=data if isinstance(data, str) else "")
+
+
+app = cyclopts.App()
+app.command(build_command_for_tool("echo", EchoTool()))
+app()
+""",
+        encoding="utf-8",
+    )
+    value = "café naïve résumé 漢字 こんにちは"
+
+    proc = subprocess.run(  # noqa: S603 - trusted interpreter and fixture script
+        [sys.executable, str(script), "echo", f'"{value}"'],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == value
 
 
 def test_axm_version_prints_version() -> None:

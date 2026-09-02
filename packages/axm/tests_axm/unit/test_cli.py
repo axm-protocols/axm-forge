@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from collections.abc import Callable
 from typing import Annotated, Any
 from unittest.mock import patch
@@ -13,6 +14,7 @@ from cyclopts import Parameter
 from axm.cli import (
     _COMMANDS_GROUP,
     _TOOLS_GROUP,
+    _nonscalar_names,
     build_command_for_tool,
     cli_param,
     create_app,
@@ -128,6 +130,22 @@ class _WrappedDispatchTool:
 _WrappedDispatchTool.execute.__wrapped__ = _wrapped_execute_signature
 
 
+type JsonValue = (
+    str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None
+)
+
+
+class _RecursiveAliasTool:
+    """Tool whose sole parameter uses a recursive PEP 695 JSON alias."""
+
+    captured: JsonValue = None
+
+    def execute(self, *, data: JsonValue) -> ToolResult:
+        """Echo a recursively typed JSON value."""
+        type(self).captured = data
+        return ToolResult(success=True, text=str(data))
+
+
 class _FakeEP:
     def __init__(self, name: str, obj: object) -> None:
         self.name = name
@@ -179,6 +197,16 @@ class TestIsNonscalar:
     )
     def test_classifies_annotation(self, ann: Any, expected: bool) -> None:
         assert is_nonscalar(ann) is expected
+
+
+def test_recursive_type_alias_is_nonscalar() -> None:
+    """AC1: recursive PEP 695 aliases are non-scalar without recursion."""
+    parameter = inspect.Parameter(
+        "data", inspect.Parameter.KEYWORD_ONLY, annotation=JsonValue
+    )
+
+    assert is_nonscalar(JsonValue) is True
+    assert _nonscalar_names([parameter]) == frozenset({"data"})
 
 
 # ── signature construction ────────────────────────────────────────────────────
@@ -261,6 +289,26 @@ class TestBuildCommand:
             "at": "04:30",
             "weekday": "mon",
         }
+
+    def test_recursive_alias_decodes_unicode_scalar(self) -> None:
+        """AC1: the recursive alias binds JSON and preserves decoded Unicode."""
+        tool = _RecursiveAliasTool()
+        command = build_command_for_tool("recursive", tool)
+        value = "café naïve résumé 漢字 こんにちは"
+
+        command(json.dumps(value, ensure_ascii=False))
+
+        assert tool.captured == value
+        assert isinstance(tool.captured, str)
+
+    def test_recursive_alias_decodes_nested_object(self) -> None:
+        """AC2: the recursive alias decodes nested objects, lists, and null."""
+        tool = _RecursiveAliasTool()
+        command = build_command_for_tool("recursive", tool)
+
+        command('{"items": [1, "é", {"k": null}]}')
+
+        assert tool.captured == {"items": [1, "é", {"k": None}]}
 
     def test_invalid_json_exits_2(self) -> None:
         cmd = build_command_for_tool("batch_edit", _BatchTool())
