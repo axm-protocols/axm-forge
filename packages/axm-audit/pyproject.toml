@@ -49,9 +49,6 @@ doc_gate = "axm_audit.doc_gate.tool:DocGateTool"
 [project.entry-points."axm.witnesses"]
 audit_quality = "axm_audit.witnesses.audit_quality:AuditQualityRule"
 
-[project.entry-points."axm.commands"]
-audit = "axm_audit.cli:app"
-
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"

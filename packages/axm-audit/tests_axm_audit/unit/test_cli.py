@@ -191,14 +191,7 @@ def full_result() -> AuditResult:
 
 def test_app_registers_expected_commands() -> None:
     """AC8: `fix` is registered alongside other top-level commands."""
-    registered = list(app)
-    names: list[str] = []
-    for entry in registered:
-        n = getattr(entry, "name", None)
-        if isinstance(n, str):
-            names.append(n)
-        elif isinstance(n, (list, tuple)):
-            names.extend(n)
+    names = list(app)
     assert "test-quality" in names
     assert "fix" in names
 

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Annotated
 
@@ -34,30 +33,6 @@ from axm_audit.models.results import format_categories_help
 from axm_audit.score import ScoreIncalculableError
 
 __all__ = ["app"]
-
-
-class _AppFacade:
-    """Wraps :class:`cyclopts.App` so external iteration yields sub-apps.
-
-    Cyclopts' own iteration yields command-name strings, which lack the
-    ``.name`` attribute callers expect when introspecting registrations.
-    Iterating this facade yields the underlying sub-:class:`cyclopts.App`
-    objects whose ``.name`` is a tuple of registered names. All other
-    attribute access and ``__call__`` delegate to the wrapped app, so
-    cyclopts' own internal iteration is unaffected.
-    """
-
-    def __init__(self, app: cyclopts.App) -> None:
-        self._app = app
-
-    def __iter__(self) -> Iterator[object]:
-        return iter(self._app._commands.values())
-
-    def __call__(self, *args: object, **kwargs: object) -> object:
-        return self._app(*args, **kwargs)  # type: ignore[arg-type]
-
-    def __getattr__(self, item: str) -> object:
-        return getattr(self._app, item)
 
 
 app = cyclopts.App(
@@ -282,10 +257,6 @@ def version() -> None:
 def main() -> None:
     """Main entry point."""
     app()
-
-
-# Expose facade so ``list(app)`` yields sub-Apps with ``.name`` tuples.
-app = _AppFacade(app)  # type: ignore[assignment]
 
 
 if __name__ == "__main__":
