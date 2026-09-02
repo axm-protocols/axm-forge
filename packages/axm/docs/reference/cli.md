@@ -29,19 +29,24 @@ Commands depend on which AXM packages are installed:
 ## Non-scalar parameters
 
 Each tool's CLI signature mirrors its `execute` signature exactly, including the
-`Annotated[..., cyclopts.Parameter(...)]` convention. Non-scalar parameters
-(`list` / `dict` / `tuple` / `set` / pydantic models), including recursive PEP
-695 type aliases whose value contains those containers, are passed as a single
-JSON string and decoded before the call. This also applies when the annotation
-is wrapped in `Optional` / `X | None` or `Annotated[...]`:
+`Annotated[..., cyclopts.Parameter(...)]` convention. Purely structured
+parameters (`list` / `dict` / `tuple` / `set` / pydantic models) are passed as a
+single JSON string and decoded before the call. This also applies when the
+annotation is wrapped in `Optional` / `X | None` or `Annotated[...]`:
 
 ```bash
 axm batch_edit --path . --operations '[{"op": "replace", "file": "x.py"}]'
 ```
 
-This keeps the tool signature and the CLI signature identical without
-CLI-only flags. Invalid JSON exits with code `2` (a guard raised by the wrapper
-itself).
+For a union that admits `str`, including a plain or recursive PEP 695 type
+alias, the wrapper first attempts JSON decoding. A valid JSON token is delivered
+as the decoded structure; any other token is delivered verbatim as literal
+text, preserving Unicode and consecutive spaces. Consequently, text that is
+itself valid JSON (`null`, `123`, or a quoted string) is decoded rather than
+preserved literally.
+
+This keeps the tool signature and the CLI signature identical without CLI-only
+flags. Invalid JSON still exits with code `2` for purely structured parameters.
 
 Tool `execute` parameters are keyword-only by convention, but the CLI relaxes
 them so **both** the positional form `axm audit .` and the keyword form

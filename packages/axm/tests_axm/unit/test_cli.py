@@ -134,6 +134,10 @@ type JsonValue = (
 )
 
 
+type TextAlias = str | list[str]
+type RecursiveTextAlias = str | list[RecursiveTextAlias] | dict[str, RecursiveTextAlias]
+
+
 class _RecursiveAliasTool:
     """Tool whose sole parameter uses a recursive PEP 695 JSON alias."""
 
@@ -141,6 +145,30 @@ class _RecursiveAliasTool:
 
     def execute(self, *, data: JsonValue) -> ToolResult:
         """Echo a recursively typed JSON value."""
+        type(self).captured = data
+        return ToolResult(success=True, text=str(data))
+
+
+class _TextUnionTool:
+    captured: object = None
+
+    def execute(self, *, data: str | list[str]) -> ToolResult:
+        type(self).captured = data
+        return ToolResult(success=True, text=str(data))
+
+
+class _TextAliasTool:
+    captured: object = None
+
+    def execute(self, *, data: TextAlias) -> ToolResult:
+        type(self).captured = data
+        return ToolResult(success=True, text=str(data))
+
+
+class _RecursiveTextAliasTool:
+    captured: object = None
+
+    def execute(self, *, data: RecursiveTextAlias) -> ToolResult:
         type(self).captured = data
         return ToolResult(success=True, text=str(data))
 
@@ -312,6 +340,33 @@ class TestBuildCommand:
         command('{"items": [1, "é", {"k": null}]}')
 
         assert tool.captured == {"items": [1, "é", {"k": None}]}
+
+    def test_str_admitting_union_preserves_non_json_free_text(self) -> None:
+        """AC1: a str-admitting union delivers non-JSON Unicode text verbatim."""
+        tool = _TextUnionTool()
+        command = build_command_for_tool("text-union", tool)
+        value = "résumé  long"
+
+        command(data=value)
+
+        assert tool.captured == value
+
+    def test_pep695_aliases_preserve_non_json_free_text(self) -> None:
+        """AC2: plain and recursive PEP 695 aliases preserve free text."""
+        plain_tool = _TextAliasTool()
+        recursive_tool = _RecursiveTextAliasTool()
+        plain_command = build_command_for_tool("text-alias", plain_tool)
+        recursive_command = build_command_for_tool(
+            "recursive-text-alias", recursive_tool
+        )
+        plain_value = "café   brut"
+        recursive_value = "élan  récursif"
+
+        recursive_command(data=recursive_value)
+        plain_command(data=plain_value)
+
+        assert recursive_tool.captured == recursive_value
+        assert plain_tool.captured == plain_value
 
     def test_invalid_json_exits_2(self) -> None:
         cmd = build_command_for_tool("batch_edit", _BatchTool())

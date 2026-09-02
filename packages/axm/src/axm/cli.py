@@ -88,9 +88,43 @@ def _type_alias_nonscalar(
     return _is_nonscalar(annotation.__value__, seen_aliases | {alias_id})
 
 
+def _union_members(annotation: object) -> tuple[object, ...]:
+    return tuple(
+        member for member in typing.get_args(annotation) if member is not type(None)
+    )
+
+
+def _admits_str(annotation: object, seen_aliases: frozenset[int]) -> bool:
+    if annotation is str:
+        return True
+    if isinstance(annotation, typing.TypeAliasType):
+        alias_id = id(annotation)
+        if alias_id in seen_aliases:
+            return False
+        return _admits_str(annotation.__value__, seen_aliases | {alias_id})
+    origin = typing.get_origin(annotation)
+    if origin is Annotated:
+        return _admits_str(typing.get_args(annotation)[0], seen_aliases)
+    if origin in (Union, types.UnionType):
+        return any(
+            _admits_str(member, seen_aliases) for member in _union_members(annotation)
+        )
+    return False
+
+
+def _is_text_tolerant_nonscalar(annotation: object) -> bool:
+    """Whether non-JSON input may be delivered as literal text.
+
+    A JSON-decodable token remains structured; only a decode failure falls back
+    to text, and only when the declared non-scalar union admits ``str``.
+    """
+    return is_nonscalar(annotation) and _admits_str(annotation, frozenset())
+
+
 def _union_nonscalar(annotation: object, seen_aliases: frozenset[int]) -> bool:
-    members = (a for a in typing.get_args(annotation) if a is not type(None))
-    return any(_is_nonscalar(member, seen_aliases) for member in members)
+    return any(
+        _is_nonscalar(member, seen_aliases) for member in _union_members(annotation)
+    )
 
 
 def _is_container_origin(origin: object) -> bool:
@@ -152,6 +186,13 @@ def public_params(fn: Any) -> list[inspect.Parameter]:
             resolved = inspect.Parameter.empty
         params.append(p.replace(annotation=resolved))
     return params
+
+
+def _text_tolerant_names(params: list[inspect.Parameter]) -> frozenset[str]:
+    """Names of JSON-token params whose unions also admit literal text."""
+    return frozenset(
+        p.name for p in params if _is_text_tolerant_nonscalar(p.annotation)
+    )
 
 
 def cli_param(p: inspect.Parameter) -> inspect.Parameter:
@@ -229,6 +270,7 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
     exec_fn = _exec_callable(tool_obj)
     params = public_params(exec_fn)
     json_params = _nonscalar_names(params)
+    text_params = _text_tolerant_names(params)
     cli_params = [cli_param(p) for p in params]
     ordered_names = [p.name for p in cli_params]
 
@@ -244,6 +286,8 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
                 try:
                     kwargs[key] = json.loads(value)
                 except json.JSONDecodeError as exc:
+                    if key in text_params:
+                        continue
                     sys.stderr.write(f"{key}: invalid JSON: {exc}\n")
                     raise SystemExit(2) from exc
         try:
