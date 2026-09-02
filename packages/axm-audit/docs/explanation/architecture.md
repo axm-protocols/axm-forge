@@ -19,7 +19,7 @@ graph TB
 
 ### 1. Public API
 
-- **CLI** — `axm-audit audit .` via cyclopts
+- **CLI** — `axm audit .`, generated from the `AuditTool` entry point under `axm.tools`
 - **`audit_project()`** — Python entry point
 - **`get_rules_for_category()`** — Get rule instances, optionally filtered
 
@@ -189,7 +189,7 @@ sequenceDiagram
     participant Rules
     participant Tools
 
-    User->>CLI: axm-audit audit . / audit_project(Path("."))
+    User->>CLI: axm audit . / audit_project(Path("."))
     CLI->>Auditor: get_rules_for_category(category)
     Auditor-->>CLI: list[ProjectRule]
     loop For each rule

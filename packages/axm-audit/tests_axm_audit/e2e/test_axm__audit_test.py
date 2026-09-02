@@ -14,14 +14,17 @@ def test_audit_test_help_exposes_include_cases_flag() -> None:
     axm_bin = shutil.which("axm")
     assert axm_bin is not None
 
-    completed = subprocess.run(  # noqa: S603
-        [axm_bin, "audit_test", "--help"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    help_by_tool: dict[str, str] = {}
+    for tool_name in ("audit", "audit_test", "audit_fix", "doc_gate"):
+        completed = subprocess.run(  # noqa: S603
+            [axm_bin, tool_name, "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert completed.returncode == 0, completed.stderr
+        help_by_tool[tool_name] = completed.stdout
 
-    assert completed.returncode == 0, completed.stderr
-    normalized_help = completed.stdout.replace("_", "-")
+    normalized_help = help_by_tool["audit_test"].replace("_", "-")
     assert "--include-cases" in normalized_help

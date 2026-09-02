@@ -32,9 +32,9 @@ credential catalogue exposed through the `axm.credentials` entry-point group.
 
 ```bash
 # Filter to one category
-axm-audit audit . --category lint
-axm-audit audit . --category security
-axm-audit audit . --category deps
+axm audit . --category lint
+axm audit . --category security
+axm audit . --category deps
 ```
 
 ## Python API

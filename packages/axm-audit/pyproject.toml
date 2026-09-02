@@ -31,9 +31,6 @@ dependencies = [
     "radon>=6.0.1",
 ]
 
-[project.scripts]
-axm-audit = "axm_audit.cli:main"
-
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-audit"
 Documentation = "https://axm-protocols.github.io/axm-audit/"
@@ -114,13 +111,12 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests_axm_audit/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
-# Fix-corpus loaders intentionally invoke `git` and `axm-audit` by PATH name
+# Fix-corpus loaders intentionally invoke `git` by PATH name
 # (subprocess controls all args; no untrusted input).
 "tests_axm_audit/fixtures/fix_corpus/conftest.py" = ["S603", "S607"]
 "tests_axm_audit/fixtures/fix_corpus/regenerate.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/quality_rules.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
-"src/axm_audit/cli.py" = ["T201", "PLR0913"]
 "src/axm_audit/core/test_runner.py" = ["PLR0913"]
 # core/fix/ is the relocated fix-proto: deterministic CST-based test reorganiser
 # (12 modules, intentionally complex). libcst visitor methods (leave_*/visit_*)
@@ -178,13 +174,10 @@ DEP004 = ["mkdocs_gen_files"]
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.axm-audit.mirror]
-# tools/audit.py is the `axm-audit audit` sub-command wrapper. Per the pyramid
-# spec, the single-binary canonical e2e name strips the binary prefix, so
-# `tests/e2e/test_audit.py` IS the canonical form — not an anti-mirror smell.
+# tools/audit.py is an AXMTool exposed through the unified `axm audit` CLI.
 exempt_paths = [
     "**/__init__.py",
     "_version.py",
-    "__main__.py",
     "tools/audit.py",
     # I/O-only collector (filesystem rglob + git subprocess, no pure logic);
     # its tests legitimately live in tests/integration/ — a unit mirror would
@@ -674,10 +667,6 @@ disallow_untyped_calls = false
 [[tool.mypy.overrides]]
 module = ["axm_audit.tools.*"]
 disallow_subclassing_any = false
-
-[[tool.mypy.overrides]]
-module = ["axm_audit.cli"]
-disallow_untyped_decorators = false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration

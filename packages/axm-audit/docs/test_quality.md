@@ -8,19 +8,15 @@ asserts, or mock patterns that drift from production behavior.
 
 ## CLI
 
-```
-axm-audit test-quality [PATH] [--json] [--mismatches-only] [--agent]
+```bash
+axm audit [PATH] --category test_quality
 ```
 
-Runs the `test_quality` category and prints four sections (private
-imports → pyramid → duplicates → tautologies), plus `NO_PACKAGE_SYMBOL`
-and `FILE_NAMING` sections when those findings are present. Use
-`--json` for the machine-readable superset (`format_test_quality_json`,
-which also exposes a sorted `rules` array of every `TEST_QUALITY_*` rule
-id that was evaluated), `--agent` for the compact agent renderer, or
-`--mismatches-only` to focus on pyramid folder↔level violations. Exits
-`1` when the aggregate score falls below `PASS_THRESHOLD`. See the
-[CLI reference](reference/cli.md) for details.
+Runs the `test_quality` category through the `audit` AXMTool. The unified CLI
+prints the compact `ToolResult.text`; MCP callers receive the structured
+`ToolResult.data`, including every evaluated `TEST_QUALITY_*` rule. The command
+exits non-zero when the tool reports failure. See the [CLI
+reference](reference/cli.md) for details.
 
 Each pyramid mismatch line in the compact renderer shows the coarse
 `reason` and, when present, the deciding `io_signals` that drove the
@@ -402,8 +398,8 @@ enforced by `PRACTICE_TEST_MIRROR`.
 | `integration` | top-K=2 first-party symbols, alphabetical | `test_{s1}__{s2}.py` (snake_case, joined by `__`) |
 | `integration` | top-K=1 | `test_{s1}.py` |
 | `e2e` (multi-binary) | top-K=2 `(bin, sub)` | `test_{bin1}__{sub1}__{bin2}__{sub2}.py` |
-| `e2e` (single-binary) | `(axm-audit, "audit")` | `test_audit.py` (binary prefix stripped) |
-| `e2e` (single-binary) | `(axm-audit, "")` | `test_axm_audit.py` (bare binary kept) |
+| `e2e` (single-binary) | `(fixture-cli, "audit")` | `test_audit.py` (binary prefix stripped) |
+| `e2e` (single-binary) | `(fixture-cli, "")` | `test_fixture_cli.py` (bare binary kept) |
 
 Single-binary collapse is gated on `len([project.scripts]) == 1`. Multi-binary
 CliRunner attribution falls back to "skip" when ambiguous.

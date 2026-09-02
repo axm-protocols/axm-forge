@@ -41,10 +41,9 @@ a single source of truth, `axm_audit.score.resolve_score_grade`:
   structure`, an unscored category) *and* one whose scored categories are
   **every one not-applicable** (all `score=None`, dropped by
   `collect_category_scores`). Neither is assumed to 0/F: serialization raises
-  `ScoreIncalculableError`, so `audit --json` fails loud (non-zero exit with an
-  explicit stderr message rather than a success JSON missing `.score`), and the
-  human report omits the score line entirely instead of printing a misleading
-  `Grade F`.
+  `ScoreIncalculableError`, so the `audit` AXMTool cannot return a successful
+  structured payload missing `.score`; its compact text output likewise omits the
+  score line instead of printing a misleading `Grade F`.
 
 N/A is driven entirely off `AuditResult.quality_score is None`, so the
 project-level serialization and the category-level weight-normalization can

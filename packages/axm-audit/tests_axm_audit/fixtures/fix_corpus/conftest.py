@@ -30,7 +30,7 @@ def fix_corpus_case(name: str) -> tuple[Path, Path]:
     """Materialise the named fix-corpus case into a fresh temp directory.
 
     Copies ``tests/fixtures/fix_corpus/<name>/input/`` to a new temp
-    directory, initialises a git repo (so ``axm-audit fix`` can run),
+    directory, initialises a git repo (so ``axm audit_fix`` can run),
     and returns ``(tmp_pkg, expected_path)`` where ``expected_path``
     points at the on-disk ``expected/`` tree for comparison.
 

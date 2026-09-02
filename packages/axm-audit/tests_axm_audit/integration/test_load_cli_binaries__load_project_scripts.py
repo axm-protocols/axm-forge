@@ -26,7 +26,7 @@ BOTH_TABLES = (
     'version = "0.1.0"\n'
     "\n"
     "[project.scripts]\n"
-    'axm-audit = "axm_audit.cli:main"\n'
+    'fixture-cli = "fixture_pkg.cli:main"\n'
     "\n"
     '[project.entry-points."axm.tools"]\n'
     'audit = "axm_audit.tools:AuditTool"\n'
@@ -55,9 +55,9 @@ def test_package_declaring_both_tables(tmp_path: Path) -> None:
     # AC4: scripts and axm.tools declared together are unioned on disk.
     (tmp_path / "pyproject.toml").write_text(BOTH_TABLES, encoding="utf-8")
 
-    assert _load_cli_binaries(tmp_path) == {"axm-audit", "axm"}
+    assert _load_cli_binaries(tmp_path) == {"fixture-cli", "axm"}
     # guard: load_project_scripts keeps its own (unchanged) semantics
-    assert load_project_scripts(tmp_path) == {"axm-audit"}
+    assert load_project_scripts(tmp_path) == {"fixture-cli"}
 
 
 def test_missing_or_invalid_pyproject_yields_no_binary(tmp_path: Path) -> None:

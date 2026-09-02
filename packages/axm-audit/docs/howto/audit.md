@@ -6,21 +6,13 @@ The fastest way to audit a project:
 
 ```bash
 # Full audit
-axm-audit audit .
-
-# JSON output
-axm-audit audit . --json
-
-# Agent-optimized output (compact, actionable)
-axm-audit audit . --agent
+axm audit .
 
 # Filter by category
-axm-audit audit . --category lint
+axm audit . --category lint
 ```
 
-!!! tip "Unified CLI"
-    If you have the `axm` CLI installed, you can also use `axm audit .` instead
-    of `axm-audit audit .`. The unified CLI auto-discovers all AXM commands.
+The unified CLI auto-discovers `AuditTool` through its `axm.tools` entry point.
 
 ## Fix (test-tree reorganisation)
 
@@ -30,13 +22,13 @@ polish). Dry-run by default; pass `--apply` to mutate the tree.
 
 ```bash
 # Plan only (no mutation)
-axm-audit fix .
+axm audit_fix .
 
 # Mutate the tree
-axm-audit fix . --apply
+axm audit_fix . --apply
 
 # Restrict to a subset of fixable rules
-axm-audit fix . --apply --rules=TEST_QUALITY_FILE_NAMING
+axm audit_fix . --apply --rules '["TEST_QUALITY_FILE_NAMING"]'
 ```
 
 Only the `TEST_QUALITY_PYRAMID_LEVEL` and `TEST_QUALITY_FILE_NAMING`
@@ -124,16 +116,12 @@ worst-of-N policy: any failure fails the merged check, scored rules report
 the minimum score across packages, and violations are prefixed with the
 package name so callers can disambiguate.
 
-### CLI `--agent` Flag
+### AXMTool output
 
-Both `audit` and `test` commands support an `--agent` flag for compact, token-efficient output suitable for AI agents:
+The unified CLI renders each tool's compact `ToolResult.text`, while MCP and
+Python callers retain the corresponding structured `ToolResult.data` payload:
 
 ```bash
-# Audit with agent output
-axm-audit audit . --agent
-
-# Tests with agent output
-axm-audit test . --agent
+axm audit .
+axm audit_test .
 ```
-
-Without `--agent`, `audit` uses the human-readable report and `test` outputs JSON.

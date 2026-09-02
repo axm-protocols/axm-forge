@@ -2,93 +2,45 @@
 
 ## Commands
 
-`axm-audit` exposes five subcommands: `audit`, `fix`, `test`, `test-quality`,
-and `version`.
+The package registers four request→response tools under `axm.tools`. The unified
+`axm` CLI discovers these entry points and derives their arguments from each
+tool's `execute()` signature; there is no package-specific CLI facade.
 
-### `axm-audit audit`
+### `axm audit`
 
 Audit a project's code quality against the AXM standard.
 
-```
-axm-audit audit [PATH] [--json] [--agent] [--category|-c CATEGORY]
-```
-
-| Flag | Default | Effect |
-| -- | -- | -- |
-| `PATH` | `.` | Project root to audit |
-| `--json` | `false` | Output as JSON (`format_json`) |
-| `--agent` | `false` | Compact agent-friendly output (`format_agent_text`) |
-| `--category`, `-c` | *all* | Filter to one category (lint, type, security, complexity, architecture, test_quality, practices, deps, testing, structure, tooling) |
-
-Exit code is `1` when `quality_score` falls below the `PASS_THRESHOLD` (90),
-`0` otherwise.
-
-### `axm-audit fix`
-
-Deterministically reorganise a project's test suite. Dry-run by default — pass
-`--apply` to mutate the project. If the baseline test suite is red it warns and
-proceeds anyway (parity is the caller's responsibility).
-
-```
-axm-audit fix [PATH] [--apply] [--rules RULE_IDS]
+```bash
+axm audit [PATH] [--category CATEGORY]
 ```
 
-| Flag | Default | Effect |
-| -- | -- | -- |
-| `PATH` | `.` | Project root to fix |
-| `--apply` | `false` | Mutate the project (default: dry-run) |
-| `--rules` | `TEST_QUALITY_PYRAMID_LEVEL,TEST_QUALITY_FILE_NAMING` | Comma-separated `rule_id`s to fix |
+### `axm audit_test`
 
-### `axm-audit test`
+Run tests and return a fail-closed structured report.
 
-Run tests with structured output.
-
-```
-axm-audit test [PATH] [--files FILES] [-m|--markers MARKERS] [-x|--stop-on-first] [--agent]
+```bash
+axm audit_test [PATH] [--files FILES] [--markers MARKERS] [--stop-on-first]
 ```
 
-| Flag | Default | Effect |
-| -- | -- | -- |
-| `PATH` | `.` | Project root to test |
-| `--files` | *all* | Specific test files to run |
-| `--markers`, `-m` | *none* | Pytest markers to filter |
-| `--stop-on-first`, `-x` | `true` | Stop on first failure |
-| `--agent` | `false` | Compact agent-friendly output (`format_audit_test_text`); without it, output is JSON |
+### `axm audit_fix`
 
-Exit code is `1` whenever the report's verdict is red, `0` otherwise. That
-verdict is fail-closed: it covers a failed or errored test, but also a red no
-test failure explains — a coverage threshold not reached, a pytest usage error,
-an interrupted or internally-errored run, a zero-collection run, or a requested
-target that was never validated. With `--agent`, the cause of such a red is
-named on the line right under the header (see
-[Interpret Results](../howto/results.md#test-report-text)).
+Plan or apply the deterministic test-suite reorganisation pipeline.
 
-### `axm-audit test-quality`
-
-Audit test quality (pyramid, duplicates, tautologies, private imports).
-
-```
-axm-audit test-quality [PATH] [--json] [--mismatches-only] [--agent]
+```bash
+axm audit_fix [PATH] [--apply] [--rules RULE_IDS]
 ```
 
-| Flag | Default | Effect |
-| -- | -- | -- |
-| `PATH` | `.` | Project root to analyse |
-| `--json` | `false` | Emit the JSON superset (clusters + verdicts + pyramid + private imports) |
-| `--mismatches-only` | `false` | Render only the pyramid section, filtered to folder↔level mismatches |
-| `--agent` | `false` | Compact agent-friendly output (delegates to `format_agent_text`) |
+### `axm doc_gate`
 
-Exit code is `1` when the aggregate `quality_score` falls below the
-`PASS_THRESHOLD`, `0` otherwise. Sections are emitted in fixed order:
-private imports → pyramid → duplicates → tautologies.
+Validate a MkDocs documentation build and return structured findings.
 
-### `axm-audit version`
-
-Print the installed `axm-audit` version.
-
+```bash
+axm doc_gate [PATH]
 ```
-axm-audit version
-```
+
+Run `axm <tool> --help` for the authoritative argument list generated from the
+installed tool version. The CLI prints `ToolResult.text` and exits non-zero when
+`ToolResult.success` is false; MCP and Python callers retain `ToolResult.data`.
 
 ## Python API
 

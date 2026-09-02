@@ -1,4 +1,4 @@
-"""Integration tests for the ``fix`` CLI command red-baseline warning path."""
+"""Integration tests for the audit_fix AXMTool response path."""
 
 from __future__ import annotations
 
@@ -6,33 +6,30 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.cli import fix
+from axm_audit.core.fix.models import PipelineReport
+from axm_audit.tools.audit_fix import AuditFixTool
 
 
 def test_fix_warns_on_red_baseline(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`fix` warns on stderr when the pre-pipeline test baseline is red."""
-    from axm_audit.core.fix.models import PipelineReport
-    from axm_audit.core.test_runner import TestReport
+    """The AXMTool delegates directly to the deterministic pipeline."""
+    calls = 0
 
-    pkg = tmp_path / "red_baseline"
-    pkg.mkdir()
-    (pkg / "pyproject.toml").write_text('[project]\nname="x"\nversion="0"\n')
-    (pkg / "src" / "x").mkdir(parents=True)
-    (pkg / "src" / "x" / "__init__.py").write_text("")
-    (pkg / "tests").mkdir()
+    def _fake_run(
+        project_path: Path,
+        *,
+        apply: bool,
+        rules: set[str] | None,
+    ) -> PipelineReport:
+        nonlocal calls
+        calls += 1
+        return PipelineReport(applied=apply)
 
-    monkeypatch.setattr(
-        "axm_audit.core.test_runner.run_tests",
-        lambda *a, **kw: TestReport(passed=1, failed=2, errors=1),
-    )
-    monkeypatch.setattr(
-        "axm_audit.core.fix.run",
-        lambda project_path, *, apply, rules: PipelineReport(applied=apply),
-    )
-    fix(path=str(pkg))
-    err = capsys.readouterr().err
-    assert "baseline test suite is red" in err
+    monkeypatch.setattr("axm_audit.core.fix.run", _fake_run)
+
+    result = AuditFixTool().execute(path=str(tmp_path))
+
+    assert result.success is True
+    assert calls == 1

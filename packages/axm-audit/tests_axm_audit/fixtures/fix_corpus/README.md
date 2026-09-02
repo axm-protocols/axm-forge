@@ -1,7 +1,7 @@
-# `fix_corpus/` — synthetic fixture corpus for `axm-audit fix`
+# `fix_corpus/` — synthetic fixture corpus for `axm audit_fix`
 
 This directory holds six mini-packages, each crafted to exercise one
-or more stages of the `axm-audit fix` pipeline. Tests under
+or more stages of the `axm audit_fix` pipeline. Tests under
 `tests/integration/` and `tests/unit/` consume these via the
 `fix_corpus_case` factory (see `conftest.py`).
 
@@ -10,7 +10,7 @@ Each case has the same shape:
 ```
 <case>/
 ├── input/      # pre-fix layout (with the broken signal)
-└── expected/   # post-fix layout (what axm-audit fix --apply should produce)
+└── expected/   # post-fix layout (what axm audit_fix --apply should produce)
 ```
 
 `input/` is a valid (if minimal) Python package: `pyproject.toml`,
@@ -36,21 +36,21 @@ The smoke tests in
 - `fix_corpus_case("relocate_only")` returns paths to a real temp
   package and the expected tree (AC4, AC8).
 
-Invariant testing (T11) consumes the corpus to check `axm-audit fix`
+Invariant testing (T11) consumes the corpus to check `axm audit_fix`
 idempotence (running twice == running once), parity (every stage
 applied) and stability against snapshot drift.
 
 ## Regenerating `expected/` trees
 
 `expected/` trees are derived from a single known-good run of
-`axm-audit fix --apply` against the `input/` tree. To regenerate one
+`axm audit_fix --apply` against the `input/` tree. To regenerate one
 or all cases::
 
     uv run python tests/fixtures/fix_corpus/regenerate.py <case_name>
     uv run python tests/fixtures/fix_corpus/regenerate.py --all
 
 The script copies `input/` to a temp dir, `git init`s it, runs
-`axm-audit fix --apply`, and overwrites `expected/` with the result.
+`axm audit_fix --apply`, and overwrites `expected/` with the result.
 **Commit the corpus before running** so you can diff and review the
 new expected tree.
 

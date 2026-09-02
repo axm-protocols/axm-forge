@@ -19,7 +19,7 @@
 
 ---
 
-`axm-audit` audits Python project quality across **9 scored categories** (plus `structure` and `tooling`, which emit findings but are not scored), producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
+`axm-audit` audits Python project quality across **9 scored categories** (plus `structure` and `tooling`, which emit findings but are not scored), producing a composite **0–100 score** with an **A–F grade**. It is available through the unified **`axm` CLI**, the **Python API**, and **MCP** for AI agents.
 
 📖 **[Full documentation](https://forge.axm-protocols.io/audit/)**
 
@@ -48,26 +48,20 @@ uv add axm-audit
 
 ```bash
 # Full audit
-axm-audit audit .
-
-# JSON output
-axm-audit audit . --json
-
-# Agent-optimized output (compact, actionable)
-axm-audit audit . --agent
+axm audit .
 
 # Filter by category
-axm-audit audit . --category lint
+axm audit . --category lint
 
 # Deterministically reorganise the test suite (dry-run by default)
-axm-audit fix .
-axm-audit fix . --apply
+axm audit_fix .
+axm audit_fix . --apply
 
 # Run tests with structured output
-axm-audit test .
+axm audit_test .
 
-# Agent-optimized test output (compact, actionable)
-axm-audit test . --agent
+# Validate the documentation build
+axm doc_gate .
 ```
 
 ### Python API

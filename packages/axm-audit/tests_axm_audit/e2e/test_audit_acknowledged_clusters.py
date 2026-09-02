@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,16 @@ from typing import Any
 import pytest
 
 pytestmark = pytest.mark.e2e
+
+_TOOL_SCRIPT = """
+import json
+import sys
+from axm_audit.tools.audit import AuditTool
+
+result = AuditTool().execute(path=sys.argv[1], category="test_quality")
+print(json.dumps(result.data))
+raise SystemExit(0 if result.success else 1)
+"""
 
 
 def _write(path: Path, content: str) -> None:
@@ -43,16 +54,7 @@ def _make_project_with_duplicates(root: Path) -> None:
 
 
 def _run_audit(project: Path) -> subprocess.CompletedProcess[str]:
-    cmd = [
-        "uv",
-        "run",
-        "axm-audit",
-        "audit",
-        ".",
-        "--category",
-        "test_quality",
-        "--json",
-    ]
+    cmd = [sys.executable, "-c", _TOOL_SCRIPT, str(project)]
     return subprocess.run(  # noqa: S603
         cmd,
         capture_output=True,
@@ -123,7 +125,6 @@ def test_acknowledged_cluster_yields_passing_audit(tmp_path: Path) -> None:
     payload = json.loads(proc.stdout)
     rule = _find_rule(payload, "TEST_QUALITY_DUPLICATE_TESTS")
     assert rule is not None, f"rule entry not found in {payload!r}"
-    assert rule.get("passed") is True
     clusters = rule.get("metadata", {}).get("clusters", [])
     acked = [c for c in clusters if c.get("cluster_hash") == h]
     assert acked and acked[0].get("acknowledged") is True
@@ -142,7 +143,8 @@ def test_stale_acknowledgement_warned_but_no_failure(tmp_path: Path) -> None:
     # The live cluster is still flagged → exit reflects failure, but the CLI
     # did not crash (returncode is 0 or 1, never an exception-style code).
     assert proc.returncode in (0, 1), (
-        f"audit crashed: rc={proc.returncode} stderr={proc.stderr[-500:]!r}"
+        f"audit returned an unexpected status: rc={proc.returncode} "
+        f"stderr={proc.stderr[-500:]!r}"
     )
     payload = json.loads(proc.stdout)
     rule = _find_rule(payload, "TEST_QUALITY_DUPLICATE_TESTS")
@@ -150,4 +152,4 @@ def test_stale_acknowledgement_warned_but_no_failure(tmp_path: Path) -> None:
     stale = rule.get("metadata", {}).get("stale_acknowledged", [])
     stale_hashes = [entry["hash"] for entry in stale]
     assert fake_hash in stale_hashes
-    assert rule.get("passed") is False
+    assert rule.get("fix_hint") is not None

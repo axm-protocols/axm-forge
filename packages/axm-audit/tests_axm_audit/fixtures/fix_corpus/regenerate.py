@@ -8,8 +8,8 @@ Usage::
 
 For each named case, this script:
 1. Copies ``<case>/input/`` to a fresh temp dir.
-2. Initialises a git repo (``axm-audit fix`` requires one).
-3. Runs ``axm-audit fix --apply`` against the temp dir.
+2. Initialises a git repo (``axm audit_fix`` requires one).
+3. Runs ``axm audit_fix --apply`` against the temp dir.
 4. Overwrites ``<case>/expected/`` with the post-fix tree.
 
 The script is **destructive**: it deletes the prior ``expected/`` before
@@ -50,14 +50,14 @@ def regenerate_case(name: str) -> None:
             ["git", "init", "--quiet"], cwd=tmp_pkg, check=True, capture_output=True
         )
         result = subprocess.run(
-            ["axm-audit", "fix", "--apply", str(tmp_pkg)],
+            ["axm", "audit_fix", str(tmp_pkg), "--apply"],
             check=False,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
             sys.stderr.write(
-                f"axm-audit fix failed for {name}:\n"
+                f"axm audit_fix failed for {name}:\n"
                 f"stdout:\n{result.stdout}\n"
                 f"stderr:\n{result.stderr}\n"
             )

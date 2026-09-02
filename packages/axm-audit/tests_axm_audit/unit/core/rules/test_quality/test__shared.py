@@ -468,11 +468,11 @@ def test_cli_binaries_from_pyproject_unions_scripts_and_axm() -> None:
     # tables are declared in the parsed document.
     data: dict[str, object] = {
         "project": {
-            "scripts": {"axm-audit": "axm_audit.cli:main"},
+            "scripts": {"fixture-cli": "fixture_pkg.cli:main"},
             "entry-points": {"axm.tools": {"audit": "axm_audit.tools:AuditTool"}},
         }
     }
-    assert _derive_cli_binaries(data) == {"axm-audit", "axm"}
+    assert _derive_cli_binaries(data) == {"fixture-cli", "axm"}
 
 
 def test_cli_binaries_from_pyproject_no_default_widening() -> None:

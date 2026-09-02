@@ -45,9 +45,9 @@ jobs:
       - name: Run AXM Audit
         id: audit
         run: |
-          RESULT=$(uvx axm-audit audit . --json) || true
-          SCORE=$(echo "$RESULT" | jq '.score')
-          GRADE=$(echo "$RESULT" | jq -r '.grade')
+          RESULT=$(uvx --from axm-audit axm audit .) || true
+          GRADE=$(printf '%s\n' "$RESULT" | awk -F'|' 'NR == 1 {print $2}' | awk '{print $1}')
+          SCORE=$(printf '%s\n' "$RESULT" | awk -F'|' 'NR == 1 {print $2}' | awk '{print $2}')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
           echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
           echo "📋 AXM Audit: Score $SCORE/100 — Grade $GRADE"
@@ -91,8 +91,8 @@ jobs:
 ```
 
 !!! note "uvx vs uv run"
-    Use `uvx axm-audit` for external projects (installs from PyPI).
-    Within the axm-audit repo itself, we use `uv run axm-audit` (local lib).
+    Use `uvx --from axm-audit axm` for external projects (installs from PyPI).
+    Within the axm-audit repo itself, use `uv run axm` (local library).
 
 ### Add the AXM logo to the badge
 

@@ -24,9 +24,6 @@ pip install axm-audit
 ### CLI
 
 ```bash
-axm-audit audit .
-
-# Or via the unified AXM CLI
 axm audit .
 ```
 
@@ -61,8 +58,8 @@ Focus on a specific area:
 
 ```bash
 # CLI
-axm-audit audit . --category lint
-axm-audit audit . --category security
+axm audit . --category lint
+axm audit . --category security
 ```
 
 ```python
@@ -79,9 +76,7 @@ result = audit_project(Path("."), quick=True)
 
 ## Step 4: Get JSON Output
 
-```bash
-axm-audit audit . --json
-```
+Use the Python API when you need the complete JSON-serializable payload:
 
 ```python
 from axm_audit.formatters import format_json

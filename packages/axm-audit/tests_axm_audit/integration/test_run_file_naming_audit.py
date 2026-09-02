@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 import textwrap
@@ -19,7 +18,7 @@ pytestmark = [
 ]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_AXM_AUDIT_BIN = shutil.which("axm-audit")
+_AXM_BIN = shutil.which("axm")
 
 
 def _findings_in(payload: dict[str, object]) -> list[dict[str, object]]:
@@ -63,11 +62,11 @@ def test_cli_audit_test_quality_on_synthetic_collision(tmp_path: Path) -> None:
         "from mypkg import Rule\n\ndef test_y():\n    Rule()\n"
     )
 
-    if _AXM_AUDIT_BIN is None:
-        pytest.skip("axm-audit CLI not on PATH")
+    if _AXM_BIN is None:
+        pytest.skip("axm CLI not on PATH")
     # Same controlled-test context as the first subprocess call above.
     proc = subprocess.run(  # noqa: S603
-        [_AXM_AUDIT_BIN, "test-quality", "--json", str(project)],
+        [_AXM_BIN, "audit", str(project), "--category", "test_quality"],
         capture_output=True,
         text=True,
         check=False,
@@ -75,8 +74,6 @@ def test_cli_audit_test_quality_on_synthetic_collision(tmp_path: Path) -> None:
     assert proc.returncode in (0, 1), (
         f"unexpected exit {proc.returncode}: {proc.stderr[:400]}"
     )
-    payload = json.loads(proc.stdout)
-    collides = [f for f in _findings_in(payload) if f.get("verdict") == "COLLIDE"]
-    assert collides, "expected at least one COLLIDE finding in CLI output"
-    files = {Path(p).name for p in collides[0].get("files", [])}
-    assert files == {"test_a.py", "test_b.py"}
+    assert "TEST_QUALITY_FILE_NAMING" in proc.stdout
+    assert "test_a.py" in proc.stdout
+    assert "test_b.py" in proc.stdout

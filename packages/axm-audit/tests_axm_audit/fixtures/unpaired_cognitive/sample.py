@@ -4,7 +4,7 @@ radon's ``cc_visit`` reports the *class* itself as a block (name ``Registry``),
 whereas complexipy only reports the class *methods* (``Registry::add`` …). The
 class-level key therefore never pairs with a complexipy entry, so
 ``_lookup_cognitive`` emits its ``no cognitive score paired … treating cognitive
-as unmeasured (0)`` warning — the exact situation hit when axm-audit audits its
+as unmeasured (0)`` warning — the exact situation hit when the audit tool scans its
 own class-heavy rule modules.
 
 The bodies are deliberately trivial (cc < 10, cog unmeasured -> 0) so the module

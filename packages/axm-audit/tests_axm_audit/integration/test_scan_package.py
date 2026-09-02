@@ -368,14 +368,14 @@ _UV_RUN_DECLARED_BODY = """
 
 
             def test_audit_cli() -> None:
-                cmd = ["uv", "run", "axm-audit", "audit"]
+                cmd = ["uv", "run", "fixture-cli", "audit"]
                 result = subprocess.run(cmd, check=False)
                 assert result.returncode in {0, 1}
         """
 
 _UV_RUN_PYPROJECT_EXTRA = """
             [project.scripts]
-            axm-audit = "axm_audit.cli:main"
+            fixture-cli = "fixture_pkg.cli:main"
         """
 
 

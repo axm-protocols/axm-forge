@@ -17,7 +17,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Or check tool availability:
 
 ```bash
-axm-audit audit . --category tooling
+axm audit . --category tooling
 ```
 
 ## Type check BLOCKED — incomplete environment
@@ -44,7 +44,7 @@ unreliable. This is an **environment problem, not a code problem**.
 ```bash
 # install the missing stubs (the audit never installs them for you)
 uv sync          # or: uv pip install types-<lib>
-axm-audit audit . --category type
+axm audit . --category type
 ```
 
 The audit will not auto-install stubs or modify your environment — that is a
@@ -61,7 +61,7 @@ dev/CI step, kept out of the audit so it has no side effects.
 1. Filter to a specific category instead of running all checks:
 
     ```bash
-    axm-audit audit . --category lint
+    axm audit . --category lint
     ```
 
 2. Use quick mode (lint + type only):
@@ -100,11 +100,8 @@ dev/CI step, kept out of the audit so it has no side effects.
 
 If the composite score doesn't match expectations:
 
-1. Check individual category scores:
-
-    ```bash
-    axm-audit audit . --json | python -m json.tool
-    ```
+1. Check individual category scores with `axm audit .`, or inspect the
+   structured Python/MCP response.
 
 2. Review the [scoring formula](../explanation/scoring.md) — each category has a different weight
 3. Remember that `quality_score` is `None` when only a single category is audited with `--category`

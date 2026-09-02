@@ -15,10 +15,10 @@ from axm_audit.core.rules.test_quality._shared import (
 def test_project_scripts_are_loaded_from_pyproject(tmp_path: Path) -> None:
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        "[project.scripts]\naxm-audit = 'axm_audit.cli:app'\n",
+        "[project.scripts]\nfixture-cli = 'fixture_pkg.cli:app'\n",
         encoding="utf-8",
     )
-    source = 'subprocess.run(["uv", "run", "axm-audit", "audit"])'
+    source = 'subprocess.run(["uv", "run", "fixture-cli", "audit"])'
     module_ast = ast.parse(source)
     call = next(node for node in ast.walk(module_ast) if isinstance(node, ast.Call))
 

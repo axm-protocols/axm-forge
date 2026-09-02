@@ -1,104 +1,78 @@
-"""Integration tests for the ``audit`` CLI command (in-process invocation)."""
+"""Integration tests for the audit AXMTool."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
-from axm_audit.cli import audit
+from axm_audit.models.results import AuditResult, CheckResult
+from axm_audit.tools.audit import AuditTool
+
+
+def _result(project: Path, *, score: int, passed: bool) -> AuditResult:
+    return AuditResult(
+        project_path=str(project),
+        checks=[
+            CheckResult(
+                rule_id="QUALITY_LINT",
+                passed=passed,
+                message="ok" if passed else "bad",
+                text=None if passed else "some text",
+                fix_hint=None if passed else "run ruff",
+                category="lint",
+                score=score,
+            )
+        ],
+    )
 
 
 def test_audit_agent_output_runs_through_formatter(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`audit --agent` exercises the agent formatter on a stubbed result."""
-    pkg = tmp_path / "proj"
-    pkg.mkdir()
-    (pkg / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0"\n')
-
-    fake_result = MagicMock(
-        checks=[
-            MagicMock(
-                passed=True,
-                rule_id="QUALITY_LINT",
-                message="ok",
-                text=None,
-                details=None,
-                fix_hint=None,
-            )
-        ],
-        quality_score=100,
-        grade="A",
-    )
+    """The AXMTool returns the compact agent rendering."""
     monkeypatch.setattr(
-        "axm_audit.core.auditor.audit_project", lambda *a, **kw: fake_result
+        "axm_audit.core.auditor.audit_project",
+        lambda *args, **kwargs: _result(tmp_path, score=100, passed=True),
     )
-    audit(path=str(pkg), agent=True)
-    out = capsys.readouterr().out
-    assert "audit" in out.lower()
+
+    result = AuditTool().execute(path=str(tmp_path))
+
+    assert result.success is True
+    assert result.text is not None
+    assert "audit" in result.text.lower()
 
 
 def test_audit_json_output(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`audit --json` emits valid JSON to stdout."""
-    pkg = tmp_path / "proj_json"
-    pkg.mkdir()
-    (pkg / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0"\n')
-
+    """The AXMTool exposes the structured audit payload."""
     monkeypatch.setattr(
         "axm_audit.core.auditor.audit_project",
-        lambda *a, **kw: MagicMock(quality_score=100),
+        lambda *args, **kwargs: _result(tmp_path, score=100, passed=True),
     )
-    monkeypatch.setattr(
-        "axm_audit.cli.format_json",
-        lambda result: {"score": 100, "checks": []},
-    )
-    audit(path=str(pkg), json_output=True)
-    out = capsys.readouterr().out
-    payload = json.loads(out)
-    assert payload["score"] == 100
+
+    result = AuditTool().execute(path=str(tmp_path))
+
+    assert isinstance(result.data, dict)
+    assert result.data["score"] == 100
 
 
 def test_audit_exits_when_score_below_threshold(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`audit` exits 1 when ``quality_score`` is below PASS_THRESHOLD."""
-    pkg = tmp_path / "proj_fail"
-    pkg.mkdir()
-    (pkg / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0"\n')
-
-    fake_result = MagicMock(
-        checks=[
-            MagicMock(
-                passed=False,
-                rule_id="QUALITY_LINT",
-                message="bad",
-                text="some text",
-                details=None,
-                fix_hint="run ruff",
-                category="lint",
-                score=10,
-                metadata=None,
-            )
-        ],
-        quality_score=10,
-        grade="F",
-        project_path=str(pkg),
-    )
+    """A low score remains visible in the AXMTool response."""
     monkeypatch.setattr(
-        "axm_audit.core.auditor.audit_project", lambda *a, **kw: fake_result
+        "axm_audit.core.auditor.audit_project",
+        lambda *args, **kwargs: _result(tmp_path, score=10, passed=False),
     )
-    with pytest.raises(SystemExit) as excinfo:
-        audit(path=str(pkg))
-    assert excinfo.value.code == 1
-    capsys.readouterr()  # drain
+
+    result = AuditTool().execute(path=str(tmp_path))
+
+    assert result.success is True
+    assert isinstance(result.data, dict)
+    assert result.data["score"] == 10
+    assert result.data["failed"]

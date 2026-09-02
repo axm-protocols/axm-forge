@@ -1,6 +1,6 @@
 """Two-tuple file: contains tests for both foo.py and bar.py.
 
-axm-audit fix should split this into test_foo.py and test_bar.py.
+axm audit_fix should split this into test_foo.py and test_bar.py.
 """
 
 from __future__ import annotations
