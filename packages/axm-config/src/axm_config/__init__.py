@@ -50,6 +50,7 @@ from axm_config.resolver import (
     validate_segment,
 )
 from axm_config.store import NamespaceStore
+from axm_config.tools import ProfileIsolationTool
 
 __all__ = [
     "PATHS_NAMESPACE",
@@ -57,6 +58,7 @@ __all__ = [
     "ExecutionPolicyOverride",
     "NamespaceStore",
     "ProfileIsolation",
+    "ProfileIsolationTool",
     "UnsafeHomeError",
     "axm_home",
     "current_profile",

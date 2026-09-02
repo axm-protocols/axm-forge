@@ -50,6 +50,21 @@ report = config_doctor_data("research.fred")
 # {"research.fred.api_key": {"layer": "env", "present": True}, ...}
 ```
 
+### `profile_isolation`
+
+Resolve the six state paths and isolation verdict for an explicit profile without
+changing `AXM_PROFILE`, creating directories, or mutating configuration:
+
+```bash
+axm profile_isolation --profile scratch
+```
+
+The structured result contains `profile`, `isolated`, `tickets_db`,
+`warden_socket`, `warden_log`, `sessions_root`, `quality_dir`, and
+`protocols_dir`. Omit `--profile` to use the current `AXM_PROFILE` (or
+`production` when it is unset). Invalid profile names return a failed tool
+result instead of propagating an exception.
+
 ## Validation
 
 Every public surface (`get` / `set_` / `delete` / `load`, and their CLI

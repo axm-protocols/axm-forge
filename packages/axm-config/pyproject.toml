@@ -34,6 +34,7 @@ axm-config = "axm_config.cli:app"
 
 [project.entry-points."axm.tools"]
 config_doctor = "axm_config.tools:ConfigDoctorTool"
+profile_isolation = "axm_config.tools:ProfileIsolationTool"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

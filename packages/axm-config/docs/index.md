@@ -139,6 +139,7 @@ axm-config get research.fred api_key         # prints the resolved value
 axm-config delete research.fred api_key      # remove a key (no-op if absent)
 axm-config path                              # prints the ~/.axm home
 axm-config doctor research.fred              # per-key provenance, read-only
+axm profile_isolation --profile scratch       # six state paths, no writes
 ```
 
 ## Features
@@ -219,6 +220,9 @@ axm-config doctor research.fred              # per-key provenance, read-only
 - ✅ **Provenance doctor** — the `config_doctor` AXMTool reports which layer
   (`env` / `file` / `default`) would win for every visible key, read-only;
   available over MCP, the `axm` CLI, and `axm-config doctor`
+- ✅ **Profile isolation tool** — `axm profile_isolation --profile <name>`
+  exposes the six resolved state paths and isolation verdict over the shared
+  AXMTool surface, without changing `AXM_PROFILE` or creating directories
 - ✅ **Minimal deps** — stdlib `pathlib` / `os` / `tomllib`, plus `tomli-w`
   for atomic TOML writes and `cyclopts` for the CLI
 - ✅ **Modern Python** — 3.12+ with strict typing

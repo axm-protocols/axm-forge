@@ -1,6 +1,6 @@
 # Architecture
 
-`axm-config` is a small, flat package: seven source modules layered by
+`axm-config` is a small, flat package: eight source modules layered by
 responsibility, no hexagonal `core/`/`adapters/` split. The dependency arrow
 points one way — the CLI and the AXMTool sit at the edge, the resolver is the
 brain, the profile module carries state selection, and the store/home modules
@@ -9,17 +9,20 @@ own the on-disk contact.
 ```mermaid
 graph TD
     CLI["cli.py — axm-config console script"]
-    Tool["tools.py — ConfigDoctorTool (AXMTool / MCP)"]
+    Tool["tools.py — config doctor + profile isolation AXMTools"]
     Doctor["doctor.py — provenance reporting"]
     Resolver["resolver.py — get / set_ / delete / load + validate_segment"]
     Store["store.py — NamespaceStore (atomic active-profile config.toml I/O)"]
     Home["home.py — axm_home() + resolve_safe (leaf, stdlib only)"]
     Profile["profile.py — AXM_PROFILE transport + state paths"]
+    Isolation["isolation.py — side-effect-free profile path verdict"]
 
     CLI --> Resolver
     CLI --> Doctor
     CLI --> Home
     Tool --> Doctor
+    Tool --> Isolation
+    Isolation --> Profile
     Doctor --> Resolver
     Resolver --> Store
     Store --> Profile
@@ -37,7 +40,8 @@ graph TD
 | `store.py` | `NamespaceStore` — reads/writes the active profile's single `config.toml`, atomically, `0600`. Production uses `~/.axm/config.toml`; another profile uses `~/.axm/profiles/<name>/config.toml`. Degrades to `{}` on an absent/corrupt file; re-types an unsafe HOME as `UnsafeHomeError`. |
 | `resolver.py` | The public key–value surface: `get` / `set_` / `delete` / `load`, plus `validate_segment` and the `AXM_<NS>_<KEY>` env-name derivation. Owns the `env > file > default` precedence. |
 | `doctor.py` | Read-only provenance: for each visible key, which layer would win. Never reads a value into a consumer, never mutates. |
-| `tools.py` | `ConfigDoctorTool` — the AXMTool boundary over `doctor.py` (MCP + `axm config_doctor` CLI). Business logic stays in `doctor.py`. |
+| `isolation.py` | Side-effect-free resolution of the six state paths for an explicit or active profile, plus their containment verdict. |
+| `tools.py` | AXMTool boundaries over `doctor.py` and `isolation.py`: `ConfigDoctorTool` and `ProfileIsolationTool` expose MCP and the `axm config_doctor` / `axm profile_isolation` commands without duplicating business logic. |
 | `cli.py` | The `axm-config` console script. Process-lifecycle only; every command delegates to the central function. |
 
 ## State-profile transport boundary
