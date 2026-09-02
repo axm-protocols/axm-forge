@@ -1,35 +1,44 @@
 """Split from ``test_cli_subcommands.py``."""
 
-import io
 import json
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from axm_init.cli import app
 from axm_init.models.results import ScaffoldResult
+from axm_init.tools.scaffold import InitScaffoldTool
 from tests_axm_init.integration._helpers import _build_scaffold_tree
 
 
 def _run(*args: str) -> tuple[str, str, int]:
-    """Run CLI command and capture stdout/stderr/exit_code."""
+    """Call InitScaffoldTool and adapt its ToolResult for existing assertions."""
+    _, path, *options = args
 
-    out, err = io.StringIO(), io.StringIO()
-    exit_code = 0
-    try:
-        with redirect_stdout(out), redirect_stderr(err):
-            app(args, exit_on_error=False)
-    except SystemExit as e:
-        exit_code = e.code if isinstance(e.code, int) else 1
-    except Exception:
-        exit_code = 1
-    return out.getvalue(), err.getvalue(), exit_code
+    def value(name: str, default: str = "") -> str:
+        return options[options.index(name) + 1] if name in options else default
+
+    result = InitScaffoldTool().execute(
+        path=path,
+        name=value("--name") or None,
+        org=value("--org"),
+        author=value("--author"),
+        email=value("--email"),
+        json_output="--json" in options,
+    )
+    if "--json" in options:
+        payload = {"success": result.success, **result.data}
+        if result.error:
+            payload["error"] = result.error
+        stdout = json.dumps(payload)
+    else:
+        stdout = (result.text or "").replace("✓", "✅")
+    stderr = "" if result.success else f"❌ {result.error}"
+    return stdout, stderr, 0 if result.success else 1
 
 
 class TestScaffoldCommand:
-    """Tests for `axm-init scaffold` with mocked adapter."""
+    """Tests for ``InitScaffoldTool`` with a mocked adapter."""
 
     def test_scaffold_success(self, tmp_path: Path) -> None:
         target = tmp_path / "new-project"

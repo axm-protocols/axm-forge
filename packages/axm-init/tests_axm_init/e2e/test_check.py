@@ -1,4 +1,4 @@
-"""E2E test: ``axm-init check`` surfaces wheel-doc-shipping failures (AXM-1715)."""
+"""E2E test: ``axm init_check`` surfaces wheel-doc-shipping failures (AXM-1715)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def test_check_command_exits_nonzero_on_orphan_doc(tmp_path: Path) -> None:
     (docs / "x.md").write_text("# x\n")
 
     proc = subprocess.run(
-        ["uv", "run", "axm-init", "check", str(tmp_path)],
+        ["uv", "run", "axm", "init_check", str(tmp_path)],
         capture_output=True,
         text=True,
         check=False,
@@ -45,9 +45,10 @@ def test_check_command_exits_nonzero_on_orphan_doc(tmp_path: Path) -> None:
 
 
 def _run_check(*args: str) -> subprocess.CompletedProcess[str]:
-    """Invoke `axm-init check` with *args* and capture the outcome."""
+    """Invoke ``axm init_check`` with *args* and capture the outcome."""
+    tool_args = ["--json-output" if arg == "--json" else arg for arg in args]
     return subprocess.run(
-        ["uv", "run", "axm-init", "check", *args],
+        ["uv", "run", "axm", "init_check", *tool_args],
         capture_output=True,
         text=True,
         check=False,

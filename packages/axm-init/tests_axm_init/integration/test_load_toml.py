@@ -30,3 +30,30 @@ class TestLoadToml:
             (tmp_path / "pyproject.toml").write_text(content)
         data = load_toml(tmp_path)
         assert data is None
+
+    def test_shipped_manifest_declares_no_console_script(self) -> None:
+        """AC1: the shipped manifest exposes neither legacy CLI entry point."""
+        package_root = Path(__file__).resolve().parents[2]
+
+        data = load_toml(package_root)
+
+        assert data is not None
+        project = data["project"]
+        assert isinstance(project, dict)
+        entry_points = project.get("entry-points", {})
+        assert "scripts" not in project
+        assert isinstance(entry_points, dict)
+        assert "axm.commands" not in entry_points
+
+    def test_shipped_manifest_declares_no_axm_commands_group(self) -> None:
+        """AC1: the shipped manifest has no ``axm.commands`` entry-point group."""
+        package_root = Path(__file__).resolve().parents[2]
+
+        data = load_toml(package_root)
+
+        assert data is not None
+        project = data["project"]
+        assert isinstance(project, dict)
+        entry_points = project.get("entry-points", {})
+        assert isinstance(entry_points, dict)
+        assert "axm.commands" not in entry_points

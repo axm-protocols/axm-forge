@@ -7,8 +7,9 @@
 ```mermaid
 graph TD
     subgraph "User Interface"
-        CLI["CLI (cyclopts)"]
-        MCP["MCP Tools"]
+        CLI["Generic axm CLI"]
+        MCP["MCP"]
+        Tools["AXMTools"]
     end
 
     subgraph "Core Logic"
@@ -42,11 +43,11 @@ graph TD
         Vault["axm-vault catalog"]
     end
 
-    CLI --> CheckEngine
-    CLI --> Templates
-    CLI --> Reserver
-    MCP --> CheckEngine
-    MCP --> Templates
+    CLI --> Tools
+    MCP --> Tools
+    Tools --> CheckEngine
+    Tools --> Templates
+    Tools --> Reserver
     CheckEngine --> PyprojectChecks
     CheckEngine --> CIChecks
     CheckEngine --> ToolingChecks
@@ -67,16 +68,17 @@ graph TD
 
 ## Layers
 
-### 1. CLI (`cli.py`)
+### 1. AXMTool interfaces (`tools/`)
 
-Cyclopts-based commands with input validation and formatted output (text, JSON, agent).
+Each request-response operation is declared once as an AXMTool. The shared
+`axm` package derives the generic CLI, MCP exposure and DAG node from its typed
+signature.
 
-| Command | Function | Description |
+| Command | Tool | Description |
 |---|---|---|
-| `scaffold` | `scaffold()` | Scaffold a new project |
-| `check` | `check()` | Score against AXM standard |
-| `reserve` | `reserve()` | Reserve PyPI package name |
-| `version` | `version()` | Show version |
+| `init_scaffold` | `InitScaffoldTool` | Scaffold a new project |
+| `init_check` | `InitCheckTool` | Score against AXM standard |
+| `init_reserve` | `InitReserveTool` | Reserve PyPI package name |
 
 ### 2. Core Logic (`core/`)
 

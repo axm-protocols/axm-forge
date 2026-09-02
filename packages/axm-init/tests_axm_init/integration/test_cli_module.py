@@ -1,13 +1,14 @@
-"""Split from ``test_cli_subcommands.py``."""
+"""Integration regression guard for the removed CLI module."""
+
+from __future__ import annotations
+
+from importlib.util import find_spec
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
-class TestNoTyperDependency:
-    """Verify the cli module does not import typer (real file read)."""
-
-    def test_no_typer_dependency(self) -> None:
-        """typer should not be importable from cli module."""
-        import axm_init.cli as cli_module
-
-        source = open(cli_module.__file__).read()
-        assert "import typer" not in source
-        assert "from typer" not in source
+def test_removed_cli_module_has_no_import_spec() -> None:
+    """Package discovery no longer exposes a module for the deleted facade."""
+    assert find_spec("axm_init.cli") is None

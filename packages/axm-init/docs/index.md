@@ -23,7 +23,7 @@
 ## Quick Example
 
 ```bash
-$ axm-init scaffold my-project \
+$ axm init_scaffold my-project \
     --org axm-protocols --author "Your Name" --email "you@example.com"
 
 ✅ Project 'my-project' created at /path/to/my-project

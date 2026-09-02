@@ -20,7 +20,6 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.0.0",
-    "cyclopts>=4.21.0",
     "httpx>=0.28.1",
     "copier>=9.14.1",
     "pyyaml>=6.0",
@@ -35,8 +34,6 @@ Documentation = "https://axm-protocols.github.io/axm-init/"
 Repository = "https://github.com/axm-protocols/axm-init.git"
 Issues = "https://github.com/axm-protocols/axm-init/issues"
 
-[project.scripts]
-axm-init = "axm_init.cli:main"
 
 [project.entry-points."axm.tools"]
 init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
@@ -46,10 +43,6 @@ init_reserve  = "axm_init.tools.reserve:InitReserveTool"
 [project.entry-points."axm.credentials"]
 pypi = "axm_init.credentials_catalog:pypi_credentials"
 
-[project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:scaffold"
-init_check    = "axm_init.cli:check"
-init_reserve  = "axm_init.cli:reserve"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -144,7 +137,9 @@ ignore = [
 "src/axm_init/core/reserver.py" = ["PLR0911"]
 "src/axm_init/models/check.py" = ["PLR2004"]
 "src/axm_init/tools/*" = ["BLE001"]
-"src/axm_init/cli.py" = ["PLR0913", "PLR5501", "PLR2004"]
+"src/axm_init/tools/check.py" = ["PLR0913"]
+"src/axm_init/tools/reserve.py" = ["PLR0913"]
+"src/axm_init/tools/scaffold.py" = ["PLR0911", "PLR0913"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
@@ -410,11 +405,8 @@ reason = "Cross-SUT cluster: test_dep_already_in_sources_section_not_deps target
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "7764f5b61077"
-reason = "test_category_filter (TestCheckCommand in test_availability_status.py) and test_category_pyproject (TestCheckCategoryFilter in test_check_command_output_modes.py) both invoke `axm-init check --category pyproject` but rely on two distinct locally-defined gold_project fixtures with divergent tests/ layouts (flat tests/ vs unit/integration/e2e tree) and divergent pyproject literals (single-line vs dedented multi-line). The two files house different CLI scenario suites — keeping each smoke test alongside its file's specific fixture preserves the per-file documentation of which fixture shape exercises the --category path."
+reason = "test_category_filter (TestCheckCommand in test_availability_status.py) and test_category_pyproject (TestCheckCategoryFilter in test_check_command_output_modes.py) both invoke `axm init_check --category pyproject` through the generated command but rely on two distinct locally-defined gold_project fixtures with divergent tests/ layouts (flat tests/ vs unit/integration/e2e tree) and divergent pyproject literals (single-line vs dedented multi-line). The two files house different tool scenarios — keeping each smoke test alongside its file's specific fixture preserves the per-file documentation of which fixture shape exercises the category path."
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "0785955b6a95"
-reason = "test_scaffold_pypi_taken_json_output (test_availability_status.py) invokes the `scaffold` CLI subcommand with `--check-pypi --json` patching axm_init.adapters.pypi.PyPIAdapter to return AvailabilityStatus.TAKEN and asserts 'error' in the JSON payload; test_reserve_no_token_json_exits (test_cli.py) invokes the `reserve` CLI subcommand with `--json` patching axm_init.adapters.credentials.CredentialManager so resolve_pypi_token raises SystemExit(1) and asserts 'error' in the JSON payload. Two distinct CLI subcommands, two distinct adapters mocked, two distinct failure branches (PyPI-name-taken vs missing-credential) — only the `data = json.loads(stdout); assert 'error' in data` idiom is shared."
 
 
 

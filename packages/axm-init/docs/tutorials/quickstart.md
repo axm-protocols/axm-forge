@@ -30,7 +30,7 @@ axm-init version
 Scaffold a fully configured Python project:
 
 ```bash
-axm-init scaffold my-project \
+axm init_scaffold my-project \
   --org my-org --author "Your Name" --email "you@example.com"
 ```
 

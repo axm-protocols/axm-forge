@@ -159,7 +159,7 @@ def check_plan_present(project: Path) -> CheckResult:
 def check_research_present(project: Path) -> CheckResult:
     """Check: the research protocol document exists and declares a header.
 
-    Purely formal, like every axm-init check: it grades the FORM (presence
+    Purely formal, like every ``axm init_check`` run: it grades the FORM (presence
     of ``RESEARCH.md`` plus a non-empty YAML front-matter) and never reads
     the substance of that header - no ``gap``, no ``investigations``, no
     status. The authoritative model lives in another package.

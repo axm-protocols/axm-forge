@@ -704,7 +704,9 @@ def format_agent_text(result: ProjectResult) -> str:
     # an N/A marker, NOT a numeric 0/100 Grade F — else the LLM reads a real
     # failure where a dimension simply does not apply.
     verdict = (
-        "N/A" if result.not_applicable else f"{result.grade.value} {result.score}/100"
+        "N/A"
+        if result.not_applicable
+        else f"{result.grade.value} {result.score}/100 (Grade {result.grade.value})"
     )
     header = f"init_check | {verdict} | {context} | {passed} ok · {len(failures)} fail"
     if not failures:

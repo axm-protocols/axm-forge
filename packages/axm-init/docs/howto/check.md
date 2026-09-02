@@ -5,7 +5,7 @@ Run a full quality check against the AXM gold standard.
 ## Basic Usage
 
 ```bash
-axm-init check
+axm init_check
 ```
 
 Score your project out of 100 with a grade from **A** (≥90) to **F** (<40).
@@ -13,7 +13,7 @@ Score your project out of 100 with a grade from **A** (≥90) to **F** (<40).
 ## Check a Specific Path
 
 ```bash
-axm-init check /path/to/project
+axm init_check /path/to/project
 ```
 
 ## Filter by Category
@@ -21,32 +21,32 @@ axm-init check /path/to/project
 Run only one category of checks:
 
 ```bash
-axm-init check --category pyproject
-axm-init check --category ci
-axm-init check --category tooling
-axm-init check --category docs
-axm-init check --category structure
-axm-init check --category deps
-axm-init check --category changelog
-axm-init check --category workspace
+axm init_check --category pyproject
+axm init_check --category ci
+axm init_check --category tooling
+axm init_check --category docs
+axm init_check --category structure
+axm init_check --category deps
+axm init_check --category changelog
+axm init_check --category workspace
 ```
 
 ## JSON Output for CI
 
 ```bash
-axm-init check --json
+axm init_check --json-output
 ```
 
 Use in CI to enforce quality gates:
 
 ```bash
-axm-init check --json | jq -e '.score >= 90'
+axm init_check --json-output | jq -e '.score >= 90'
 ```
 
 ## Agent Output for AI
 
 ```bash
-axm-init check --agent
+axm init_check --agent
 ```
 
 Returns compact JSON optimized for AI agents: passed checks are summarized in one line, failed checks include full detail with fix hints.
@@ -54,7 +54,7 @@ Returns compact JSON optimized for AI agents: passed checks are summarized in on
 ## Verbose Output
 
 ```bash
-axm-init check --verbose
+axm init_check --verbose
 ```
 
 Shows every individual check with its status and weight:
@@ -84,7 +84,7 @@ By default, only failures are displayed.
 
 ### Workspace Context
 
-`axm-init check` auto-detects the project context (STANDALONE, WORKSPACE, or MEMBER) and displays it in the report header. Workspace members have CI checks excluded automatically, and per-package exclusions can be configured via `[tool.axm-init].exclude`.
+`axm init_check` auto-detects the project context (STANDALONE, WORKSPACE, or MEMBER) and displays it in the report header. Workspace members have CI checks excluded automatically, and per-package exclusions can be configured via `[tool.axm-init].exclude`.
 
 ## Reading the Report
 
@@ -105,12 +105,12 @@ Example:
 
 ## CI Badge
 
-Projects scaffolded with `axm-init scaffold` include an automated **check badge** powered by GitHub Actions. The badge displays your check score and updates on every push to `main`.
+Projects scaffolded with `axm init_scaffold` include an automated **check badge** powered by GitHub Actions. The badge displays your check score and updates on every push to `main`.
 
 ### How It Works
 
 1. **Push to `main`** triggers `.github/workflows/axm-quality.yml`
-2. The workflow runs `axm-init check --json` and extracts the score
+2. The workflow runs `axm init_check --json-output` and extracts the score
 3. A shields.io JSON badge is generated and pushed to `gh-pages`
 4. Your README displays the score via a shields.io endpoint badge
 
@@ -126,7 +126,7 @@ The scaffolded README already includes the badge. It looks like this:
 
 ### Adding to an Existing Project
 
-If your project wasn't scaffolded with `axm-init scaffold`, you can add the badge manually:
+If your project wasn't scaffolded with `axm init_scaffold`, you can add the badge manually:
 
 1. Copy the workflow from any scaffolded project (`.github/workflows/axm-quality.yml`)
 2. Add the badge markup to your README

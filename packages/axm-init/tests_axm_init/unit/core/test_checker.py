@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -75,42 +74,6 @@ class TestCheckDiscovery:
         """workspace category exists in ALL_CHECKS with the expected 9 checks."""
         assert "workspace" in ALL_CHECKS
         assert len(ALL_CHECKS["workspace"]) == 10
-
-
-class TestCLILazyImports:
-    """Verify CLI adapter imports are lazy."""
-
-    def test_cli_scaffold_lazy(self) -> None:
-        """Importing axm_init.cli does not eagerly import adapters/core."""
-        # Force reimport by checking that the modules are NOT loaded
-        # as a side-effect of importing cli
-        lazy_modules = [
-            "axm_init.adapters.copier",
-            "axm_init.adapters.credentials",
-            "axm_init.adapters.pypi",
-            "axm_init.core.reserver",
-            "axm_init.core.templates",
-        ]
-        # Remove from cache if present
-        cached = {m: sys.modules.pop(m, None) for m in lazy_modules}
-        # Also remove cli to force re-evaluation
-        original_cli = sys.modules.pop("axm_init.cli", None)
-        try:
-            import importlib
-
-            importlib.import_module("axm_init.cli")
-            for mod in lazy_modules:
-                assert mod not in sys.modules, (
-                    f"{mod} was eagerly imported by axm_init.cli"
-                )
-        finally:
-            # Restore cache — including CLI itself to avoid breaking
-            # @patch("axm_init.cli.X") in subsequent tests
-            if original_cli is not None:
-                sys.modules["axm_init.cli"] = original_cli
-            for m, v in cached.items():
-                if v is not None:
-                    sys.modules[m] = v
 
 
 # --- coverage_upload removal regression guards ---

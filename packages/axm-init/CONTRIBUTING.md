@@ -25,7 +25,7 @@ All contributions must pass the quality gate:
 uv run ruff check src/ tests/   # lint
 uv run ruff format src/ tests/  # format
 uv run mypy src/ tests/         # type check
-uv run axm-init check .         # governance (score ≥ 90 to pass)
+uv run axm init_check .         # governance (score ≥ 90 to pass)
 ```
 
 Or use the Makefile shortcuts:
@@ -43,7 +43,7 @@ Or use the Makefile shortcuts:
 - Explicit `__all__` in public modules
 - Google-style docstrings on all public functions and classes
 - Type annotations on all function signatures
-- `Annotated` types for CLI parameters (cyclopts)
+- Typed public signatures for every AXMTool input
 
 ## Commit Conventions
 
@@ -76,7 +76,7 @@ Documentation lives in `docs/` and follows the [Diátaxis](https://diataxis.fr) 
 
 1. Write tests first (TDD)
 2. Run `make check` — all tests pass, no lint errors
-3. Ensure `uv run axm-init check .` passes (Grade A or B)
+3. Ensure `uv run axm init_check .` passes (Grade A or B)
 4. Keep commits atomic and conventional
 5. Update docs if user-facing
 

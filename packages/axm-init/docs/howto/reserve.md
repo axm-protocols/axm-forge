@@ -19,7 +19,7 @@ You need a PyPI API token. `axm-init` resolves it automatically (first match win
 ## Reserve
 
 ```bash
-axm-init reserve my-package-name
+axm init_reserve my-package-name
 ```
 
 This publishes a minimal placeholder package (`0.0.1.dev0`) to secure the name.
@@ -33,7 +33,7 @@ This publishes a minimal placeholder package (`0.0.1.dev0`) to secure the name.
 ## Dry Run
 
 ```bash
-axm-init reserve my-package-name --dry-run
+axm init_reserve my-package-name --dry-run
 ```
 
 Verifies availability without publishing. No token required.
@@ -41,7 +41,7 @@ Verifies availability without publishing. No token required.
 ## JSON Output
 
 ```bash
-axm-init reserve my-package-name --json
+axm init_reserve my-package-name --json-output
 ```
 
 Returns structured JSON for CI integration. Exits with code 1 and JSON error if no token is configured (no interactive prompt in JSON mode).

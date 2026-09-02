@@ -36,21 +36,21 @@ uv add axm-init
 
 ```bash
 # Scaffold a new project
-axm-init scaffold my-project \
+axm init_scaffold my-project \
   --org axm-protocols \
   --author "Your Name" --email "you@example.com"
 
 # Check against AXM standards
-axm-init check
+axm init_check
 # Score: 100/100 — Grade A 🏆
 
 # Reserve a name on PyPI
-axm-init reserve my-cool-lib --dry-run
+axm init_reserve my-cool-lib --dry-run
 ```
 
 ## CLI Commands
 
-### `axm-init scaffold`
+### `axm init_scaffold`
 
 Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 
@@ -67,11 +67,11 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 | `--workspace` | `-w` | `False` | Scaffold a UV workspace instead of a standalone package |
 | `--member` | `-m` | | Scaffold a member sub-package with this name |
 | `--check-pypi` | | `False` | Verify PyPI availability first |
-| `--json` | | `False` | Output as JSON |
+| `--json-output` | | `False` | Output as JSON |
 
 > **Note:** `--workspace` and `--member` are mutually exclusive.
 
-### `axm-init check`
+### `axm init_check`
 
 Score a project against the AXM gold standard (49 checks across 8 categories).
 
@@ -80,12 +80,12 @@ Score a project against the AXM gold standard (49 checks across 8 categories).
 | `PATH` | | `.` | Directory to check |
 | `--category` | `-c` | *all* | Filter to one category |
 | `--verbose` | `-v` | `False` | Show all checks including passed |
-| `--json` | | `False` | Output as JSON |
+| `--json-output` | | `False` | Output as JSON |
 | `--agent` | | `False` | Compact agent-friendly output |
 
 **Categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`
 
-### `axm-init reserve`
+### `axm init_reserve`
 
 Reserve a package name on PyPI with a minimal placeholder.
 
@@ -95,10 +95,10 @@ Reserve a package name on PyPI with a minimal placeholder.
 | `--author` | `-a` | *git config* | Author name (**required**) |
 | `--email` | `-e` | *git config* | Author email (**required**) |
 | `--dry-run` | | `False` | Skip actual publish |
-| `--json` | | `False` | Output as JSON |
+| `--json-output` | | `False` | Output as JSON |
 
 > **Note:** `--author` and `--email` fall back to `git config user.name` / `user.email`.
-> If both are empty, `axm-init` exits with an error.
+> If both are empty, `axm init_reserve` exits with an error.
 
 ## Workspace Support
 
@@ -127,23 +127,23 @@ exclude = ["ci.ci_workflow_exists", "tooling.makefile"]
 
 ```bash
 # Standalone package (default)
-axm-init scaffold my-project --org myorg --author A --email e@e.com
+axm init_scaffold my-project --org myorg --author A --email e@e.com
 
 # UV workspace
-axm-init scaffold my-workspace --workspace --org myorg --author A --email e@e.com
+axm init_scaffold my-workspace --workspace --org myorg --author A --email e@e.com
 
 # Member sub-package (run from inside workspace)
-axm-init scaffold --member my-lib --org myorg --author A --email e@e.com
+axm init_scaffold --member my-lib --org myorg --author A --email e@e.com
 ```
 
 The `--member` flag auto-detects the workspace root, creates the package under `packages/<name>/`, and patches root files (Makefile, mkdocs.yml, pyproject.toml, CI workflows).
 
 ## CI Check Badge
 
-Projects scaffolded with `axm-init scaffold` include an automated **check badge** that updates on every push. The badge shows your score and grade using the AXM logo.
+Projects scaffolded with `axm init_scaffold` include an automated **check badge** that updates on every push. The badge shows your score and grade using the AXM logo.
 
 ```
-push → axm-init check → badge JSON → gh-pages → shields.io
+push → axm init_check → badge JSON → gh-pages → shields.io
 ```
 
 The badge is already in your README — just push to `main` and it appears after the first CI run.

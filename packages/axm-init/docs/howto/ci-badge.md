@@ -4,7 +4,7 @@ Add an `axm-init` check-score badge to your project.
 
 ## You probably already have it
 
-If you created your package with `axm-init scaffold`, you're done — scaffolding
+If you created your package with `axm init_scaffold`, you're done — scaffolding
 already emits a correct `.github/workflows/axm-quality.yml` that runs the
 `axm-init` checks, generates the badge JSON (with the AXM logo inlined the right
 way), and pushes it to the `gh-pages/badges/` branch. Most users need nothing
@@ -48,7 +48,7 @@ jobs:
       - name: Run AXM Init check
         id: init
         run: |
-          RESULT=$(uvx axm-init check . --json) || true
+          RESULT=$(uvx --from axm-init axm init_check . --json-output) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"

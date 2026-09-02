@@ -13,7 +13,7 @@ class TestCliScaffoldMember:
         self, workspace_root__from_cli_workspace_scaffold_subcommands: Path
     ) -> None:
         """scaffold --member pkg creates member inside workspace."""
-        from axm_init.cli import scaffold
+        from axm_init.tools.scaffold import InitScaffoldTool
 
         mock_result = MagicMock()
         mock_result.success = True
@@ -25,14 +25,15 @@ class TestCliScaffoldMember:
             mock_copier.copy.return_value = mock_result
             mock_cls.return_value = mock_copier
 
-            scaffold(
-                str(workspace_root__from_cli_workspace_scaffold_subcommands),
+            result = InitScaffoldTool().execute(
+                path=str(workspace_root__from_cli_workspace_scaffold_subcommands),
                 org="test-org",
                 author="Test",
                 email="test@test.com",
                 member="my-pkg",
             )
 
+        assert result.success, result.error
         # Verify member template was used for packages/my-pkg
         call_args = mock_copier.copy.call_args[0][0]
         dest = str(call_args.destination)

@@ -6,9 +6,9 @@
 
 | MCP Tool | Equivalent CLI | Purpose |
 |---|---|---|
-| `init_check` | `axm-init check` | Score a project, returns context (standalone/workspace/member) |
-| `init_scaffold` | `axm-init scaffold` | Scaffold a project, workspace, or member package |
-| `init_reserve` | `axm-init reserve` | Reserve a package name on PyPI |
+| `init_check` | `axm init_check` | Score a project, returns context (standalone/workspace/member) |
+| `init_scaffold` | `axm init_scaffold` | Scaffold a project, workspace, or member package |
+| `init_reserve` | `axm init_reserve` | Reserve a package name on PyPI |
 
 ## Usage
 
@@ -24,7 +24,7 @@
 result = mcp_axm_mcp_init_check(path="/path/to/project")
 ```
 
-Returns the same structured output as `axm-init check --agent` — passed checks summarized, failed checks with full detail and fix hints.
+Returns the same structured output as `axm init_check --agent` — passed checks summarized, failed checks with full detail and fix hints.
 
 ### Scaffold a project
 

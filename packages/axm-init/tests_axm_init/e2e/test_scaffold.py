@@ -1,4 +1,4 @@
-"""E2E tests for the ``axm-init scaffold`` CLI (black box, subprocess)."""
+"""E2E tests for ``axm init_scaffold`` (black box, subprocess)."""
 
 from __future__ import annotations
 
@@ -28,9 +28,11 @@ IDENTITY = [
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
-    # Invoke the installed ``axm-init`` console script.
+    # Invoke the generated AXMTool command through the shared dispatcher.
+    tool_args = args[1:] if args and args[0] == "scaffold" else args
+    tool_args = ["--json-output" if arg == "--json" else arg for arg in tool_args]
     return subprocess.run(
-        ["axm-init", *args],
+        ["uv", "run", "axm", "init_scaffold", *tool_args],
         capture_output=True,
         text=True,
         check=False,
@@ -39,7 +41,7 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
 
 @pytest.mark.e2e
 class TestScaffoldExperimentCli:
-    # ``axm-init scaffold --kind experiment --json`` reports the manifest.
+    # ``axm init_scaffold --kind experiment --json-output`` reports the manifest.
 
     def test_experiment_json_lists_manifest_in_the_produced_tree(
         self, tmp_path: Path

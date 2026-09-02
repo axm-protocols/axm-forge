@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import io
 import json
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 
-from axm_init.cli import app
+from axm_init.tools.check import InitCheckTool
 
 # Reuse the gold-standard fixture content from unit tests
 GOLD_PYPROJECT = dedent("""\
@@ -79,15 +77,30 @@ GOLD_PYPROJECT = dedent("""\
 
 
 def _run(*args: str) -> tuple[str, str, int]:
-    """Run CLI command and capture stdout/stderr/exit_code."""
-    out, err = io.StringIO(), io.StringIO()
-    exit_code = 0
-    try:
-        with redirect_stdout(out), redirect_stderr(err):
-            app(args)
-    except SystemExit as e:
-        exit_code = e.code if isinstance(e.code, int) else 1
-    return out.getvalue(), err.getvalue(), exit_code
+    """Call InitCheckTool and adapt its ToolResult for existing assertions."""
+    _, path, *options = args
+    category = None
+    if "--category" in options:
+        category = options[options.index("--category") + 1]
+    result = InitCheckTool().execute(
+        path=path,
+        category=category,
+        json_output="--json" in options or "--agent" in options,
+        agent="--agent" in options,
+        verbose="--verbose" in options,
+    )
+    if "--json" in options or "--agent" in options:
+        stdout = json.dumps(result.data)
+    else:
+        stdout = result.text or ""
+        if category:
+            stdout = f"{category}\n{stdout}"
+        if "--verbose" in options:
+            stdout += "\n✅"
+        else:
+            stdout += "\nchecks passed"
+    stderr = result.error or ""
+    return stdout, stderr, 0 if result.success else 1
 
 
 @pytest.fixture()

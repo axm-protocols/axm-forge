@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
+from dataclasses import replace
+
 from axm.tools.base import ToolResult
 
 __all__ = ["InitReserveTool"]
@@ -19,6 +22,20 @@ def _render_reserve_text(package_name: str, version: str, message: str) -> str:
     return f"init_reserve | ✓ | {package_name} | v{version} | {message}"
 
 
+def _git_config_get(key: str) -> str:
+    """Read a git identity value, returning an empty string when unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", key],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
 def _validate_identity(author: str, email: str) -> ToolResult | None:
     """Check author/email are non-empty and not placeholder values."""
     if not author or author.lower() in _PLACEHOLDERS:
@@ -34,6 +51,16 @@ def _validate_identity(author: str, email: str) -> ToolResult | None:
     return None
 
 
+def _apply_json_output(result: ToolResult, enabled: bool) -> ToolResult:
+    """Select structured CLI rendering for a reservation result."""
+    if not enabled:
+        return result
+    data = result.data
+    if not result.success and not data:
+        data = {"error": result.error or "Reservation failed"}
+    return replace(result, text=None, data=data)
+
+
 class InitReserveTool:
     """Reserve a package name on PyPI.
 
@@ -45,7 +72,15 @@ class InitReserveTool:
         """Tool name used for MCP registration."""
         return "init_reserve"
 
-    def execute(self, **kwargs: object) -> ToolResult:
+    def execute(
+        self,
+        name: str = "",
+        *,
+        author: str = "",
+        email: str = "",
+        dry_run: bool = False,
+        json_output: bool = False,
+    ) -> ToolResult:
         """Reserve a package name on PyPI.
 
         Args:
@@ -58,27 +93,25 @@ class InitReserveTool:
         Returns:
             ToolResult with reservation status.
         """
-        name_raw = kwargs.get("name")
-        if not isinstance(name_raw, str) or not name_raw:
-            return ToolResult(success=False, error="'name' is required")
-        name: str = name_raw
-        author_raw = kwargs.get("author", "")
-        email_raw = kwargs.get("email", "")
-        dry_run_raw = kwargs.get("dry_run", False)
-        author: str = author_raw if isinstance(author_raw, str) else ""
-        email: str = email_raw if isinstance(email_raw, str) else ""
-        if not isinstance(dry_run_raw, bool):
-            return ToolResult(
-                success=False,
-                error=(
-                    f"'dry_run' must be a boolean, got {type(dry_run_raw).__name__}"
-                ),
+        if not name:
+            return _apply_json_output(
+                ToolResult(success=False, error="'name' is required"), json_output
             )
-        dry_run: bool = dry_run_raw
+        if not isinstance(dry_run, bool):
+            return _apply_json_output(
+                ToolResult(
+                    success=False,
+                    error=f"'dry_run' must be a boolean, got {type(dry_run).__name__}",
+                ),
+                json_output,
+            )
+        if not author and not email:
+            author = _git_config_get("user.name")
+            email = _git_config_get("user.email")
 
         error = _validate_identity(author, email)
         if error:
-            return error
+            return _apply_json_output(error, json_output)
 
         try:
             from axm_init.adapters.credentials import CredentialManager
@@ -90,11 +123,15 @@ class InitReserveTool:
             if not dry_run:
                 token = creds.get_pypi_token()
                 if not token:
-                    return ToolResult(
-                        success=False,
-                        error=(
-                            "No PyPI token found. Set PYPI_TOKEN or configure keyring."
+                    return _apply_json_output(
+                        ToolResult(
+                            success=False,
+                            error=(
+                                "No PyPI token found. Set PYPI_TOKEN or configure "
+                                "keyring."
+                            ),
                         ),
+                        json_output,
                     )
             else:
                 token = creds.get_pypi_token() or ""
@@ -108,21 +145,26 @@ class InitReserveTool:
                 checker=PyPIAdapter(),
             )
 
-            return ToolResult(
-                success=result.success,
-                data={
-                    "package_name": result.package_name,
-                    "version": result.version,
-                    "message": result.message,
-                },
-                text=(
-                    _render_reserve_text(
-                        result.package_name, result.version, result.message
-                    )
-                    if result.success
-                    else None
+            return _apply_json_output(
+                ToolResult(
+                    success=result.success,
+                    data={
+                        "package_name": result.package_name,
+                        "version": result.version,
+                        "message": result.message,
+                    },
+                    text=(
+                        _render_reserve_text(
+                            result.package_name, result.version, result.message
+                        )
+                        if result.success
+                        else None
+                    ),
+                    error=None if result.success else result.message,
                 ),
-                error=None if result.success else result.message,
+                json_output,
             )
         except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+            return _apply_json_output(
+                ToolResult(success=False, error=str(exc)), json_output
+            )

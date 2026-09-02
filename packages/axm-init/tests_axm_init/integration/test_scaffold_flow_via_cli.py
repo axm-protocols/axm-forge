@@ -1,28 +1,40 @@
-"""Integration tests for axm-init CLI."""
+"""Integration tests for the init_scaffold AXMTool."""
 
 from __future__ import annotations
 
-import io
 import json
-from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
 
-from axm_init.cli import app
+from axm_init.tools.scaffold import InitScaffoldTool
 from tests_axm_init.integration._helpers import SCAFFOLD_ARGS
 
 
 def _run(args: list[str]) -> tuple[str, int]:
-    """Run CLI and capture stdout + exit code."""
-    f = io.StringIO()
-    code = 0
-    try:
-        with redirect_stdout(f):
-            app(args, exit_on_error=False)
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 1
-    return f.getvalue(), code
+    """Call InitScaffoldTool and return its rendered payload plus status."""
+    _, path, *options = args
+
+    def value(name: str, default: str = "") -> str:
+        return options[options.index(name) + 1] if name in options else default
+
+    result = InitScaffoldTool().execute(
+        path=path,
+        name=value("--name") or None,
+        org=value("--org"),
+        author=value("--author"),
+        email=value("--email"),
+        license=value("--license", "Apache-2.0"),
+        description=value("--description"),
+        workspace="--workspace" in options,
+        json_output="--json" in options,
+    )
+    if "--json" in options:
+        data = {"success": result.success, **result.data}
+        output = json.dumps(data)
+    else:
+        output = result.text or ""
+    return output, 0 if result.success else 1
 
 
 @pytest.fixture(scope="module")
@@ -41,12 +53,7 @@ def scaffolded_project(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "My custom description",
         *SCAFFOLD_ARGS,
     ]
-    f = io.StringIO()
-    try:
-        with redirect_stdout(f):
-            app(args, exit_on_error=False)
-    except SystemExit:
-        pass
+    _run(args)
     return target
 
 
@@ -102,12 +109,7 @@ def scaffolded_workspace(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "Test workspace",
         *SCAFFOLD_ARGS,
     ]
-    f = io.StringIO()
-    try:
-        with redirect_stdout(f):
-            app(args, exit_on_error=False)
-    except SystemExit:
-        pass
+    _run(args)
     return target
 
 

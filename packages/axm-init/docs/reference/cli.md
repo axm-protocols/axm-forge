@@ -3,14 +3,14 @@
 ## Global Options
 
 ```
-axm-init --help       Show help
-axm-init --version    Show version
+axm --help       Show the shared tool catalog
+axm --version    Show the AXM version
 ```
 
-## `scaffold` — Scaffold a Project
+## `init_scaffold` — Scaffold a Project
 
 ```
-axm-init scaffold [OPTIONS] [PATH]
+axm init_scaffold [OPTIONS] [PATH]
 ```
 
 | Option | Short | Type | Default | Description |
@@ -27,7 +27,7 @@ axm-init scaffold [OPTIONS] [PATH]
 | `--member` | `-m` | string | `None` | Scaffold a member sub-package with this name |
 | `--kind` | `-k` | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper` or `experiment` |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |
-| `--json` | | bool | `False` | Output as JSON |
+| `--json-output` | | bool | `False` | Output as JSON |
 
 **Validation rules:**
 
@@ -47,14 +47,14 @@ axm-init scaffold [OPTIONS] [PATH]
 - `0` — scaffold succeeded
 - `1` — scaffold failed (validation, copier error, taken name, …)
 
-The exit code is authoritative in **both** text and `--json` mode: a failure
-always exits `1`, and the `--json` payload carries `success` plus a `message`
+The exit code is authoritative in **both** text and `--json-output` mode: a failure
+always exits `1`, and the JSON payload carries the error or structured result
 field describing the cause. Scripts may route on `$?`.
 
 **Example:**
 
 ```bash
-axm-init scaffold my-project --name my-project \
+axm init_scaffold my-project --name my-project \
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
@@ -68,14 +68,14 @@ axm-init scaffold my-project --name my-project \
 **Workspace example:**
 
 ```bash
-axm-init scaffold --workspace --name my-workspace \\
+axm init_scaffold --workspace --name my-workspace \\
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
 **Member example** (run from inside a workspace):
 
 ```bash
-axm-init scaffold --member my-lib \\
+axm init_scaffold --member my-lib \\
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
@@ -89,7 +89,7 @@ axm-init scaffold --member my-lib \\
 **Paper example** (`--kind paper`, into an empty directory):
 
 ```bash
-axm-init scaffold my-paper --kind paper \\
+axm init_scaffold my-paper --kind paper \\
   --org axm-protocols --author "Your Name" --email "you@example.com" \\
   --description "Attention study"
 ```
@@ -102,7 +102,7 @@ owns. `--description` becomes the paper title;
 **Experiment example** (`--kind experiment`, run against a scaffolded paper):
 
 ```bash
-axm-init scaffold my-paper --kind experiment --name baseline \\
+axm init_scaffold my-paper --kind experiment --name baseline \\
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
@@ -112,7 +112,7 @@ free zero-padded index followed by the slug (`experiments/01-baseline/`, then
 `contract_version` / `id` / `title` / `question` / `type` / `repro_level`, plus
 the optional `supports` list (the identifiers of the investigations the
 experiment serves, rendered as an empty list) — is created at scaffold time,
-before any script runs, and appears in the `files` list under `--json`.
+before any script runs, and appears in the `files` list under `--json-output`.
 
 Every entry of that `files` list is named relative to the payload's own `path`
 (the experiment directory the scaffold produced), so joining `path` with an
@@ -121,10 +121,10 @@ entry always resolves on disk — `manifest.yaml`, `inputs/SOURCES.md`, … The
 
 ---
 
-## `reserve` — Reserve Package Name on PyPI
+## `init_reserve` — Reserve Package Name on PyPI
 
 ```
-axm-init reserve [OPTIONS] NAME
+axm init_reserve [OPTIONS] NAME
 ```
 
 | Option | Short | Type | Default | Description |
@@ -133,12 +133,12 @@ axm-init reserve [OPTIONS] NAME
 | `--author` | `-a` | string | *git config* | Author name |
 | `--email` | `-e` | string | *git config* | Author email |
 | `--dry-run` | | bool | `False` | Skip actual publish |
-| `--json` | | bool | `False` | Output as JSON |
+| `--json-output` | | bool | `False` | Output as JSON |
 
 **Default resolution for `--author` / `--email`:**
 If omitted, resolved from `git config user.name` / `git config user.email`.
-If git config is not available and neither flag is provided, `axm-init` exits with
-code 1 and a descriptive error message (text or JSON depending on `--json`).
+If git config is not available and neither flag is provided, `axm init_reserve` exits
+with code 1 and a descriptive error message.
 
 **Validation rules:**
 
@@ -156,14 +156,14 @@ code 1 and a descriptive error message (text or JSON depending on `--json`).
 - `0` — reservation succeeded (or dry-run completed)
 - `1` — reservation failed (missing identity/token, name taken, …)
 
-As with `scaffold`, the exit code is authoritative in both text and `--json`
+As with `init_scaffold`, the exit code is authoritative in text and `--json-output`
 mode — a failed reservation exits `1` and the JSON payload carries `success`
 and `message`.
 
 **Example:**
 
 ```bash
-axm-init reserve my-cool-package --dry-run
+axm init_reserve my-cool-package --dry-run
 ```
 
 ```
@@ -173,16 +173,16 @@ axm-init reserve my-cool-package --dry-run
 
 ---
 
-## `check` — Check Project Against AXM Standard
+## `init_check` — Check Project Against AXM Standard
 
 ```
-axm-init check [OPTIONS] [PATH]
+axm init_check [OPTIONS] [PATH]
 ```
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Directory to check |
-| `--json` | | bool | `False` | Output as JSON |
+| `--json-output` | | bool | `False` | Output as JSON |
 | `--agent` | | bool | `False` | Compact agent-friendly output |
 | `--verbose` | `-v` | bool | `False` | Show all checks including passed |
 | `--category` | `-c` | string | *all* | Filter to one category |
@@ -197,7 +197,7 @@ axm-init check [OPTIONS] [PATH]
 **Example:**
 
 ```bash
-axm-init check
+axm init_check
 ```
 
 ```
@@ -221,7 +221,7 @@ axm-init check
 **Check output with workspace context:**
 
 ```bash
-axm-init check
+axm init_check
 ```
 
 ```
@@ -239,7 +239,7 @@ axm-init check
 **JSON output:**
 
 ```bash
-axm-init check --json
+axm init_check --json-output
 ```
 
 ```json
@@ -256,18 +256,18 @@ axm-init check --json
 
 ---
 
-## `version` — Show Version
+## Show Version
 
 ```
-axm-init version
+axm --version
 ```
 
 **Example:**
 
 ```bash
-axm-init version
+axm --version
 ```
 
 ```
-axm-init 0.1.0
+axm 0.1.0
 ```

@@ -1,10 +1,10 @@
 """Shared scaffolding seam.
 
-Single source of truth for the pieces that both the CLI (:mod:`axm_init.cli`)
-and the MCP tool (:mod:`axm_init.tools.scaffold`) need when scaffolding a
-workspace *member*: the copier template-variable build, workspace-root
-resolution, and workspace-name read. Neither interface layer keeps a private
-copy of this logic.
+Single source of truth for the pieces that the AXMTool layer
+(:mod:`axm_init.tools.scaffold`) needs when scaffolding a workspace *member*:
+the copier template-variable build, workspace-root resolution, and
+workspace-name read. The generic AXM CLI and MCP surfaces both derive from
+that tool instead of keeping private copies of this logic.
 """
 
 from __future__ import annotations

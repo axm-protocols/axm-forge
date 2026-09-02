@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -122,6 +122,29 @@ def _render_scaffold_text(
         lines.append(f"failed root: {', '.join(report.failed)}")
     lines.extend(_group_files(files))
     return "\n".join(lines)
+
+
+def _check_pypi_availability(project_name: str) -> ToolResult | None:
+    """Return a failure when *project_name* is already taken on PyPI."""
+    from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
+
+    status = PyPIAdapter().check_availability(project_name)
+    if status == AvailabilityStatus.TAKEN:
+        return ToolResult(
+            success=False,
+            error=f"Package name '{project_name}' is already taken on PyPI",
+        )
+    return None
+
+
+def _apply_json_output(result: ToolResult, enabled: bool) -> ToolResult:
+    """Select structured CLI rendering without changing the ToolResult contract."""
+    if not enabled:
+        return result
+    data = result.data
+    if not result.success and not data:
+        data = {"error": result.error or "Scaffold failed"}
+    return replace(result, text=None, data=data)
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,6 +269,7 @@ class InitScaffoldTool:
         workspace: bool,
         description: str,
         meta: _ProjectMeta,
+        license_holder: str | None,
     ) -> dict[str, str]:
         """Build template data dict for workspace or standalone scaffold."""
         name_key = "workspace_name" if workspace else "package_name"
@@ -257,12 +281,29 @@ class InitScaffoldTool:
             "description": description or default_desc,
             "org": meta.org,
             "license": meta.license_type,
-            "license_holder": meta.org,
+            "license_holder": license_holder or meta.org,
             "author_name": meta.author_name,
             "author_email": meta.author_email,
         }
 
-    def execute(self, **kwargs: object) -> ToolResult:
+    def execute(
+        self,
+        path: str = ".",
+        *,
+        name: str | None = None,
+        org: str = "",
+        author: str = "",
+        email: str = "",
+        license: str = "Apache-2.0",
+        license_holder: str | None = None,
+        description: str = "",
+        workspace: bool = False,
+        member: str | None = None,
+        framework: str = Framework.PYTHON.value,
+        kind: str | None = None,
+        check_pypi: bool = False,
+        json_output: bool = False,
+    ) -> ToolResult:
         """Initialize a new Python project.
 
         Args:
@@ -284,9 +325,23 @@ class InitScaffoldTool:
         Returns:
             ToolResult with created files list.
         """
+        kwargs: dict[str, object] = {
+            "path": path,
+            "name": name,
+            "org": org,
+            "author": author,
+            "email": email,
+            "license": license,
+            "license_holder": license_holder,
+            "description": description,
+            "workspace": workspace,
+            "member": member,
+            "framework": framework,
+            "kind": kind,
+        }
         validated = self._validate_inputs(kwargs)
         if isinstance(validated, ToolResult):
-            return validated
+            return _apply_json_output(validated, json_output)
 
         (
             path,
@@ -304,12 +359,15 @@ class InitScaffoldTool:
 
         kind = _read_kind(kwargs)
         if kind is not None and kind not in SCAFFOLD_KINDS:
-            return ToolResult(
-                success=False,
-                error=(
-                    f"Unknown kind '{kind}' — expected one of "
-                    f"{', '.join(SCAFFOLD_KINDS)}"
+            return _apply_json_output(
+                ToolResult(
+                    success=False,
+                    error=(
+                        f"Unknown kind '{kind}' — expected one of "
+                        f"{', '.join(SCAFFOLD_KINDS)}"
+                    ),
                 ),
+                json_output,
             )
         workspace, member = _apply_kind_flags(
             kind, workspace=workspace, member=member, name=name
@@ -317,6 +375,11 @@ class InitScaffoldTool:
 
         try:
             target_path = Path(path).resolve()
+            project_name = name or target_path.name
+            if check_pypi and (
+                availability_error := _check_pypi_availability(project_name)
+            ):
+                return _apply_json_output(availability_error, json_output)
             meta = _ProjectMeta(
                 org=org,
                 license_type=license_type,
@@ -332,23 +395,24 @@ class InitScaffoldTool:
                 meta=meta,
             )
             if dispatched is not None:
-                return dispatched
+                return _apply_json_output(dispatched, json_output)
 
             if member:
-                return self._scaffold_member(
-                    target_path,
-                    member,
-                    scaffold_data={
-                        "org": org,
-                        "author_name": author,
-                        "author_email": email,
-                        "license": license_type,
-                        "description": description,
-                    },
-                    license_holder=license_holder,
+                return _apply_json_output(
+                    self._scaffold_member(
+                        target_path,
+                        member,
+                        scaffold_data={
+                            "org": org,
+                            "author_name": author,
+                            "author_email": email,
+                            "license": license_type,
+                            "description": description,
+                        },
+                        license_holder=license_holder,
+                    ),
+                    json_output,
                 )
-
-            project_name = name or target_path.name
 
             from axm_init.adapters.copier import CopierAdapter, CopierConfig
             from axm_init.core.templates import TemplateType, get_template_path
@@ -361,6 +425,7 @@ class InitScaffoldTool:
                 workspace=workspace,
                 description=description,
                 meta=meta,
+                license_holder=license_holder,
             )
 
             copier_adapter = CopierAdapter()
@@ -373,26 +438,31 @@ class InitScaffoldTool:
             result = copier_adapter.copy(copier_config)
 
             files = [str(f) for f in result.files_created]
-            return ToolResult(
-                success=result.success,
-                data={
-                    "project_name": project_name,
-                    "template": template_type.value,
-                    "files": files,
-                },
-                text=(
-                    _render_scaffold_text(
-                        label=project_name,
-                        kind=template_type.value,
-                        files=files,
-                    )
-                    if result.success
-                    else None
+            return _apply_json_output(
+                ToolResult(
+                    success=result.success,
+                    data={
+                        "project_name": project_name,
+                        "template": template_type.value,
+                        "files": files,
+                    },
+                    text=(
+                        _render_scaffold_text(
+                            label=project_name,
+                            kind=template_type.value,
+                            files=files,
+                        )
+                        if result.success
+                        else None
+                    ),
+                    error=None if result.success else result.message,
                 ),
-                error=None if result.success else result.message,
+                json_output,
             )
         except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+            return _apply_json_output(
+                ToolResult(success=False, error=str(exc)), json_output
+            )
 
     def _dispatch_kind(
         self,

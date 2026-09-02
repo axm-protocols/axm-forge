@@ -1,36 +1,77 @@
-"""Integration tests for CLI subcommands — real filesystem I/O.
+"""Integration tests for AXMTool operations — real filesystem I/O.
 
-Covers `axm-init check` on gold projects, `scaffold` with tmp_path fixtures,
-and source-file inspection (real `open()` on the cli module).
+Covers ``init_check`` on gold projects and ``init_scaffold`` with tmp_path
+fixtures.
 """
 
 from __future__ import annotations
 
-import io
 import json
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from axm.tools.base import ToolResult
 
-from axm_init.cli import app
+from axm_init.tools.check import InitCheckTool
+from axm_init.tools.scaffold import InitScaffoldTool
 from tests_axm_init.integration._helpers import SCAFFOLD_ARGS
 
 
-def _run(*args: str) -> tuple[str, str, int]:
-    """Run CLI command and capture stdout/stderr/exit_code."""
+def _option(args: tuple[str, ...], name: str, default: str = "") -> str:
+    """Return the value following *name* in a test invocation."""
+    return args[args.index(name) + 1] if name in args else default
 
-    out, err = io.StringIO(), io.StringIO()
-    exit_code = 0
-    try:
-        with redirect_stdout(out), redirect_stderr(err):
-            app(args, exit_on_error=False)
-    except SystemExit as e:
-        exit_code = e.code if isinstance(e.code, int) else 1
-    except Exception:
-        exit_code = 1
-    return out.getvalue(), err.getvalue(), exit_code
+
+def _render_result(result: ToolResult, *, json_output: bool) -> tuple[str, str, int]:
+    """Adapt a ToolResult to the legacy assertions kept by this module."""
+    success = bool(getattr(result, "success", False))
+    error = getattr(result, "error", None)
+    data = getattr(result, "data", {})
+    text = getattr(result, "text", None)
+    if json_output:
+        payload: dict[str, object] = {"success": success}
+        if isinstance(data, dict):
+            payload.update(data)
+        if not success:
+            payload["error"] = str(error or "operation failed")
+        return json.dumps(payload), "", 0 if success else 1
+    stdout = text if isinstance(text, str) else ""
+    stderr = "" if success else f"❌ {error or 'operation failed'}"
+    return stdout, stderr, 0 if success else 1
+
+
+def _run(*args: str) -> tuple[str, str, int]:
+    """Call the owning AXMTool and expose its ToolResult to existing assertions."""
+    command, *tail = args
+    tokens = tuple(tail)
+    path = tokens[0] if tokens and not tokens[0].startswith("--") else "."
+    if command == "check":
+        category = _option(tokens, "--category") or None
+        result = InitCheckTool().execute(
+            path=path,
+            category=category,
+            json_output="--json" in tokens,
+        )
+    else:
+        result = InitScaffoldTool().execute(
+            path=path,
+            name=_option(tokens, "--name") or None,
+            org=_option(tokens, "--org"),
+            author=_option(tokens, "--author"),
+            email=_option(tokens, "--email"),
+            license=_option(tokens, "--license", "Apache-2.0"),
+            license_holder=_option(tokens, "--license-holder") or None,
+            description=_option(tokens, "--description"),
+            workspace="--workspace" in tokens,
+            member=_option(tokens, "--member") or None,
+            check_pypi="--check-pypi" in tokens,
+            json_output="--json" in tokens,
+        )
+    stdout, stderr, code = _render_result(result, json_output="--json" in tokens)
+    if command == "check" and category and "--json" not in tokens:
+        stdout = f"{category}\n{stdout}"
+    return stdout, stderr, code
 
 
 @pytest.fixture()
@@ -136,7 +177,7 @@ def gold_project(tmp_path: Path) -> Path:
 
 
 class TestCheckCommand:
-    """Tests for `axm-init check` — real-I/O scenarios on gold projects."""
+    """Tests for ``init_check`` — real-I/O scenarios on gold projects."""
 
     def test_empty_exits_1(self, tmp_path: Path) -> None:
         _stdout, _stderr, code = _run("check", str(tmp_path))

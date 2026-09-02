@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-init check` scores your project against the AXM gold standard — checks derived from the best practices embedded in the project template and CI configurations. A **paper** (an `[tool.axm-lab]` project) is not a Python distribution and is graded on its own invariants instead: see [paper](#paper-15-pts).
+`axm init_check` scores your project against the AXM gold standard — checks derived from the best practices embedded in the project template and CI configurations. A **paper** (an `[tool.axm-lab]` project) is not a Python distribution and is graded on its own invariants instead: see [paper](#paper-15-pts).
 
 ## Grade Scale
 
@@ -193,7 +193,7 @@ An experiment folder — a directory whose root `manifest.yaml` declares both
 
 ## Improving Your Score
 
-Every failed check includes a **Fix** instruction telling you exactly what to do. Run `axm-init check` iteratively until you reach Grade A.
+Every failed check includes a **Fix** instruction telling you exactly what to do. Run `axm init_check` iteratively until you reach Grade A.
 
 !!! tip "Quick win"
-    Projects scaffolded with `axm-init scaffold` start at **100/100** by default.
+    Projects scaffolded with `axm init_scaffold` start at **100/100** by default.

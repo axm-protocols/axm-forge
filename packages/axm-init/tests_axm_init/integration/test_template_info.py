@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 from axm_init.core.templates import TemplateInfo
-from axm_init.models.results import ScaffoldResult
 from tests_axm_init.integration._helpers import _build_scaffold_tree
 
 
@@ -25,26 +20,6 @@ class TestTemplateInfo:
         )
         assert info.name == "python"
         assert info.path == tmp_path
-
-
-@pytest.fixture()
-def _mock_scaffold(tmp_path: Path) -> Iterator[tuple[Path, MagicMock]]:
-    """Patch CopierAdapter.copy() and scaffold a fake tree.
-
-    Returns (project_dir, mock_adapter_instance).
-    """
-    files = _build_scaffold_tree(tmp_path, "clean-init-test")
-
-    mock_result = ScaffoldResult(
-        success=True,
-        path=str(tmp_path),
-        message="Project scaffolded via Copier",
-        files_created=files,
-    )
-
-    with patch("axm_init.cli.CopierAdapter") as mock_cls:
-        mock_cls.return_value.copy.return_value = mock_result
-        yield tmp_path, mock_cls.return_value
 
 
 # ── AC2: No hello() in __init__.py ──────────────────────────────────────────

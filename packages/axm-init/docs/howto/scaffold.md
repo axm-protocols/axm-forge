@@ -10,7 +10,7 @@
 ### 1. Create a new project
 
 ```bash
-axm-init scaffold my-project \
+axm init_scaffold my-project \
   --org axm-protocols \
   --author "Your Name" \
   --email "you@example.com"
@@ -48,7 +48,7 @@ This scaffolds a production-grade Python project with:
 ### 4. Scaffold a workspace
 
 ```bash
-axm-init scaffold my-workspace --workspace \\
+axm init_scaffold my-workspace --workspace \\
   --org myorg --author "Your Name" --email "you@example.com"
 ```
 
@@ -69,7 +69,7 @@ The `--workspace` flag generates a UV workspace with:
 From inside an existing workspace:
 
 ```bash
-axm-init scaffold --member my-lib \\
+axm init_scaffold --member my-lib \\
   --org myorg --author "Your Name" --email "you@example.com"
 ```
 
@@ -84,7 +84,7 @@ The `--member` flag:
 ### 6. Scaffold a paper
 
 ```bash
-axm-init scaffold my-paper --kind paper \\
+axm init_scaffold my-paper --kind paper \\
   --org myorg --author "Your Name" --email "you@example.com" \\
   --description "Attention study"
 ```
@@ -114,7 +114,7 @@ The `paper` kind renders the paper submodule:
 ### 7. Scaffold an experiment inside a paper
 
 ```bash
-axm-init scaffold my-paper --kind experiment --name baseline \\
+axm init_scaffold my-paper --kind experiment --name baseline \\
   --org myorg --author "Your Name" --email "you@example.com"
 ```
 
@@ -141,7 +141,7 @@ The `experiment` kind:
 ### 8. Check PyPI availability
 
 ```bash
-axm-init scaffold my-project --org myorg --author A --email e@e.com --check-pypi
+axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 ```
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
@@ -149,7 +149,7 @@ The `--check-pypi` flag verifies the package name is available before scaffoldin
 ### 9. JSON output
 
 ```bash
-axm-init scaffold my-project --org myorg --author A --email e@e.com --json
+axm init_scaffold my-project --org myorg --author A --email e@e.com --json-output
 ```
 
 Outputs structured JSON for CI/automation use.

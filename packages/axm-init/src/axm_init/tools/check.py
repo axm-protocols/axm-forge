@@ -20,7 +20,15 @@ class InitCheckTool:
         """Tool name used for MCP registration."""
         return "init_check"
 
-    def execute(self, **kwargs: object) -> ToolResult:
+    def execute(
+        self,
+        path: str = ".",
+        *,
+        category: str | None = None,
+        json_output: bool = False,
+        agent: bool = False,
+        verbose: bool = False,
+    ) -> ToolResult:
         """Check a project against the AXM gold standard.
 
         Args:
@@ -31,10 +39,6 @@ class InitCheckTool:
         Returns:
             ToolResult with check scores and details.
         """
-        path_raw = kwargs.get("path", ".")
-        category_raw = kwargs.get("category")
-        path: str = path_raw if isinstance(path_raw, str) else "."
-        category: str | None = category_raw if isinstance(category_raw, str) else None
         try:
             project_path = Path(path).resolve()
             if not project_path.is_dir():
@@ -46,7 +50,10 @@ class InitCheckTool:
                 CheckEngine,
                 format_agent,
                 format_agent_text,
+                format_report,
+                resolve_exit_code,
             )
+            from axm_init.models.check import ProjectResult
 
             engine = CheckEngine(project_path, category=category)
             result = engine.run()
@@ -57,10 +64,22 @@ class InitCheckTool:
             record_quality_snapshot(
                 path=str(project_path), kind="governance", data=data
             )
+            success = (
+                resolve_exit_code(result) == 0
+                if isinstance(result, ProjectResult)
+                else True
+            )
+            if json_output or agent:
+                text = None
+            elif verbose and isinstance(result, ProjectResult):
+                text = format_report(result, verbose=True)
+            else:
+                text = format_agent_text(result)
             return ToolResult(
-                success=True,
+                success=success,
                 data=data,
-                text=format_agent_text(result),
+                text=text,
+                error=None if success else "Gold-standard checks failed",
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

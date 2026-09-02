@@ -1,4 +1,4 @@
-"""E2E tests: ``axm-init scaffold`` then ``axm-init check`` via subprocess."""
+"""E2E tests: ``axm init_scaffold`` then ``axm init_check``."""
 
 from __future__ import annotations
 
@@ -41,8 +41,8 @@ def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
         [
             "uv",
             "run",
-            "axm-init",
-            "scaffold",
+            "axm",
+            "init_scaffold",
             str(project),
             "--org",
             "DemoOrg",
@@ -62,7 +62,14 @@ def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
     assert scaffold.returncode == 0, scaffold.stderr
 
     check = subprocess.run(
-        ["uv", "run", "axm-init", "check", str(project), "--json"],
+        [
+            "uv",
+            "run",
+            "axm",
+            "init_check",
+            str(project),
+            "--json-output",
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -75,14 +82,15 @@ def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
 
 
 def _run_scaffold(*args: str) -> subprocess.CompletedProcess[str]:
-    """Run ``axm-init scaffold`` as a subprocess with the shared identity."""
+    """Run ``axm init_scaffold`` with the shared identity."""
+    tool_args = ["--json-output" if arg == "--json" else arg for arg in args]
     return subprocess.run(
         [
             "uv",
             "run",
-            "axm-init",
-            "scaffold",
-            *args,
+            "axm",
+            "init_scaffold",
+            *tool_args,
             "--org",
             "DemoOrg",
             "--author",
@@ -135,9 +143,9 @@ def test_scaffold_experiment_inside_paper_json(tmp_path: Path) -> None:
 
 
 def _check_json(project: Path) -> dict[str, object]:
-    # Run ``axm-init check --json`` on *project* and parse the report.
+    # Run ``axm init_check --json-output`` on *project* and parse the report.
     completed = subprocess.run(
-        ["uv", "run", "axm-init", "check", str(project), "--json"],
+        ["uv", "run", "axm", "init_check", str(project), "--json-output"],
         capture_output=True,
         text=True,
         check=False,
