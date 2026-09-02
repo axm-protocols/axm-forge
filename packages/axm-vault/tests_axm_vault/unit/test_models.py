@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from axm_vault import models
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
 
 
@@ -49,3 +50,46 @@ def test_group_spec_unknown_raises_keyerror() -> None:
     group = CredentialGroup(id="acme", package="axm-acme", title="Acme", specs=())
     with pytest.raises(KeyError, match=r"unknown credential acme\.'nope'"):
         group.spec("nope")
+
+
+def test_group_preserves_instance_source() -> None:
+    """AC1: a multi-instance group preserves its declared instance source."""
+
+    class MemoryInstanceSource:
+        def list_instances(self) -> tuple[str, ...]:
+            return ("personal",)
+
+        def declare(self, instance: str) -> None:
+            del instance
+
+    source = MemoryInstanceSource()
+    spec = CredentialSpec(name="token", env="MAIL_TOKEN", kind="token")
+
+    group = CredentialGroup(
+        id="mail",
+        package="axm-mail",
+        title="Mail",
+        specs=[spec],
+        multi=True,
+        instances=source,
+    )
+
+    assert group.instances is source
+
+
+def test_instance_source_runtime_protocol() -> None:
+    """AC2: InstanceSource runtime checks require list_instances and declare."""
+
+    class CompleteSource:
+        def list_instances(self) -> tuple[str, ...]:
+            return ()
+
+        def declare(self, instance: str) -> None:
+            del instance
+
+    class SourceWithoutDeclare:
+        def list_instances(self) -> tuple[str, ...]:
+            return ()
+
+    assert isinstance(CompleteSource(), models.InstanceSource)
+    assert not isinstance(SourceWithoutDeclare(), models.InstanceSource)

@@ -10,6 +10,7 @@ from axm_vault.doctor import Provenance, doctor_data
 from axm_vault.models import (
     CredentialGroup,
     CredentialSpec,
+    InstanceSource,
     Layer,
     Sensitivity,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "Catalog",
     "CredentialGroup",
     "CredentialSpec",
+    "InstanceSource",
     "KeyringStore",
     "Layer",
     "MissingCredentialError",

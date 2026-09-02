@@ -8,14 +8,16 @@ package requires.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
 __all__ = [
     "CredentialGroup",
     "CredentialSpec",
+    "InstanceSource",
     "Layer",
     "Sensitivity",
 ]
@@ -31,6 +33,19 @@ class Sensitivity(StrEnum):
 
 type Layer = Literal["env", "file", "keyring", "default", "prompt"]
 """Resolution layer a credential may be sourced from."""
+
+
+@runtime_checkable
+class InstanceSource(Protocol):
+    """Capability supplied by packages that declare named instances."""
+
+    def list_instances(self) -> Sequence[str]:
+        """Return the names of currently declared instances."""
+        ...
+
+    def declare(self, instance: str) -> None:
+        """Declare an instance by name."""
+        ...
 
 
 class CredentialSpec(BaseModel):  # type: ignore[explicit-any]
@@ -51,13 +66,18 @@ class CredentialSpec(BaseModel):  # type: ignore[explicit-any]
 class CredentialGroup(BaseModel):  # type: ignore[explicit-any]
     """A bundle of credential specs declared by a package."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+    )
 
     id: str
     package: str
     title: str
     specs: tuple[CredentialSpec, ...]
     multi: bool = False
+    instances: InstanceSource | None = None
 
     def spec(self, name: str) -> CredentialSpec:
         """Return the spec named ``name``.

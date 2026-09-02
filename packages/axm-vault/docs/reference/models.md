@@ -47,6 +47,21 @@ from axm_vault import CredentialSpec
 spec = CredentialSpec(name="api_key", env="ACME_API_KEY", kind="token")
 ```
 
+## `InstanceSource`
+
+A runtime-checkable capability implemented by packages that declare named
+instances for a credential group. Vault defines only the interface; the
+declaring package remains responsible for locating and creating its instances.
+
+| Method | Contract |
+| -- | -- |
+| `list_instances()` | Return the available instance names as a `Sequence[str]`. |
+| `declare(instance)` | Declare the named instance and return `None`. |
+
+Objects providing both methods satisfy `isinstance(source, InstanceSource)`.
+The protocol carries no credential values and has no knowledge of a package's
+configuration layout.
+
 ## `CredentialGroup`
 
 A bundle of the credential specs a package requires.
@@ -58,6 +73,7 @@ A bundle of the credential specs a package requires.
 | `title` | `str` | — (required) |
 | `specs` | `tuple[CredentialSpec, ...]` | — (required) |
 | `multi` | `bool` | `False` |
+| `instances` | `InstanceSource \| None` | `None` |
 
 ### `CredentialGroup.spec(name)`
 
