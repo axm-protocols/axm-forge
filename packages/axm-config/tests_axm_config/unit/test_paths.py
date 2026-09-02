@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import axm_config
 from axm_config import paths
 from axm_config.paths import (
     PATHS_NAMESPACE,
@@ -278,3 +279,31 @@ def test_warden_park_threshold_rejects_zero(
     assert str(exc_info.value) == (
         "invalid value for warden.park_threshold: expected >= 1, got 0"
     )
+
+
+def test_inference_base_url_preserves_configured_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the configured engine address is returned byte for byte."""
+    configured = "http://10.0.0.4:9001/v1"
+    monkeypatch.setenv("AXM_INFERENCE_BASE_URL", configured)
+
+    assert paths.inference_base_url() == configured
+
+
+def test_inference_model_preserves_configured_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the configured model identifier is returned byte for byte."""
+    configured = "acme/Foo-7B-MLX-4bit"
+    monkeypatch.setenv("AXM_INFERENCE_MODEL", configured)
+
+    assert paths.inference_model() == configured
+
+
+def test_inference_accessors_are_exported_at_package_top_level() -> None:
+    """AC4: both inference accessors belong to the package-level API."""
+    assert "inference_base_url" in axm_config.__all__
+    assert "inference_model" in axm_config.__all__
+    assert callable(axm_config.inference_base_url)
+    assert callable(axm_config.inference_model)

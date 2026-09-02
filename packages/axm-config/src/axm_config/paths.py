@@ -47,6 +47,8 @@ __all__ = [
     "get_int",
     "get_path",
     "get_str",
+    "inference_base_url",
+    "inference_model",
     "protocols_dir",
     "quality_dir",
     "sessions_root",
@@ -173,6 +175,11 @@ def get_bool(
     raise ConfigError(msg)
 
 
+_INFERENCE_NAMESPACE = "inference"
+_DEFAULT_INFERENCE_BASE_URL = "http://127.0.0.1:8000/v1"
+_DEFAULT_INFERENCE_MODEL = "ornith-ai/Ornith-1.5-9B-MLX-4bit"
+
+
 def get_str(
     key: str,
     default: str,
@@ -184,6 +191,24 @@ def get_str(
     if configured is _MISSING:
         return default
     return str(configured)
+
+
+def inference_base_url() -> str:
+    """Return the configured inference engine address unchanged."""
+    return get_str(
+        "base_url",
+        _DEFAULT_INFERENCE_BASE_URL,
+        namespace=_INFERENCE_NAMESPACE,
+    )
+
+
+def inference_model() -> str:
+    """Return the configured inference model identifier unchanged."""
+    return get_str(
+        "model",
+        _DEFAULT_INFERENCE_MODEL,
+        namespace=_INFERENCE_NAMESPACE,
+    )
 
 
 def sessions_root(*, default: Path | None = None) -> Path:

@@ -36,15 +36,31 @@ uv add axm-config
 
 ## Quick Start
 
-The public API is exactly six symbols: `get`, `load`, `set_`, `delete`,
-`axm_home`, and `ConfigError`.
+The public API exposes the generic `get`, `load`, `set_`, and `delete`
+resolver plus typed accessors for shared runtime settings. In particular,
+`inference_base_url()` and `inference_model()` centralise the local inference
+endpoint and model identifier.
 
 ```python
-from axm_config import ConfigError, axm_home, delete, get, load, set_
+from axm_config import (
+    ConfigError,
+    axm_home,
+    delete,
+    get,
+    inference_base_url,
+    inference_model,
+    load,
+    set_,
+)
 
 # Resolve (and create, 0700) the per-user ~/.axm directory.
 home = axm_home()
 print(home)  # e.g. /Users/you/.axm
+
+# Resolve local inference settings. AXM_INFERENCE_BASE_URL and
+# AXM_INFERENCE_MODEL override these defaults without rewriting either value.
+base_url = inference_base_url()  # http://127.0.0.1:8000/v1
+model = inference_model()  # ornith-ai/Ornith-1.5-9B-MLX-4bit
 
 # Resolve runtime config with env > file > default precedence.
 set_("research.fred", "api_key", "abc123")  # writes [research.fred] in ~/.axm/config.toml
@@ -114,6 +130,10 @@ axm-config doctor research.fred              # per-key provenance, read-only
   raises `ConfigError`, a config file can never land outside the resolved
   `~/.axm` home (a `HOME` pointing into a git checkout is refused), and the
   derived env-var name is always POSIX-valid
+- ✅ **Typed inference settings** — `inference_base_url()` and
+  `inference_model()` resolve the `[inference]` `base_url` and `model` keys with
+  stable local defaults; configured strings are returned verbatim, including
+  their scheme, path, slashes, and model spelling
 - ✅ **Model binding** — `load(namespace, model)` populates a consumer's
   pydantic model, resolving each field by name; a missing required field
   raises `ConfigError`
