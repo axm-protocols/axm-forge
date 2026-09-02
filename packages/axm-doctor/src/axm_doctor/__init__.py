@@ -15,6 +15,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from axm_doctor.credentials import (
+        CredentialProvenance,
+        collect_credential_provenance,
+    )
     from axm_doctor.detect import (
         AuthState,
         AuthStatus,
@@ -47,6 +51,7 @@ __all__ = [
     "AuthState",
     "AuthStatus",
     "AuthStatusTool",
+    "CredentialProvenance",
     "EnvDoctorTool",
     "GhConfigState",
     "GhConfigStatus",
@@ -58,6 +63,7 @@ __all__ = [
     "ProvisionResult",
     "ToolState",
     "ToolStatus",
+    "collect_credential_provenance",
     "detect_auth",
     "detect_gh_config",
     "detect_git_identity",
@@ -68,10 +74,13 @@ __all__ = [
     "run_install",
 ]
 
-# Symbol -> submodule for lazy resolution. Only ``orchestrate``/``tools`` pull
-# heavy AXM deps; ``detect``/``install`` are light, but routing every export
+# Symbol -> submodule for lazy resolution. The ``credentials``, ``orchestrate``,
+# and ``tools`` modules pull heavy AXM dependencies.
+# The ``detect``/``install`` modules are light, but routing every export
 # through one map keeps the package import itself side-effect-free.
 _LAZY: dict[str, str] = {
+    "CredentialProvenance": "credentials",
+    "collect_credential_provenance": "credentials",
     "AuthState": "detect",
     "AuthStatus": "detect",
     "GhConfigState": "detect",

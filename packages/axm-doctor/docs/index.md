@@ -59,7 +59,14 @@ run_install(plan, confirm=True)  # opt-in install, then re-detects via detect_to
 ```
 
 ```python
-from axm_doctor import missing_secrets, provision_missing
+from axm_doctor import (
+    collect_credential_provenance,
+    missing_secrets,
+    provision_missing,
+)
+
+# Which layer serves each installed credential coordinate? Returns no values.
+collect_credential_provenance()  # [CredentialProvenance(coordinate=..., layer=..., present=...)]
 
 # Which credential specs resolve to 'missing'? Reads vault's catalog + value-free provenance.
 missing_secrets()                # [MissingSecret(group='research.fred', name='api_key', setup_hint='axm-vault set research.fred.api_key'), ...] — never a value
@@ -76,6 +83,7 @@ provision_missing(confirm=True)  # delegates to vault's run_setup(only=...) — 
 - ✅ **Read-only auth** — state comes from an exit code or a non-empty credential-file check (a 0-byte file is `logged_out`); on macOS, `claude` is probed via the login Keychain entry `Claude Code-credentials` (exit code only). The file is stat'd, not opened, and the Keychain value is never read, so the token value is never read.
 - ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus` / `GitIdentityStatus` / `GhConfigStatus`; `AuthStatus` carries a `login_cmd` to recover from `logged_out`, never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the official command for a known tool; `run_install` is a dry-run by default (`confirm=False`) and installs only on explicit opt-in (`confirm=True`), then re-detects the tool.
+- ✅ **Typed credential provenance** — `collect_credential_provenance` translates axm-vault's live, value-free report into immutable `CredentialProvenance` rows containing exactly a coordinate, its winning layer and a presence flag; an empty installed catalog produces an empty report.
 - ✅ **Orchestrates, never possesses** — `missing_secrets` lists the vault credential specs that resolve to `missing` (value-free, with a `setup_hint`); `provision_missing` is a dry-run by default and on `confirm=True` delegates to vault's `run_setup` — the secret never transits axm-doctor.
 
 ---

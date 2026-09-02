@@ -1,6 +1,6 @@
 # Architecture
 
-`axm-doctor` is a small, flat package: five modules under `src/axm_doctor/`,
+`axm-doctor` is a small, flat package: six modules under `src/axm_doctor/`,
 no `core/` or `adapters/` layering. Its shape follows one pipeline —
 **detect → propose → orchestrate** — wrapped by two thin interface surfaces
 (a CLI and two AXM tools).
@@ -32,6 +32,9 @@ graph LR
   code or the *existence* of a credential/store entry, never a value.
 - **propose** (`install.py`) — turns "`uv` is absent" into the **official**
   install command as an `InstallPlan`. Building a plan runs nothing.
+- **credentials** (`credentials.py`) — translates **axm-vault**'s live,
+  value-free provenance into immutable rows containing only the coordinate,
+  winning layer and presence flag. It does not resolve credentials itself.
 - **orchestrate** (`orchestrate.py`) — reads the **axm-vault** catalog and its
   value-free provenance to list the secrets that resolve to `missing`, and (on
   confirmation) delegates provisioning to vault's setup driver.
@@ -45,6 +48,8 @@ functions back both the CLI and the MCP tools.
 1. **Value-free.** No detection ever reads a token, identity or config value.
    Auth is an exit code or a *stat* of a credential file (a 0-byte file is
    `logged_out`); the git/gh config checks read only presence and exit codes.
+   `CredentialProvenance` likewise serializes exactly `coordinate`, `layer` and
+   `present`; no source value or auxiliary provenance attribute is copied.
    No `ToolResult` ever serializes a secret.
 2. **Dry-run by default.** `run_install` and `provision_missing` are
    `confirm=False` by default — they *describe* what they would do and change
@@ -66,11 +71,12 @@ rest of AXM is installable. So `detect.py` imports no AXM package at module
 load (its `axm-config` use for git-identity is deferred into the function
 body), and the package's top-level re-exports are resolved lazily via
 PEP 562 `__getattr__` — importing `axm_doctor` does **not** eager-load
-`orchestrate` (which imports `axm-vault`) or `tools` (which imports
+`credentials` / `orchestrate` (which import `axm-vault`) or `tools` (which imports
 `axm.tools.base`).
 
-`orchestrate` sits on the other side of that line: it is the orchestration seam
-with **axm-vault** (catalog + provenance + setup driver) and with **axm-config**
+`credentials` and `orchestrate` sit on the other side of that line: they are the
+read-only reporting and orchestration seams
+with **axm-vault** (catalog + provenance + setup driver) and **axm-config**
 (the `[git].default` identity store). doctor reads both; it writes neither
 directly.
 
