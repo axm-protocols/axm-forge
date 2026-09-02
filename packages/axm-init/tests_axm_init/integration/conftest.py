@@ -11,6 +11,16 @@ from textwrap import dedent
 
 import pytest
 
+from tests_axm_init.integration._keyring_isolation import (
+    isolated_home as isolated_home,
+)
+from tests_axm_init.integration._keyring_isolation import (
+    isolated_keyring as isolated_keyring,
+)
+from tests_axm_init.integration._keyring_isolation import (
+    seeded_pypi_keyring as seeded_pypi_keyring,
+)
+
 GOLD_PYPROJECT = dedent("""\
     [project]
     name = "test-pkg"

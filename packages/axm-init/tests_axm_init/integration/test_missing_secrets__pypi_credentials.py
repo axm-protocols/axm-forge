@@ -9,6 +9,8 @@ import pytest
 from axm_doctor.orchestrate import missing_secrets
 from keyring.backend import KeyringBackend
 
+from axm_init.credentials_catalog import pypi_credentials
+
 
 class _EmptyKeyring(KeyringBackend):
     priority = 1
@@ -51,3 +53,22 @@ def test_missing_secrets_includes_pypi_environment_coordinate(
         for spec in group.specs
         if entry.name == spec.name
     )
+
+
+@pytest.mark.integration
+def test_seeded_pypi_group_has_no_missing_secret(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: a fixture-seeded PyPI group reports no missing credential."""
+    monkeypatch.delenv("PYPI_API_TOKEN", raising=False)
+    assert type(keyring.get_keyring()).__name__ == "MemoryKeyring"
+    request.getfixturevalue("seeded_pypi_keyring")
+    groups = pypi_credentials()
+    pypi_coordinates = {
+        (group.id, spec.name) for group in groups for spec in group.specs
+    }
+
+    missing = missing_secrets()
+
+    assert not any((entry.group, entry.name) in pypi_coordinates for entry in missing)
