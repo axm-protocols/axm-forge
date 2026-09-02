@@ -12,9 +12,6 @@ import pytest
 from cyclopts import Parameter
 
 from axm.cli import (
-    _COMMANDS_GROUP,
-    _TOOLS_GROUP,
-    _nonscalar_names,
     build_command_for_tool,
     cli_param,
     create_app,
@@ -27,6 +24,8 @@ from axm.tools.base import ToolResult
 _EP = "axm.tools._discovery.importlib.metadata.entry_points"
 _EXIT_BAD_ARGS = 2
 _EXIT_TOOL_ERROR = 1
+_COMMANDS_GROUP = "axm.commands"
+_TOOLS_GROUP = "axm.tools"
 
 
 # ── fakes ─────────────────────────────────────────────────────────────────────
@@ -204,9 +203,13 @@ def test_recursive_type_alias_is_nonscalar() -> None:
     parameter = inspect.Parameter(
         "data", inspect.Parameter.KEYWORD_ONLY, annotation=JsonValue
     )
+    _RecursiveAliasTool.captured = None
+    command = build_command_for_tool("recursive", _RecursiveAliasTool())
 
     assert is_nonscalar(JsonValue) is True
-    assert _nonscalar_names([parameter]) == frozenset({"data"})
+    assert cli_param(parameter).annotation is str
+    command(data='{"items": [1, "é", null]}')
+    assert _RecursiveAliasTool.captured == {"items": [1, "é", None]}
 
 
 # ── signature construction ────────────────────────────────────────────────────
@@ -532,14 +535,6 @@ class TestPositionalDispatch:
         ):
             _run_main_ok()
         assert "audit /pos: 90" in capsys.readouterr().out
-
-
-# ── constants ─────────────────────────────────────────────────────────────────
-
-
-def test_group_constants() -> None:
-    assert _COMMANDS_GROUP == "axm.commands"
-    assert _TOOLS_GROUP == "axm.tools"
 
 
 # ── is_nonscalar: Annotated unwrapping ────────────────────────────────────
