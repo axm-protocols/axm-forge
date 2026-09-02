@@ -39,8 +39,10 @@ class MissingSecret(BaseModel, frozen=True):  # type: ignore[explicit-any]
     Value-less by construction: it carries only the coordinates of the spec
     and a copy-pasteable recovery hint (``setup_hint``). ``required``
     preserves the catalog distinction between indispensable and optional
-    credentials (the catalog default is ``True``). The secret value itself
-    NEVER transits axm_doctor.
+    credentials (the catalog default is ``True``). ``instance`` identifies
+    the account concerned, while ``awaiting_instance`` marks a multi-instance
+    group that declares no account yet. The secret value itself NEVER transits
+    axm_doctor.
     """
 
     group: str
@@ -48,6 +50,8 @@ class MissingSecret(BaseModel, frozen=True):  # type: ignore[explicit-any]
     package: str
     setup_hint: str
     required: bool
+    instance: str | None = None
+    awaiting_instance: bool = False
 
 
 class ProvisionResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
@@ -77,6 +81,7 @@ def _is_served(
     provenance: Mapping[str, Mapping[str, str | bool]],
     group_id: str,
     name: str,
+    instance: str | None = None,
 ) -> bool:
     """Report whether the provenance holds a concrete layer for a credential.
 
@@ -86,33 +91,23 @@ def _is_served(
     plain concatenation. Composing the key here through the very same function
     the producer uses is what keeps the two sides from drifting apart.
 
-    A multi-instance group is reported one entry per instance, under a
-    three-segment coordinate the census cannot enumerate (it emits at most one
-    entry per ``(group, name)``). Such an entry still proves the credential is
-    served, so it is recognised by its escaped group prefix and name suffix
-    rather than being downgraded to "missing".
+    Multi-instance groups are reported one entry per account. Looking up
+    only the exact coordinate prevents a served sibling account from hiding
+    an account whose credential is still missing.
 
     Args:
         provenance: The value-free report returned by ``doctor_data``.
         group_id: The credential group id, unescaped.
         name: The credential name within that group.
+        instance: The account identity within a multi-instance group.
 
     Returns:
-        ``True`` when some entry for that credential carries a concrete
-        (non-missing) layer, ``False`` otherwise.
+        ``True`` when the exact credential/account entry carries a
+        concrete (non-missing) layer, ``False`` otherwise.
     """
-    coordinate = KeyringStore.username(group_id, name)
+    coordinate = KeyringStore.username(group_id, name, instance)
     entry = provenance.get(coordinate)
-    if entry is not None:
-        return entry.get("layer") != _MISSING
-    escaped_group, escaped_name = coordinate.split(".", 1)
-    return any(
-        parts[0] == escaped_group
-        and parts[-1] == escaped_name
-        and qualified.get("layer") != _MISSING
-        for key, qualified in provenance.items()
-        if len(parts := key.split(".")) == _INSTANCE_SEGMENTS
-    )
+    return entry is not None and entry.get("layer") != _MISSING
 
 
 def missing_secrets() -> list[MissingSecret]:
@@ -127,7 +122,7 @@ def missing_secrets() -> list[MissingSecret]:
     missing: list[MissingSecret] = []
     for group in catalog.groups():
         for spec in group.specs:
-            if _is_served(provenance, group.id, spec.name):
+            if _is_served(provenance, group.id, spec.name, instance=None):
                 continue
             missing.append(
                 MissingSecret(

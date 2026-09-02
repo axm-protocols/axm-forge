@@ -22,7 +22,7 @@ Env bootstrap + auth-status doctor (detect, propose, orchestrate)
 - ✅ **Read-only auth** — auth state is inferred from an exit code (`gh auth status`; on macOS `claude` via the login Keychain entry `Claude Code-credentials`, exit code only) or the **presence of a non-empty** credential file (`~/.claude/.credentials.json` off macOS, `~/.codex/auth.json`); the file is stat'd, not opened and the Keychain value is never read, so the token value never transits (a 0-byte file is reported `logged_out`, not `logged_in`).
 - ✅ **Frozen result models** — `ToolStatus`, `AuthStatus`, `GitIdentityStatus` and `GhConfigStatus` are immutable pydantic models; `AuthStatus` carries the recovery `login_cmd` but never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the *official* install command for a known tool (`uv`, `claude`, `codex`) without running anything; `run_install` is a **dry-run by default** (`confirm=False`) that only echoes the command it would run. It installs strictly when the caller opts in with `confirm=True`, then re-detects the tool via `detect_tool`.
-- ✅ **Orchestrates, never possesses** — `missing_secrets` reads the **axm-vault** catalog and value-free resolver provenance to list the credential specs that resolve to `missing` (carrying `group / name / package / setup_hint`, never a value). `provision_missing` is a **dry-run by default** (`confirm=False`) that returns the groups it *would* prompt for; on `confirm=True` it delegates to vault's `run_setup(only=…)`. The secret value never transits axm-doctor — every write goes through vault's API.
+- ✅ **Orchestrates, never possesses** — `missing_secrets` reads the **axm-vault** catalog and value-free resolver provenance to list the credential specs that resolve to `missing`. A `MissingSecret` can identify the account concerned with `instance` or signal that a multi-instance group declares no account yet with `awaiting_instance`; account lookups use only axm-vault's exact canonical coordinate, so a served sibling cannot hide a starving account. `provision_missing` is a **dry-run by default** (`confirm=False`) that returns the groups it *would* prompt for; on `confirm=True` it delegates to vault's `run_setup(only=…)`. The secret value never transits axm-doctor — every write goes through vault's API.
 
 ```python
 from axm_doctor import detect_tool, detect_auth
@@ -48,7 +48,8 @@ run_install(plan, confirm=True)       # installs, then re-detects: InstallResult
 ```python
 from axm_doctor import missing_secrets, provision_missing
 
-missing_secrets()                     # [MissingSecret(group='research.fred', name='api_key', package='axm-research', setup_hint='axm-vault set research.fred api_key'), ...]
+missing_secrets()                     # MissingSecret rows; instance identifies the account when known
+                                      # awaiting_instance=True means a multi group declares no account yet
                                       # [] when the vault catalog is empty — never reads a secret value
 
 provision_missing()                   # dry-run (confirm=False): ProvisionResult(provisioned=False, groups=['research.fred']) — the groups it WOULD prompt for

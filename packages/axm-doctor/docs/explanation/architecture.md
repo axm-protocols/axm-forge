@@ -36,8 +36,12 @@ graph LR
   value-free provenance into immutable rows containing only the coordinate,
   winning layer and presence flag. It does not resolve credentials itself.
 - **orchestrate** (`orchestrate.py`) — reads the **axm-vault** catalog and its
-  value-free provenance to list the secrets that resolve to `missing`, and (on
-  confirmation) delegates provisioning to vault's setup driver.
+  value-free provenance to list the secrets that resolve to `missing`. Entries
+  can carry an account identity (`instance`) or mark a multi-instance group
+  awaiting its first account (`awaiting_instance`). Served-state checks use the
+  exact canonical credential/account coordinate, so one served account cannot
+  mask a missing sibling. On confirmation, orchestration delegates provisioning
+  to vault's setup driver.
 
 `cli.py` and `tools.py` are interface shells only: they parse input / shape a
 `ToolResult` and print, but hold no detection logic — the same central

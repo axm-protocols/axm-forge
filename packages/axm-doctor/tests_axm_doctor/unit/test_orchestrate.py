@@ -10,6 +10,7 @@ from pytest_mock import MockerFixture
 from axm_doctor.orchestrate import (
     MissingSecret,
     ProvisionResult,
+    _is_served,
     missing_secrets,
     provision_missing,
 )
@@ -235,3 +236,55 @@ def test_provision_non_tty_no_systemexit(
     assert result.provisioned is False
     # AC1: vault's setup driver was never reached, so no SystemExit could escape.
     setup_spy.assert_not_called()
+
+
+def test_missing_secret_exposes_instance() -> None:
+    """AC1: an entry exposes the account identity it was built with."""
+    secret = MissingSecret(
+        group="g",
+        name="n",
+        package="axm-fixture",
+        setup_hint="axm-vault set g n",
+        required=True,
+        instance="acme",
+    )
+
+    assert secret.instance == "acme"
+
+
+def test_missing_secret_exposes_awaiting_instance() -> None:
+    """AC2: an entry can flag a multi group that declares no account."""
+    secret = MissingSecret(
+        group="g",
+        name="n",
+        package="axm-fixture",
+        setup_hint="axm-vault set g n",
+        required=True,
+        awaiting_instance=True,
+    )
+
+    assert secret.awaiting_instance is True
+
+
+def test_is_served_rejects_sibling_account() -> None:
+    """AC3: a served sibling account does not serve the starving account."""
+    provenance = {
+        KeyringStore.username("g", "n", "b"): {
+            "layer": "keyring",
+            "present": True,
+        }
+    }
+
+    assert _is_served(provenance, "g", "n", instance="a") is False
+
+
+def test_is_served_accepts_exact_account() -> None:
+    """AC4: the exact account is found through its canonical coordinate."""
+    provenance = {
+        KeyringStore.username("g", "n", "b"): {
+            "layer": "keyring",
+            "present": True,
+        }
+    }
+
+    assert _is_served(provenance, "g", "n", instance="b") is True

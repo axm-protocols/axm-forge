@@ -69,7 +69,8 @@ from axm_doctor import (
 collect_credential_provenance()  # [CredentialProvenance(coordinate=..., layer=..., present=...)]
 
 # Which credential specs resolve to 'missing'? Reads vault's catalog + value-free provenance.
-missing_secrets()                # [MissingSecret(group='research.fred', name='api_key', setup_hint='axm-vault set research.fred api_key'), ...] — never a value
+missing_secrets()                # MissingSecret rows; instance identifies the account when known
+                                 # awaiting_instance=True means a multi group declares no account yet
 
 # Dry-run by default — NEVER prompts or stores.
 provision_missing()              # ProvisionResult(provisioned=False, groups=['research.fred']): the groups it WOULD prompt for
@@ -84,7 +85,7 @@ provision_missing(confirm=True)  # delegates to vault's run_setup(only=...) — 
 - ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus` / `GitIdentityStatus` / `GhConfigStatus`; `AuthStatus` carries a `login_cmd` to recover from `logged_out`, never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the official command for a known tool; `run_install` is a dry-run by default (`confirm=False`) and installs only on explicit opt-in (`confirm=True`), then re-detects the tool.
 - ✅ **Typed credential provenance** — `collect_credential_provenance` translates axm-vault's live, value-free report into immutable `CredentialProvenance` rows containing exactly a coordinate, its winning layer and a presence flag; `auth_status` exposes the same information under `credentials` and in its text rendering. An empty installed catalog produces an empty report.
-- ✅ **Orchestrates, never possesses** — `missing_secrets` lists the vault credential specs that resolve to `missing` (value-free, with a `setup_hint`); `provision_missing` is a dry-run by default and on `confirm=True` delegates to vault's `run_setup` — the secret never transits axm-doctor.
+- ✅ **Orchestrates, never possesses** — `missing_secrets` lists the vault credential specs that resolve to `missing` (value-free, with a `setup_hint`). `MissingSecret.instance` identifies the account concerned and `awaiting_instance` marks a multi-instance group with no declared account; the served-state lookup uses the exact canonical credential/account coordinate, never a sibling match. `provision_missing` is a dry-run by default and on `confirm=True` delegates to vault's `run_setup` — the secret never transits axm-doctor.
 
 ---
 
