@@ -38,8 +38,8 @@ uv add axm-config
 
 The public API exposes the generic `get`, `load`, `set_`, and `delete`
 resolver plus typed accessors for shared runtime settings. In particular,
-`inference_base_url()` and `inference_model()` centralise the local inference
-endpoint and model identifier.
+`inference_base_url()`, `inference_model()`, and `inference_origin()`
+centralise the local inference endpoint, model identifier, and provider origin.
 
 ```python
 from axm_config import (
@@ -49,6 +49,7 @@ from axm_config import (
     get,
     inference_base_url,
     inference_model,
+    inference_origin,
     load,
     set_,
 )
@@ -59,8 +60,11 @@ print(home)  # e.g. /Users/you/.axm
 
 # Resolve local inference settings. AXM_INFERENCE_BASE_URL and
 # AXM_INFERENCE_MODEL override these defaults without rewriting either value.
+# AXM_INFERENCE_ORIGIN selects anthropic, openai, google, or local; unknown
+# values raise ConfigError at the configuration boundary.
 base_url = inference_base_url()  # http://127.0.0.1:8000/v1
 model = inference_model()  # ornith-ai/Ornith-1.5-9B-MLX-4bit
+origin = inference_origin()  # local
 
 # Resolve runtime config with env > file > default precedence.
 set_("research.fred", "api_key", "abc123")  # writes [research.fred] in ~/.axm/config.toml
@@ -130,10 +134,11 @@ axm-config doctor research.fred              # per-key provenance, read-only
   raises `ConfigError`, a config file can never land outside the resolved
   `~/.axm` home (a `HOME` pointing into a git checkout is refused), and the
   derived env-var name is always POSIX-valid
-- ✅ **Typed inference settings** — `inference_base_url()` and
-  `inference_model()` resolve the `[inference]` `base_url` and `model` keys with
-  stable local defaults; configured strings are returned verbatim, including
-  their scheme, path, slashes, and model spelling
+- ✅ **Typed inference settings** — `inference_base_url()`,
+  `inference_model()`, and `inference_origin()` resolve the `[inference]`
+  `base_url`, `model`, and `origin` keys with stable local defaults. Address and
+  model strings are returned verbatim; origin is constrained to `anthropic`,
+  `openai`, `google`, or `local`, and an unsupported value raises `ConfigError`
 - ✅ **Model binding** — `load(namespace, model)` populates a consumer's
   pydantic model, resolving each field by name; a missing required field
   raises `ConfigError`

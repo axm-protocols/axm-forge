@@ -307,3 +307,32 @@ def test_inference_accessors_are_exported_at_package_top_level() -> None:
     assert "inference_model" in axm_config.__all__
     assert callable(axm_config.inference_base_url)
     assert callable(axm_config.inference_model)
+
+
+def test_inference_origin_preserves_supported_configured_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a configured member of the closed origin set is returned verbatim."""
+    monkeypatch.setenv("AXM_INFERENCE_ORIGIN", "openai")
+
+    assert paths.inference_origin() == "openai"
+
+
+def test_inference_origin_rejects_unsupported_configured_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: an unsupported origin is refused with the faulty key and value."""
+    monkeypatch.setenv("AXM_INFERENCE_ORIGIN", "mistral")
+
+    with pytest.raises(ConfigError) as exc_info:
+        paths.inference_origin()
+
+    diagnostic = str(exc_info.value)
+    assert "inference.origin" in diagnostic
+    assert "mistral" in diagnostic
+
+
+def test_inference_origin_is_exported_at_package_top_level() -> None:
+    """AC4: inference_origin belongs to the callable package-level API."""
+    assert "inference_origin" in axm_config.__all__
+    assert callable(axm_config.inference_origin)

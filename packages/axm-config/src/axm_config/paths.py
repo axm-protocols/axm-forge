@@ -49,6 +49,7 @@ __all__ = [
     "get_str",
     "inference_base_url",
     "inference_model",
+    "inference_origin",
     "protocols_dir",
     "quality_dir",
     "sessions_root",
@@ -178,6 +179,8 @@ def get_bool(
 _INFERENCE_NAMESPACE = "inference"
 _DEFAULT_INFERENCE_BASE_URL = "http://127.0.0.1:8000/v1"
 _DEFAULT_INFERENCE_MODEL = "ornith-ai/Ornith-1.5-9B-MLX-4bit"
+_DEFAULT_INFERENCE_ORIGIN = "local"
+_INFERENCE_ORIGINS = frozenset({"anthropic", "google", "local", "openai"})
 
 
 def get_str(
@@ -191,6 +194,23 @@ def get_str(
     if configured is _MISSING:
         return default
     return str(configured)
+
+
+def inference_origin() -> str:
+    """Return the configured inference provider origin."""
+    value = get_str(
+        "origin",
+        _DEFAULT_INFERENCE_ORIGIN,
+        namespace=_INFERENCE_NAMESPACE,
+    )
+    if value not in _INFERENCE_ORIGINS:
+        expected = ", ".join(sorted(_INFERENCE_ORIGINS))
+        msg = (
+            "invalid value for inference.origin: "
+            f"expected one of {expected}, got {value!r}"
+        )
+        raise ConfigError(msg)
+    return value
 
 
 def inference_base_url() -> str:
