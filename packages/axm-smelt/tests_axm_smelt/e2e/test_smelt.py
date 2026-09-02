@@ -1,24 +1,26 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.e2e
+_AXM = Path(sys.executable).parent / "axm"
 
 
+@pytest.mark.e2e
 def test_cli_old_name_rejected() -> None:
-    result = subprocess.run(
-        ["uv", "run", "axm-smelt", "compact", "--strategies", "dedup_values"],  # noqa: S607
+    result = subprocess.run(  # noqa: S603
+        [str(_AXM), "smelt", "compact", "--strategies", "dedup_values"],
         capture_output=True,
         text=True,
-        input='{"a":"b"}',
     )
     assert result.returncode != 0
     assert "dedup_values" in (result.stderr + result.stdout).lower()
 
 
+@pytest.mark.e2e
 def test_compact_non_ascii_file(tmp_path: Path) -> None:
     """AC3: compacting a non-ASCII file preserves its content as utf-8."""
     content = "café naïve résumé 漢字 こんにちは"
@@ -27,7 +29,15 @@ def test_compact_non_ascii_file(tmp_path: Path) -> None:
     out = tmp_path / "output.txt"
 
     result = subprocess.run(  # noqa: S603
-        ["uv", "run", "axm-smelt", "compact", "--file", str(src), "--output", str(out)],  # noqa: S607
+        [
+            str(_AXM),
+            "smelt",
+            "compact",
+            "--file",
+            str(src),
+            "--output",
+            str(out),
+        ],
         capture_output=True,
         text=True,
     )
