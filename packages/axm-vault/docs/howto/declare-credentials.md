@@ -122,6 +122,21 @@ creds = bind(BrokerCreds, "broker")   # returns BrokerCreds — no cast needed
 and returns the concrete model type. A missing *required* spec raises
 `MissingCredentialError`.
 
+For a group with an `InstanceSource`, applications can enumerate and declare
+account identities without entering the provisioning flow:
+
+```python
+from axm_vault import declare_instance, list_instances
+
+list_instances(group)              # source order, or [] without a source
+declare_instance(group, "pro")     # declares the name only
+```
+
+Declaration is deliberately non-interactive: it never calls `input()` or
+`getpass`, and it does not read or write a secret. Provisioning a credential
+value remains a separate operation. Calling `declare_instance` without a source
+raises `UnsupportedInstanceDeclarationError`; listing without one returns `[]`.
+
 ## Related
 
 - [Catalog Models](../reference/models.md) — every field of `CredentialSpec` / `CredentialGroup`

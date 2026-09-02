@@ -7,6 +7,11 @@ from __future__ import annotations
 
 from axm_vault.catalog import Catalog, load_catalog
 from axm_vault.doctor import Provenance, doctor_data
+from axm_vault.instances import (
+    UnsupportedInstanceDeclarationError,
+    declare_instance,
+    list_instances,
+)
 from axm_vault.models import (
     CredentialGroup,
     CredentialSpec,
@@ -41,13 +46,16 @@ __all__ = [
     "Resolved",
     "Resolver",
     "Sensitivity",
+    "UnsupportedInstanceDeclarationError",
     "VaultDoctorTool",
     "VaultSetTool",
     "as_secret",
     "atomic_write",
     "bind",
+    "declare_instance",
     "doctor_data",
     "get",
+    "list_instances",
     "load_catalog",
     "redact",
     "resolver",

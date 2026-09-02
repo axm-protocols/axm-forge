@@ -62,6 +62,26 @@ Objects providing both methods satisfy `isinstance(source, InstanceSource)`.
 The protocol carries no credential values and has no knowledge of a package's
 configuration layout.
 
+## Instance operations
+
+The public helpers call the capability carried by a `CredentialGroup`:
+
+```python
+from axm_vault import declare_instance, list_instances
+
+names = list_instances(group)
+declare_instance(group, "pro")
+```
+
+`list_instances(group) -> list[str]` preserves the source's names and order. It
+returns an empty list when the group has no instance source, including for a
+multi-instance group.
+
+`declare_instance(group, instance) -> None` delegates only the clear-text
+instance name to the source. It neither prompts nor reads or writes a credential
+value. When the group has no source, it raises
+`UnsupportedInstanceDeclarationError` and names the group id in the message.
+
 ## `CredentialGroup`
 
 A bundle of the credential specs a package requires.
