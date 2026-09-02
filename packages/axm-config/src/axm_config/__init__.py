@@ -6,6 +6,7 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
 from __future__ import annotations
 
 from axm_config.home import axm_home, resolve_safe
+from axm_config.isolation import ProfileIsolation, is_isolated, profile_isolation
 from axm_config.paths import (
     PATHS_NAMESPACE,
     get_bool,
@@ -55,6 +56,7 @@ __all__ = [
     "ConfigError",
     "ExecutionPolicyOverride",
     "NamespaceStore",
+    "ProfileIsolation",
     "UnsafeHomeError",
     "axm_home",
     "current_profile",
@@ -70,10 +72,12 @@ __all__ = [
     "inference_base_url",
     "inference_model",
     "inference_origin",
+    "is_isolated",
     "list_execution_policies",
     "load",
     "profile_config_path",
     "profile_env",
+    "profile_isolation",
     "profile_root",
     "protocols_dir",
     "quality_dir",

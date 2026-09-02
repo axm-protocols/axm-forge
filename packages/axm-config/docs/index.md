@@ -45,10 +45,12 @@ identifier, and provider origin.
 ```python
 from axm_config import (
     ConfigError,
+    ProfileIsolation,
     axm_home,
     current_profile,
     profile_config_path,
     profile_env,
+    profile_isolation,
     profile_root,
     protocols_dir,
     quality_dir,
@@ -58,6 +60,7 @@ from axm_config import (
     inference_base_url,
     inference_model,
     inference_origin,
+    is_isolated,
     load,
     set_,
     tickets_db,
@@ -88,6 +91,11 @@ quality = quality_dir()  # ~/.axm/profiles/dev/quality
 protocols = protocols_dir()  # ~/.axm/profiles/dev/protocols
 warden_log = warden_log_path()  # ~/.axm/profiles/dev/warden.log
 warden_control = warden_socket()  # ~/.axm/profiles/dev/warden.sock
+
+# Inspect another profile without changing AXM_PROFILE or creating directories.
+diagnostic: ProfileIsolation = profile_isolation("scratch")
+assert diagnostic.isolated
+assert is_isolated(diagnostic.profile_root, diagnostic.paths) == (True, [])
 
 # Resolve local inference settings. AXM_INFERENCE_BASE_URL and
 # AXM_INFERENCE_MODEL override these defaults without rewriting either value.
@@ -160,6 +168,12 @@ axm-config doctor research.fred              # per-key provenance, read-only
   root; a path targeting production, another profile, or any external location
   raises `ConfigError`. Production keeps the historical defaults, while under
   a named profile its isolated root also outranks a caller-supplied fallback
+- ✅ **Side-effect-free isolation diagnostics** — `profile_isolation(name)`
+  computes the ticket database, warden socket and log, sessions, quality, and
+  protocols paths for an explicit profile without reading `AXM_PROFILE` or
+  creating its `AXM_HOME` tree. It returns a typed `ProfileIsolation` verdict;
+  `is_isolated(root, paths)` also exposes the pure containment check and the
+  sorted names of escaping paths
 - ✅ **Layered resolution** — `get()` / `set_()` / `delete()` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace
