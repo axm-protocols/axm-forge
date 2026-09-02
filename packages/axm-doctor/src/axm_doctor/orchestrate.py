@@ -15,10 +15,12 @@ the orchestration seam, so it depends on axm-vault directly.
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping
 
 from axm_vault import load_catalog
 from axm_vault.doctor import doctor_data
 from axm_vault.setup import run_setup
+from axm_vault.store import KeyringStore
 from pydantic import BaseModel
 
 __all__ = [
@@ -67,6 +69,52 @@ class ProvisionResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
     reason: str | None = None
 
 
+#: Segment count of an instance-qualified coordinate: group, instance, name.
+_INSTANCE_SEGMENTS = 3
+
+
+def _is_served(
+    provenance: Mapping[str, Mapping[str, str | bool]],
+    group_id: str,
+    name: str,
+) -> bool:
+    """Report whether the provenance holds a concrete layer for a credential.
+
+    The report is keyed by the canonical coordinate composed by
+    :meth:`~axm_vault.store.KeyringStore.username`, which percent-escapes every
+    segment: a group id carrying a literal dot is therefore NOT addressable by
+    plain concatenation. Composing the key here through the very same function
+    the producer uses is what keeps the two sides from drifting apart.
+
+    A multi-instance group is reported one entry per instance, under a
+    three-segment coordinate the census cannot enumerate (it emits at most one
+    entry per ``(group, name)``). Such an entry still proves the credential is
+    served, so it is recognised by its escaped group prefix and name suffix
+    rather than being downgraded to "missing".
+
+    Args:
+        provenance: The value-free report returned by ``doctor_data``.
+        group_id: The credential group id, unescaped.
+        name: The credential name within that group.
+
+    Returns:
+        ``True`` when some entry for that credential carries a concrete
+        (non-missing) layer, ``False`` otherwise.
+    """
+    coordinate = KeyringStore.username(group_id, name)
+    entry = provenance.get(coordinate)
+    if entry is not None:
+        return entry.get("layer") != _MISSING
+    escaped_group, escaped_name = coordinate.split(".", 1)
+    return any(
+        parts[0] == escaped_group
+        and parts[-1] == escaped_name
+        and qualified.get("layer") != _MISSING
+        for key, qualified in provenance.items()
+        if len(parts := key.split(".")) == _INSTANCE_SEGMENTS
+    )
+
+
 def missing_secrets() -> list[MissingSecret]:
     """Return the catalog specs that resolve to ``"missing"``, value-free.
 
@@ -79,13 +127,7 @@ def missing_secrets() -> list[MissingSecret]:
     missing: list[MissingSecret] = []
     for group in catalog.groups():
         for spec in group.specs:
-            entry = provenance.get(f"{group.id}.{spec.name}")
-            # A None entry (key absent from doctor_data output) means the
-            # resolver has no provenance for this spec: surface it as
-            # missing/unknown, funnelling it through the same missing branch as
-            # an explicit ``layer == _MISSING``. Only a present entry with a
-            # concrete (non-missing) layer is treated as resolved and skipped.
-            if entry is not None and entry.get("layer") != _MISSING:
+            if _is_served(provenance, group.id, spec.name):
                 continue
             missing.append(
                 MissingSecret(

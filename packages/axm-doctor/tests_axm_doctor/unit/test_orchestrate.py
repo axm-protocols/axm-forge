@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from axm_vault.catalog import Catalog
 from axm_vault.models import CredentialGroup, CredentialSpec
+from axm_vault.store import KeyringStore
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
@@ -12,6 +13,11 @@ from axm_doctor.orchestrate import (
     missing_secrets,
     provision_missing,
 )
+
+#: The canonical coordinate ``doctor_data`` emits for the fixture credential.
+#: Composed by the producer's own function so the stub can never drift from
+#: the real report's key format (a dotted group id is percent-escaped).
+_COORD = KeyringStore.username("research.fred", "api_key")
 
 
 def _group() -> CredentialGroup:
@@ -71,7 +77,7 @@ def test_missing_secrets_filters_missing(mocker: MockerFixture) -> None:
     mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+        return_value={_COORD: {"layer": "missing", "present": False}},
     )
 
     result = missing_secrets()
@@ -107,7 +113,7 @@ def test_missing_secrets_layer_missing_is_missing(mocker: MockerFixture) -> None
     mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+        return_value={_COORD: {"layer": "missing", "present": False}},
     )
 
     result = missing_secrets()
@@ -121,7 +127,7 @@ def test_missing_secrets_keeps_present_out(mocker: MockerFixture) -> None:
     mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "env", "present": True}},
+        return_value={_COORD: {"layer": "env", "present": True}},
     )
     assert missing_secrets() == []
 
@@ -132,7 +138,7 @@ def test_provision_dry_run_no_prompt(mocker: MockerFixture) -> None:
     mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+        return_value={_COORD: {"layer": "missing", "present": False}},
     )
     spy = mocker.patch("axm_doctor.orchestrate.run_setup")
 
@@ -160,8 +166,8 @@ def test_provision_confirm_resolved_is_provisioned(
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
         side_effect=[
-            {"research.fred.api_key": {"layer": "missing", "present": False}},
-            {"research.fred.api_key": {"layer": "keyring", "present": True}},
+            {_COORD: {"layer": "missing", "present": False}},
+            {_COORD: {"layer": "keyring", "present": True}},
         ],
     )
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
@@ -194,7 +200,7 @@ def test_provision_confirm_still_missing_is_not_provisioned(
     # Both scans (plan + post-setup) still report the spec missing.
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+        return_value={_COORD: {"layer": "missing", "present": False}},
     )
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
     setup_spy = mocker.patch("axm_doctor.orchestrate.run_setup")
@@ -217,7 +223,7 @@ def test_provision_non_tty_no_systemexit(
     mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
     mocker.patch(
         "axm_doctor.orchestrate.doctor_data",
-        return_value={"research.fred.api_key": {"layer": "missing", "present": False}},
+        return_value={_COORD: {"layer": "missing", "present": False}},
     )
     setup_spy = mocker.patch("axm_doctor.orchestrate.run_setup")
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
