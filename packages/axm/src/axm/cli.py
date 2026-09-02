@@ -77,23 +77,44 @@ def is_nonscalar(annotation: object) -> bool:
     return _is_nonscalar(annotation, frozenset())
 
 
+def _type_alias_nonscalar(
+    annotation: object, seen_aliases: frozenset[int]
+) -> bool | None:
+    if not isinstance(annotation, typing.TypeAliasType):
+        return None
+    alias_id = id(annotation)
+    if alias_id in seen_aliases:
+        return False
+    return _is_nonscalar(annotation.__value__, seen_aliases | {alias_id})
+
+
+def _union_nonscalar(annotation: object, seen_aliases: frozenset[int]) -> bool:
+    members = (a for a in typing.get_args(annotation) if a is not type(None))
+    return any(_is_nonscalar(member, seen_aliases) for member in members)
+
+
+def _is_container_origin(origin: object) -> bool:
+    return origin in (list, dict, tuple, set)
+
+
+def _is_custom_nonscalar_type(annotation: object) -> bool:
+    return isinstance(annotation, type) and not issubclass(annotation, _SCALARS)
+
+
 def _is_nonscalar(annotation: object, seen_aliases: frozenset[int]) -> bool:
     if annotation is inspect.Parameter.empty:
         return False
-    if isinstance(annotation, typing.TypeAliasType):
-        alias_id = id(annotation)
-        return alias_id not in seen_aliases and _is_nonscalar(
-            annotation.__value__, seen_aliases | {alias_id}
-        )
+    alias_result = _type_alias_nonscalar(annotation, seen_aliases)
+    if alias_result is not None:
+        return alias_result
     origin = typing.get_origin(annotation)
     if origin is Annotated:
         return _is_nonscalar(typing.get_args(annotation)[0], seen_aliases)
     if origin in (Union, types.UnionType):
-        members = [a for a in typing.get_args(annotation) if a is not type(None)]
-        return any(_is_nonscalar(member, seen_aliases) for member in members)
-    if origin in (list, dict, tuple, set):
+        return _union_nonscalar(annotation, seen_aliases)
+    if _is_container_origin(origin):
         return True
-    return isinstance(annotation, type) and not issubclass(annotation, _SCALARS)
+    return _is_custom_nonscalar_type(annotation)
 
 
 def _exec_callable(tool_obj: Any) -> Any:
