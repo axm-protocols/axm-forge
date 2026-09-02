@@ -1,9 +1,10 @@
 # Architecture
 
-`axm-config` is a small, flat package: five source modules layered by
+`axm-config` is a small, flat package: seven source modules layered by
 responsibility, no hexagonal `core/`/`adapters/` split. The dependency arrow
 points one way — the CLI and the AXMTool sit at the edge, the resolver is the
-brain, and the store/home modules own the on-disk contact.
+brain, the profile module carries state selection, and the store/home modules
+own the on-disk contact.
 
 ```mermaid
 graph TD
@@ -13,6 +14,7 @@ graph TD
     Resolver["resolver.py — get / set_ / delete / load + validate_segment"]
     Store["store.py — NamespaceStore (atomic ~/.axm/config.toml I/O)"]
     Home["home.py — axm_home() + resolve_safe (leaf, stdlib only)"]
+    Profile["profile.py — AXM_PROFILE transport + state paths"]
 
     CLI --> Resolver
     CLI --> Doctor
@@ -21,6 +23,8 @@ graph TD
     Doctor --> Resolver
     Resolver --> Store
     Store --> Home
+    Profile --> Home
+    Profile --> Resolver
 ```
 
 ## The modules
@@ -28,11 +32,27 @@ graph TD
 | Module | Role |
 |---|---|
 | `home.py` | The leaf. Resolves `~/.axm` (`axm_home()`, created `0700`) and hosts `resolve_safe`, the guard that refuses any path resolving inside a git checkout. Pure stdlib. |
+| `profile.py` | Validates `AXM_PROFILE`, derives optional profile state/config paths, and returns the environment overlay used to propagate the active profile. |
 | `store.py` | `NamespaceStore` — reads/writes the single `~/.axm/config.toml`, atomically, `0600`. Degrades to `{}` on an absent/corrupt file; re-types an unsafe HOME as `UnsafeHomeError`. |
 | `resolver.py` | The public key–value surface: `get` / `set_` / `delete` / `load`, plus `validate_segment` and the `AXM_<NS>_<KEY>` env-name derivation. Owns the `env > file > default` precedence. |
 | `doctor.py` | Read-only provenance: for each visible key, which layer would win. Never reads a value into a consumer, never mutates. |
 | `tools.py` | `ConfigDoctorTool` — the AXMTool boundary over `doctor.py` (MCP + `axm config_doctor` CLI). Business logic stays in `doctor.py`. |
 | `cli.py` | The `axm-config` console script. Process-lifecycle only; every command delegates to the central function. |
+
+## State-profile transport boundary
+
+`profile.py` introduces a transport contract without changing the current
+store. `current_profile()` reads `AXM_PROFILE`: an unset or empty value means
+`production`; every explicit name must match
+`^[a-z][a-z0-9-]{0,31}$`, otherwise `ConfigError` names the rejected value.
+
+Production has no separate profile root and keeps `~/.axm/config.toml`.
+A profile such as `dev` resolves to `~/.axm/profiles/dev`, with
+`profile_config_path()` returning the nested `config.toml` path.
+`profile_env()` returns the one-key environment overlay a child process needs
+to inherit the active profile. At this stage these helpers do not redirect
+`NamespaceStore` or the generic resolver automatically; that adoption belongs
+to their consumers, preserving byte-identical production behaviour by default.
 
 ## Why a single `config.toml` (and how migration works)
 

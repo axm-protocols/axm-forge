@@ -26,6 +26,12 @@ from axm_config.paths import (
     warden_park_threshold,
     warden_socket,
 )
+from axm_config.profile import (
+    current_profile,
+    profile_config_path,
+    profile_env,
+    profile_root,
+)
 from axm_config.resolver import (
     ConfigError,
     ExecutionPolicyOverride,
@@ -50,6 +56,7 @@ __all__ = [
     "NamespaceStore",
     "UnsafeHomeError",
     "axm_home",
+    "current_profile",
     "delete",
     "delete_execution_policy",
     "get",
@@ -64,6 +71,9 @@ __all__ = [
     "inference_origin",
     "list_execution_policies",
     "load",
+    "profile_config_path",
+    "profile_env",
+    "profile_root",
     "protocols_dir",
     "quality_dir",
     "resolve_safe",

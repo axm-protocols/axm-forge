@@ -37,14 +37,19 @@ uv add axm-config
 ## Quick Start
 
 The public API exposes the generic `get`, `load`, `set_`, and `delete`
-resolver plus typed accessors for shared runtime settings. In particular,
-`inference_base_url()`, `inference_model()`, and `inference_origin()`
-centralise the local inference endpoint, model identifier, and provider origin.
+resolver, typed accessors for shared runtime settings, and the state-profile
+transport helpers. In particular, `inference_base_url()`, `inference_model()`,
+and `inference_origin()` centralise the local inference endpoint, model
+identifier, and provider origin.
 
 ```python
 from axm_config import (
     ConfigError,
     axm_home,
+    current_profile,
+    profile_config_path,
+    profile_env,
+    profile_root,
     delete,
     get,
     inference_base_url,
@@ -57,6 +62,13 @@ from axm_config import (
 # Resolve (and create, 0700) the per-user ~/.axm directory.
 home = axm_home()
 print(home)  # e.g. /Users/you/.axm
+
+# With AXM_PROFILE=dev, resolve the isolated state contract and propagate it
+# to a child process. Unset or empty AXM_PROFILE keeps production unchanged.
+profile = current_profile()  # dev
+root = profile_root()  # ~/.axm/profiles/dev
+config_file = profile_config_path()  # ~/.axm/profiles/dev/config.toml
+child_env_overlay = profile_env()  # {"AXM_PROFILE": "dev"}
 
 # Resolve local inference settings. AXM_INFERENCE_BASE_URL and
 # AXM_INFERENCE_MODEL override these defaults without rewriting either value.
@@ -105,6 +117,15 @@ axm-config doctor research.fred              # per-key provenance, read-only
 
 - ✅ **`~/.axm` home** — `axm_home()` resolves and creates the per-user
   config directory with mode `0700` (idempotent, tightens looser perms)
+- ✅ **State-profile transport** — `current_profile()` reads `AXM_PROFILE`,
+  defaulting unset or empty values to `production`, and validates names
+  lexically against `^[a-z][a-z0-9-]{0,31}$`. A non-production profile such
+  as `dev` resolves to `~/.axm/profiles/dev` and its `config.toml` through
+  `profile_root()` / `profile_config_path()`; `profile_env()` returns the
+  environment overlay to propagate the active profile to a child process.
+  These helpers define the transport contract only: the existing resolver
+  and `NamespaceStore` continue to use the production store until their
+  consumers explicitly adopt profile routing
 - ✅ **Layered resolution** — `get()` / `set_()` / `delete()` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace
