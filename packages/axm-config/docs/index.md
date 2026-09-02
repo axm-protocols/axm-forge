@@ -156,8 +156,10 @@ axm-config doctor research.fred              # per-key provenance, read-only
   `sessions_root()`, `quality_dir()`, `protocols_dir()`, `warden_log_path()`,
   and `warden_socket()` derive their defaults below
   `~/.axm/profiles/<name>/`. Environment and file configuration retain
-  precedence. Production keeps the historical defaults, while under a named
-  profile its isolated root also outranks a caller-supplied fallback
+  precedence, but every configured path must resolve inside the active profile
+  root; a path targeting production, another profile, or any external location
+  raises `ConfigError`. Production keeps the historical defaults, while under
+  a named profile its isolated root also outranks a caller-supplied fallback
 - ✅ **Layered resolution** — `get()` / `set_()` / `delete()` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace

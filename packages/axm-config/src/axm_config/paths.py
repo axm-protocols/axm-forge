@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import cast
 
 from axm_config.home import axm_home, resolve_safe
-from axm_config.profile import profile_root
+from axm_config.profile import current_profile, profile_root
 from axm_config.resolver import ConfigError, resolve
 
 __all__ = [
@@ -139,10 +139,22 @@ def get_path(
         raise ConfigError(msg)
     expanded = Path(configured).expanduser()
     try:
-        return resolve_safe(expanded)
+        resolved = resolve_safe(expanded)
     except ValueError as exc:
         msg = f"invalid path for {namespace}.{key}: {exc}"
         raise ConfigError(msg) from exc
+
+    root = profile_root()
+    if root is not None:
+        resolved_root = root.expanduser().resolve()
+        if not resolved.is_relative_to(resolved_root):
+            profile = current_profile()
+            msg = (
+                f"invalid path for {namespace}.{key}: profile {profile!r} "
+                f"requires containment under {resolved_root}, got {resolved}"
+            )
+            raise ConfigError(msg)
+    return resolved
 
 
 def get_int(
