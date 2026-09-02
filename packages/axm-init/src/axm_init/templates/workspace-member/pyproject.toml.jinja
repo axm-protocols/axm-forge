@@ -136,6 +136,9 @@ disable_error_code = [
 # ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration
 # ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+exempt_tests = ["test_version.py"]
+
 [tool.deptry]
 known_first_party = ["{{ module_name }}"]
 
