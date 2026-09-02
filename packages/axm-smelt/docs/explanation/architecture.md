@@ -10,7 +10,8 @@ graph TB
     MCP["MCP"] --> ToolRegistry
     DAG["DAG node"] --> ToolRegistry
     ToolRegistry --> Tools["smelt / smelt_check / smelt_count"]
-    Tools --> Pipeline["smelt() / check() / count()"]
+    Tools --> InputSource["explicit data / input_path / stdin"]
+    InputSource --> Pipeline["smelt() / check() / count()"]
     Pipeline --> Detector["detect_format()"]
     Pipeline --> Counter["count() — tiktoken"]
     Pipeline --> Strategies["Strategy pipeline"]
@@ -30,9 +31,9 @@ Three exported functions:
 
 ### 2. AXMTools (`tools/`)
 
-`SmeltTool`, `SmeltCheckTool`, and `SmeltCountTool` are registered once under the `axm.tools` entry point group. That registry supplies MCP, AXM CLI, and DAG-node access without a second interface layer. When `data` is already a dict or list, the compaction and analysis tools pass it via `parsed=` to skip the serialize→deserialize round-trip.
+`SmeltTool`, `SmeltCheckTool`, and `SmeltCountTool` are registered once under the `axm.tools` entry point group. That registry supplies MCP, AXM CLI, and DAG-node access without a second interface layer. Their shared input resolver applies one deterministic precedence rule: explicit non-empty `data`, then the UTF-8 file named by `input_path`, then non-interactive stdin, then the historical empty default. When `data` is already a dict or list, the compaction and analysis tools pass it via `parsed=` to skip the serialize→deserialize round-trip.
 
-The former Cyclopts façade (`cli.py`), standalone `axm-smelt` executable, and `python -m axm_smelt` module were removed. File input and output persistence are caller responsibilities; no compatibility alias remains.
+The former Cyclopts façade (`cli.py`), standalone `axm-smelt` executable, and `python -m axm_smelt` module were removed. File input is handled by the shared `input_path` contract; output persistence remains the caller's responsibility. No compatibility alias remains.
 
 ### 3. Pipeline (`core/pipeline.py`)
 

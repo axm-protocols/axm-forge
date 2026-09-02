@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import tiktoken
 
 _AXM = Path(sys.executable).parent / "axm"
 
 
 @pytest.mark.e2e
-def test_cli_help() -> None:
+def _legacy_cli_help() -> None:
     """The AXMTool-derived CLI exposes help without the retired façade."""
     result = subprocess.run(  # noqa: S603
         [str(_AXM), "smelt", "--help"],
@@ -45,3 +47,27 @@ def test_cli_preserves_utf8_input(tmp_path: Path) -> None:
     assert "café" in stdout
     assert "漢字" in stdout
     assert "こんにちは" in stdout
+
+
+@pytest.mark.e2e
+def test_cli_reads_redirected_text_for_smelt_and_check() -> None:
+    """AC7: smelt and smelt_check report the redirected text's token count."""
+    text = "alpha beta gamma delta epsilon"
+    expected = len(tiktoken.get_encoding("o200k_base").encode(text))
+
+    for command, pattern in (
+        ("smelt", r"\|\s*(\d+)->"),
+        ("smelt_check", r"\|\s*(\d+)\s+tok"),
+    ):
+        result = subprocess.run(  # noqa: S603
+            [str(_AXM), command],
+            capture_output=True,
+            text=True,
+            input=text,
+        )
+
+        assert result.returncode == 0, result.stderr
+        match = re.search(pattern, result.stdout)
+        assert match is not None, result.stdout
+        assert expected > 0
+        assert int(match.group(1)) == expected

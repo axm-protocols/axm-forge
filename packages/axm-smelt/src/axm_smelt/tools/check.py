@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_smelt._types import JsonValue
+from axm_smelt.core.input_source import resolve_text_source
 
 __all__ = ["SmeltCheckTool"]
 
@@ -31,12 +33,14 @@ class SmeltCheckTool(AXMTool):
         self,
         *,
         data: JsonValue = "",
+        input_path: str | None = None,
         **kwargs: object,
     ) -> ToolResult:
         """Analyze data for token reduction opportunities.
 
         Args:
             data: Text or JSON data to analyze.
+            input_path: Optional UTF-8 input file used when data is empty.
 
         Returns:
             ToolResult with format, token count, and strategy estimates.
@@ -45,6 +49,9 @@ class SmeltCheckTool(AXMTool):
             if data is None:
                 msg = "data must not be None"
                 raise ValueError(msg)
+
+            if isinstance(data, str):
+                data = resolve_text_source(data, input_path, stdin=sys.stdin)
 
             from axm_smelt.core.pipeline import check
 

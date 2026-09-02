@@ -49,7 +49,13 @@ The CLI surface is derived from the registered AXMTools. Inspect the exact signa
 axm smelt --help
 axm smelt_check --help
 axm smelt_count --help
+
+printf 'alpha beta gamma delta epsilon' | axm smelt_count
+axm smelt --input-path ./payload.txt
+axm smelt_check --input-path ./payload.txt
 ```
+
+All three commands accept UTF-8 input through `--input-path` and read redirected stdin when no data or path is supplied. Explicit data takes precedence over `--input-path`, which takes precedence over non-interactive stdin. A missing file or invalid UTF-8 makes the command fail and names the path.
 
 There is no standalone `axm-smelt` executable and `python -m axm_smelt` is intentionally unsupported.
 
@@ -90,7 +96,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/smelt/howto/mcp/) for 
 |---|---|
 | `axm smelt` | Compact text or structured data |
 | `axm smelt_check` | Analyze token waste without transforming the input |
-| `axm smelt_count` | Count input tokens |
+| `axm smelt_count` | Count input tokens from explicit data, a UTF-8 file, or redirected stdin |
 
 These commands come from the `axm.tools` registry; the same definitions power MCP and DAG nodes. Use `--help` for their generated CLI signatures. The removed standalone façade has no compatibility alias.
 

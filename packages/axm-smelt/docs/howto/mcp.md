@@ -8,6 +8,7 @@
 SmeltTool.execute(
     *,
     data: str | dict | list = "",         # Text or pre-parsed data to compact
+    input_path: str | None = None,         # UTF-8 file used when data is empty
     strategies: list[str] | None = None,  # Explicit strategy list
     preset: str | None = None,            # Named preset (safe/moderate/aggressive)
 ) -> ToolResult
@@ -18,7 +19,9 @@ Three tools are registered in the `axm.tools` entry point group: `smelt`
 projected savings), and `smelt_count` (token count of an input, no compaction).
 All arguments are keyword-only.
 
-When `data` is a dict or list, it is passed directly to the pipeline via `parsed=`, avoiding a `json.dumps` → `json.loads` round-trip. String inputs follow the original path unchanged.
+All three tools share the same input precedence: explicit non-empty `data` wins over `input_path`; otherwise `input_path` is read explicitly as UTF-8; without either, non-interactive stdin is read; and an unavailable interactive stdin preserves the empty default. A missing path, directory, or invalid UTF-8 returns `ToolResult(success=False)` with the designated path in `error`.
+
+When `data` is a dict or list, it is passed directly to the pipeline via `parsed=`, avoiding a `json.dumps` → `json.loads` round-trip. Structured data therefore never consults the file or stdin paths.
 
 If neither `strategies` nor `preset` is given, the `safe` preset is used.
 
@@ -29,7 +32,7 @@ If neither `strategies` nor `preset` is given, the `safe` preset is used.
 ```python
 # Via axm-mcp
 result = await mcp.call_tool("smelt", {
-    "data": raw_json,
+    "input_path": "/data/payload.json",
     "preset": "moderate",
 })
 ```
