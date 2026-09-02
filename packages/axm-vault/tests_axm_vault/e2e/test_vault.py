@@ -34,11 +34,18 @@ def test_doctor_empty_catalog_exits_clean() -> None:
     """AC4: ``axm-vault doctor`` on the empty catalog exits 0 and prints nothing.
 
     This is the honest black-box claim (see the module note): with no
-    ``axm.credentials`` provider registered, the doctor has nothing to report
-    and must still exit cleanly.
+    ``axm.credentials`` group under the requested package, the doctor has
+    nothing to report and must still exit cleanly. The emptiness is obtained by
+    restricting the report to a package that contributes nothing, rather than
+    by assuming no contributor is installed at all: which contributors happen
+    to be present in the running environment is not a property of vault, and
+    asserting on it made this witness fail as soon as one appeared.
     """
     proc = subprocess.run(
-        [*_VAULT, "doctor"], capture_output=True, text=True, check=False
+        [*_VAULT, "doctor", "--package", "axm-vault-no-such-contributor"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert proc.returncode == 0
     assert proc.stdout.strip() == ""
