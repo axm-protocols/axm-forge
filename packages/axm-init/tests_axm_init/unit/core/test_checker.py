@@ -42,7 +42,7 @@ class TestCheckDiscovery:
         # AC6: the paper module adds three checks in a ninth category, and the
         # experiment module two more in a tenth one.
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 56
+        assert total == 57
         assert len(ALL_CHECKS) == 10
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:

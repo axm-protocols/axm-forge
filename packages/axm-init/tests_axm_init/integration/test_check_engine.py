@@ -388,3 +388,28 @@ def test_scaffolded_project_scores_100(scaffolded_standalone: Path) -> None:
     failed_names = {c.name for c in result.failures}
     assert "pyproject.pyproject_wheel_doc_shipping" not in failed_names, result.failures
     assert result.score == 100, sorted(failed_names)
+
+
+def test_engine_reports_invalid_ci_step_in_ci_category(tmp_path: Path) -> None:
+    """AC6: CheckEngine exposes the failing executable-step check under ci."""
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "demo"\n')
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "ci.yml").write_text(
+        """
+jobs:
+  test:
+    steps:
+      - name: orphan
+""".lstrip()
+    )
+
+    result = CheckEngine(tmp_path, category="ci").run()
+
+    matching = [
+        check
+        for check in result.checks
+        if check.name == "ci.ci_steps_executable" and check.category == "ci"
+    ]
+    assert len(matching) == 1
+    assert matching[0].passed is False

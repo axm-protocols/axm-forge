@@ -68,6 +68,78 @@ def check_ci_lint_job(project: Path) -> CheckResult:
     )
 
 
+def _invalid_step_entries(workflow: object) -> list[str]:
+    """Describe workflow steps that have neither an action nor a command."""
+    if not isinstance(workflow, dict):
+        return []
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return []
+
+    invalid: list[str] = []
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict) or not ({"uses", "run"} & step.keys()):
+                invalid.append(f"job {job_name!r}: invalid step {step!r}")
+    return invalid
+
+
+def check_ci_steps_executable(project: Path) -> CheckResult:
+    """Check that every workflow step declares either uses or run."""
+    workflows_dir = project / ".github" / "workflows"
+    workflow_paths = sorted(
+        (*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml"))
+    )
+    invalid: list[str] = []
+
+    if not workflow_paths:
+        return CheckResult(
+            name="ci.steps_executable",
+            category="ci",
+            passed=False,
+            weight=4,
+            message="CI workflow not found",
+            details=["Expected a YAML file in .github/workflows"],
+            fix="Create a workflow whose steps declare uses or run.",
+        )
+
+    for workflow_path in workflow_paths:
+        try:
+            workflow = yaml.safe_load(workflow_path.read_text())
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            invalid.append(f"{workflow_path.name}: unreadable workflow ({exc})")
+            continue
+        invalid.extend(
+            f"{workflow_path.name}: {description}"
+            for description in _invalid_step_entries(workflow)
+        )
+
+    if invalid:
+        return CheckResult(
+            name="ci.steps_executable",
+            category="ci",
+            passed=False,
+            weight=4,
+            message="Invalid CI workflow steps: " + "; ".join(invalid),
+            details=invalid,
+            fix="Give every workflow step a uses or run key.",
+        )
+    return CheckResult(
+        name="ci.steps_executable",
+        category="ci",
+        passed=True,
+        weight=4,
+        message="All CI workflow steps are executable",
+        details=[],
+        fix="",
+    )
+
+
 def _step_runs_tests(step: object) -> bool:
     """True if a workflow step invokes a test runner (e.g. pytest)."""
     if not isinstance(step, dict):

@@ -56,12 +56,18 @@ GitHub Actions CI workflow:
 
 | Check | Weight | What It Verifies |
 |-------|--------|-----------------|
-| `ci.ci_workflow_exists` | 4 | `.github/workflows/ci.yml` exists |
+| `ci.ci_steps_executable` | 4 | At least one `.yml`/`.yaml` workflow exists and every step declares `uses` or `run` |
 | `ci.ci_lint_job` | 3 | Lint/type-check job |
 | `ci.ci_test_job` | 3 | Test job with Python matrix |
 | `ci.ci_security_job` | 2 | pip-audit security scanning |
 | `ci.trusted_publishing` | 2 | OIDC Trusted Publishing without API token fallback |
 | `ci.dependabot` | 2 | `.github/dependabot.yml` configured |
+
+The executable-step check scans every workflow under `.github/workflows/`. Fields
+such as `name`, `with`, `env`, `if`, and `continue-on-error` may decorate a
+step, but do not replace its required `uses` or `run` key. Jobs without a
+`steps` block, including reusable workflows declared with job-level `uses`, are
+ignored.
 
 ### tooling (16 pts)
 

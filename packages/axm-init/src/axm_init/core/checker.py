@@ -244,6 +244,7 @@ def _category_check_ids(category: str) -> frozenset[str]:
 # Checks that only make sense on a workspace root: every other context skips
 # the whole ``workspace`` category.
 _WORKSPACE_ONLY_CHECKS: frozenset[str] = _category_check_ids("workspace")
+_SUPERSEDED_CHECKS = frozenset({"ci.ci_workflow_exists"})
 
 # Package-level concerns a workspace root does not carry.
 _WORKSPACE_ROOT_SKIPS: frozenset[str] = frozenset(
@@ -283,6 +284,7 @@ _MEMBER_REDIRECTS: frozenset[str] = frozenset(
         "ci.ci_lint_job",
         "ci.ci_security_job",
         "ci.ci_test_job",
+        "ci.ci_steps_executable",
         "tooling.precommit_exists",
         "tooling.precommit_ruff",
         "tooling.precommit_mypy",
@@ -314,13 +316,17 @@ _PACKAGING_CHECKS: frozenset[str] = (
 # Checks skipped entirely, per detected project context.
 SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     ProjectContext.STANDALONE: (
-        _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+        _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS | _EXPERIMENT_CHECKS | _SUPERSEDED_CHECKS
     ),
     ProjectContext.WORKSPACE: (
-        _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+        _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS | _SUPERSEDED_CHECKS
     ),
     ProjectContext.MEMBER: (
-        _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS
+        _WORKSPACE_ONLY_CHECKS
+        | _MEMBER_SKIPS
+        | _PAPER_CHECKS
+        | _EXPERIMENT_CHECKS
+        | _SUPERSEDED_CHECKS
     ),
     # A paper is not a Python distribution: the whole packaging rulebook is
     # out, only the paper's own invariants are graded — and an experiment's
