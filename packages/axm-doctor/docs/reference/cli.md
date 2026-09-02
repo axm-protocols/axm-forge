@@ -94,7 +94,7 @@ The same read-only surface is available as two `axm.tools` entry points (MCP +
 | Tool | Returns |
 | -- | -- |
 | `env_doctor` | `{tools, auth, secrets, config}` — tool presence/version, third-party auth state, value-free missing secrets, and the git-identity / `gh` config states (`config = {git: {state}, gh: {state}}`). Read-only. |
-| `auth_status` | `{auth: {tool: {state, login_cmd}}}` for the third-party binaries. The token value is **never** serialized. |
+| `auth_status` | `{auth: {tool: {state, login_cmd}}, credentials: {coordinate: {layer, present}}}`. The existing third-party auth block is unchanged; `credentials` covers exactly the installed catalog and may be empty. Its text renders each coordinate after the auth section with the serving layer. No credential value is serialized. |
 
 ## Python API
 

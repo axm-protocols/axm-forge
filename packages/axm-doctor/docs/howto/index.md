@@ -16,11 +16,18 @@ for tool in ("gh", "claude", "codex"):
         print(f"{tool}: {status.state} — run: {status.login_cmd or 'n/a'}")
 ```
 
-Same surface over MCP / the `axm` CLI via the `auth_status` tool:
+Use the combined preflight over MCP / the `axm` CLI via the
+`auth_status` tool:
 
 ```bash
-axm auth_status   # {auth: {gh: {state, login_cmd}, claude: {...}, codex: {...}}}
+axm auth_status
+# data = {auth: {...}, credentials: {coordinate: {layer, present}}}
 ```
+
+Alongside the unchanged third-party CLI states, `credentials` reports the
+winning layer and presence flag for every coordinate in the installed catalog.
+The rendered text lists each coordinate followed by its layer; neither form
+contains a credential value. An empty installed catalog yields an empty section.
 
 ## Bootstrap a new machine
 

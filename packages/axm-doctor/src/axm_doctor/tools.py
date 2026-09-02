@@ -13,8 +13,14 @@ never transits axm_doctor.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 from axm.tools.base import ToolResult
 
+from axm_doctor.credentials import (
+    CredentialProvenance,
+    collect_credential_provenance,
+)
 from axm_doctor.detect import (
     detect_auth,
     detect_gh_config,
@@ -40,6 +46,26 @@ def _auth_map() -> dict[str, dict[str, str | None]]:
         for tool in THIRD_PARTY_AUTH
         for status in (detect_auth(tool),)
     }
+
+
+def _credentials_map(
+    rows: Sequence[CredentialProvenance],
+) -> dict[str, dict[str, str | bool]]:
+    """Serialize credential provenance without carrying credential values."""
+    return {
+        row.coordinate: {"layer": row.layer, "present": row.present} for row in rows
+    }
+
+
+def _credentials_text(
+    credentials: Mapping[str, Mapping[str, object]],
+) -> str:
+    """Render each credential coordinate followed by its serving layer."""
+    lines = ["Credentials:"]
+    lines.extend(
+        f"- {coordinate}: {entry['layer']}" for coordinate, entry in credentials.items()
+    )
+    return "\n".join(lines)
 
 
 def _config_map() -> dict[str, dict[str, str]]:
@@ -110,6 +136,16 @@ class AuthStatusTool:
         """Return value-free auth state; any error becomes a failure ToolResult."""
         try:
             auth = _auth_map()
+            credentials = _credentials_map(collect_credential_provenance())
         except Exception as exc:  # noqa: BLE001 # MCP boundary: any error -> failure
             return ToolResult(success=False, error=str(exc))
-        return ToolResult(success=True, data={"auth": auth})
+        auth_text = "\n".join(
+            f"- {tool}: {entry['state']}" for tool, entry in auth.items()
+        )
+        return ToolResult(
+            success=True,
+            data={"auth": auth, "credentials": credentials},
+            text=(
+                f"Third-party auth:\n{auth_text}\n\n{_credentials_text(credentials)}"
+            ),
+        )

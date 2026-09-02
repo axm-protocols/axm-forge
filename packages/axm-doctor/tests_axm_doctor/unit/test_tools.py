@@ -6,6 +6,7 @@ import dataclasses
 
 import pytest
 
+from axm_doctor.credentials import CredentialProvenance
 from axm_doctor.detect import AuthStatus, GhConfigStatus, GitIdentityStatus, ToolStatus
 from axm_doctor.orchestrate import MissingSecret
 from axm_doctor.tools import AuthStatusTool, EnvDoctorTool
@@ -140,3 +141,46 @@ def test_env_doctor_exposes_config_key(monkeypatch: pytest.MonkeyPatch) -> None:
     config = result.data["config"]
     assert config["git"]["state"] == "configured"
     assert config["gh"]["state"] == "configured"
+
+
+def test_credentials_map_preserves_layers_and_value_free_shape() -> None:
+    """AC2: all provenance layers remain distinct and value-free."""
+    import axm_doctor.tools as tools_mod
+
+    rows = [
+        CredentialProvenance(coordinate="a.one", layer="env", present=True),
+        CredentialProvenance(coordinate="b.two", layer="file", present=True),
+        CredentialProvenance(coordinate="c.three", layer="missing", present=False),
+    ]
+
+    credentials = tools_mod._credentials_map(rows)
+
+    assert credentials == {
+        "a.one": {"layer": "env", "present": True},
+        "b.two": {"layer": "file", "present": True},
+        "c.three": {"layer": "missing", "present": False},
+    }
+    assert all(set(entry) == {"layer", "present"} for entry in credentials.values())
+
+
+def test_credentials_text_names_coordinates_and_only_supplied_layers() -> None:
+    """AC3: each coordinate is followed by its layer and no other layer."""
+    import axm_doctor.tools as tools_mod
+
+    credentials = {
+        "a.one": {"layer": "env", "present": True},
+        "b.two": {"layer": "file", "present": True},
+    }
+
+    rendered = tools_mod._credentials_text(credentials)
+
+    lines = rendered.splitlines()
+    assert any(
+        "a.one" in line and "env" in line and line.index("a.one") < line.index("env")
+        for line in lines
+    )
+    assert any(
+        "b.two" in line and "file" in line and line.index("b.two") < line.index("file")
+        for line in lines
+    )
+    assert all(layer not in rendered for layer in ("keyring", "default", "prompt"))
