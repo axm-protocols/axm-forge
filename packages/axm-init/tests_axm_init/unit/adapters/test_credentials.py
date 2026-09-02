@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 from axm_init.adapters.credentials import CredentialManager
 
@@ -17,6 +20,12 @@ class TestCredentialManagerUnit:
             manager = CredentialManager()
             token = manager.get_pypi_token()
             assert token == "pypi-test-token"
+
+    def test_pypirc_path_constructor_keyword_is_rejected(self) -> None:
+        """AC4: no constructor parameter can designate an INI token source."""
+        constructor = Mock(wraps=CredentialManager)
+        with pytest.raises(TypeError):
+            constructor(pypirc_path=Path("/tmp/whatever"))
 
     def test_validate_token_format(self) -> None:
         """Validates pypi- token prefix."""

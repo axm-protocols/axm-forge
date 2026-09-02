@@ -54,26 +54,37 @@ class TestCredentialManager:
         finally:
             keyring.set_keyring(previous_backend)
 
-    def test_get_pypi_token_from_pypirc(self, tmp_path: Path) -> None:
-        """Token from ~/.pypirc when env not set."""
+    @pytest.mark.integration
+    def test_pypi_password_is_never_resolved_non_interactively(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """AC1: [pypi] file passwords are ignored and never disclosed."""
+        _ = """Token from ~/.pypirc when env not set."""
         pypirc = tmp_path / ".pypirc"
         pypirc.write_text("""[pypi]
 username = __token__
-password = pypi-from-file
+password = pypi-from-file-SENTINEL
 """)
 
-        with patch.dict(os.environ, {}, clear=True):
-            # Remove PYPI_API_TOKEN if present
-            os.environ.pop("PYPI_API_TOKEN", None)
-            manager = CredentialManager(pypirc_path=pypirc)
-            token = manager.get_pypi_token()
-            assert token == "pypi-from-file"
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("PYPI_API_TOKEN", raising=False)
 
-    def test_get_pypi_token_missing(self, tmp_path: Path) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            CredentialManager().resolve_pypi_token(interactive=False)
+
+        captured = capsys.readouterr()
+        assert excinfo.value.code == 1
+        assert "pypi-from-file-SENTINEL" not in captured.out
+        assert "pypi-from-file-SENTINEL" not in captured.err
+
+    def test_get_pypi_token_missing(self) -> None:
         """Returns None when no token available."""
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("PYPI_API_TOKEN", None)
-            manager = CredentialManager(pypirc_path=tmp_path / "nonexistent")
+            manager = CredentialManager()
             token = manager.get_pypi_token()
             assert token is None
 
@@ -84,16 +95,56 @@ password = pypi-from-file
 class TestResolvePypiToken:
     """resolve_pypi_token() — env → .pypirc → prompt → persist."""
 
-    def test_pypirc_fallback(self, tmp_path: Path) -> None:
-        """Reads from .pypirc when no env var."""
+    @pytest.mark.integration
+    def test_server_login_password_is_never_resolved_non_interactively(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """AC1: [server-login] file passwords are ignored and never disclosed."""
+        _ = """Reads from .pypirc when no env var."""
         pypirc = tmp_path / ".pypirc"
-        pypirc.write_text("[pypi]\nusername = __token__\npassword = pypi-from-file\n")
+        sentinel = "pypi-from-server-login-SENTINEL"
+        pypirc.write_text(
+            f"[server-login]\nusername = __token__\npassword = {sentinel}\n"
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("PYPI_API_TOKEN", raising=False)
 
-        with patch.dict(os.environ, {}, clear=True):
-            os.environ.pop("PYPI_API_TOKEN", None)
-            creds = CredentialManager(pypirc_path=pypirc)
-            token = creds.resolve_pypi_token()
-            assert token == "pypi-from-file"
+        with pytest.raises(SystemExit) as excinfo:
+            CredentialManager().resolve_pypi_token(interactive=False)
+
+        captured = capsys.readouterr()
+        assert excinfo.value.code == 1
+        assert sentinel not in captured.out
+        assert sentinel not in captured.err
+
+    @pytest.mark.integration
+    def test_interactive_prompt_over_pypirc_persists_to_vault(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: prompt wins over .pypirc and persists the typed catalog value."""
+        file_token = "pypi-from-file-SENTINEL"
+        typed_token = "pypi-AgEIcHlwaS5vcmc-typed"
+        pypirc = tmp_path / ".pypirc"
+        pypirc.write_text(f"[pypi]\npassword = {file_token}\n")
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("PYPI_API_TOKEN", raising=False)
+        catalog_module = importlib.import_module("axm_init.credentials_catalog")
+        group = catalog_module.pypi_credentials()[0]
+        spec = next(spec for spec in group.specs if spec.name == "token")
+
+        with (
+            patch("sys.stdin") as mock_stdin,
+            patch("getpass.getpass", return_value=typed_token),
+        ):
+            mock_stdin.isatty.return_value = True
+            resolved = CredentialManager().resolve_pypi_token()
+
+        assert resolved == typed_token
+        assert resolved != file_token
+        assert KeyringStore().get(group.id, spec.name) == typed_token
 
     @pytest.mark.integration
     def test_save_pypi_token_does_not_create_pypirc(
@@ -131,22 +182,36 @@ class TestResolvePypiToken:
         finally:
             keyring.set_keyring(previous_backend)
 
-    def test_non_interactive_exits(self, tmp_path: Path) -> None:
-        """interactive=False + no token → SystemExit(1)."""
-        pypirc = tmp_path / "nonexistent"
+    @pytest.mark.integration
+    def test_no_token_error_names_supported_sources(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """AC3: stderr names env and axm-vault, never the removed INI source."""
+        monkeypatch.delenv("PYPI_API_TOKEN", raising=False)
 
+        with pytest.raises(SystemExit) as excinfo:
+            CredentialManager().resolve_pypi_token(interactive=False)
+
+        stderr = capsys.readouterr().err
+        assert excinfo.value.code == 1
+        assert ".pypirc" not in stderr
+        assert "PYPI_API_TOKEN" in stderr
+        assert "axm-vault catalog" in stderr
+
+    def test_non_interactive_exits(self) -> None:
+        """interactive=False + no token → SystemExit(1)."""
         with (
             patch.dict(os.environ, {}, clear=True),
             pytest.raises(SystemExit),
         ):
             os.environ.pop("PYPI_API_TOKEN", None)
-            creds = CredentialManager(pypirc_path=pypirc)
+            creds = CredentialManager()
             creds.resolve_pypi_token(interactive=False)
 
-    def test_non_tty_exits(self, tmp_path: Path) -> None:
+    def test_non_tty_exits(self) -> None:
         """Non-TTY stdin + no token → SystemExit(1)."""
-        pypirc = tmp_path / "nonexistent"
-
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("sys.stdin") as mock_stdin,
@@ -154,13 +219,11 @@ class TestResolvePypiToken:
         ):
             os.environ.pop("PYPI_API_TOKEN", None)
             mock_stdin.isatty.return_value = False
-            creds = CredentialManager(pypirc_path=pypirc)
+            creds = CredentialManager()
             creds.resolve_pypi_token()
 
-    def test_invalid_token_exits(self, tmp_path: Path) -> None:
+    def test_invalid_token_exits(self) -> None:
         """Token without 'pypi-' prefix → SystemExit(1)."""
-        pypirc = tmp_path / ".pypirc"
-
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("getpass.getpass", return_value="not-a-valid-token"),
@@ -169,13 +232,11 @@ class TestResolvePypiToken:
         ):
             os.environ.pop("PYPI_API_TOKEN", None)
             mock_stdin.isatty.return_value = True
-            creds = CredentialManager(pypirc_path=pypirc)
+            creds = CredentialManager()
             creds.resolve_pypi_token()
 
-    def test_empty_input_exits(self, tmp_path: Path) -> None:
+    def test_empty_input_exits(self) -> None:
         """Empty string input → SystemExit(1)."""
-        pypirc = tmp_path / ".pypirc"
-
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("getpass.getpass", return_value=""),
@@ -184,7 +245,7 @@ class TestResolvePypiToken:
         ):
             os.environ.pop("PYPI_API_TOKEN", None)
             mock_stdin.isatty.return_value = True
-            creds = CredentialManager(pypirc_path=pypirc)
+            creds = CredentialManager()
             creds.resolve_pypi_token()
 
     @pytest.mark.integration

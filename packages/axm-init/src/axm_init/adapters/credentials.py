@@ -3,17 +3,15 @@
 Reads tokens from environment variables and config files,
 with support for interactive prompting when tokens are missing.
 
-Resolves values with priority: env var > config file > interactive prompt.
+Resolves values through the axm-vault catalog, then an interactive prompt.
 """
 
 from __future__ import annotations
 
-import configparser
 import getpass
 import logging
 import sys
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 
 from axm_vault import KeyringStore, MissingCredentialError, as_secret, resolver
 
@@ -27,15 +25,12 @@ class CredentialManager:
     """Manages credentials for PyPI and GitHub operations.
 
     Token resolution order:
-    1. PYPI_API_TOKEN environment variable
-    2. axm-vault
-    3. ~/.pypirc [pypi] password field
+    1. axm-vault credential catalog (including PYPI_API_TOKEN)
+    2. Interactive prompt, persisted back to the catalog
     """
 
-    pypirc_path: Path = field(default_factory=lambda: Path.home() / ".pypirc")
-
     def get_pypi_token(self) -> str | None:
-        """Get PyPI API token from environment or config file.
+        """Get the PyPI API token from the axm-vault credential catalog.
 
         Returns:
             Token string if found, None otherwise.
@@ -50,16 +45,6 @@ class CredentialManager:
                 secret = as_secret(resolved.value)
                 assert secret is not None
                 return secret.get_secret_value()
-
-        # Final fallback: ~/.pypirc uses its own INI format.
-        if self.pypirc_path.exists():
-            config = configparser.ConfigParser()
-            config.read(self.pypirc_path)
-
-            for section in ["pypi", "server-login"]:
-                if config.has_section(section):
-                    if config.has_option(section, "password"):
-                        return config.get(section, "password")
 
         return None
 
@@ -104,7 +89,7 @@ class CredentialManager:
         return True
 
     def resolve_pypi_token(self, *, interactive: bool = True) -> str:
-        """Resolve PyPI token: env → vault → .pypirc → prompt → vault.
+        """Resolve the PyPI token from the catalog, then prompt and persist.
 
         Args:
             interactive: If True, prompt user when token is not configured.
@@ -122,7 +107,8 @@ class CredentialManager:
         if not interactive or not sys.stdin.isatty():
             print(  # noqa: T201
                 "Error: No PyPI token found.\n"
-                "Set PYPI_API_TOKEN env var or add to ~/.pypirc.",
+                "Set PYPI_API_TOKEN or configure the pypi/token credential "
+                "in the axm-vault catalog.",
                 file=sys.stderr,
             )
             raise SystemExit(1)

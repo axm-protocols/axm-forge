@@ -39,7 +39,7 @@ graph TD
     subgraph "External"
         CopierEngine["Copier Engine"]
         PyPIAPI["PyPI API"]
-        PyPIRC["~/.pypirc"]
+        Vault["axm-vault catalog"]
     end
 
     CLI --> CheckEngine
@@ -62,7 +62,7 @@ graph TD
     Templates --> Copier
     Copier --> CopierEngine
     PyPI --> PyPIAPI
-    Creds --> PyPIRC
+    Creds --> Vault
 ```
 
 ## Layers
@@ -115,8 +115,21 @@ Each adapter wraps a single external dependency:
 |---|---|---|
 | `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding (`CopierConfig` is the Pydantic input model) |
 | `PyPIAdapter` / `AvailabilityStatus` | PyPI JSON API | Package name availability check |
-| `CredentialManager` | `PYPI_API_TOKEN` / `~/.pypirc` | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
+| `CredentialManager` | axm-vault catalog (`PYPI_API_TOKEN` included) | Token retrieval, validation, and persistence; no INI-file fallback (returns `False` on `PermissionError`) |
 | `patch_all()` / `PatchReport` | `pyproject.toml`, `Makefile`, CI workflows | Workspace root file patching after member scaffold; returns a `PatchReport` that truthfully partitions files into `patched` (real writes only), `skipped` (no-op or absent), and `failed` (caught `PermissionError`/`UnicodeDecodeError` — partial-state signal, never raised) |
+
+#### Credential resolution
+
+`CredentialManager.get_pypi_token()` resolves the declared `pypi/token`
+credential from the axm-vault catalog. The catalog owns its own resolution
+layers, including `PYPI_API_TOKEN`; the adapter does not consult `~/.pypirc` or
+maintain a second token source.
+
+`CredentialManager.resolve_pypi_token()` returns that catalog value when it is
+available. Otherwise, it exits with code 1 in non-interactive sessions and
+points the user to `PYPI_API_TOKEN` or the axm-vault catalog. On a TTY it prompts
+for a `pypi-` token, validates it, persists it as `pypi/token` in the catalog,
+and returns the typed value.
 
 ### 5. Models (`models/`)
 
