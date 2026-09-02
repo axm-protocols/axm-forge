@@ -1,61 +1,36 @@
-# CLI Reference
+# AXM CLI Reference
 
-## Commands
+`axm-smelt` no longer installs a standalone executable and the package is not
+runnable with `python -m axm_smelt`. The command surface is generated from the
+three `axm.tools` entry points, so CLI, MCP, and DAG execution share one
+interface declaration.
 
-### `axm-smelt compact`
+## Tool commands
 
-Compact input and print the result.
+| Command | Purpose |
+|---|---|
+| `axm smelt` | Compact text or structured data |
+| `axm smelt_check` | Analyze potential savings without transforming the input |
+| `axm smelt_count` | Count input tokens |
 
-```
-axm-smelt compact [--file PATH] [--strategies LIST] [--preset NAME] [--output PATH]
-```
+Use the generated help for the exact arguments exposed by the installed version:
 
-| Flag | Default | Description |
-|---|---|---|
-| `--file PATH` | stdin | Read from file instead of stdin |
-| `--strategies LIST` | — | Comma-separated strategy names |
-| `--preset NAME` | `safe` | Named preset (`safe`, `moderate`, `aggressive`) |
-| `--output PATH` | stdout | Write compacted text to file |
-
-Compacted text goes to stdout (or `--output`). Savings summary goes to stderr.
-
-Exits with code 1 on unknown preset, unknown strategy, or missing file.
-
-### `axm-smelt check`
-
-Analyze input without transforming it. Shows per-strategy savings estimates (only strategies with positive savings are listed).
-
-```
-axm-smelt check [--file PATH]
+```bash
+axm smelt --help
+axm smelt_check --help
+axm smelt_count --help
 ```
 
-| Flag | Default | Description |
-|---|---|---|
-| `--file PATH` | stdin | Read from file instead of stdin |
+The former `compact`, `check`, `count`, and `version` subcommands, along
+with their `--file` and `--output` plumbing, are not compatibility aliases.
+Callers provide values to the AXMTools and consume their `ToolResult`; file
+reading and output persistence belong to the caller.
 
-### `axm-smelt count`
-
-Count tokens in input.
-
-```
-axm-smelt count [--file PATH] [--model MODEL]
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--file PATH` | stdin | Read from file instead of stdin |
-| `--model MODEL` | `o200k_base` | tiktoken encoding name (e.g. `o200k_base`, `cl100k_base`) **or** OpenAI model name (e.g. `gpt-4o`, `gpt-4`) |
-
-A Claude model name (e.g. `claude-opus-4-8`) or an otherwise unknown name routes to the `o200k_base` proxy encoding (an approximation, no network call) rather than failing — never a `len // 4` heuristic. For an exact Claude count, read `usage.input_tokens` from the run instead.
-
-### `axm-smelt version`
-
-Print the version string.
-
-```
-axm-smelt version
-```
+For structured programmatic calls and result fields, see
+[Use via MCP](../howto/mcp.md).
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](../reference/axm_smelt/index.md).
+The package-level `smelt`, `check`, and `count` functions are unchanged.
+Auto-generated API reference is available under
+[Python API](../reference/axm_smelt/index.md).

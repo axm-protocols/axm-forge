@@ -36,11 +36,10 @@
 ## Quick Example
 
 ```bash
-# CLI
-echo '{"name": "Alice", "age": 30}' | axm-smelt compact
-
-# Or use a preset
-axm-smelt compact --file data.json --preset aggressive
+# AXMTool-derived CLI surfaces
+axm smelt --help
+axm smelt_check --help
+axm smelt_count --help
 ```
 
 ```python
@@ -57,8 +56,8 @@ print(f"{report.savings_pct:.1f}% saved")
 - **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
 - **Token counting** — always via tiktoken; Claude and unknown models route to the `o200k_base` proxy (approximate, no network)
 - **Composable pipeline** — chain strategies or use presets (`safe`, `moderate`, `aggressive`)
-- **CLI** — `axm-smelt compact|check|count|version` commands
-- **MCP tool** — available to AI agents via `axm-mcp`
+- **AXMTools** — `smelt`, `smelt_check`, and `smelt_count` through MCP, AXM CLI, or DAG nodes
+- **Single registry** — no separate `axm-smelt` executable or `python -m axm_smelt` façade
 - **Modern Python** — 3.12+ with strict typing
 
 ## Learn More

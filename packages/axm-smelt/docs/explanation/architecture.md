@@ -6,12 +6,15 @@
 
 ```mermaid
 graph TB
-    CLI["CLI (cli.py)"] --> Pipeline["smelt() / check()"]
-    MCP["SmeltTool (AXMTool)"] --> Pipeline
+    CLI["AXM CLI"] --> ToolRegistry["axm.tools registry"]
+    MCP["MCP"] --> ToolRegistry
+    DAG["DAG node"] --> ToolRegistry
+    ToolRegistry --> Tools["smelt / smelt_check / smelt_count"]
+    Tools --> Pipeline["smelt() / check() / count()"]
     Pipeline --> Detector["detect_format()"]
     Pipeline --> Counter["count() — tiktoken"]
     Pipeline --> Strategies["Strategy pipeline"]
-    Strategies --> Registry["_REGISTRY / _PRESETS"]
+    Strategies --> StrategyRegistry["_REGISTRY / _PRESETS"]
     Pipeline --> Report["SmeltReport"]
 ```
 
@@ -25,15 +28,13 @@ Three exported functions:
 - **`check(text?, *, parsed?)`** — dry-run every registered strategy and return per-strategy savings estimates. Same input contract as `smelt`.
 - **`count(text, model?)`** — count tokens via tiktoken (`o200k_base` by default)
 
-### 2. CLI (`cli.py`)
+### 2. AXMTools (`tools/`)
 
-Four commands via cyclopts: `compact`, `check`, `count`, `version`. All read from stdin or `--file`. `compact` also accepts `--strategies`, `--preset`, and `--output`. The CLI calls the same core functions as the Python API — no business logic lives in the CLI layer.
+`SmeltTool`, `SmeltCheckTool`, and `SmeltCountTool` are registered once under the `axm.tools` entry point group. That registry supplies MCP, AXM CLI, and DAG-node access without a second interface layer. When `data` is already a dict or list, the compaction and analysis tools pass it via `parsed=` to skip the serialize→deserialize round-trip.
 
-### 3. MCP Tool (`tools/smelt.py`)
+The former Cyclopts façade (`cli.py`), standalone `axm-smelt` executable, and `python -m axm_smelt` module were removed. File input and output persistence are caller responsibilities; no compatibility alias remains.
 
-`SmeltTool(AXMTool)` and `SmeltCheckTool(AXMTool)` expose the pipeline as MCP tools registered under the `axm.tools` entry point group. When `data` is already a dict or list, the tools pass it via `parsed=` to skip the serialize→deserialize round-trip.
-
-### 4. Pipeline (`core/pipeline.py`)
+### 3. Pipeline (`core/pipeline.py`)
 
 `smelt()` composes three helpers (`resolve_input` and `resolve_strategies` are module-level public; `_apply_strategies` is private):
 
@@ -47,7 +48,7 @@ The **savings baseline** is the pipeline's working text in both input paths. For
 
 `check()` runs every registered strategy independently on the original `SmeltContext` and records per-strategy savings without chaining. Only strategies with positive savings (> 0%) are included in `strategy_estimates`; strategies that regress or break even are omitted.
 
-### 5. Strategies (`strategies/`)
+### 4. Strategies (`strategies/`)
 
 Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ctx) -> SmeltContext`). Strategies are registered in `_REGISTRY` and composed into presets via `_PRESETS`:
 
@@ -72,11 +73,11 @@ Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ct
 | `StripHtmlCommentsStrategy` | `strip_html_comments` | cosmetic |
 | `RoundNumbersStrategy` | `round_numbers` | cosmetic |
 
-### 6. Format Detection (`core/detector.py`)
+### 5. Format Detection (`core/detector.py`)
 
 Heuristic detection returns a `Format` enum value (`JSON`, `YAML`, `XML`, `TOML`, `CSV`, `MARKDOWN`, `TEXT`). Strategies that are format-specific (e.g., `minify` for JSON) check the first character before attempting to parse.
 
-### 7. Models (`core/models.py`)
+### 6. Models (`core/models.py`)
 
 `SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. `SmeltContext.text` derives from `parsed` via the canonical sorted-key serialization (`sort_keys=True`, compact separators), the same policy every strategy applies. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model carrying the compaction metrics plus the `counter_backend` used. `Format` — string enum.
 
@@ -85,7 +86,7 @@ Heuristic detection returns a `Format` enum value (`JSON`, `YAML`, `XML`, `TOML`
 ```mermaid
 sequenceDiagram
     participant User
-    participant API as smelt() / CLI
+    participant API as smelt() / AXMTool
     participant Pipeline
     participant Strategies
 

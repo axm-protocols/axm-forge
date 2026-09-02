@@ -1,26 +1,27 @@
-"""End-to-end tests for the smelt version CLI subcommand (subprocess invocation)."""
+"""End-to-end regression test for the surviving package version API."""
 
 from __future__ import annotations
 
 import subprocess
 import sys
 
+import pytest
 
-class TestVersionE2E:
-    def test_cli_entrypoint(self) -> None:
-        result = subprocess.run(
-            [sys.executable, "-m", "axm_smelt.cli", "version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        # Fallback: try the script entry point
-        if result.returncode != 0:
-            result = subprocess.run(
-                [sys.executable, "-m", "axm_smelt.cli", "version"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        assert result.returncode == 0
-        assert len(result.stdout.strip()) > 0
+
+@pytest.mark.e2e
+def test_package_version_remains_importable() -> None:
+    """The façade removal preserves the package's public version."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import axm_smelt; print(axm_smelt.__version__)",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()

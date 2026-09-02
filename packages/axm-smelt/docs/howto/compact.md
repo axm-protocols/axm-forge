@@ -1,55 +1,21 @@
 # Compact Data
 
-Reduce token count from CLI or Python API.
+Reduce token count through the Python API or the registered `smelt` AXMTool.
 
-## CLI
+## AXMTool access
 
-### From stdin
-
-```bash
-echo '{"name": "Alice", "age": 30}' | axm-smelt compact
-```
-
-The compacted text goes to stdout. Savings are reported to stderr:
-
-```
-{"name":"Alice","age":30}
-Tokens: 14 -> 9 (35.7% saved)
-```
-
-### From a file
+Compaction is registered once as the `smelt` AXMTool. That declaration powers
+MCP, the AXM CLI, and DAG nodes; there is no standalone `axm-smelt compact`
+command.
 
 ```bash
-axm-smelt compact --file data.json
+axm smelt --help
 ```
 
-### Write output to a file
-
-```bash
-axm-smelt compact --file data.json --output compacted.json
-```
-
-The savings line is still printed to stderr; stdout is not used when `--output` is set.
-
-### Choose a preset
-
-```bash
-# Lossless only
-axm-smelt compact --file data.json --preset safe
-
-# Structural transforms
-axm-smelt compact --file data.json --preset moderate
-
-# Maximum savings
-axm-smelt compact --file data.json --preset aggressive
-```
-
-### Choose specific strategies
-
-```bash
-# Comma-separated strategy names
-axm-smelt compact --file data.json --strategies minify,drop_nulls
-```
+Pass `data`, `strategies`, and `preset` as tool inputs. The tool returns the
+compacted value and metrics in a structured `ToolResult`. Reading an input file
+or persisting the output remains the caller's responsibility. See
+[Use via MCP](mcp.md) for a complete programmatic example.
 
 ## Python API
 

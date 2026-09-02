@@ -10,18 +10,15 @@ Presets are named collections of strategies ordered for best results.
 | `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Structural transforms are acceptable |
 | `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Maximum savings, float precision may change |
 
-## CLI
+## AXMTool
+
+Pass the preset name to the registered `smelt` tool through MCP or a DAG node. The same entry point also provides generated AXM CLI help:
 
 ```bash
-# Default (safe) — minify + collapse_whitespace
-axm-smelt compact --file data.json
-
-# Moderate
-axm-smelt compact --file data.json --preset moderate
-
-# Aggressive
-axm-smelt compact --file data.json --preset aggressive
+axm smelt --help
 ```
+
+The removed standalone CLI and its `--file` option have no compatibility shim; callers read files before invoking the tool.
 
 ## Python API
 
@@ -66,8 +63,10 @@ report = smelt(data, preset="aggressive")
 
 Use `check` to see estimates for each strategy before committing:
 
+Through the tool registry, call `smelt_check` with the payload as its `data` input. The generated CLI surface can be inspected with:
+
 ```bash
-axm-smelt check --file data.json
+axm smelt_check --help
 ```
 
 ```python

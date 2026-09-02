@@ -956,7 +956,6 @@ name = "axm-smelt"
 source = { editable = "packages/axm-smelt" }
 dependencies = [
     { name = "axm" },
-    { name = "cyclopts" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "tiktoken" },
@@ -983,7 +982,6 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
-    { name = "cyclopts", specifier = ">=4.21.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "tiktoken", specifier = ">=0.9" },

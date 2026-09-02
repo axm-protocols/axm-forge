@@ -2,35 +2,22 @@
 
 Use `check` to analyze a payload and see how much each strategy would save — without modifying the input.
 
-## CLI
+## AXMTool
+
+Analysis is exposed as the `smelt_check` AXMTool through MCP, the AXM CLI, and
+DAG nodes:
 
 ```bash
-# From stdin
-echo '{"name": "Alice", "age": 30, "notes": null}' | axm-smelt check
-
-# From a file
-axm-smelt check --file data.json
+axm smelt_check --help
 ```
 
-Output:
+Provide the payload as the tool's `data` input. Its `ToolResult` reports the
+detected format, token count, isolated strategy estimates, and real cumulative
+savings. There is no standalone `axm-smelt check` command or `--file` shim;
+file reading belongs to the caller.
 
-```
-Format: json
-Tokens: 17
-Strategies applied: none
-Strategy estimates:
-  minify: 23.5%
-  drop_nulls: 47.1%
-  flatten: 23.5%
-  round_numbers: 23.5%
-  strip_quotes: 17.6%
-Savings: 23.5%
-```
-
-The final `Savings:` line reports `report.savings_pct` — the real cumulative gain
-of chaining the default strategy set (see below).
-
-Only strategies with positive savings are shown — strategies that would produce no savings or increase tokens are automatically filtered out.
+Only strategies with positive savings are included — strategies that would
+produce no savings or increase tokens are filtered out.
 
 ## Isolated estimates vs. real cumulative gain
 

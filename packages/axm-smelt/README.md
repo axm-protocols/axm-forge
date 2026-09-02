@@ -19,7 +19,7 @@
 
 ---
 
-`axm-smelt` reduces token consumption for LLM inputs by applying deterministic compaction strategies — whitespace collapsing, structural transforms, and optional lossy simplifications. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
+`axm-smelt` reduces token consumption for LLM inputs by applying deterministic compaction strategies — whitespace collapsing, structural transforms, and optional lossy simplifications. It works through the **Python API** and three registered **AXMTools**, which provide MCP, AXM CLI, and DAG-node access from one declaration.
 
 📖 **[Full documentation](https://forge.axm-protocols.io/smelt/)**
 
@@ -29,7 +29,7 @@
 - **Token counting** — always via tiktoken; Claude and unknown models route to the `o200k_base` proxy (approximate, no network)
 - **10 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `strip_quotes`, `dedup_values_with_refs`, `collapse_whitespace`, `compact_tables`, `strip_html_comments`
 - **Composable pipeline** — chain strategies explicitly or use presets (`safe`, `moderate`, `aggressive`)
-- **CLI** — `axm-smelt compact|check|count|version` with `--preset`/`--strategies`/`--file`/`--output` flags
+- **AXMTools** — `smelt`, `smelt_check`, and `smelt_count`, available through MCP, `axm`, and DAG nodes
 - **MCP tool** — `SmeltTool` for use by AI agents via `axm-mcp`
 - **Modern Python** — 3.12+ with strict typing
 
@@ -41,24 +41,17 @@ uv add axm-smelt
 
 ## Quick Start
 
-### CLI
+### AXM CLI
+
+The CLI surface is derived from the registered AXMTools. Inspect the exact signature shipped by the installed version:
 
 ```bash
-# Compact from stdin (uses safe preset by default)
-echo '{"name": "Alice", "age": 30}' | axm-smelt compact
-
-# Compact a file with the aggressive preset
-axm-smelt compact --file data.json --preset aggressive
-
-# Compact with specific strategies, write output to file
-axm-smelt compact --file data.json --strategies minify,drop_nulls --output out.json
-
-# Analyze token waste without modifying (shows per-strategy estimates)
-axm-smelt check --file data.json
-
-# Count tokens
-echo 'hello world' | axm-smelt count
+axm smelt --help
+axm smelt_check --help
+axm smelt_count --help
 ```
+
+There is no standalone `axm-smelt` executable and `python -m axm_smelt` is intentionally unsupported.
 
 ### Python API
 
@@ -87,20 +80,19 @@ tokens = count("hello world")
 
 ### MCP (AI Agent)
 
-`axm-smelt` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp). AI agents can call `smelt_compact(data, preset="moderate")` directly.
+`axm-smelt` is available through [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp). AI agents can call `smelt(data, preset="moderate")`, `smelt_check(...)`, or `smelt_count(...)` directly.
 
 See the [MCP how-to guide](https://forge.axm-protocols.io/smelt/howto/mcp/) for details.
 
-## CLI Commands
+## AXMTool Commands
 
 | Command | Description |
 |---|---|
-| `axm-smelt compact` | Read from stdin/file, output compacted text; savings reported to stderr |
-| `axm-smelt check` | Analyze token waste without transforming; shows strategies with positive savings |
-| `axm-smelt count` | Print token count |
-| `axm-smelt version` | Print version string |
+| `axm smelt` | Compact text or structured data |
+| `axm smelt_check` | Analyze token waste without transforming the input |
+| `axm smelt_count` | Count input tokens |
 
-All commands accept `--file PATH` to read from a file instead of stdin. `compact` additionally accepts `--strategies LIST`, `--preset NAME`, and `--output PATH`.
+These commands come from the `axm.tools` registry; the same definitions power MCP and DAG nodes. Use `--help` for their generated CLI signatures. The removed standalone façade has no compatibility alias.
 
 ## Strategies
 
