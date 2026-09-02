@@ -63,8 +63,8 @@ from axm_config import (
 home = axm_home()
 print(home)  # e.g. /Users/you/.axm
 
-# With AXM_PROFILE=dev, resolve the isolated state contract and propagate it
-# to a child process. Unset or empty AXM_PROFILE keeps production unchanged.
+# With AXM_PROFILE=dev, the resolver and NamespaceStore automatically use
+# the isolated config file. Unset or empty AXM_PROFILE keeps production unchanged.
 profile = current_profile()  # dev
 root = profile_root()  # ~/.axm/profiles/dev
 config_file = profile_config_path()  # ~/.axm/profiles/dev/config.toml
@@ -78,8 +78,9 @@ base_url = inference_base_url()  # http://127.0.0.1:8000/v1
 model = inference_model()  # ornith-ai/Ornith-1.5-9B-MLX-4bit
 origin = inference_origin()  # local
 
-# Resolve runtime config with env > file > default precedence.
-set_("research.fred", "api_key", "abc123")  # writes [research.fred] in ~/.axm/config.toml
+# Resolve runtime config with env > active-profile file > default precedence.
+# Under AXM_PROFILE=dev this writes ~/.axm/profiles/dev/config.toml.
+set_("research.fred", "api_key", "abc123")
 key = get("research.fred", "api_key", default=None)  # "abc123"
 
 # Remove a key (no-op if absent); it then resolves to the default again.
@@ -117,15 +118,16 @@ axm-config doctor research.fred              # per-key provenance, read-only
 
 - ✅ **`~/.axm` home** — `axm_home()` resolves and creates the per-user
   config directory with mode `0700` (idempotent, tightens looser perms)
-- ✅ **State-profile transport** — `current_profile()` reads `AXM_PROFILE`,
+- ✅ **Isolated state profiles** — `current_profile()` reads `AXM_PROFILE`,
   defaulting unset or empty values to `production`, and validates names
   lexically against `^[a-z][a-z0-9-]{0,31}$`. A non-production profile such
   as `dev` resolves to `~/.axm/profiles/dev` and its `config.toml` through
-  `profile_root()` / `profile_config_path()`; `profile_env()` returns the
-  environment overlay to propagate the active profile to a child process.
-  These helpers define the transport contract only: the existing resolver
-  and `NamespaceStore` continue to use the production store until their
-  consumers explicitly adopt profile routing
+  `profile_root()` / `profile_config_path()`. The resolver and
+  `NamespaceStore` route reads, writes, deletes, model loading, legacy files,
+  and enumeration to that store automatically. A missing profile file falls
+  through to the caller default instead of production, and the profile
+  directory is created on first write. `profile_env()` propagates the active
+  profile to a child process
 - ✅ **Layered resolution** — `get()` / `set_()` / `delete()` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace
@@ -135,15 +137,17 @@ axm-config doctor research.fred              # per-key provenance, read-only
   and no `-`, and a key joins lowercase-alphanumeric runs with **single** `_`
   (no leading/trailing/doubled `__`) — so a `__` can only come from a
   namespace dot, the lone single `_` separates the folded namespace from the
-  key, and no `-` ever leaks into the name. The on-disk store keeps **one**
-  `~/.axm/config.toml` with a `[<namespace>]` table per namespace (a dotted
+  key, and no `-` ever leaks into the name. The on-disk store keeps **one per active profile**
+  `config.toml` with a `[<namespace>]` table per namespace (a dotted
   namespace → a nested table, e.g. `[storage.portfolio]`) and writes it
   atomically (file `0600`, temp file cleaned up even if the atomic move
-  fails). A read-modify-write of the whole file preserves every other
+  fails). Production uses `~/.axm/config.toml`; named profiles use
+  `~/.axm/profiles/<name>/config.toml`. A read-modify-write preserves every other
   namespace's section; a missing or corrupt file/section degrades gracefully
-  to `{}` instead of raising. Legacy per-namespace `~/.axm/<ns>.toml` files
-  (the previous layout) are read-through and folded into `config.toml` on the
-  next write — no silent data loss. `delete()` removes a key (no-op if
+  to `{}` instead of raising. Legacy per-namespace
+  `<profile-root>/<ns>.toml` files (the previous layout) are read-through and
+  folded into the active profile's `config.toml` on the
+  next write — no cross-profile fallback and no silent data loss. `delete()` removes a key (no-op if
   absent); `set_(ns, key, None)` routes to the same delete
 - ✅ **Path-traversal safe & unambiguous env names** — `namespace` and `key`
   are validated at the public boundary against safe-segment patterns (a

@@ -90,8 +90,10 @@ class NamespaceStore:
         checkout (a misconfigured ``HOME`` pointing into a repo). A path that
         would escape the home raises :class:`ValueError`.
         """
+        from axm_config.profile import profile_config_path
+
         home = _safe_home()
-        path = (home / CONFIG_FILENAME).resolve()
+        path = profile_config_path().resolve()
         if home not in path.parents:
             msg = f"refusing out-of-home store path {path}: escapes {home}"
             raise ValueError(msg)
@@ -105,7 +107,7 @@ class NamespaceStore:
         ``config.toml`` on the next write.
         """
         home = _safe_home()
-        path = (home / f"{ns}.toml").resolve()
+        path = (self._config_path().parent / f"{ns}.toml").resolve()
         if home not in path.parents:
             msg = f"refusing out-of-home store path {path}: escapes {home}"
             raise ValueError(msg)
@@ -251,8 +253,8 @@ class NamespaceStore:
         enumerate "all known" namespaces when none is requested.
         """
         found = set(_leaf_paths(self._load_config()))
-        home = _safe_home()
-        for legacy in home.glob("*.toml"):
+        store_root = self._config_path().parent
+        for legacy in store_root.glob("*.toml"):
             if legacy.name != CONFIG_FILENAME and _is_namespace(legacy.stem):
                 found.add(legacy.stem)
         return sorted(found)
@@ -290,6 +292,7 @@ class NamespaceStore:
         is chmod ``0600``.
         """
         path = self._config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
         payload = tomli_w.dumps(config).encode("utf-8")
         with NamedTemporaryFile(mode="wb", dir=path.parent, delete=False) as tmp:
             tmp.write(payload)

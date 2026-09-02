@@ -12,7 +12,7 @@ graph TD
     Tool["tools.py — ConfigDoctorTool (AXMTool / MCP)"]
     Doctor["doctor.py — provenance reporting"]
     Resolver["resolver.py — get / set_ / delete / load + validate_segment"]
-    Store["store.py — NamespaceStore (atomic ~/.axm/config.toml I/O)"]
+    Store["store.py — NamespaceStore (atomic active-profile config.toml I/O)"]
     Home["home.py — axm_home() + resolve_safe (leaf, stdlib only)"]
     Profile["profile.py — AXM_PROFILE transport + state paths"]
 
@@ -22,6 +22,7 @@ graph TD
     Tool --> Doctor
     Doctor --> Resolver
     Resolver --> Store
+    Store --> Profile
     Store --> Home
     Profile --> Home
     Profile --> Resolver
@@ -33,7 +34,7 @@ graph TD
 |---|---|
 | `home.py` | The leaf. Resolves `~/.axm` (`axm_home()`, created `0700`) and hosts `resolve_safe`, the guard that refuses any path resolving inside a git checkout. Pure stdlib. |
 | `profile.py` | Validates `AXM_PROFILE`, derives optional profile state/config paths, and returns the environment overlay used to propagate the active profile. |
-| `store.py` | `NamespaceStore` — reads/writes the single `~/.axm/config.toml`, atomically, `0600`. Degrades to `{}` on an absent/corrupt file; re-types an unsafe HOME as `UnsafeHomeError`. |
+| `store.py` | `NamespaceStore` — reads/writes the active profile's single `config.toml`, atomically, `0600`. Production uses `~/.axm/config.toml`; another profile uses `~/.axm/profiles/<name>/config.toml`. Degrades to `{}` on an absent/corrupt file; re-types an unsafe HOME as `UnsafeHomeError`. |
 | `resolver.py` | The public key–value surface: `get` / `set_` / `delete` / `load`, plus `validate_segment` and the `AXM_<NS>_<KEY>` env-name derivation. Owns the `env > file > default` precedence. |
 | `doctor.py` | Read-only provenance: for each visible key, which layer would win. Never reads a value into a consumer, never mutates. |
 | `tools.py` | `ConfigDoctorTool` — the AXMTool boundary over `doctor.py` (MCP + `axm config_doctor` CLI). Business logic stays in `doctor.py`. |
@@ -41,31 +42,36 @@ graph TD
 
 ## State-profile transport boundary
 
-`profile.py` introduces a transport contract without changing the current
-store. `current_profile()` reads `AXM_PROFILE`: an unset or empty value means
+`profile.py` selects both the state transport and the configuration store.
+`current_profile()` reads `AXM_PROFILE`: an unset or empty value means
 `production`; every explicit name must match
 `^[a-z][a-z0-9-]{0,31}$`, otherwise `ConfigError` names the rejected value.
 
 Production has no separate profile root and keeps `~/.axm/config.toml`.
 A profile such as `dev` resolves to `~/.axm/profiles/dev`, with
 `profile_config_path()` returning the nested `config.toml` path.
-`profile_env()` returns the one-key environment overlay a child process needs
-to inherit the active profile. At this stage these helpers do not redirect
-`NamespaceStore` or the generic resolver automatically; that adoption belongs
-to their consumers, preserving byte-identical production behaviour by default.
+`NamespaceStore` and the generic resolver use that path automatically for
+reads, writes, deletes, model loading, and namespace enumeration. An absent
+profile store resolves to the caller's default; it never falls back to
+production. The profile directory is created on its first write, while
+production behaviour remains byte-identical. `profile_env()` returns the
+one-key overlay a child process needs to inherit the same selection.
 
 ## Why a single `config.toml` (and how migration works)
 
-An earlier layout kept one file per namespace (`~/.axm/<ns>.toml`). The current
-layout is a **single** `~/.axm/config.toml` whose top-level tables are the
-namespaces (a dotted namespace such as `storage.portfolio` maps to the nested
-table `[storage.portfolio]`). One file means one atomic swap per write and no
-directory scan to enumerate namespaces.
+An earlier layout kept one file per namespace (`<profile-root>/<ns>.toml`).
+The current layout is a **single** `config.toml` per active profile whose
+top-level tables are the namespaces (a dotted namespace such as
+`storage.portfolio` maps to the nested table `[storage.portfolio]`).
+Production's file is `~/.axm/config.toml`; `dev` uses
+`~/.axm/profiles/dev/config.toml`. One file per profile means one atomic swap
+per write and prevents configuration from leaking across profiles.
 
-Migration is read-through and lazy: a legacy `~/.axm/<ns>.toml` is still visible
-via `NamespaceStore.read`, and on the next `write`/`delete` for that namespace
-its contents are folded into `config.toml` and the legacy file removed — no
-silent data loss.
+Migration is read-through and lazy within the active profile: a legacy
+`<profile-root>/<ns>.toml` is still visible via `NamespaceStore.read`, and on
+the next `write`/`delete` for that namespace its contents are folded into that
+profile's `config.toml` and the legacy file removed — no cross-profile fallback
+and no silent data loss.
 
 Every write is a read-modify-write of the whole file: load the full mapping,
 update the one section, serialise to a same-directory temp file, and
@@ -110,7 +116,7 @@ secrets manager (`axm-vault`), so its on-disk discipline matters:
 
 - **Containment.** `validate_segment` runs at every public boundary before any
   path is built, rejecting path separators, `..` traversal, the empty string
-  and NUL. A namespace/key can never widen the `~/.axm/<ns>.toml` path.
+  and NUL. A namespace/key can never widen the active profile's store path.
 - **In-repo refusal.** `resolve_safe` refuses a `~/.axm` that resolves inside a
   git checkout (a misconfigured `HOME`, e.g. dotfiles under a `~/.git`). The
   store re-types that refusal as `UnsafeHomeError` (a `ConfigError`) so the CLI

@@ -34,3 +34,19 @@ def test_file_only_resolution_degrades_to_default(file_state: str) -> None:
         )
 
     assert axm_config.get_file("demo", "token", default="fallback") == "fallback"
+
+
+def test_dev_profile_store_wins_over_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: get_file reads the selected profile instead of production."""
+    axm_home = Path.home() / ".axm"
+    production_path = axm_home / "config.toml"
+    profile_path = axm_home / "profiles" / "dev" / "config.toml"
+    production_path.parent.mkdir(parents=True, exist_ok=True)
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    production_path.write_text('[demo]\ntoken = "prod"\n', encoding="utf-8")
+    profile_path.write_text('[demo]\ntoken = "dev"\n', encoding="utf-8")
+    monkeypatch.setenv("AXM_PROFILE", "dev")
+
+    assert axm_config.get_file("demo", "token", default="sentinel") == "dev"

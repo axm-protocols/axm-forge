@@ -20,6 +20,10 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
 
 - 🏠 **`~/.axm` home** — `axm_home()` resolves and creates the per-user config
   directory `0700` (idempotent, tightens looser perms)
+- 🧪 **Isolated profiles** — `AXM_PROFILE=dev` routes reads, writes, deletes,
+  model loading, legacy files, and enumeration to
+  `~/.axm/profiles/dev/config.toml`. A missing profile store falls through to
+  defaults, never production; the directory is created on first write
 - 🧭 **Layered resolution** — `get` / `set_` / `delete` resolve a
   `(namespace, key)` with `env > file > default` precedence; the env name is
   derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace dot
@@ -29,10 +33,12 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
   exactly `AXM_EXECUTION__DEV__WORK_BACKEND`,
   `AXM_EXECUTION__DEV__WORK_MODEL`, and
   `AXM_EXECUTION__DEV__WORK_ANALYSIS_ENABLED`
-- 🗄️ **Single-file store** — one atomic `~/.axm/config.toml` (`0600`) with a
-  `[namespace]` table per namespace; a read-modify-write preserves every other
-  section, an absent/corrupt file degrades to `{}`, and legacy per-namespace
-  files are folded in on the next write
+- 🗄️ **Single-file store per profile** — production uses the atomic
+  `~/.axm/config.toml` (`0600`); named profiles use
+  `~/.axm/profiles/<name>/config.toml`. Each has a `[namespace]` table per
+  namespace; a read-modify-write preserves every other section, an
+  absent/corrupt file degrades to `{}`, and profile-local legacy files are
+  folded in on the next write
 - 🛡️ **Path-traversal safe** — `namespace`/`key` are validated at every public
   boundary (lowercase-only patterns; traversal/empty/NUL raise `ConfigError`),
   and a `HOME` resolving inside a git checkout is refused as `UnsafeHomeError`

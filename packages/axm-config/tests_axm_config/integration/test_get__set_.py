@@ -583,3 +583,34 @@ def test_public_policy_operations_preserve_original_identifiers(
     }
     remaining = axm_config.list_execution_policies()
     assert set(remaining) == set(expected) - {selected}
+
+
+def test_absent_dev_profile_does_not_fall_back_to_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: an absent profile store resolves to the caller default."""
+    production_path = Path.home() / ".axm" / "config.toml"
+    production_path.parent.mkdir(parents=True, exist_ok=True)
+    production_path.write_text('[demo]\ntoken = "prod"\n', encoding="utf-8")
+    monkeypatch.setenv("AXM_PROFILE", "dev")
+
+    assert get("demo", "token", default="sentinel") == "sentinel"
+
+
+def test_profile_write_isolated_from_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: set_ writes only to the selected profile store."""
+    axm_home = Path.home() / ".axm"
+    production_path = axm_home / "config.toml"
+    profile_path = axm_home / "profiles" / "dev" / "config.toml"
+    production_path.parent.mkdir(parents=True, exist_ok=True)
+    production_path.write_text('[demo]\ntoken = "prod"\n', encoding="utf-8")
+    production_bytes = production_path.read_bytes()
+    monkeypatch.setenv("AXM_PROFILE", "dev")
+
+    set_("demo", "token", "written")
+
+    assert profile_path.exists()
+    assert axm_config.get_file("demo", "token", default="sentinel") == "written"
+    assert production_path.read_bytes() == production_bytes

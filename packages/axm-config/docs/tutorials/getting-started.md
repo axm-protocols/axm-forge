@@ -46,6 +46,15 @@ underscore (so `research.fred` → `RESEARCH__FRED`):
 AXM_RESEARCH__FRED_API_KEY=from-env axm-config get research.fred api_key  # -> from-env
 ```
 
+Select an isolated store with `AXM_PROFILE`. Reads never fall back to the
+production file, and the profile directory is created by its first write:
+
+```bash
+AXM_PROFILE=dev axm-config set research.fred api_key dev-only
+# writes ~/.axm/profiles/dev/config.toml; ~/.axm/config.toml is unchanged
+AXM_PROFILE=dev axm-config get research.fred api_key  # -> dev-only
+```
+
 ## Step 3: Handle a misconfigured `HOME`
 
 `axm-config` refuses a `~/.axm` that resolves inside a git checkout (a `HOME`
