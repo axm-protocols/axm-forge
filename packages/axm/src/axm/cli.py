@@ -11,10 +11,10 @@ the requested command from ``sys.argv`` and import only that one entry point.
 without importing a single tool module.
 
 Output is the tool's ``ToolResult.text`` (token-optimised), falling back to a
-JSON rendering of ``data`` when there is no text.  Non-scalar parameters
-(``list`` / ``dict`` / pydantic models) are passed as a single JSON string and
-decoded before the call — the one convention that keeps tool-signature ==
-CLI-signature without CLI-only flags.
+JSON rendering of ``data`` when there is no text.  On a parameter whose
+declared union admits ``str``, a token that decodes as JSON is passed as the
+decoded structure and any other token is passed as literal text.  Consequently,
+a text value that happens to be valid JSON is read as a structure.
 
 Exit codes: ``0`` success, ``1`` tool error / cyclopts arg-parsing error,
 ``2`` bad usage raised by *this* wrapper (invalid JSON for a non-scalar
@@ -73,6 +73,8 @@ def is_nonscalar(annotation: object) -> bool:
     Unwraps ``Optional`` / ``X | None`` and inspects the non-``None`` member:
     container types (``list``/``dict``/``tuple``/``set``) and arbitrary classes
     that are not ``str``/``int``/``float``/``bool`` count as non-scalar.
+    Purely structured annotations require a JSON token; unions admitting
+    ``str`` are text-tolerant, accepting literal text when decoding fails.
     """
     return _is_nonscalar(annotation, frozenset())
 
@@ -224,6 +226,9 @@ def _nonscalar_names(params: list[inspect.Parameter]) -> frozenset[str]:
 
 def _emit(result: Any) -> None:
     """Render a ToolResult-like without ever swallowing a failure's ``error``.
+
+    The raw-token fallback applies only to text-tolerant parameters; a purely
+    structured parameter still fails when its token cannot be decoded.
 
     Order of concerns:
 
