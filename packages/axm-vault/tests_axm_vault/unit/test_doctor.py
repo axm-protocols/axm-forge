@@ -10,6 +10,7 @@ import pytest
 from axm_vault.catalog import Catalog
 from axm_vault.doctor import doctor_data
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
+from axm_vault.store import KeyringStore
 
 
 class _MemoryKeyring(keyring.backend.KeyringBackend):
@@ -29,6 +30,53 @@ class _MemoryKeyring(keyring.backend.KeyringBackend):
 
     def delete_password(self, service: str, username: str) -> None:
         self._store.pop((service, username), None)
+
+
+class _Instances:
+    """Controllable in-memory instance source."""
+
+    def __init__(self, names: tuple[str, ...], *, fail_on_list: bool = False) -> None:
+        self._names = names
+        self._fail_on_list = fail_on_list
+        self.list_calls = 0
+
+    def list_instances(self) -> tuple[str, ...]:
+        self.list_calls += 1
+        if self._fail_on_list:
+            raise RuntimeError("instance source must not be enumerated")
+        return self._names
+
+    def declare(self, instance: str) -> None:
+        self._names = (*self._names, instance)
+
+
+def _multi_catalog(source: _Instances) -> Catalog:
+    spec = CredentialSpec(
+        name="token",
+        env="SVC_TOKEN",
+        kind="token",
+        sensitivity=Sensitivity.SECRET,
+        required=False,
+    )
+    group = CredentialGroup(
+        id="svc",
+        package="pkg",
+        title="Service",
+        specs=(spec,),
+        multi=True,
+        instances=source,
+    )
+    return Catalog(groups=(group,))
+
+
+def _disable_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "axm_vault.doctor.Resolver.keyring_available", lambda _self: True
+    )
+    monkeypatch.setattr(
+        "axm_vault.doctor.Resolver.probe",
+        lambda _self, _layer, _spec, _group, _instance: False,
+    )
 
 
 @pytest.fixture
@@ -85,3 +133,36 @@ def test_doctor_never_returns_value(
     report = doctor_data(catalog=_secret_catalog())
     assert report["svc.token"] == {"layer": "keyring", "present": True}
     assert "PLAINTEXT" not in str(report)
+
+
+def test_doctor_uses_canonical_key_for_each_instance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: each instance key uses the canonical escaped username composer."""
+    source = _Instances(("perso", "a.b"))
+    _disable_credentials(monkeypatch)
+
+    report = doctor_data(catalog=_multi_catalog(source))
+
+    expected = {
+        KeyringStore.username("svc", "token", instance) for instance in ("perso", "a.b")
+    }
+    assert set(report) == expected
+
+
+def test_doctor_explicit_instance_skips_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: an explicit instance is exclusive and bypasses enumeration."""
+    source = _Instances((), fail_on_list=True)
+    _disable_credentials(monkeypatch)
+
+    report = doctor_data(catalog=_multi_catalog(source), instance="pro")
+
+    assert report == {
+        KeyringStore.username("svc", "token", "pro"): {
+            "layer": "missing",
+            "present": False,
+        }
+    }
+    assert source.list_calls == 0

@@ -16,14 +16,23 @@ doctor_data("axm-broker")     # only groups contributed by that package
 ```
 
 `doctor_data(package=None, *, catalog=None, instance=None) -> Provenance`
-returns a mapping keyed by `"{group.id}.{spec.name}"`:
+returns a mapping keyed with the canonical
+[`KeyringStore.username`](store.md) composition. A non-multi-instance group keeps
+its `"{group.id}.{spec.name}"` key. A multi-instance group produces one entry per
+declared instance and spec:
 
 ```python
 {
-    "broker.api_key": {"layer": "keyring", "present": True},
-    "broker.account_id": {"layer": "missing", "present": False},
+    "broker.perso.api_key": {"layer": "keyring", "present": True},
+    "broker.pro.api_key": {"layer": "missing", "present": False},
 }
 ```
+
+Passing `instance="pro"` bypasses discovery and reports only that instance. If a
+multi-instance group has no declared instance source, it falls back to the
+unsegmented key instead of disappearing from the report. Instance identities are
+never concatenated manually: the canonical composer percent-escapes structural
+separators, so instance `"a.b"` appears as the `"a%2Eb"` key segment.
 
 | Field | Type | Meaning |
 | -- | -- | -- |
@@ -71,7 +80,7 @@ axm vault_doctor --package axm-broker
 | Param | Type | Default | Notes |
 | -- | -- | -- | -- |
 | `package` | `str \| None` | `None` | Restrict to one package's groups |
-| `instance` | `str \| None` | `None` | Multi-instance segment forwarded to the probe |
+| `instance` | `str \| None` | `None` | Report only this multi-instance identity and bypass instance discovery |
 
 ### `vault_set`
 

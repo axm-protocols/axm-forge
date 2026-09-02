@@ -89,6 +89,13 @@ the keyring is unavailable for a SECRET spec, the entry is annotated
 `keyring="unavailable"` so the outage is surfaced rather than mis-reported as a
 plain `missing`.
 
+For a multi-instance credential group, the doctor obtains declared identities
+through the group's instance capability and emits one provenance entry per
+`(instance, spec)` pair. An explicit instance takes precedence over discovery.
+Every report key is composed by `KeyringStore.username`, keeping storage and
+diagnostics on the same escaped identity coordinate; non-multi-instance groups
+and multi-instance groups with no declarations retain their unsegmented key.
+
 ## The never-leak invariant
 
 Every surface upholds one rule: **no value is ever serialized, returned, or

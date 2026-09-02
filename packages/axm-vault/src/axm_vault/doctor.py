@@ -13,8 +13,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from axm_vault.catalog import load_catalog
+from axm_vault.instances import list_instances
 from axm_vault.models import Sensitivity
 from axm_vault.resolver import Resolver
+from axm_vault.store import KeyringStore
 
 if TYPE_CHECKING:
     from axm_vault.catalog import Catalog
@@ -54,10 +56,12 @@ def doctor_data(
             contributed by that package; otherwise cover the whole catalog.
         catalog: Catalog to inspect; defaults to the discovered
             :func:`~axm_vault.catalog.load_catalog` result.
-        instance: Optional multi-instance segment forwarded to the probe.
+        instance: Optional multi-instance identity. When given, it takes
+            precedence over instance discovery.
 
     Returns:
-        A :data:`Provenance` mapping ``"group.name"`` to ``{layer, present}``.
+        A :data:`Provenance` mapping canonical keyring usernames to
+        ``{layer, present}``, with an instance segment for multi-instance groups.
         ``layer`` is the first probed layer to supply the credential, or
         ``"missing"`` when none does; ``present`` mirrors that. The value
         itself is NEVER included (security invariant).
@@ -68,10 +72,24 @@ def doctor_data(
     keyring_ok = resolver.keyring_available()
     report: Provenance = {}
     for group in groups:
-        for spec in group.specs:
-            report[f"{group.id}.{spec.name}"] = _probe(
-                resolver, group, spec, instance, keyring_ok=keyring_ok
-            )
+        report_instances: tuple[str | None, ...]
+        if not group.multi:
+            report_instances = (None,)
+        elif instance is not None:
+            report_instances = (instance,)
+        else:
+            discovered = list_instances(group)
+            report_instances = tuple(discovered) if discovered else (None,)
+        for report_instance in report_instances:
+            for spec in group.specs:
+                key = KeyringStore.username(group.id, spec.name, report_instance)
+                report[key] = _probe(
+                    resolver,
+                    group,
+                    spec,
+                    report_instance,
+                    keyring_ok=keyring_ok,
+                )
     return report
 
 
