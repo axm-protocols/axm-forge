@@ -35,7 +35,7 @@ tool	gh	present	2.87.3
 tool	codex	absent	-
 auth	gh	logged_in	-
 auth	claude	logged_out	claude login
-secret	research.fred.api_key	axm-vault set research.fred.api_key
+secret	research.fred.api_key	axm-vault set research.fred api_key
 ```
 
 Read it top to bottom: `uv` and `gh` are present (with their versions),

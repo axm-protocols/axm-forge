@@ -83,8 +83,7 @@ def test_missing_secrets_filters_missing(mocker: MockerFixture) -> None:
     assert secret.name == "api_key"
     assert secret.package == "axm-research"
     # AC2: a copy-pasteable recovery hint, no value field anywhere.
-    assert "axm-vault set" in secret.setup_hint
-    assert "research.fred.api_key" in secret.setup_hint
+    assert secret.setup_hint == "axm-vault set research.fred api_key"
     assert not hasattr(secret, "value")
     assert "value" not in secret.model_dump()
 

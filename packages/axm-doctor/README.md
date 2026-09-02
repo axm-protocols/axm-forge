@@ -48,7 +48,7 @@ run_install(plan, confirm=True)       # installs, then re-detects: InstallResult
 ```python
 from axm_doctor import missing_secrets, provision_missing
 
-missing_secrets()                     # [MissingSecret(group='research.fred', name='api_key', package='axm-research', setup_hint='axm-vault set research.fred.api_key'), ...]
+missing_secrets()                     # [MissingSecret(group='research.fred', name='api_key', package='axm-research', setup_hint='axm-vault set research.fred api_key'), ...]
                                       # [] when the vault catalog is empty — never reads a secret value
 
 provision_missing()                   # dry-run (confirm=False): ProvisionResult(provisioned=False, groups=['research.fred']) — the groups it WOULD prompt for

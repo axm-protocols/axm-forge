@@ -69,7 +69,7 @@ from axm_doctor import (
 collect_credential_provenance()  # [CredentialProvenance(coordinate=..., layer=..., present=...)]
 
 # Which credential specs resolve to 'missing'? Reads vault's catalog + value-free provenance.
-missing_secrets()                # [MissingSecret(group='research.fred', name='api_key', setup_hint='axm-vault set research.fred.api_key'), ...] — never a value
+missing_secrets()                # [MissingSecret(group='research.fred', name='api_key', setup_hint='axm-vault set research.fred api_key'), ...] — never a value
 
 # Dry-run by default — NEVER prompts or stores.
 provision_missing()              # ProvisionResult(provisioned=False, groups=['research.fred']): the groups it WOULD prompt for

@@ -92,7 +92,7 @@ def missing_secrets() -> list[MissingSecret]:
                     group=group.id,
                     name=spec.name,
                     package=group.package,
-                    setup_hint=f"axm-vault set {group.id}.{spec.name}",
+                    setup_hint=f"axm-vault set {group.id} {spec.name}",
                     required=spec.required,
                 )
             )
