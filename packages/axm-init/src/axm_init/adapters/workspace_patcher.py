@@ -529,17 +529,22 @@ def patch_release(root: Path, member_name: str) -> bool:
     content = release_yml.read_text()
     original = content
 
-    tag_pattern = f"{member_name}/v*"
+    lines = content.splitlines(keepends=True)
+    tag_bounds = _find_yaml_list_range(lines, "tags:")
+    has_inline_tags = (
+        tag_bounds is not None
+        and _inline_yaml_sequence_span(lines[tag_bounds[0]], "tags:") is not None
+    )
+    tag_pattern = f"{member_name}-v*" if has_inline_tags else f"{member_name}/v*"
     if tag_pattern in content:
         logger.info("release.yml already contains %s — skipping", member_name)
         return False
 
     # 1. Add tag pattern — reuse the shared YAML list inserter
     if "tags:" in content:
-        lines = content.splitlines(keepends=True)
         lines, _ = _insert_into_yaml_list(
             lines,
-            f'"{tag_pattern}"',
+            tag_pattern if has_inline_tags else f'"{tag_pattern}"',
             list_marker="tags:",
             default_indent="      ",
         )
@@ -552,7 +557,8 @@ def patch_release(root: Path, member_name: str) -> bool:
         f'            echo "package={member_name}" >> "$GITHUB_OUTPUT"\n'
         f'            echo "package-dir={pkg_dir}" >> "$GITHUB_OUTPUT"\n'
     )
-    if "else" in content:
+    detect_condition = f'elif [[ "$TAG" == {member_name}/* ]]'
+    if detect_condition not in content and "else" in content:
         content = content.replace(
             "          else\n",
             detect_block + "          else\n",

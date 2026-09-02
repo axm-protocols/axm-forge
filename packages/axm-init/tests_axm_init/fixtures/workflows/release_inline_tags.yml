@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect package
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          if [[ "$TAG" == v* ]]; then
+            echo "package=root" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == axm-foo/* ]]; then
+            echo "package=axm-foo" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-foo" >> "$GITHUB_OUTPUT"
+          else
+            echo "unknown tag"
+          fi
+      - name: Publish
+        run: echo publish

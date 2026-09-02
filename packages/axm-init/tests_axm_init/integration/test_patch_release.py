@@ -10,6 +10,31 @@ import yaml
 from axm_init.adapters.workspace_patcher import patch_release
 from tests_axm_init.integration._helpers import _make_realistic_release
 
+INLINE_TAGS_RELEASE = (
+    "name: Release\n\n"
+    "on:\n"
+    "  push:\n"
+    '    tags: ["v*"]\n\n'
+    "jobs:\n"
+    "  release:\n"
+    "    runs-on: ubuntu-latest\n"
+    "    steps:\n"
+    "      - uses: actions/checkout@v4\n"
+    "      - name: Detect package\n"
+    "        run: |\n"
+    "          TAG=${GITHUB_REF#refs/tags/}\n"
+    '          if [[ "$TAG" == v* ]]; then\n'
+    '            echo "package=root" >> "$GITHUB_OUTPUT"\n'
+    '          elif [[ "$TAG" == axm-foo/* ]]; then\n'
+    '            echo "package=axm-foo" >> "$GITHUB_OUTPUT"\n'
+    '            echo "package-dir=packages/axm-foo" >> "$GITHUB_OUTPUT"\n'
+    "          else\n"
+    '            echo "unknown tag"\n'
+    "          fi\n"
+    "      - name: Publish\n"
+    "        run: echo publish\n"
+)
+
 
 @pytest.fixture()
 def release_root(tmp_path: Path) -> Path:
@@ -109,3 +134,64 @@ def test_patch_release_inserts_into_tags_not_steps(tmp_path: Path) -> None:
     for step in steps:
         # The tag pattern must not leak into any step.
         assert '"my-lib/v*"' not in str(step)
+
+
+@pytest.fixture()
+def inline_tags_release_root(tmp_path: Path) -> Path:
+    """Workspace root containing the local inline-tags workflow fixture."""
+    workflow_dir = tmp_path / ".github" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    (workflow_dir / "release.yml").write_text(INLINE_TAGS_RELEASE)
+    return tmp_path
+
+
+def _steps_block(content: str) -> str:
+    """Return the exact workflow suffix beginning at the job's steps key."""
+    return content[content.index("    steps:\n") :]
+
+
+@pytest.mark.integration
+def test_inline_tags_trigger_contains_new_pattern(
+    inline_tags_release_root: Path,
+) -> None:
+    """AC1: inline ``tags`` gains the new pattern without touching job steps."""
+    release = inline_tags_release_root / ".github" / "workflows" / "release.yml"
+    steps_before = _steps_block(release.read_text())
+
+    patch_release(inline_tags_release_root, "axm-foo")
+
+    content = release.read_text()
+    assert '    tags: ["v*", "axm-foo-v*"]' in content.splitlines()
+    assert _steps_block(content) == steps_before
+
+
+@pytest.mark.integration
+def test_inline_tags_patch_preserves_steps_bytes(
+    inline_tags_release_root: Path,
+) -> None:
+    """AC2: the complete ``steps`` block remains byte-for-byte identical."""
+    release = inline_tags_release_root / ".github" / "workflows" / "release.yml"
+    steps_before = _steps_block(release.read_text())
+
+    patch_release(inline_tags_release_root, "axm-foo")
+
+    assert _steps_block(release.read_text()) == steps_before
+
+
+@pytest.mark.integration
+def test_inline_tags_patch_keeps_real_yaml_steps(
+    inline_tags_release_root: Path,
+) -> None:
+    """AC3: parsed steps remain mappings carrying ``uses`` or ``run``."""
+    release = inline_tags_release_root / ".github" / "workflows" / "release.yml"
+    steps_before = _steps_block(release.read_text())
+
+    patch_release(inline_tags_release_root, "axm-foo")
+
+    content = release.read_text()
+    parsed = yaml.safe_load(content)
+    steps = parsed["jobs"]["release"]["steps"]
+    assert all(
+        isinstance(step, dict) and ("uses" in step or "run" in step) for step in steps
+    )
+    assert _steps_block(content) == steps_before
