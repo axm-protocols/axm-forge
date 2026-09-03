@@ -27,6 +27,7 @@
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🌲 **Worktree** — Add, remove, or list git worktrees
 - 🔀 **PR** — Create GitHub pull requests with optional auto-merge
+- 🔐 **GitHub authentication declaration** — Publishes the `gh auth status` probe and `gh auth login` recovery command through the `axm.credentials` registry, with distinct `logged_in`, `logged_out`, and `not_installed` states
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
 - 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection. Schedule rules apply only under user-configured `workspace_paths`; comparison is timezone-aware via the optional `timezone` field (default `Europe/Paris`). The whole schedule can be switched off with `schedule.enabled = false` (defaults to `true`), in which case resolution falls through to the default identity
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases

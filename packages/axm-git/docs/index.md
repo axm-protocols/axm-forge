@@ -29,6 +29,7 @@
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🌲 **Worktree** — Add, remove, or list git worktrees
 - 🔀 **PR** — Create GitHub pull requests with optional auto-merge
+- 🔐 **GitHub authentication declaration** — Publishes the `gh auth status` probe and `gh auth login` recovery command through the `axm.credentials` registry, preserving the distinct `logged_in`, `logged_out`, and `not_installed` states
 - 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, branch-delete, commit-phase, merge-squash, worktree-add, worktree-remove, push, pull-main, create-pr, await-merge) auto-discovered via entry-points
 
 ## Installation

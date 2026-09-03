@@ -17,6 +17,7 @@ classifiers = [
 dependencies = [
     "axm>=0.1.0",
     "axm-config>=0.1.0",
+    "axm-vault>=0.1.0",
     "pydantic>=2.0",
 ]
 
@@ -33,6 +34,9 @@ git_merge       = "axm_git.tools.merge:GitMergeTool"
 git_pull        = "axm_git.tools.pull:GitPullTool"
 git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
 git_release_diff = "axm_git.tools.release_diff:GitReleaseDiffTool"
+
+[project.entry-points."axm.credentials"]
+gh = "axm_git.credentials:GH_AUTH_CREDENTIAL"
 
 
 [project.urls]
