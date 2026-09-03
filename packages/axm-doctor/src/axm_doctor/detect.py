@@ -44,7 +44,12 @@ __all__ = [
 ]
 
 type ToolState = Literal["present", "absent"]
-type AuthState = Literal["logged_in", "logged_out", "not_installed"]
+type AuthState = Literal[
+    "logged_in",
+    "logged_out",
+    "not_installed",
+    "undetermined",
+]
 type GitIdentityState = Literal["configured", "unconfigured"]
 type GhConfigState = Literal["configured", "unconfigured", "not_installed"]
 
@@ -166,7 +171,7 @@ def detect_auth(tool: str) -> AuthStatus:
     """Report auth state through a package declaration when one is installed.
 
     A tool without a declaration degrades to presence detection: an installed
-    binary is reported as logged out because its session cannot be verified.
+    binary has an undetermined auth state because its session cannot be verified.
     """
     declaration = load_auth_declarations().get(tool)
     if declaration is not None:
@@ -176,7 +181,7 @@ def detect_auth(tool: str) -> AuthStatus:
         )
 
     state: AuthState = (
-        "logged_out" if shutil.which(tool) is not None else "not_installed"
+        "undetermined" if shutil.which(tool) is not None else "not_installed"
     )
     return AuthStatus(tool=tool, state=state)
 

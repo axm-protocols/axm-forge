@@ -69,6 +69,13 @@ def test_detect_auth_answers_when_catalog_import_fails(
     assert status.tool == "uncatalogued"
 
 
+def test_auth_status_accepts_undetermined_state() -> None:
+    """AC2: AuthStatus accepts and preserves the undetermined state."""
+    status = detect_module.AuthStatus(tool="uncatalogued", state="undetermined")
+
+    assert status.state == "undetermined"
+
+
 class _Proc:
     """Minimal stand-in for ``subprocess.CompletedProcess`` (exit code only)."""
 

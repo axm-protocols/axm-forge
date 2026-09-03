@@ -87,6 +87,13 @@ def test_detector_module_holds_no_third_party_auth_literal() -> None:
     assert all(literal not in source for literal in _FORBIDDEN_AUTH_LITERALS)
 
 
+def test_undeclared_present_binary_is_undetermined() -> None:
+    """AC1: an undeclared binary on PATH has an undetermined auth state."""
+    status = detect_auth("sh")
+
+    assert status.state == "undetermined"
+
+
 def test_declaration_alone_drives_all_three_auth_states(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
