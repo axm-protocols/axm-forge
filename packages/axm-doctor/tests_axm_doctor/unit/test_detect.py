@@ -186,63 +186,6 @@ def test_probe_version_banner_not_partial(
     assert status.version == "2.1.0"
 
 
-def test_claude_darwin_keychain_present_is_logged_in(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC1: macOS Keychain entry present (exit 0) -> logged_in, no login hint."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
-    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
-    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(0))
-
-    status = detect_auth("claude")
-
-    assert status.state == "logged_in"
-    assert status.login_cmd is None
-
-
-def test_claude_darwin_keychain_absent_is_logged_out(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC1, AC5: macOS Keychain entry absent (exit 1) -> logged_out + login hint."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
-    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
-    monkeypatch.setattr("axm_doctor.detect.subprocess.run", lambda *a, **k: _Proc(1))
-
-    status = detect_auth("claude")
-
-    assert status.state == "logged_out"
-    assert status.login_cmd == "claude login"
-
-
-def test_claude_darwin_security_missing_degrades_logged_out(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC3: a missing ``security`` binary degrades to logged_out without raising."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
-    monkeypatch.setattr("axm_doctor.detect.shutil.which", lambda _name: None)
-
-    status = detect_auth("claude")
-
-    assert status.state == "logged_out"
-
-
-def test_claude_darwin_subprocess_error_degrades_logged_out(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC3: any OSError/SubprocessError from the probe degrades to logged_out."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
-    monkeypatch.setattr("axm_doctor.detect.shutil.which", _which_security)
-
-    def _boom(*_args: object, **_kwargs: object) -> _Proc:
-        raise OSError("no security")
-
-    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _boom)
-
-    status = detect_auth("claude")
-
-    assert status.state == "logged_out"
-
-
 def test_git_identity_configured_via_store(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC2: a truthy ``[git].default`` in the store -> configured, no subprocess."""
     monkeypatch.setattr(

@@ -1,106 +1,106 @@
-"""Integration tests for axm_doctor.detect credential-file probing (real I/O).
-
-This exercises :func:`axm_doctor.detect.detect_auth` against a real temp HOME
-(``tmp_path``) and a real 0-byte credential file on disk, so it lives at the
-integration level rather than alongside the pure-stdlib unit detect tests.
-"""
+"""Integration tests for declaration-driven authentication detection."""
 
 from __future__ import annotations
 
-import subprocess
+import importlib
 from pathlib import Path
 
 import pytest
 
+import axm_doctor.detect as detect_module
 from axm_doctor.detect import detect_auth
 
 pytestmark = pytest.mark.integration
 
+_FORBIDDEN_AUTH_LITERALS = (
+    ".claude/.credentials.json",
+    ".codex/auth.json",
+    "Claude Code-credentials",
+    "gh auth login",
+    "claude login",
+    "codex login",
+)
 
-def test_empty_cred_file_not_logged_in(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
+
+def _detect_source() -> str:
+    module_path = Path(detect_module.__file__)
+    return module_path.read_text(encoding="utf-8")
+
+
+def _install_auth_declaration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC4: a 0-byte credential file is NOT reported logged_in.
-
-    The credential-file probe must not equate "the file exists" with "a token
-    is present": an empty (0-byte) file carries no credentials, so the state
-    must be ``logged_out`` (or any non-``logged_in`` state), never ``logged_in``.
-    """
-    # Pin the platform off-darwin so the file branch is exercised
-    # deterministically: on macOS, claude resolves via the Keychain instead.
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "linux")
-    home = Path(str(tmp_path))
-    cred = home / ".claude" / ".credentials.json"
-    cred.parent.mkdir(parents=True)
-    cred.write_text("")  # 0-byte credential file
-    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: home)
-
-    status = detect_auth("claude")
-
-    assert status.state != "logged_in"
-
-
-def test_claude_non_darwin_uses_file_branch(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """AC2: off macOS, claude keeps the credential-file branch (no keychain call)."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "linux")
-    cred = tmp_path / ".claude" / ".credentials.json"
-    cred.parent.mkdir(parents=True)
-    cred.write_text('{"token": "x"}')
-    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
-
-    def _fail(*_args: object, **_kwargs: object) -> object:
-        raise AssertionError("keychain probe must not run off-darwin")
-
-    monkeypatch.setattr("axm_doctor.detect.subprocess.run", _fail)
-
-    status = detect_auth("claude")
-
-    assert status.state == "logged_in"
-
-
-def test_claude_darwin_keychain_absent_falls_back_to_cred_file(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """macOS: an absent Keychain entry must fall back to the credential file.
-
-    Regression guard for the darwin ``elif`` that short-circuited to the
-    Keychain and NEVER consulted ``~/.claude/.credentials.json``: a file-backed
-    session (container / CI / CLAUDE_CONFIG_DIR / locked Keychain) was
-    mis-reported ``logged_out``. With a present credential file and a Keychain
-    miss, the verdict must be ``logged_in``.
-    """
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", "darwin")
-    # Keychain lookup misses: ``security`` present but exit != 0.
-    monkeypatch.setattr(
-        "axm_doctor.detect.shutil.which", lambda _name: "/usr/bin/security"
+    provider_source = "\n".join(
+        (
+            "from __future__ import annotations",
+            "",
+            "import os",
+            "",
+            "from axm_vault import AuthDependencySpec, CredentialGroup",
+            "",
+            "",
+            "class _Source:",
+            "    def status(self) -> str:",
+            '        return os.environ["AXM_TEST_DECLARED_AUTH_STATE"]',
+            "",
+            "",
+            "def provide() -> tuple[CredentialGroup, ...]:",
+            "    dependency = AuthDependencySpec(",
+            '        name="declaration-only-tool",',
+            "        source=_Source(),",
+            "    )",
+            "    return (",
+            "        CredentialGroup(",
+            '            id="declaration-only",',
+            '            package="declaration-only",',
+            '            title="Declaration only",',
+            "            specs=(),",
+            "            auth_dependencies=(dependency,),",
+            "        ),",
+            "    )",
+            "",
+        )
     )
-    monkeypatch.setattr(
-        "axm_doctor.detect.subprocess.run",
-        lambda *_a, **_k: subprocess.CompletedProcess(args=[], returncode=1),
+    (tmp_path / "declaration_provider.py").write_text(
+        provider_source,
+        encoding="utf-8",
     )
-    cred = tmp_path / ".claude" / ".credentials.json"
-    cred.parent.mkdir(parents=True)
-    cred.write_text('{"token": "x"}')
-    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
+    dist_info = tmp_path / "declaration_only-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: declaration-only\nVersion: 1.0\n",
+        encoding="utf-8",
+    )
+    (dist_info / "entry_points.txt").write_text(
+        "[axm.credentials]\ndeclaration-only = declaration_provider:provide\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
 
-    status = detect_auth("claude")
 
-    assert status.state == "logged_in"
+def test_detector_module_holds_no_third_party_auth_literal() -> None:
+    """AC1: detect.py owns no session path, keychain name, or login command."""
+    source = _detect_source()
+
+    assert all(literal not in source for literal in _FORBIDDEN_AUTH_LITERALS)
 
 
-@pytest.mark.parametrize("platform", ["darwin", "linux"])
-def test_codex_unchanged_file_branch(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, platform: str
+def test_declaration_alone_drives_all_three_auth_states(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC4: codex stays on the credential-file branch on both platforms."""
-    monkeypatch.setattr("axm_doctor.detect.sys.platform", platform)
-    cred = tmp_path / ".codex" / "auth.json"
-    cred.parent.mkdir(parents=True)
-    cred.write_text('{"token": "y"}')
-    monkeypatch.setattr("axm_doctor.detect.Path.home", lambda: tmp_path)
+    """AC2: an installed declaration alone drives every tri-state verdict."""
+    _install_auth_declaration(tmp_path, monkeypatch)
 
-    status = detect_auth("codex")
+    cases = (
+        ("connected", "logged_in"),
+        ("disconnected", "logged_out"),
+        ("tool_absent", "not_installed"),
+    )
+    for observed, expected in cases:
+        monkeypatch.setenv("AXM_TEST_DECLARED_AUTH_STATE", observed)
+        assert detect_auth("declaration-only-tool").state == expected
 
-    assert status.state == "logged_in"
+    assert "_LOGIN_CMDS" not in _detect_source()

@@ -17,9 +17,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import sys
 from collections.abc import Callable, Iterable
-from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
 from typing import TYPE_CHECKING, Literal, cast
@@ -54,19 +52,9 @@ _VERSION_TIMEOUT_S = 5
 
 # Per-tool auth wiring. ``cred`` is the credential file relative to ``~`` whose
 # *existence* (never content) signals logged-in for credential-file tools.
-_CRED_FILES: dict[str, str] = {
-    "claude": ".claude/.credentials.json",
-    "codex": ".codex/auth.json",
-}
-_LOGIN_CMDS: dict[str, str] = {
-    "gh": "gh auth login",
-    "claude": "claude login",
-    "codex": "codex login",
-}
 # macOS-only auth wiring. On Darwin the token lives in the login Keychain, not
 # in a credential file under ``~`` — the generic-password *service* name whose
 # existence (exit code, never value) signals logged-in.
-_KEYCHAIN_SERVICES: dict[str, str] = {"claude": "Claude Code-credentials"}
 
 
 class ToolStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
@@ -79,11 +67,7 @@ class ToolStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
 
 
 class AuthStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
-    """Frozen read-only auth state for a third-party binary.
-
-    Carries the command to recover from ``logged_out`` (``login_cmd``) but
-    NEVER a token value — detection is existence/exit-code only.
-    """
+    """Frozen read-only auth state for a third-party binary."""
 
     tool: str
     state: AuthState
@@ -179,11 +163,10 @@ def _detect_declared_auth(declaration: AuthDependencySpec) -> AuthState:
 
 
 def detect_auth(tool: str) -> AuthStatus:
-    """Report read-only auth state for a third-party binary.
+    """Report auth state through a package declaration when one is installed.
 
-    ``gh`` is probed via the exit code of ``gh auth status``; credential-file
-    tools (``claude``, ``codex``) via the *existence* of their credential file
-    under ``~`` — the file is never opened, so no token is ever read.
+    A tool without a declaration degrades to presence detection: an installed
+    binary is reported as logged out because its session cannot be verified.
     """
     declaration = load_auth_declarations().get(tool)
     if declaration is not None:
@@ -192,41 +175,10 @@ def detect_auth(tool: str) -> AuthStatus:
             state=_detect_declared_auth(declaration),
         )
 
-    login_cmd = _LOGIN_CMDS.get(tool)
-    if tool == "gh":
-        state = _detect_gh_auth()
-    elif tool in _CRED_FILES:
-        # On darwin the token may live in the login Keychain; check it first,
-        # then fall back to the credential file. Either source present ->
-        # logged_in, so a file-backed session (container, CI, CLAUDE_CONFIG_DIR,
-        # a locked/absent Keychain) is never mis-reported as logged_out.
-        keychain_ok = (
-            sys.platform == "darwin"
-            and tool in _KEYCHAIN_SERVICES
-            and _detect_keychain_auth(_KEYCHAIN_SERVICES[tool]) == "logged_in"
-        )
-        state = "logged_in" if keychain_ok or _cred_file_present(tool) else "logged_out"
-    else:
-        # Unknown auth tool: when its binary IS on PATH, "not_installed" would
-        # be misleading — we simply cannot verify its login, so report
-        # logged_out (recovery hint follows if known). Only when the binary is
-        # absent is "not_installed" the honest state.
-        state = "logged_out" if shutil.which(tool) is not None else "not_installed"
-    return AuthStatus(
-        tool=tool,
-        state=state,
-        login_cmd=login_cmd if state == "logged_out" else None,
+    state: AuthState = (
+        "logged_out" if shutil.which(tool) is not None else "not_installed"
     )
-
-
-def _cred_file_present(tool: str) -> bool:
-    """True when ``tool``'s credential file exists and is non-empty.
-
-    A 0-byte credential file carries no token: existence alone is not a login.
-    The file is stat'd, never opened, so no secret transits.
-    """
-    cred = Path.home() / _CRED_FILES[tool]
-    return cred.is_file() and cred.stat().st_size > 0
+    return AuthStatus(tool=tool, state=state)
 
 
 def _probe_version(name: str) -> str | None:
@@ -334,43 +286,3 @@ def detect_gh_config() -> GhConfigStatus:
         return GhConfigStatus(state="unconfigured")
     state: GhConfigState = "configured" if proc.returncode == 0 else "unconfigured"
     return GhConfigStatus(state=state)
-
-
-def _detect_gh_auth() -> AuthState:
-    """Probe ``gh auth status`` exit code without reading any token."""
-    if shutil.which("gh") is None:
-        return "not_installed"
-    try:
-        proc = subprocess.run(
-            ["gh", "auth", "status"],  # noqa: S607 - gh is a controlled, known binary
-            capture_output=True,
-            text=True,
-            timeout=_VERSION_TIMEOUT_S,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "logged_out"
-    return "logged_in" if proc.returncode == 0 else "logged_out"
-
-
-def _detect_keychain_auth(service: str) -> AuthState:
-    """Probe the macOS login Keychain for ``service`` without reading the token.
-
-    Mirrors :func:`_detect_gh_auth`: only the exit code of
-    ``security find-generic-password -s <service>`` is inspected
-    (``capture_output=True`` keeps any matched blob off the terminal), so the
-    secret value never transits. A missing ``security`` binary or any
-    OS/subprocess error degrades to ``logged_out`` rather than raising.
-    """
-    if shutil.which("security") is None:
-        return "logged_out"
-    try:
-        proc = subprocess.run(  # noqa: S603 - service is a hardcoded literal from _KEYCHAIN_SERVICES
-            ["security", "find-generic-password", "-s", service],  # noqa: S607 - security is a controlled, known system binary
-            capture_output=True,
-            timeout=_VERSION_TIMEOUT_S,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "logged_out"
-    return "logged_in" if proc.returncode == 0 else "logged_out"
