@@ -64,3 +64,83 @@ def test_load_catalog_discovers_groups(
 
     assert {g.id for g in catalog.groups()} == {g.id for g in SAMPLE_GROUPS}
     assert catalog.group("broker").package == "axm-broker"
+
+
+def _install_mixed_distribution(
+    tmp_path: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from importlib.metadata import entry_points as metadata_entry_points
+
+    module_body = """from axm_vault import auth
+from axm_vault.models import CredentialGroup, CredentialSpec
+
+class ConnectedSource:
+    def status(self):
+        return auth.AuthStatus.CONNECTED
+
+DEPENDENCY = auth.AuthDependencySpec(
+    name="github-session", source=ConnectedSource()
+)
+GROUP = CredentialGroup(
+    id="mixed",
+    package="axm-mixed",
+    title="Mixed",
+    specs=(CredentialSpec(name="token", env="TOKEN", kind="token"),),
+    auth_dependencies=(DEPENDENCY,),
+)
+
+def provide():
+    return [GROUP]
+"""
+    tmp_path.joinpath("mixed_provider.py").write_text(module_body, encoding="utf-8")
+    metadata = tmp_path / "axm_vault_auth_fixture-1.0.dist-info"
+    metadata.mkdir()
+    metadata.joinpath("METADATA").write_text(
+        "Metadata-Version: 2.1\nName: axm-vault-auth-fixture\nVersion: 1.0\n",
+        encoding="utf-8",
+    )
+    metadata.joinpath("entry_points.txt").write_text(
+        "[axm.credentials]\nmixed-test = mixed_provider:provide\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    def fixture_entry_points(*, group: str) -> list[object]:
+        return [
+            endpoint
+            for endpoint in metadata_entry_points(group=group)
+            if endpoint.name == "mixed-test"
+        ]
+
+    monkeypatch.setattr(catalog_module, "entry_points", fixture_entry_points)
+
+
+@pytest.mark.integration
+def test_load_catalog_discovers_auth_dependencies_from_distribution(
+    tmp_path: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC6: disk-discovered axm.credentials entries carry auth dependencies."""
+    _install_mixed_distribution(tmp_path, monkeypatch)
+
+    catalog = load_catalog()
+
+    assert {dependency.name for dependency in catalog.auth_dependencies()} == {
+        "github-session"
+    }
+
+
+@pytest.mark.integration
+def test_load_catalog_keeps_discovered_kinds_separate(
+    tmp_path: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a loaded catalog never mixes auth dependencies into credentials."""
+    _install_mixed_distribution(tmp_path, monkeypatch)
+
+    catalog = load_catalog()
+
+    credential_names = {spec.name for _group_id, spec in catalog.all_specs()}
+    assert credential_names == {"token"}
+    assert "github-session" not in credential_names

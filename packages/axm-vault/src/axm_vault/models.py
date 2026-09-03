@@ -14,6 +14,8 @@ from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
 
+from axm_vault.auth import AuthDependencySpec
+
 __all__ = [
     "CredentialGroup",
     "CredentialSpec",
@@ -76,6 +78,7 @@ class CredentialGroup(BaseModel):  # type: ignore[explicit-any]
     package: str
     title: str
     specs: tuple[CredentialSpec, ...]
+    auth_dependencies: tuple[AuthDependencySpec, ...] = ()
     multi: bool = False
     instances: InstanceSource | None = None
 

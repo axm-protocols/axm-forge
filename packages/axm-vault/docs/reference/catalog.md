@@ -1,8 +1,9 @@
 # Catalog
 
 The **catalog** aggregates the [`CredentialGroup`](models.md#credentialgroup)
-bundles contributed by packages and offers lookup over them. It is discovered
-from the `axm.credentials` entry-point group.
+bundles contributed by packages. A group may carry resolvable credential specs
+and value-less authentication dependencies; both are discovered through the
+same `axm.credentials` entry-point group but exposed by distinct accessors.
 
 !!! note "Empty by design"
     `axm-vault` itself contributes **no** credential groups. An empty catalog
@@ -63,7 +64,8 @@ An in-memory index of credential groups, keyed by group `id`. Frozen
 | `group(gid)` | `CredentialGroup` | Raises `KeyError` (clear message) if unknown |
 | `groups()` | `list[CredentialGroup]` | Every registered group |
 | `for_package(package)` | `list[CredentialGroup]` | Groups contributed by `package` |
-| `all_specs()` | `list[tuple[str, CredentialSpec]]` | `(group_id, spec)` pairs, flattened |
+| `all_specs()` | `list[tuple[str, CredentialSpec]]` | Credential `(group_id, spec)` pairs only, flattened |
+| `auth_dependencies()` | `list[AuthDependencySpec]` | Authentication dependencies only, flattened |
 
 ```python
 from axm_vault import Catalog, CredentialGroup, CredentialSpec
@@ -80,4 +82,5 @@ catalog.group("acme")            # -> CredentialGroup(...)
 catalog.group("missing")         # -> raises KeyError
 catalog.for_package("axm-acme")  # -> [CredentialGroup(...)]
 catalog.all_specs()              # -> [("acme", CredentialSpec(...))]
+catalog.auth_dependencies()      # -> [] for this credential-only group
 ```

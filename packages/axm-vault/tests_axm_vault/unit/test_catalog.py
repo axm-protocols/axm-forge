@@ -120,3 +120,47 @@ def test_group_id_namespace_charset(bad_id: str) -> None:
     """
     with pytest.raises(ValueError, match="namespace"):
         Catalog(groups=(_group_with("token", Sensitivity.NONSENSITIVE, gid=bad_id),))
+
+
+def _mixed_catalog() -> tuple[Catalog, object]:
+    from axm_vault import auth
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    credential = CredentialSpec(name="api_key", env="API_KEY", kind="token")
+    dependency = auth.AuthDependencySpec(
+        name="claude-session", source=ConnectedSource()
+    )
+    group = CredentialGroup(
+        id="agent",
+        package="axm-agent",
+        title="Agent",
+        specs=(credential,),
+        auth_dependencies=(dependency,),
+    )
+    return Catalog(groups=(group,)), dependency
+
+
+def test_auth_dependencies_flattens_only_auth_dependencies() -> None:
+    """AC1: the dedicated accessor returns every declared auth dependency exactly."""
+    from axm_vault import auth
+
+    catalog, dependency = _mixed_catalog()
+
+    observed = catalog.auth_dependencies()
+
+    assert observed == [dependency]
+    assert {item.name for item in observed} == {"claude-session"}
+    assert all(isinstance(item, auth.AuthDependencySpec) for item in observed)
+
+
+def test_all_specs_excludes_auth_dependencies() -> None:
+    """AC2: credential traversal never includes an authentication dependency."""
+    catalog, _dependency = _mixed_catalog()
+
+    credential_names = {spec.name for _group_id, spec in catalog.all_specs()}
+
+    assert credential_names == {"api_key"}
+    assert "claude-session" not in credential_names

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import axm_config
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from axm_vault.auth import AuthDependencySpec
 from axm_vault.models import CredentialGroup, Sensitivity
 
 if TYPE_CHECKING:
@@ -98,6 +99,14 @@ class Catalog(BaseModel):  # type: ignore[explicit-any]
     def all_specs(self) -> list[tuple[str, CredentialSpec]]:
         """Return every ``(group_id, spec)`` pair across all groups."""
         return [(g.id, spec) for g in self.groups_ for spec in g.specs]
+
+    def auth_dependencies(self) -> list[AuthDependencySpec]:
+        """Return every authentication dependency across all groups."""
+        return [
+            dependency
+            for group in self.groups_
+            for dependency in group.auth_dependencies
+        ]
 
 
 @cache

@@ -1,9 +1,9 @@
 # Catalog Models
 
-The credential catalog is described by **value-less** pydantic models: they
-declare the *schema* of a credential (where it lives, how sensitive it is,
-whether it is required) but **never hold a secret value**. This is a security
-invariant — no field on any model stores a credential value.
+The catalog is described by **value-less** pydantic models. A
+`CredentialSpec` declares the schema of a resolvable credential; an
+`AuthDependencySpec` reports only the state of an external authentication
+session. Neither kind stores or exposes a secret value.
 
 All models are frozen (`frozen=True`) and reject unknown fields
 (`extra="forbid"`).
@@ -45,6 +45,51 @@ The schema for a single credential.
 from axm_vault import CredentialSpec
 
 spec = CredentialSpec(name="api_key", env="ACME_API_KEY", kind="token")
+```
+
+## Authentication dependencies
+
+An authentication dependency represents a session managed by an external tool.
+Vault observes that session but never reads its token or provisions a value.
+
+### `AuthStatus`
+
+`AuthStatus` is a `StrEnum` with three distinct observations:
+
+| Member | Value | Meaning |
+| -- | -- | -- |
+| `CONNECTED` | `"connected"` | The tool and its authenticated session are present. |
+| `DISCONNECTED` | `"disconnected"` | The tool is present but has no usable session. |
+| `TOOL_ABSENT` | `"tool_absent"` | The tool itself is not installed or available. |
+
+### `AuthSource`
+
+A runtime-checkable protocol supplied by the declaring package. Its sole method,
+`status() -> AuthStatus`, observes the package-owned tool. Passing an object that
+does not implement this protocol raises `UnsupportedAuthDeclarationError` when
+the dependency is constructed.
+
+### `AuthDependencySpec`
+
+A frozen, strict model with a required `name`. Its source is accepted at
+construction and retained privately: the only authentication operation exposed
+by the spec is `status() -> AuthStatus`. In particular, there is no `resolve`,
+`value`, `secret`, `get`, or `env_var` surface.
+
+```python
+from axm_vault import AuthDependencySpec, AuthStatus
+
+
+class AcmeSessionSource:
+    def status(self) -> AuthStatus:
+        return AuthStatus.CONNECTED
+
+
+dependency = AuthDependencySpec(
+    name="acme-session",
+    source=AcmeSessionSource(),
+)
+assert dependency.status() is AuthStatus.CONNECTED
 ```
 
 ## `InstanceSource`
@@ -92,6 +137,7 @@ A bundle of the credential specs a package requires.
 | `package` | `str` | — (required) |
 | `title` | `str` | — (required) |
 | `specs` | `tuple[CredentialSpec, ...]` | — (required) |
+| `auth_dependencies` | `tuple[AuthDependencySpec, ...]` | `()` |
 | `multi` | `bool` | `False` |
 | `instances` | `InstanceSource \| None` | `None` |
 

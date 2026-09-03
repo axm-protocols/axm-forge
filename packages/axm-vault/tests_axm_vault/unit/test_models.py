@@ -93,3 +93,28 @@ def test_instance_source_runtime_protocol() -> None:
 
     assert isinstance(CompleteSource(), models.InstanceSource)
     assert not isinstance(SourceWithoutDeclare(), models.InstanceSource)
+
+
+def test_group_keeps_credentials_and_auth_dependencies_separate() -> None:
+    """AC2: a group stores credentials and authentication dependencies separately."""
+    from axm_vault import auth
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    credential = CredentialSpec(name="token", env="TOKEN", kind="token")
+    dependency = auth.AuthDependencySpec(
+        name="claude-session", source=ConnectedSource()
+    )
+
+    group = CredentialGroup(
+        id="agent",
+        package="axm-agent",
+        title="Agent",
+        specs=(credential,),
+        auth_dependencies=(dependency,),
+    )
+
+    assert group.specs == (credential,)
+    assert group.auth_dependencies == (dependency,)

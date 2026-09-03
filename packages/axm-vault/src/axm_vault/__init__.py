@@ -5,6 +5,12 @@ Catalog-resolver secrets manager (keyring + SecretStr) for AXM
 
 from __future__ import annotations
 
+from axm_vault.auth import (
+    AuthDependencySpec,
+    AuthSource,
+    AuthStatus,
+    UnsupportedAuthDeclarationError,
+)
 from axm_vault.catalog import Catalog, load_catalog
 from axm_vault.doctor import Provenance, doctor_data
 from axm_vault.instances import (
@@ -35,6 +41,9 @@ from axm_vault.tools import VaultDoctorTool, VaultSetTool
 __all__ = [
     "MASK",
     "SERVICE",
+    "AuthDependencySpec",
+    "AuthSource",
+    "AuthStatus",
     "Catalog",
     "CredentialGroup",
     "CredentialSpec",
@@ -46,6 +55,7 @@ __all__ = [
     "Resolved",
     "Resolver",
     "Sensitivity",
+    "UnsupportedAuthDeclarationError",
     "UnsupportedInstanceDeclarationError",
     "VaultDoctorTool",
     "VaultSetTool",

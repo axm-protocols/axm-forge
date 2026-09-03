@@ -90,6 +90,48 @@ broker = "axm_broker.credentials:provide_credentials"
 After a reinstall (`uv sync`), `load_catalog()` discovers it automatically —
 the catalog aggregates every registered `axm.credentials` provider.
 
+## Declare an external authentication dependency
+
+Use the second catalog kind when your package depends on an external tool's
+login session but must never read or provision its token. Implement the
+runtime-checkable `AuthSource` contract in the package that owns the tool, then
+attach an `AuthDependencySpec` to the same `CredentialGroup`:
+
+```python
+from axm_vault import AuthDependencySpec, AuthStatus, CredentialGroup
+
+from axm_acme import acme_cli
+
+
+class AcmeSessionSource:
+    def status(self) -> AuthStatus:
+        if not acme_cli.is_installed():
+            return AuthStatus.TOOL_ABSENT
+        if acme_cli.has_session():
+            return AuthStatus.CONNECTED
+        return AuthStatus.DISCONNECTED
+
+
+group = CredentialGroup(
+    id="acme",
+    package="axm-acme",
+    title="Acme",
+    specs=(),
+    auth_dependencies=(
+        AuthDependencySpec(
+            name="acme-session",
+            source=AcmeSessionSource(),
+        ),
+    ),
+)
+```
+
+Keep credentials and authentication dependencies separate: `all_specs()` feeds
+resolution and provisioning, while `auth_dependencies()` reports external
+session state only. An authentication dependency has no environment variable or
+value accessor. If the supplied source does not implement `status()`,
+construction raises `UnsupportedAuthDeclarationError`.
+
 ## 5. Use it
 
 Once registered, all the vault surfaces work for your group:
@@ -139,6 +181,6 @@ raises `UnsupportedInstanceDeclarationError`; listing without one returns `[]`.
 
 ## Related
 
-- [Catalog Models](../reference/models.md) — every field of `CredentialSpec` / `CredentialGroup`
+- [Catalog Models](../reference/models.md) — credentials, authentication dependencies, and groups
 - [Resolver](../reference/resolver.md) — the layer precedence and `bind`
 - [Architecture](../explanation/architecture.md) — why the keyring/config frontier exists

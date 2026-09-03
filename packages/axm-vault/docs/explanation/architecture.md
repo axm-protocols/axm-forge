@@ -33,12 +33,19 @@ graph TD
 
 ### 1. The catalog — schema, never values
 
-A [`CredentialGroup`](../reference/models.md) bundles [`CredentialSpec`](../reference/models.md)
-entries that describe *what* a package needs: a name, an env var, a `kind`, a
-`Sensitivity`. **No field ever holds a secret** — the catalog is value-less by
-construction. Packages contribute groups through the `axm.credentials`
-entry-point group; [`load_catalog()`](../reference/catalog.md) aggregates them
-(empty catalog is the nominal state for vault itself, and is cached).
+A [`CredentialGroup`](../reference/models.md) can bundle two distinct kinds.
+[`CredentialSpec`](../reference/models.md#credentialspec) entries describe
+resolvable values (name, environment variable, kind, sensitivity), while
+[`AuthDependencySpec`](../reference/models.md#authdependencyspec) entries expose
+only the observed state of an external login session. Packages contribute both
+through the `axm.credentials` entry-point group; [`load_catalog()`](../reference/catalog.md)
+aggregates them (an empty catalog remains the nominal state for vault itself).
+
+The two kinds never share a traversal. `Catalog.all_specs()` feeds resolution
+and provisioning; `Catalog.auth_dependencies()` yields only authentication
+sessions. Their tri-state result distinguishes connected, disconnected, and
+missing-tool states. The declarer's source is private and there is no route from
+an authentication dependency to a token or other value.
 
 At load time the catalog validates every `group.id` (as an axm-config
 *namespace*) and every SECRET/CONFIG spec name (as an axm-config *key*) by
@@ -114,6 +121,7 @@ logged where it could leak.**
 
 | Decision | Rationale |
 |---|---|
+| Separate declaration kinds | Resolvable credentials and external authentication sessions cannot be confused or accidentally provisioned. |
 | Value-less catalog | A schema that cannot hold a secret cannot leak one. |
 | Canonical charset via `axm_config.validate_segment` | One source of truth for namespace/key charsets — no hand-mirrored regex to drift out of sync. |
 | Keyring/config frontier by `Sensitivity` | Secrets never touch `~/.axm`; config never touches the keyring. |

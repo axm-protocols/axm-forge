@@ -69,6 +69,7 @@ api_key = get("acme", "api_key")  # singleton convenience -> just the value
 
 - ✅ **Value-less catalog** — models describe credential schema only, never store a secret
 - ✅ **Entry-point discovery** — `load_catalog()` aggregates `axm.credentials` groups (empty-safe, cached)
+- ✅ **External authentication state** — value-less dependencies report `CONNECTED`, `DISCONNECTED`, or `TOOL_ABSENT` without exposing tokens
 - ✅ **Layered resolution** — `Resolver` walks `env > file > keyring > default > prompt`; file tier delegated to `axm-config`, keyring only for `SECRET`
 - ✅ **Typed binding** — `bind(model, group)` builds a pydantic model from resolved values, `SECRET` fields as `SecretStr`
 - ✅ **Value-free doctor** — `doctor_data()` / `vault_doctor` report each credential's `{layer, present}` provenance per declared instance, without ever returning a secret
