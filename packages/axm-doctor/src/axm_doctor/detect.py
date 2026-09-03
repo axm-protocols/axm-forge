@@ -18,10 +18,16 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Literal
+from queue import Empty, Queue
+from threading import Thread
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from axm_vault import AuthDependencySpec
 
 __all__ = [
     "AuthState",
@@ -36,6 +42,7 @@ __all__ = [
     "detect_gh_config",
     "detect_git_identity",
     "detect_tool",
+    "load_auth_declarations",
 ]
 
 type ToolState = Literal["present", "absent"]
@@ -100,6 +107,77 @@ def detect_tool(name: str) -> ToolStatus:
     )
 
 
+type CredentialProvider = Callable[[], Iterable[object]]
+type AuthProbeResult = tuple[bool, object]
+
+
+def load_auth_declarations() -> dict[str, AuthDependencySpec]:
+    """Discover authentication declarations without making vault a bootstrap import."""
+    try:
+        from importlib.metadata import entry_points
+
+        from axm_vault import AuthDependencySpec, CredentialGroup
+    except ImportError:
+        return {}
+
+    declarations: dict[str, AuthDependencySpec] = {}
+    for endpoint in entry_points(group="axm.credentials"):
+        try:
+            provider = cast("CredentialProvider", endpoint.load())
+            groups = provider()
+        except Exception:  # noqa: BLE001, S112 - isolate a broken distribution
+            continue
+        for group in groups:
+            if not isinstance(group, CredentialGroup):
+                continue
+            for declaration in group.auth_dependencies:
+                if isinstance(declaration, AuthDependencySpec):
+                    declarations[declaration.name] = declaration
+    return declarations
+
+
+def _call_auth_declaration(
+    declaration: AuthDependencySpec,
+) -> AuthProbeResult:
+    try:
+        return True, declaration.status()
+    except Exception:  # noqa: BLE001 - third-party probes must not escape doctor
+        return False, None
+
+
+def _collect_auth_probe(
+    declaration: AuthDependencySpec,
+    results: Queue[AuthProbeResult],
+) -> None:
+    results.put(_call_auth_declaration(declaration))
+
+
+def _detect_declared_auth(declaration: AuthDependencySpec) -> AuthState:
+    guard_delay = getattr(declaration, "guard_delay_s", None)
+    if isinstance(guard_delay, int | float) and not isinstance(guard_delay, bool):
+        results: Queue[AuthProbeResult] = Queue(maxsize=1)
+        worker = Thread(
+            target=_collect_auth_probe,
+            args=(declaration, results),
+            daemon=True,
+        )
+        worker.start()
+        try:
+            succeeded, observed = results.get(timeout=max(float(guard_delay), 0.0))
+        except Empty:
+            return "logged_out"
+    else:
+        succeeded, observed = _call_auth_declaration(declaration)
+
+    if not succeeded:
+        return "logged_out"
+    if observed == "connected":
+        return "logged_in"
+    if observed == "tool_absent":
+        return "not_installed"
+    return "logged_out"
+
+
 def detect_auth(tool: str) -> AuthStatus:
     """Report read-only auth state for a third-party binary.
 
@@ -107,6 +185,13 @@ def detect_auth(tool: str) -> AuthStatus:
     tools (``claude``, ``codex``) via the *existence* of their credential file
     under ``~`` — the file is never opened, so no token is ever read.
     """
+    declaration = load_auth_declarations().get(tool)
+    if declaration is not None:
+        return AuthStatus(
+            tool=tool,
+            state=_detect_declared_auth(declaration),
+        )
+
     login_cmd = _LOGIN_CMDS.get(tool)
     if tool == "gh":
         state = _detect_gh_auth()

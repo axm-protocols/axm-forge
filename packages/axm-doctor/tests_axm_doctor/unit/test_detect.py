@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 
 import pytest
 from pydantic import ValidationError
 
+import axm_doctor.detect as detect_module
 from axm_doctor.detect import (
     ToolStatus,
     detect_auth,
@@ -14,6 +16,57 @@ from axm_doctor.detect import (
     detect_git_identity,
     detect_tool,
 )
+
+
+class _BlockVaultImports:
+    def find_spec(
+        self,
+        fullname: str,
+        _path: object = None,
+        _target: object = None,
+    ) -> None:
+        if fullname == "axm_vault" or fullname.startswith("axm_vault."):
+            raise ImportError("credential catalog unavailable")
+
+
+def _block_vault_imports(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in tuple(sys.modules):
+        if name == "axm_vault" or name.startswith("axm_vault."):
+            monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setattr(
+        sys,
+        "meta_path",
+        [_BlockVaultImports(), *sys.meta_path],
+    )
+
+
+def test_load_auth_declarations_import_failure_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: an unimportable credential catalog yields an empty mapping."""
+    _block_vault_imports(monkeypatch)
+
+    declarations = detect_module.load_auth_declarations()
+
+    assert declarations == {}
+
+
+def test_detect_auth_answers_when_catalog_import_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: catalog ImportError still leaves generic auth detection usable."""
+    _block_vault_imports(monkeypatch)
+    monkeypatch.setattr(
+        "axm_doctor.detect.shutil.which",
+        lambda _name: "/usr/local/bin/uncatalogued",
+    )
+
+    declarations = detect_module.load_auth_declarations()
+    status = detect_auth("uncatalogued")
+
+    assert declarations == {}
+    assert isinstance(status, detect_module.AuthStatus)
+    assert status.tool == "uncatalogued"
 
 
 class _Proc:
