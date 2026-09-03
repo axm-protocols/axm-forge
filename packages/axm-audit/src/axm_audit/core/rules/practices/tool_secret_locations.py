@@ -1,0 +1,188 @@
+from __future__ import annotations
+
+import ast
+import re
+from dataclasses import dataclass
+from typing import Literal
+
+__all__ = [
+    "ToolSecretLocation",
+    "find_tool_keyring_service_literals",
+    "find_tool_session_path_literals",
+    "is_auth_detection_module",
+]
+
+_AUTH_TOKENS = frozenset({"auth", "credential", "credentials"})
+_KEYRING_METHODS = frozenset({"get_password", "set_password", "delete_password"})
+_TOOL_PATH_PATTERNS = (
+    re.compile(r"(?:^|/)~/\.(?P<tool>[^/]+)/"),
+    re.compile(r"(?:^|/)\.config/(?P<tool>[^/]+)/"),
+    re.compile(
+        r"(?:^|/)Library/Application Support/(?P<tool>[^/]+)/",
+        re.IGNORECASE,
+    ),
+)
+
+
+@dataclass(frozen=True)
+class ToolSecretLocation:
+    """A literal that exposes a third-party tool's secret location."""
+
+    kind: Literal["session_path", "keyring_service"]
+    value: str
+    line: int
+
+
+def _words(value: str) -> tuple[str, ...]:
+    return tuple(part for part in re.split(r"[^a-z0-9]+", value.casefold()) if part)
+
+
+def _normalise_namespace(value: str) -> str:
+    return value.casefold().replace("-", "_")
+
+
+def _is_first_party_namespace(
+    namespace: str,
+    first_party: frozenset[str],
+) -> bool:
+    normalised = _normalise_namespace(namespace)
+    return any(normalised == _normalise_namespace(item) for item in first_party)
+
+
+def _is_first_party_value(value: str, first_party: frozenset[str]) -> bool:
+    value_words = _words(value)
+    for namespace in first_party:
+        namespace_words = _words(namespace)
+        width = len(namespace_words)
+        if width and any(
+            value_words[index : index + width] == namespace_words
+            for index in range(len(value_words) - width + 1)
+        ):
+            return True
+    return False
+
+
+def is_auth_detection_module(module_path: str) -> bool:
+    """Return whether a path contains an auth-detection namespace token."""
+    path_segments = module_path.replace("\\", "/").split("/")
+    if path_segments:
+        path_segments[-1] = path_segments[-1].rsplit(".", maxsplit=1)[0]
+    return any(
+        token in _AUTH_TOKENS for segment in path_segments for token in _words(segment)
+    )
+
+
+def _tool_namespace(value: str) -> str | None:
+    for pattern in _TOOL_PATH_PATTERNS:
+        if match := pattern.search(value):
+            return match.group("tool")
+    return None
+
+
+def _has_secret_file_shape(value: str) -> bool:
+    basename = value.replace("\\", "/").rsplit("/", maxsplit=1)[-1].casefold()
+    return (
+        (basename.startswith("auth") and basename.endswith(".json"))
+        or "credential" in basename
+        or "session" in basename
+        or basename.startswith("token")
+        or bool(re.fullmatch(r"hosts\.ya?ml", basename))
+        or basename.endswith(".keychain")
+    )
+
+
+def find_tool_session_path_literals(
+    tree: ast.Module,
+    first_party: frozenset[str],
+) -> list[ToolSecretLocation]:
+    """Find third-party tool session-path literals in a parsed module."""
+    locations: list[ToolSecretLocation] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        namespace = _tool_namespace(node.value)
+        if (
+            namespace is None
+            or _is_first_party_namespace(namespace, first_party)
+            or not _has_secret_file_shape(node.value)
+        ):
+            continue
+        locations.append(
+            ToolSecretLocation(
+                kind="session_path",
+                value=node.value,
+                line=node.lineno,
+            )
+        )
+    return sorted(locations, key=lambda location: (location.line, location.value))
+
+
+def _call_service_literal(call: ast.Call) -> ast.Constant | None:
+    if not (
+        isinstance(call.func, (ast.Name, ast.Attribute))
+        and (call.func.id if isinstance(call.func, ast.Name) else call.func.attr)
+        in _KEYRING_METHODS
+    ):
+        return None
+    if call.args:
+        candidate = call.args[0]
+        if isinstance(candidate, ast.Constant) and isinstance(candidate.value, str):
+            return candidate
+    for keyword in call.keywords:
+        if (
+            keyword.arg == "service_name"
+            and isinstance(keyword.value, ast.Constant)
+            and isinstance(keyword.value.value, str)
+        ):
+            return keyword.value
+    return None
+
+
+def _security_service_literals(tree: ast.Module) -> list[ast.Constant]:
+    literals: list[ast.Constant] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.List, ast.Tuple)):
+            continue
+        values = [
+            element.value
+            for element in node.elts
+            if isinstance(element, ast.Constant) and isinstance(element.value, str)
+        ]
+        if "security" not in values or "find-generic-password" not in values:
+            continue
+        for index, element in enumerate(node.elts[:-1]):
+            if isinstance(element, ast.Constant) and element.value in {
+                "-s",
+                "--service",
+            }:
+                candidate = node.elts[index + 1]
+                if isinstance(candidate, ast.Constant) and isinstance(
+                    candidate.value, str
+                ):
+                    literals.append(candidate)
+    return literals
+
+
+def find_tool_keyring_service_literals(
+    tree: ast.Module,
+    first_party: frozenset[str],
+) -> list[ToolSecretLocation]:
+    """Find third-party service literals used by keyring APIs or security."""
+    literals = [
+        literal
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        if (literal := _call_service_literal(node)) is not None
+    ]
+    literals.extend(_security_service_literals(tree))
+    locations = [
+        ToolSecretLocation(
+            kind="keyring_service",
+            value=literal.value,
+            line=literal.lineno,
+        )
+        for literal in literals
+        if isinstance(literal.value, str)
+        and not _is_first_party_value(literal.value, first_party)
+    ]
+    return sorted(locations, key=lambda location: (location.line, location.value))
