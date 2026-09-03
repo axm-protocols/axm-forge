@@ -53,6 +53,12 @@ delegating to `axm_config.validate_segment` — the single canonical charset
 rule. An identifier that could never round-trip through `axm_config.set_` is
 rejected up front, instead of blowing up later mid-`run_setup`.
 
+Discovery is a fault-isolation boundary: each entry-point is loaded, called,
+and validated independently. A malformed contribution becomes a typed
+`CatalogRejection` and a `WARNING`; it cannot hide conforming groups from the
+resolver or `doctor_data`. This preserves availability without silently
+relaxing the provider contract.
+
 ### 2. The resolver — a fixed layer precedence
 
 The [`Resolver`](../reference/resolver.md) resolves a value by walking a fixed
@@ -123,6 +129,7 @@ logged where it could leak.**
 |---|---|
 | Separate declaration kinds | Resolvable credentials and external authentication sessions cannot be confused or accidentally provisioned. |
 | Value-less catalog | A schema that cannot hold a secret cannot leak one. |
+| Per-contribution discovery isolation | One malformed package is reported as a typed rejection and cannot collapse the shared catalog. |
 | Canonical charset via `axm_config.validate_segment` | One source of truth for namespace/key charsets — no hand-mirrored regex to drift out of sync. |
 | Keyring/config frontier by `Sensitivity` | Secrets never touch `~/.axm`; config never touches the keyring. |
 | Value-free doctor | Provenance is answerable without ever reading a value. |

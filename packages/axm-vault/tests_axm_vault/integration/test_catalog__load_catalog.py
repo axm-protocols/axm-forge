@@ -7,7 +7,11 @@ monkeypatching it; they never depend on real ``axm.credentials`` entry-points
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
+from importlib import invalidate_caches
+from importlib.metadata import entry_points as metadata_entry_points
+from pathlib import Path
 
 import pytest
 
@@ -144,3 +148,106 @@ def test_load_catalog_keeps_discovered_kinds_separate(
     credential_names = {spec.name for _group_id, spec in catalog.all_specs()}
     assert credential_names == {"token"}
     assert "github-session" not in credential_names
+
+
+def _install_resilient_distribution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ok_module = """from axm_vault.models import CredentialGroup, CredentialSpec
+
+GROUP = CredentialGroup(
+    id="survivor",
+    package="axm-survivor",
+    title="Survivor",
+    specs=(CredentialSpec(
+        name="token",
+        env="AXM_VAULT_SURVIVOR_TOKEN",
+        kind="token",
+        required=False,
+    ),),
+)
+
+def groups():
+    return [GROUP]
+"""
+    tmp_path.joinpath("fake_ok.py").write_text(ok_module, encoding="utf-8")
+    tmp_path.joinpath("fake_broken.py").write_text(
+        "ALREADY_BUILT = object()\n", encoding="utf-8"
+    )
+
+    distributions = (
+        ("ok-fixture", "ok = fake_ok:groups"),
+        ("broken-fixture", "broken = fake_broken:ALREADY_BUILT"),
+    )
+    for distribution_name, declaration in distributions:
+        metadata = tmp_path / f"{distribution_name}-1.0.dist-info"
+        metadata.mkdir()
+        metadata.joinpath("METADATA").write_text(
+            f"Metadata-Version: 2.1\nName: {distribution_name}\nVersion: 1.0\n",
+            encoding="utf-8",
+        )
+        metadata.joinpath("entry_points.txt").write_text(
+            f"[axm.credentials]\n{declaration}\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+    invalidate_caches()
+
+    def fixture_entry_points(*, group: str) -> list[object]:
+        return [
+            endpoint
+            for endpoint in metadata_entry_points(group=group)
+            if endpoint.name in {"ok", "broken"}
+        ]
+
+    monkeypatch.setattr(catalog_module, "entry_points", fixture_entry_points)
+    load_catalog.cache_clear()
+
+
+@pytest.mark.integration
+def test_load_catalog_keeps_conforming_disk_contribution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: one malformed disk contribution does not hide a conforming one."""
+    _install_resilient_distribution(tmp_path, monkeypatch)
+
+    catalog = load_catalog()
+
+    assert "survivor" in {group.id for group in catalog.groups()}
+
+
+@pytest.mark.integration
+def test_load_catalog_reports_malformed_disk_contribution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5: the malformed entry point remains visible as a typed rejection."""
+    _install_resilient_distribution(tmp_path, monkeypatch)
+
+    catalog = load_catalog()
+
+    assert any(
+        rejection.entry_point == "broken" and rejection.reason
+        for rejection in catalog.rejections()
+    )
+
+
+@pytest.mark.integration
+def test_load_catalog_warns_for_malformed_disk_contribution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC6: skipping a malformed entry point emits a named warning."""
+    _install_resilient_distribution(tmp_path, monkeypatch)
+
+    with caplog.at_level(logging.WARNING, logger="axm_vault.catalog"):
+        load_catalog()
+
+    assert any(
+        record.levelno >= logging.WARNING and "broken" in record.getMessage()
+        for record in caplog.records
+    )

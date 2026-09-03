@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from axm_vault import catalog as catalog_module
 from axm_vault.catalog import Catalog
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
 from tests_axm_vault.fixtures.sample_groups import (
@@ -164,3 +165,37 @@ def test_all_specs_excludes_auth_dependencies() -> None:
 
     assert credential_names == {"api_key"}
     assert "claude-session" not in credential_names
+
+
+def test_non_callable_provider_is_rejected() -> None:
+    """AC1: a non-callable contribution is rejected without yielding groups."""
+    groups, rejection = catalog_module.groups_from_provider("axm-git", object())
+
+    assert groups == ()
+    assert isinstance(rejection, catalog_module.CatalogRejection)
+    assert rejection.entry_point == "axm-git"
+    assert "not callable" in rejection.reason
+
+
+def test_provider_returning_non_group_item_is_rejected() -> None:
+    """AC2: a contribution item must be a CredentialGroup."""
+    groups, rejection = catalog_module.groups_from_provider(
+        "wrong-item", lambda: ["not-a-group"]
+    )
+
+    assert groups == ()
+    assert rejection is not None
+    assert "str" in rejection.reason
+
+
+def test_raising_provider_is_rejected_without_propagation() -> None:
+    """AC3: a provider exception becomes a rejection instead of escaping."""
+
+    def raise_kaput() -> list[CredentialGroup]:
+        raise RuntimeError("kaput")
+
+    groups, rejection = catalog_module.groups_from_provider("raising", raise_kaput)
+
+    assert groups == ()
+    assert rejection is not None
+    assert "kaput" in rejection.reason

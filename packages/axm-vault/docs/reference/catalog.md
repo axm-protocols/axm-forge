@@ -35,6 +35,14 @@ acme = "axm_acme.credentials:provide_groups"
 
 where `provide_groups` is a callable returning `list[CredentialGroup]`.
 
+Discovery is isolated per contribution. If loading or calling one entry-point
+fails, its provider is not callable, or it yields an item other than a
+`CredentialGroup`, `load_catalog()` skips only that contribution. It emits a
+`WARNING`, records a typed `CatalogRejection`, and continues serving every
+conforming group. The same policy is available directly through
+`groups_from_provider(entry_point, provider)` for callers that already hold a
+provider object.
+
 !!! warning "Group ids and `SECRET`/`CONFIG` spec names must be valid `axm-config` segments"
     A `CONFIG` spec persists its value in `axm-config` keyed by `<name>` under
     the namespace `group.id`, so both identifiers must round-trip through
@@ -53,6 +61,12 @@ where `provide_groups` is a callable returning `list[CredentialGroup]`.
     `NONSENSITIVE` spec names are environment-only and exempt (the group id is
     still checked).
 
+## `CatalogRejection`
+
+A frozen, strict record describing one contribution excluded during discovery.
+It contains the entry-point `entry_point` and a non-empty diagnostic `reason`.
+The rejection never carries credential values.
+
 ## `Catalog`
 
 An in-memory index of credential groups, keyed by group `id`. Frozen
@@ -60,9 +74,10 @@ An in-memory index of credential groups, keyed by group `id`. Frozen
 
 | Method | Returns | Notes |
 | -- | -- | -- |
-| `Catalog(groups=...)` | `Catalog` | Build from a tuple of `CredentialGroup` |
+| `Catalog(groups=..., rejections=...)` | `Catalog` | Build from credential groups and optional typed discovery rejections |
 | `group(gid)` | `CredentialGroup` | Raises `KeyError` (clear message) if unknown |
 | `groups()` | `list[CredentialGroup]` | Every registered group |
+| `rejections()` | `list[CatalogRejection]` | Contributions skipped during discovery, with their reason |
 | `for_package(package)` | `list[CredentialGroup]` | Groups contributed by `package` |
 | `all_specs()` | `list[tuple[str, CredentialSpec]]` | Credential `(group_id, spec)` pairs only, flattened |
 | `auth_dependencies()` | `list[AuthDependencySpec]` | Authentication dependencies only, flattened |

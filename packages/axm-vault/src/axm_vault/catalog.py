@@ -8,9 +8,11 @@ state when no package has registered any.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterable
 from functools import cache
 from importlib.metadata import entry_points
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import axm_config
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -21,9 +23,16 @@ from axm_vault.models import CredentialGroup, Sensitivity
 if TYPE_CHECKING:
     from axm_vault.models import CredentialSpec
 
-__all__ = ["Catalog", "load_catalog"]
+__all__ = [
+    "Catalog",
+    "CatalogRejection",
+    "groups_from_provider",
+    "load_catalog",
+]
 
 CREDENTIALS_GROUP = "axm.credentials"
+
+_LOGGER = logging.getLogger(__name__)
 
 # A group id is used verbatim as an axm-config *namespace* (the CONFIG value is
 # keyed ``set_(group.id, name, ...)``), and a SECRET/CONFIG spec name is used as
@@ -37,17 +46,80 @@ CREDENTIALS_GROUP = "axm.credentials"
 _STORABLE: frozenset[Sensitivity] = frozenset({Sensitivity.SECRET, Sensitivity.CONFIG})
 
 
+@runtime_checkable
+class _CredentialProvider(Protocol):
+    """Runtime-narrowable callable contract for discovered providers."""
+
+    def __call__(self) -> object:
+        """Return the provider contribution."""
+        ...
+
+
+class CatalogRejection(BaseModel):  # type: ignore[explicit-any]
+    """A credential entry point excluded from catalog discovery."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    entry_point: str
+    reason: str
+
+
+def groups_from_provider(
+    entry_point: str,
+    provider: object,
+) -> tuple[tuple[CredentialGroup, ...], CatalogRejection | None]:
+    """Validate one credential provider without leaking contribution failures."""
+    if not isinstance(provider, _CredentialProvider):
+        return (), CatalogRejection(
+            entry_point=entry_point,
+            reason=f"provider is not callable ({type(provider).__name__})",
+        )
+
+    try:
+        provided = provider()
+        if not isinstance(provided, Iterable):
+            return (), CatalogRejection(
+                entry_point=entry_point,
+                reason=f"provider returned non-iterable {type(provided).__name__}",
+            )
+        groups: list[CredentialGroup] = []
+        for item in provided:
+            if not isinstance(item, CredentialGroup):
+                return (), CatalogRejection(
+                    entry_point=entry_point,
+                    reason=(
+                        "provider returned an item that is not a CredentialGroup: "
+                        f"{type(item).__name__}"
+                    ),
+                )
+            groups.append(item)
+    except Exception as exc:  # noqa: BLE001 - isolate third-party providers
+        return (), CatalogRejection(
+            entry_point=entry_point,
+            reason=f"provider raised {type(exc).__name__}: {exc}",
+        )
+    return tuple(groups), None
+
+
 class Catalog(BaseModel):  # type: ignore[explicit-any]
     """An in-memory index of credential groups, keyed by group id."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     groups_: tuple[CredentialGroup, ...] = ()
+    rejections_: tuple[CatalogRejection, ...] = ()
 
     def __init__(
-        self, groups: tuple[CredentialGroup, ...] = (), **data: object
+        self,
+        groups: tuple[CredentialGroup, ...] = (),
+        rejections: tuple[CatalogRejection, ...] = (),
+        **data: object,
     ) -> None:
-        super().__init__(groups_=tuple(groups), **data)
+        super().__init__(
+            groups_=tuple(groups),
+            rejections_=tuple(rejections),
+            **data,
+        )
 
     @model_validator(mode="after")
     def _validate_names(self) -> Catalog:
@@ -92,6 +164,10 @@ class Catalog(BaseModel):  # type: ignore[explicit-any]
         """Return every registered group."""
         return list(self.groups_)
 
+    def rejections(self) -> list[CatalogRejection]:
+        """Return contributions rejected during catalog discovery."""
+        return list(self.rejections_)
+
     def for_package(self, package: str) -> list[CredentialGroup]:
         """Return the groups contributed by ``package``."""
         return [g for g in self.groups_ if g.package == package]
@@ -119,8 +195,31 @@ def load_catalog() -> Catalog:
     nominal state for vault itself. Cached so discovery runs once.
     """
     index: dict[str, CredentialGroup] = {}
+    rejections: list[CatalogRejection] = []
     for endpoint in entry_points(group=CREDENTIALS_GROUP):
-        provider = endpoint.load()
-        for group in provider():
+        rejection: CatalogRejection | None
+        try:
+            provider = endpoint.load()
+        except Exception as exc:  # noqa: BLE001 - isolate third-party entry points
+            rejection = CatalogRejection(
+                entry_point=endpoint.name,
+                reason=f"entry point load raised {type(exc).__name__}: {exc}",
+            )
+            groups: tuple[CredentialGroup, ...] = ()
+        else:
+            groups, rejection = groups_from_provider(endpoint.name, provider)
+
+        if rejection is not None:
+            rejections.append(rejection)
+            _LOGGER.warning(
+                "Rejected credential contribution %s: %s",
+                rejection.entry_point,
+                rejection.reason,
+            )
+            continue
+        for group in groups:
             index[group.id] = group
-    return Catalog(groups=tuple(index.values()))
+    return Catalog(
+        groups=tuple(index.values()),
+        rejections=tuple(rejections),
+    )
