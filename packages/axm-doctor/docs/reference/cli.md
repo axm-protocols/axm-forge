@@ -8,18 +8,22 @@ an explicit `y`.
 ## `axm-doctor check`
 
 Print the full environment report and exit `0`. For every probed tool it prints
-presence + version; for every third-party binary it prints the auth state and
-the recovery `login_cmd`; then it prints catalog provenance under each declared
-kind (for example `token` and `auth_dependency`). Only missing credential kinds
-receive a `secret` row and an `axm-vault` setup hint.
+presence + version; for every third-party binary it prints an auth marker, the
+auth state, and the recovery `login_cmd`; then it prints catalog provenance under
+each declared kind (for example `token` and `auth_dependency`). The markers are
+`✓` for `logged_in`, `✗` for `logged_out`, and `?` when authentication is
+`undetermined`. Only missing credential kinds receive a `secret` row and an
+`axm-vault` setup hint.
 
 ```console
 $ axm-doctor check
 tool	uv	present	0.9.18
 tool	gh	present	2.87.3
-tool	codex	absent	-
-auth	gh	logged_in	-
-auth	claude	logged_out	claude login
+tool	codex	present	0.99.0
+tool	docker	absent	-
+auth	gh	✓	logged_in	-
+auth	claude	✗	logged_out	claude login
+auth	codex	?	undetermined	-
 token	research.fred.api_key	missing
 auth_dependency	github.session	disconnected
 secret	research.fred.api_key	axm-vault set research.fred api_key
@@ -36,13 +40,14 @@ and `gh` config states are **not** in the CLI report — they are exposed by the
 
 Pass `--strict` to turn the report into a gate: `check --strict` exits `1` when
 any probed tool is **absent**, any third-party auth is **`logged_out`**, or any
-secret is **missing**, and exits `0` only when every probed component is
-healthy. The verdict is derived from the printed report — no extra probing — so
-the same rows are printed either way. The default (no flag) is unchanged and
-always exits `0`.
+secret is **missing**. An `undetermined` auth remains informational: doctor has
+not observed a closed session and therefore does not classify it as logged out.
+The verdict is derived from the printed report — no extra probing — so the same
+rows are printed either way. The default (no flag) is unchanged and always exits
+`0`.
 
 ```console
-$ axm-doctor check --strict   # codex absent above -> non-zero exit
+$ axm-doctor check --strict   # docker absent above -> non-zero exit
 $ echo $?
 1
 ```
@@ -98,7 +103,7 @@ The same read-only surface is available as two `axm.tools` entry points (MCP +
 | Tool | Returns |
 | -- | -- |
 | `env_doctor` | `{tools, auth, secrets, config}` — tool presence/version, third-party auth state, value-free missing secrets, and the git-identity / `gh` config states (`config = {git: {state}, gh: {state}}`). Read-only. |
-| `auth_status` | `{auth: {tool: {state, login_cmd}}, credentials: {coordinate: {layer, present}}}`. The compatible data shape is unchanged and value-free; internally, provenance also carries each declaration's `kind`, so the text groups credential kinds and `auth_dependency` rows separately. A declaration error yields an `unknown` / absent row without suppressing its peers. |
+| `auth_status` | `{auth: {tool: {state, login_cmd}}, undetermined: [tool], logged_out: [tool], credentials: {coordinate: {layer, present}}}`. The value-free `auth` map remains available, while the two lists let consumers distinguish an unverifiable session from an observed disconnection. Internally, provenance also carries each declaration's `kind`, so the text groups credential kinds and `auth_dependency` rows separately. A declaration error yields an `unknown` / absent row without suppressing its peers. |
 
 ## Python API
 

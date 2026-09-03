@@ -99,7 +99,12 @@ def _print_check() -> bool:
         unhealthy = unhealthy or status.state == "absent"
     for tool in THIRD_PARTY_AUTH:
         auth = detect_auth(tool)
-        print(f"auth\t{tool}\t{auth.state}\t{auth.login_cmd or '-'}")
+        marker = {
+            "logged_in": "✓",
+            "logged_out": "✗",
+            "undetermined": "?",
+        }.get(auth.state, "✗")
+        print(f"auth\t{tool}\t{marker}\t{auth.state}\t{auth.login_cmd or '-'}")
         unhealthy = unhealthy or auth.state == "logged_out"
     for entry in collect_credential_provenance():
         print(f"{entry.kind}\t{unquote(entry.coordinate)}\t{entry.layer}")

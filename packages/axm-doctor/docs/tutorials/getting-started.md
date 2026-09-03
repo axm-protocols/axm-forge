@@ -32,15 +32,17 @@ prompts for nothing**, and always exits `0` — safe to run anywhere.
 $ axm-doctor check
 tool	uv	present	0.9.18
 tool	gh	present	2.87.3
-tool	codex	absent	-
-auth	gh	logged_in	-
-auth	claude	logged_out	claude login
+tool	codex	present	0.99.0
+auth	gh	✓	logged_in	-
+auth	claude	✗	logged_out	claude login
+auth	codex	?	undetermined	-
 secret	research.fred.api_key	axm-vault set research.fred api_key
 ```
 
-Read it top to bottom: `uv` and `gh` are present (with their versions),
-`codex` is absent, `claude` is logged out (with the command to recover), and
-one vault secret is missing (with its setup hint).
+Read it top to bottom: `uv`, `gh`, and `codex` are present (with their
+versions), `claude` is logged out (with the command to recover), and the `?`
+row means the installed Codex session cannot be verified—not that it is logged
+out. One vault secret is missing (with its setup hint).
 
 ## Step 2: Query a single tool from Python
 

@@ -164,6 +164,19 @@ class AuthStatusTool:
         )
         return ToolResult(
             success=True,
-            data={"auth": auth, "credentials": credentials},
+            data={
+                "auth": auth,
+                "undetermined": [
+                    tool
+                    for tool, entry in auth.items()
+                    if entry["state"] == "undetermined"
+                ],
+                "logged_out": [
+                    tool
+                    for tool, entry in auth.items()
+                    if entry["state"] == "logged_out"
+                ],
+                "credentials": credentials,
+            },
             text=(f"Third-party auth:\n{auth_text}\n\n{_credentials_text(provenance)}"),
         )

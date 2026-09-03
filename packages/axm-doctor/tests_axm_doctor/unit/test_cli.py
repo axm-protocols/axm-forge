@@ -436,3 +436,31 @@ def test_bootstrap_tools_non_tty_skips_clean(
     assert "non-interactive" in combined
     assert "eoferror" not in combined
     assert "traceback" not in combined
+
+
+def test_print_check_marks_undetermined_distinctly(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC2: undetermined and logged-out auth lines use distinct state markers."""
+    import axm_doctor.cli as cli_mod
+    from axm_doctor.detect import AuthStatus
+
+    statuses = {
+        "opaque": AuthStatus(tool="opaque", state="undetermined"),
+        "closed": AuthStatus(tool="closed", state="logged_out", login_cmd="login"),
+    }
+    monkeypatch.setattr(cli_mod, "PROBED_TOOLS", ())
+    monkeypatch.setattr(cli_mod, "THIRD_PARTY_AUTH", tuple(statuses))
+    monkeypatch.setattr(cli_mod, "detect_auth", statuses.__getitem__)
+    monkeypatch.setattr(cli_mod, "collect_credential_provenance", list)
+    monkeypatch.setattr(cli_mod, "missing_secrets", list)
+
+    cli_mod._print_check()
+
+    lines = {
+        fields[1]: fields
+        for line in capsys.readouterr().out.splitlines()
+        if (fields := line.split("\t"))[0] == "auth"
+    }
+    assert lines["opaque"][2] == "?"
+    assert lines["closed"][2] == "✗"

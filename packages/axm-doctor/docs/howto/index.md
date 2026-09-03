@@ -12,8 +12,10 @@ from axm_doctor import detect_auth
 
 for tool in ("gh", "claude", "codex"):
     status = detect_auth(tool)
-    if status.state != "logged_in":
-        print(f"{tool}: {status.state} — run: {status.login_cmd or 'n/a'}")
+    if status.state == "logged_out":
+        print(f"{tool}: logged out — run: {status.login_cmd or 'n/a'}")
+    elif status.state == "undetermined":
+        print(f"{tool}: installed, but its session cannot be verified")
 ```
 
 Use the combined preflight over MCP / the `axm` CLI via the
@@ -21,13 +23,20 @@ Use the combined preflight over MCP / the `axm` CLI via the
 
 ```bash
 axm auth_status
-# data = {auth: {...}, credentials: {coordinate: {layer, present}}}
+# data = {
+#   auth: {...},
+#   undetermined: [...],
+#   logged_out: [...],
+#   credentials: {coordinate: {layer, present}},
+# }
 ```
 
-Alongside the unchanged third-party CLI states, `credentials` reports the
-winning layer and presence flag for every coordinate in the installed catalog.
-The rendered text lists each coordinate followed by its layer; neither form
-contains a credential value. An empty installed catalog yields an empty section.
+The `undetermined` and `logged_out` lists make the two non-connected-looking
+outcomes explicit: only the latter proves that a session is closed. Alongside
+the per-tool `auth` map, `credentials` reports the winning layer and presence
+flag for every coordinate in the installed catalog. The rendered text lists
+each coordinate followed by its layer; neither form contains a credential value.
+An empty installed catalog yields an empty section.
 
 ## Bootstrap a new machine
 
