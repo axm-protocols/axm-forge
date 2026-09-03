@@ -3,7 +3,16 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
+
+from axm_audit.core.rules._helpers import (
+    get_python_files,
+    iter_src_dirs,
+    parse_file_safe,
+)
+from axm_audit.core.rules.base import ProjectRule, register_rule
+from axm_audit.models.results import CheckResult, Severity
 
 __all__ = [
     "ToolSecretLocation",
@@ -186,3 +195,93 @@ def find_tool_keyring_service_literals(
         and not _is_first_party_value(literal.value, first_party)
     ]
     return sorted(locations, key=lambda location: (location.line, location.value))
+
+
+def first_party_namespaces(project: Path) -> frozenset[str]:
+    """Derive namespace tokens owned by the audited project."""
+    namespaces: set[str] = set()
+    for src_dir in iter_src_dirs(project):
+        for package_dir in src_dir.iterdir():
+            if not package_dir.is_dir() or package_dir.name.startswith("."):
+                continue
+            package_name = package_dir.name
+            namespaces.add(package_name)
+            namespaces.add(package_name.split("_", maxsplit=1)[0])
+    return frozenset(namespaces)
+
+
+@register_rule("practices")
+class ToolSecretLocationRule(ProjectRule):
+    """Detect third-party secret locations embedded in auth detectors."""
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "PRACTICE_TOOL_SECRET_LOCATION"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Report third-party session paths and keyring service literals."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
+        first_party = first_party_namespaces(project_path)
+        findings: list[dict[str, str | int]] = []
+        for src_dir in iter_src_dirs(project_path):
+            self._collect_findings(src_dir, first_party, findings)
+
+        count = len(findings)
+        passed = count == 0
+        text_lines = [
+            f"• {finding['file']}:{finding['line']}: "
+            f"{finding['kind']} ({finding['literal']})"
+            for finding in findings
+        ]
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"{count} tool secret location(s) found",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            score=max(0, 100 - count * 15),
+            details={"findings": findings},
+            metadata={"findings": findings},
+            text="\n".join(text_lines) if text_lines else None,
+            fix_hint=(
+                "Probe the third-party tool through its supported interface instead of "
+                "embedding its secret locations"
+            )
+            if not passed
+            else None,
+        )
+
+    @staticmethod
+    def _collect_findings(
+        src_dir: Path,
+        first_party: frozenset[str],
+        findings: list[dict[str, str | int]],
+    ) -> None:
+        """Collect findings from auth-detection modules below one source root."""
+        for path in sorted(get_python_files(src_dir)):
+            relative_path = path.relative_to(src_dir)
+            if not is_auth_detection_module(relative_path.as_posix()):
+                continue
+            tree = parse_file_safe(path)
+            if tree is None:
+                continue
+            locations = find_tool_session_path_literals(tree, first_party)
+            locations.extend(find_tool_keyring_service_literals(tree, first_party))
+            findings.extend(
+                {
+                    "file": relative_path.as_posix(),
+                    "line": location.line,
+                    "kind": location.kind,
+                    "literal": location.value,
+                }
+                for location in sorted(
+                    locations,
+                    key=lambda item: (item.line, item.kind, item.value),
+                )
+            )
+
+
+__all__ += ["ToolSecretLocationRule", "first_party_namespaces"]

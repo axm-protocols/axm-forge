@@ -12,6 +12,9 @@ from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
 from axm_audit.core.rules.practices.env_credentials import EnvCredentialsRule
 from axm_audit.core.rules.practices.mirror import MirrorRule
+from axm_audit.core.rules.practices.tool_secret_locations import (
+    ToolSecretLocationRule,
+)
 
 __all__ = [
     "AntiMirrorRule",
@@ -20,4 +23,5 @@ __all__ = [
     "DocstringCoverageRule",
     "EnvCredentialsRule",
     "MirrorRule",
+    "ToolSecretLocationRule",
 ]
