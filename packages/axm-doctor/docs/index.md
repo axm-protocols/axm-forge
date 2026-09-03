@@ -65,10 +65,10 @@ from axm_doctor import (
     provision_missing,
 )
 
-# Which layer serves each installed credential coordinate? Returns no values.
-collect_credential_provenance()  # [CredentialProvenance(coordinate=..., layer=..., present=...)]
+# Which kind and layer/state describe each installed declaration? Returns no values.
+collect_credential_provenance()  # [CredentialProvenance(coordinate=..., kind=..., layer=..., present=...)]
 
-# Which credential specs resolve to 'missing'? Reads vault's catalog + value-free provenance.
+# Which credential specs resolve to 'missing'? Auth dependencies are excluded.
 missing_secrets()                # MissingSecret rows; instance identifies the account when known
                                  # awaiting_instance=True means a multi group declares no account yet
 
@@ -84,8 +84,8 @@ provision_missing(confirm=True)  # delegates to vault's run_setup(only=...) — 
 - ✅ **Read-only auth** — state comes from an exit code or a non-empty credential-file check (a 0-byte file is `logged_out`); on macOS, `claude` is probed via the login Keychain entry `Claude Code-credentials` (exit code only). The file is stat'd, not opened, and the Keychain value is never read, so the token value is never read.
 - ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus` / `GitIdentityStatus` / `GhConfigStatus`; `AuthStatus` carries a `login_cmd` to recover from `logged_out`, never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the official command for a known tool; `run_install` is a dry-run by default (`confirm=False`) and installs only on explicit opt-in (`confirm=True`), then re-detects the tool.
-- ✅ **Typed credential provenance** — `collect_credential_provenance` translates axm-vault's live, value-free report into immutable `CredentialProvenance` rows containing exactly a coordinate, its winning layer and a presence flag; `auth_status` exposes the same information under `credentials` and in its text rendering. An empty installed catalog produces an empty report.
-- ✅ **Orchestrates, never possesses** — `missing_secrets` lists the vault credential specs that resolve to `missing` (value-free, with a `setup_hint`). `MissingSecret.instance` identifies the account concerned and `awaiting_instance` marks a multi-instance group with no declared account; the served-state lookup uses the exact canonical credential/account coordinate, never a sibling match. `provision_missing` is a dry-run by default and on `confirm=True` delegates to vault's `run_setup` — the secret never transits axm-doctor.
+- ✅ **Typed declaration provenance** — `collect_credential_provenance` translates axm-vault's live, value-free report into immutable `CredentialProvenance` rows containing a coordinate, declared `kind`, serving layer/state, and presence flag. Credential kinds and `auth_dependency` rows coexist; one raising declaration degrades only its own row to a cautious `unknown` / absent verdict. `auth_status` keeps its compatible `{layer, present}` data shape and groups kinds in its text rendering.
+- ✅ **Orchestrates, never possesses** — `missing_secrets` lists credential specs that resolve to `missing` (value-free, with a `setup_hint`) and excludes `auth_dependency` entries, which cannot be provisioned as secrets. `MissingSecret.instance` identifies the account concerned and `awaiting_instance` marks a multi-instance group with no declared account; the served-state lookup uses the exact canonical credential/account coordinate, never a sibling match. `provision_missing` is a dry-run by default and on `confirm=True` delegates only credential groups to vault's `run_setup` — the secret never transits axm-doctor.
 
 ---
 

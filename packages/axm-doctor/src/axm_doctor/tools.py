@@ -53,7 +53,12 @@ def _credentials_map(
 ) -> dict[str, dict[str, str | bool]]:
     """Serialize credential provenance without carrying credential values."""
     return {
-        row.coordinate: {"layer": row.layer, "present": row.present} for row in rows
+        row.coordinate: {
+            "kind": row.kind,
+            "layer": row.layer,
+            "present": row.present,
+        }
+        for row in rows
     }
 
 
@@ -61,11 +66,19 @@ def _credentials_text(
     credentials: Mapping[str, Mapping[str, object]],
 ) -> str:
     """Render each credential coordinate followed by its serving layer."""
-    lines = ["Credentials:"]
-    lines.extend(
-        f"- {coordinate}: {entry['layer']}" for coordinate, entry in credentials.items()
-    )
-    return "\n".join(lines)
+    grouped: dict[str, list[tuple[str, Mapping[str, object]]]] = {}
+    for coordinate, entry in credentials.items():
+        kind = entry.get("kind", "credential")
+        heading = kind if isinstance(kind, str) else "unknown"
+        grouped.setdefault(heading, []).append((coordinate, entry))
+
+    lines: list[str] = []
+    for kind, entries in grouped.items():
+        lines.append(f"{kind}:")
+        lines.extend(
+            f"- {coordinate}: {entry['layer']}" for coordinate, entry in entries
+        )
+    return "\n".join(lines) if lines else "Credentials:"
 
 
 def _config_map() -> dict[str, dict[str, str]]:
@@ -136,7 +149,14 @@ class AuthStatusTool:
         """Return value-free auth state; any error becomes a failure ToolResult."""
         try:
             auth = _auth_map()
-            credentials = _credentials_map(collect_credential_provenance())
+            provenance = _credentials_map(collect_credential_provenance())
+            credentials = {
+                coordinate: {
+                    "layer": entry["layer"],
+                    "present": entry["present"],
+                }
+                for coordinate, entry in provenance.items()
+            }
         except Exception as exc:  # noqa: BLE001 # MCP boundary: any error -> failure
             return ToolResult(success=False, error=str(exc))
         auth_text = "\n".join(
@@ -145,7 +165,5 @@ class AuthStatusTool:
         return ToolResult(
             success=True,
             data={"auth": auth, "credentials": credentials},
-            text=(
-                f"Third-party auth:\n{auth_text}\n\n{_credentials_text(credentials)}"
-            ),
+            text=(f"Third-party auth:\n{auth_text}\n\n{_credentials_text(provenance)}"),
         )

@@ -130,6 +130,8 @@ def missing_secrets() -> list[MissingSecret]:
             instances = (None,)
 
         for spec in group.specs:
+            if spec.kind == "auth_dependency":
+                continue
             for instance in instances:
                 if _is_served(provenance, group.id, spec.name, instance):
                     continue

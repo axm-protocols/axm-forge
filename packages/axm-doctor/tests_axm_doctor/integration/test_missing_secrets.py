@@ -253,3 +253,67 @@ def test_missing_secrets_setup_hints_bind_without_value_argument(
         assert len(tokens) == 4
         assert tokens[:2] == ["axm-vault", "set"]
         inspect.signature(axm_vault.cli.set).bind(*tokens[2:])
+
+
+@pytest.mark.integration
+def test_discovered_auth_dependency_is_not_missing_secret(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+    memory_keyring: object,
+) -> None:
+    """AC2: a discovered auth-dependency declaration stays out of the census."""
+    from axm_vault.catalog import load_catalog as load_vault_catalog
+
+    module = tmp_path / "fixture_auth_catalog.py"
+    module.write_text(
+        """
+from axm_vault.models import CredentialGroup, CredentialSpec
+
+
+def provide():
+    return [
+        CredentialGroup(
+            id="fixture.discovery",
+            package="axm-fixture",
+            title="Discovery",
+            specs=(
+                CredentialSpec(
+                    name="api_token",
+                    env="FIXTURE_DISCOVERY_TOKEN",
+                    kind="token",
+                ),
+                CredentialSpec(
+                    name="github_session",
+                    env="FIXTURE_DISCOVERY_SESSION",
+                    kind="auth_dependency",
+                ),
+            ),
+        )
+    ]
+""".lstrip(),
+        encoding="utf-8",
+    )
+    dist_info = tmp_path / "fixture_auth_catalog-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: fixture-auth-catalog\nVersion: 1.0\n",
+        encoding="utf-8",
+    )
+    (dist_info / "entry_points.txt").write_text(
+        "[axm.credentials]\nfixture = fixture_auth_catalog:provide\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delenv("FIXTURE_DISCOVERY_TOKEN", raising=False)
+    monkeypatch.delenv("FIXTURE_DISCOVERY_SESSION", raising=False)
+    load_vault_catalog.cache_clear()
+    try:
+        result = missing_secrets()
+    finally:
+        load_vault_catalog.cache_clear()
+
+    fixture_rows = [item for item in result if item.group == "fixture.discovery"]
+    assert [(item.group, item.name) for item in fixture_rows] == [
+        ("fixture.discovery", "api_token")
+    ]
+    assert all(item.name != "github_session" for item in fixture_rows)

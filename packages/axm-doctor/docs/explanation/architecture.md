@@ -33,15 +33,19 @@ graph LR
 - **propose** (`install.py`) — turns "`uv` is absent" into the **official**
   install command as an `InstallPlan`. Building a plan runs nothing.
 - **credentials** (`credentials.py`) — translates **axm-vault**'s live,
-  value-free provenance into immutable rows containing only the coordinate,
-  winning layer and presence flag. It does not resolve credentials itself.
+  value-free catalog/provenance into immutable rows containing the coordinate,
+  declared kind, winning layer/state and presence flag. Credential declarations
+  and auth dependencies share the report without sharing vocabulary; an error
+  in one declaration becomes an `unknown` / absent row and does not abort peers.
 - **orchestrate** (`orchestrate.py`) — reads the **axm-vault** catalog and its
-  value-free provenance to list the secrets that resolve to `missing`. Entries
-  can carry an account identity (`instance`) or mark a multi-instance group
-  awaiting its first account (`awaiting_instance`). Served-state checks use the
-  exact canonical credential/account coordinate, so one served account cannot
-  mask a missing sibling. On confirmation, orchestration delegates provisioning
-  to vault's setup driver.
+  value-free provenance to list credential secrets that resolve to `missing`.
+  Auth dependencies are excluded: no session/OAuth state is turned into a
+  `MissingSecret` or sent to the setup driver. Credential entries can carry an
+  account identity (`instance`) or mark a multi-instance group awaiting its
+  first account (`awaiting_instance`). Served-state checks use the exact
+  canonical credential/account coordinate, so one served account cannot mask a
+  missing sibling. On confirmation, orchestration delegates only credential
+  groups to vault's setup driver.
 
 `cli.py` and `tools.py` are interface shells only: they parse input / shape a
 `ToolResult` and print, but hold no detection logic — the same central
@@ -52,9 +56,10 @@ functions back both the CLI and the MCP tools.
 1. **Value-free.** No detection ever reads a token, identity or config value.
    Auth is an exit code or a *stat* of a credential file (a 0-byte file is
    `logged_out`); the git/gh config checks read only presence and exit codes.
-   `CredentialProvenance` likewise serializes exactly `coordinate`, `layer` and
-   `present`; no source value or auxiliary provenance attribute is copied.
-   No `ToolResult` ever serializes a secret.
+   `CredentialProvenance` serializes `coordinate`, declared `kind`, `layer` and
+   `present`; no source value is copied. `auth_status` deliberately preserves
+   its public `{layer, present}` data shape while using the richer rows for its
+   kind-grouped text. No `ToolResult` ever serializes a secret.
 2. **Dry-run by default.** `run_install` and `provision_missing` are
    `confirm=False` by default — they *describe* what they would do and change
    nothing. A system change happens only on an explicit `confirm=True` (the CLI

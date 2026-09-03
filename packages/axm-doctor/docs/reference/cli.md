@@ -9,8 +9,9 @@ an explicit `y`.
 
 Print the full environment report and exit `0`. For every probed tool it prints
 presence + version; for every third-party binary it prints the auth state and
-the recovery `login_cmd`; for every missing secret it prints the `group.name`
-and the `axm-vault` setup hint.
+the recovery `login_cmd`; then it prints catalog provenance under each declared
+kind (for example `token` and `auth_dependency`). Only missing credential kinds
+receive a `secret` row and an `axm-vault` setup hint.
 
 ```console
 $ axm-doctor check
@@ -19,14 +20,17 @@ tool	gh	present	2.87.3
 tool	codex	absent	-
 auth	gh	logged_in	-
 auth	claude	logged_out	claude login
+token	research.fred.api_key	missing
+auth_dependency	github.session	disconnected
 secret	research.fred.api_key	axm-vault set research.fred api_key
 ```
 
 `check` **installs nothing and prompts for nothing** — it is safe to run in CI
 or a hook. By default it always exits `0` (a report, not a gate) and it prints
-only the `tools` / `auth` / `secrets` rows; the git-identity and `gh` config
-states are **not** in the CLI report — they are exposed by the `env_doctor` MCP
-tool under its `config` key.
+the `tools`, `auth`, kind-specific provenance, and missing-credential `secret`
+rows; auth dependencies never receive a provisioning command. The git-identity
+and `gh` config states are **not** in the CLI report — they are exposed by the
+`env_doctor` MCP tool under its `config` key.
 
 ### `--strict` (CI gate)
 
@@ -94,7 +98,7 @@ The same read-only surface is available as two `axm.tools` entry points (MCP +
 | Tool | Returns |
 | -- | -- |
 | `env_doctor` | `{tools, auth, secrets, config}` — tool presence/version, third-party auth state, value-free missing secrets, and the git-identity / `gh` config states (`config = {git: {state}, gh: {state}}`). Read-only. |
-| `auth_status` | `{auth: {tool: {state, login_cmd}}, credentials: {coordinate: {layer, present}}}`. The existing third-party auth block is unchanged; `credentials` covers exactly the installed catalog and may be empty. Its text renders each coordinate after the auth section with the serving layer. No credential value is serialized. |
+| `auth_status` | `{auth: {tool: {state, login_cmd}}, credentials: {coordinate: {layer, present}}}`. The compatible data shape is unchanged and value-free; internally, provenance also carries each declaration's `kind`, so the text groups credential kinds and `auth_dependency` rows separately. A declaration error yields an `unknown` / absent row without suppressing its peers. |
 
 ## Python API
 

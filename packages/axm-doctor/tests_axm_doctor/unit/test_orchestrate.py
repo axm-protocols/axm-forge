@@ -368,3 +368,69 @@ def test_missing_secrets_instance_recomposes_provenance_coordinate(
     assert (
         KeyringStore.username(entry.group, entry.name, entry.instance) == a_coordinate
     )
+
+
+def _catalog_with_auth_dependency_kind() -> Catalog:
+    return Catalog(
+        groups=(
+            CredentialGroup(
+                id="fixture.credential",
+                package="axm-fixture",
+                title="Credential",
+                specs=(
+                    CredentialSpec(
+                        name="api_token",
+                        env="FIXTURE_CREDENTIAL_TOKEN",
+                        kind="token",
+                    ),
+                ),
+            ),
+            CredentialGroup(
+                id="fixture.auth",
+                package="axm-fixture",
+                title="Auth dependency",
+                specs=(
+                    CredentialSpec(
+                        name="github_session",
+                        env="FIXTURE_AUTH_SESSION",
+                        kind="auth_dependency",
+                    ),
+                ),
+            ),
+        )
+    )
+
+
+def test_missing_secrets_excludes_auth_dependency_kind(
+    mocker: MockerFixture,
+) -> None:
+    """AC2: a valueless auth dependency never becomes a MissingSecret."""
+    catalog = _catalog_with_auth_dependency_kind()
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    mocker.patch("axm_doctor.orchestrate.doctor_data", return_value={})
+
+    result = missing_secrets()
+
+    assert [(item.group, item.name) for item in result] == [
+        ("fixture.credential", "api_token")
+    ]
+    assert all(isinstance(item, MissingSecret) for item in result)
+
+
+def test_provision_missing_skips_auth_dependency_kind(
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: provisioning never prompts or emits a command for auth dependencies."""
+    catalog = _catalog_with_auth_dependency_kind()
+    mocker.patch("axm_doctor.orchestrate.load_catalog", return_value=catalog)
+    mocker.patch("axm_doctor.orchestrate.doctor_data", return_value={})
+    setup = mocker.patch("axm_doctor.orchestrate.run_setup")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+    result = provision_missing(confirm=True)
+
+    setup.assert_called_once_with(only="fixture.credential")
+    assert result.groups == ["fixture.credential"]
+    assert "fixture.auth" not in result.groups
+    assert all("github_session" not in item for item in result.still_missing)

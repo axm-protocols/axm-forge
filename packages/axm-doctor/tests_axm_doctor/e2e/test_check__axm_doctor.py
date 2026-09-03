@@ -74,3 +74,76 @@ def test_help_lists_commands() -> None:
     combined = proc.stdout + proc.stderr
     assert "check" in combined
     assert "bootstrap" in combined
+
+
+@pytest.mark.e2e
+def test_check_renders_credential_and_auth_dependency_by_kind(
+    tmp_path: Path,
+) -> None:
+    """AC5: check renders both declaration kinds side by side in one run."""
+    module = tmp_path / "fixture_check_catalog.py"
+    module.write_text(
+        """
+from axm_vault.models import CredentialGroup, CredentialSpec
+
+
+def provide():
+    return [
+        CredentialGroup(
+            id="fixture.check",
+            package="axm-fixture",
+            title="Check",
+            specs=(
+                CredentialSpec(
+                    name="api_token",
+                    env="FIXTURE_CHECK_TOKEN",
+                    kind="token",
+                ),
+                CredentialSpec(
+                    name="github_session",
+                    env="FIXTURE_CHECK_SESSION",
+                    kind="auth_dependency",
+                ),
+            ),
+        )
+    ]
+""".lstrip(),
+        encoding="utf-8",
+    )
+    dist_info = tmp_path / "fixture_check_catalog-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: fixture-check-catalog\nVersion: 1.0\n",
+        encoding="utf-8",
+    )
+    (dist_info / "entry_points.txt").write_text(
+        "[axm.credentials]\nfixture = fixture_check_catalog:provide\n",
+        encoding="utf-8",
+    )
+    pythonpath = os.pathsep.join(
+        part for part in (str(tmp_path), os.environ.get("PYTHONPATH")) if part
+    )
+    env = {
+        **os.environ,
+        "PYTHONPATH": pythonpath,
+        "FIXTURE_CHECK_TOKEN": "present",
+    }
+    env.pop("FIXTURE_CHECK_SESSION", None)
+
+    proc = subprocess.run(
+        [sys.executable, "-c", _RUN_APP, "check"],
+        cwd=_PKG_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "token" in proc.stdout
+    assert "fixture.check.api_token" in proc.stdout
+    assert "auth_dependency" in proc.stdout
+    auth_line = next(
+        line for line in proc.stdout.splitlines() if "github_session" in line
+    )
+    assert "axm-vault set" not in auth_line

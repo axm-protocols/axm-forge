@@ -22,7 +22,8 @@ Env bootstrap + auth-status doctor (detect, propose, orchestrate)
 - ✅ **Read-only auth** — auth state is inferred from an exit code (`gh auth status`; on macOS `claude` via the login Keychain entry `Claude Code-credentials`, exit code only) or the **presence of a non-empty** credential file (`~/.claude/.credentials.json` off macOS, `~/.codex/auth.json`); the file is stat'd, not opened and the Keychain value is never read, so the token value never transits (a 0-byte file is reported `logged_out`, not `logged_in`).
 - ✅ **Frozen result models** — `ToolStatus`, `AuthStatus`, `GitIdentityStatus` and `GhConfigStatus` are immutable pydantic models; `AuthStatus` carries the recovery `login_cmd` but never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the *official* install command for a known tool (`uv`, `claude`, `codex`) without running anything; `run_install` is a **dry-run by default** (`confirm=False`) that only echoes the command it would run. It installs strictly when the caller opts in with `confirm=True`, then re-detects the tool via `detect_tool`.
-- ✅ **Orchestrates, never possesses** — `missing_secrets` reads the **axm-vault** catalog and value-free resolver provenance to list the credential specs that resolve to `missing`. A `MissingSecret` can identify the account concerned with `instance` or signal that a multi-instance group declares no account yet with `awaiting_instance`; account lookups use only axm-vault's exact canonical coordinate, so a served sibling cannot hide a starving account. `provision_missing` is a **dry-run by default** (`confirm=False`) that returns the groups it *would* prompt for; on `confirm=True` it delegates to vault's `run_setup(only=…)`. The secret value never transits axm-doctor — every write goes through vault's API.
+- ✅ **Kind-aware, value-free provenance** — `collect_credential_provenance` reports each declaration with its coordinate, declared `kind`, serving layer/state, and presence flag. Credential kinds (for example `token`) and `auth_dependency` coexist in one report; a failing declaration is isolated as `unknown` / absent without erasing healthy peer verdicts.
+- ✅ **Orchestrates, never possesses** — `missing_secrets` reads the **axm-vault** catalog and value-free resolver provenance to list credential specs that resolve to `missing`; `auth_dependency` declarations are excluded because an OAuth/session dependency is not a secret to provision. A `MissingSecret` can identify the account concerned with `instance` or signal that a multi-instance group declares no account yet with `awaiting_instance`; account lookups use only axm-vault's exact canonical coordinate, so a served sibling cannot hide a starving account. `provision_missing` is a **dry-run by default** (`confirm=False`) that returns only credential groups it *would* prompt for; on `confirm=True` it delegates to vault's `run_setup(only=…)`. The secret value never transits axm-doctor — every write goes through vault's API.
 
 ```python
 from axm_doctor import detect_tool, detect_auth
@@ -62,13 +63,14 @@ provision_missing(confirm=True)       # delegates to vault's run_setup(only=...)
 The `axm-doctor` console script has two commands:
 
 ```bash
-axm-doctor check       # read-only env report (tools + auth + missing secrets); never installs or prompts
+axm-doctor check       # read-only report (tools + auth + provenance by kind + missing credentials)
 axm-doctor bootstrap   # interactive repair: installs absent tools / runs vault setup only on an explicit "y"
 ```
 
 The same read-only surface is exposed as the `env_doctor` and `auth_status`
-`axm.tools` (MCP + `axm <tool>` CLI + DAG node); `auth_status` never serializes
-a token value.
+`axm.tools` (MCP + `axm <tool>` CLI + DAG node). `auth_status` keeps its
+value-free `{layer, present}` data contract while its text groups provenance by
+declared kind; it never serializes a token value.
 
 ## Installation
 

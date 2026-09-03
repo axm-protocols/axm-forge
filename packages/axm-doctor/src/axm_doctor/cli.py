@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import sys
 from typing import Annotated
+from urllib.parse import unquote
 
 import cyclopts
 
+from axm_doctor.credentials import collect_credential_provenance
 from axm_doctor.detect import detect_auth, detect_tool
 from axm_doctor.install import InstallResult, install_command, run_install
 from axm_doctor.orchestrate import missing_secrets, provision_missing
@@ -99,6 +101,8 @@ def _print_check() -> bool:
         auth = detect_auth(tool)
         print(f"auth\t{tool}\t{auth.state}\t{auth.login_cmd or '-'}")
         unhealthy = unhealthy or auth.state == "logged_out"
+    for entry in collect_credential_provenance():
+        print(f"{entry.kind}\t{unquote(entry.coordinate)}\t{entry.layer}")
     secrets = missing_secrets()
     for secret in secrets:
         print(f"secret\t{secret.group}.{secret.name}\t{secret.setup_hint}")

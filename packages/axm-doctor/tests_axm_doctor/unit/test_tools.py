@@ -148,19 +148,27 @@ def test_credentials_map_preserves_layers_and_value_free_shape() -> None:
     import axm_doctor.tools as tools_mod
 
     rows = [
-        CredentialProvenance(coordinate="a.one", layer="env", present=True),
-        CredentialProvenance(coordinate="b.two", layer="file", present=True),
-        CredentialProvenance(coordinate="c.three", layer="missing", present=False),
+        CredentialProvenance(
+            coordinate="a.one", kind="token", layer="env", present=True
+        ),
+        CredentialProvenance(
+            coordinate="b.two", kind="password", layer="file", present=True
+        ),
+        CredentialProvenance(
+            coordinate="c.three", kind="token", layer="missing", present=False
+        ),
     ]
 
     credentials = tools_mod._credentials_map(rows)
 
     assert credentials == {
-        "a.one": {"layer": "env", "present": True},
-        "b.two": {"layer": "file", "present": True},
-        "c.three": {"layer": "missing", "present": False},
+        "a.one": {"kind": "token", "layer": "env", "present": True},
+        "b.two": {"kind": "password", "layer": "file", "present": True},
+        "c.three": {"kind": "token", "layer": "missing", "present": False},
     }
-    assert all(set(entry) == {"layer", "present"} for entry in credentials.values())
+    assert all(
+        set(entry) == {"kind", "layer", "present"} for entry in credentials.values()
+    )
 
 
 def test_credentials_text_names_coordinates_and_only_supplied_layers() -> None:
@@ -168,8 +176,8 @@ def test_credentials_text_names_coordinates_and_only_supplied_layers() -> None:
     import axm_doctor.tools as tools_mod
 
     credentials = {
-        "a.one": {"layer": "env", "present": True},
-        "b.two": {"layer": "file", "present": True},
+        "a.one": {"kind": "token", "layer": "env", "present": True},
+        "b.two": {"kind": "password", "layer": "file", "present": True},
     }
 
     rendered = tools_mod._credentials_text(credentials)
@@ -184,3 +192,34 @@ def test_credentials_text_names_coordinates_and_only_supplied_layers() -> None:
         for line in lines
     )
     assert all(layer not in rendered for layer in ("keyring", "default", "prompt"))
+
+
+def test_credentials_rendering_groups_rows_by_declared_kind() -> None:
+    """AC5: credentials and auth dependencies render under distinct kinds."""
+    import axm_doctor.tools as tools_mod
+
+    rows = [
+        CredentialProvenance(
+            coordinate="service.api_token",
+            kind="token",
+            layer="env",
+            present=True,
+        ),
+        CredentialProvenance(
+            coordinate="github.session",
+            kind="auth_dependency",
+            layer="disconnected",
+            present=False,
+        ),
+    ]
+
+    entries = tools_mod._credentials_map(rows)
+    rendered = tools_mod._credentials_text(entries)
+
+    assert entries["service.api_token"]["kind"] == "token"
+    assert entries["github.session"]["kind"] == "auth_dependency"
+    assert "token" in rendered
+    assert "service.api_token" in rendered
+    assert "auth_dependency" in rendered
+    auth_line = next(line for line in rendered.splitlines() if "github.session" in line)
+    assert "axm-vault set" not in auth_line
