@@ -42,10 +42,19 @@ class VaultDoctorTool:
     ) -> ToolResult:
         """Return value-free provenance for the catalog (or one package)."""
         try:
-            data = doctor_data(package, instance=instance)
+            catalog = load_catalog()
+            provenance = doctor_data(package, catalog=catalog, instance=instance)
         except Exception as exc:  # noqa: BLE001 # MCP boundary: any error -> failure
             return ToolResult(success=False, error=str(exc))
-        return ToolResult(success=True, data=dict(data))
+        rejections = [
+            {"entry_point": rejection.entry_point, "reason": rejection.reason}
+            for rejection in catalog.rejections()
+        ]
+        data: dict[str, object] = dict(provenance)
+        data["rejections"] = rejections
+        skipped = ", ".join(rejection["entry_point"] for rejection in rejections)
+        text = f"skipped contributions: {skipped or 'none'}"
+        return ToolResult(success=True, data=data, text=text)
 
 
 class VaultSetTool:

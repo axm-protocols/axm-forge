@@ -69,8 +69,13 @@ DAG node. Neither tool ever serializes a `SECRET` value.
 
 ### `vault_doctor`
 
-Returns value-free provenance — `ToolResult(success=True, data=doctor_data(...))`;
-any error is shaped into `ToolResult(success=False, error=...)`.
+Returns value-free provenance in `ToolResult.data`, plus a `rejections` list
+containing the `entry_point` and non-empty `reason` for every malformed
+`axm.credentials` contribution skipped during discovery. The human-readable
+`ToolResult.text` includes a `skipped contributions` line naming those entry
+points (or `none`); any error is shaped into
+`ToolResult(success=False, error=...)`. The catalog is loaded once and reused
+for both provenance and rejection reporting.
 
 ```bash
 axm vault_doctor                 # whole catalog

@@ -72,7 +72,7 @@ api_key = get("acme", "api_key")  # singleton convenience -> just the value
 - ✅ **External authentication state** — value-less dependencies report `CONNECTED`, `DISCONNECTED`, or `TOOL_ABSENT` without exposing tokens
 - ✅ **Layered resolution** — `Resolver` walks `env > file > keyring > default > prompt`; file tier delegated to `axm-config`, keyring only for `SECRET`
 - ✅ **Typed binding** — `bind(model, group)` builds a pydantic model from resolved values, `SECRET` fields as `SecretStr`
-- ✅ **Value-free doctor** — `doctor_data()` / `vault_doctor` report each credential's `{layer, present}` provenance per declared instance, without ever returning a secret
+- ✅ **Value-free doctor** — `doctor_data()` / `vault_doctor` report each credential's `{layer, present}` provenance per declared instance and surface skipped malformed contributions, without ever returning a secret
 - ✅ **MCP tools** — `vault_doctor` (provenance) and `vault_set` (keyring/config) ship as `axm.tools` (MCP + CLI + DAG node)
 - ✅ **Operator CLI** — `axm-vault` exposes `setup`/`get`/`set`/`rotate`/`doctor`/`path`; interactive `setup` is TTY-guarded and idempotent, `get` masks secrets unless `--reveal`
 - ✅ **Frozen & strict** — immutable pydantic v2 models that forbid unknown fields
