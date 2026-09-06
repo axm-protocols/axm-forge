@@ -7,7 +7,7 @@ from types import ModuleType
 
 import pytest
 
-from axm_config import ConfigError
+from axm_config import ConfigError, profile_isolation
 
 
 def _profile_module() -> ModuleType:
@@ -46,6 +46,38 @@ def test_profile_name_validation_contract(
     for name in ("dev", "ci-2", "a" * 32):
         monkeypatch.setenv("AXM_PROFILE", name)
         assert _profile_module().current_profile() == name
+
+
+@pytest.mark.parametrize(
+    ("valid_names", "invalid_names"),
+    [
+        (
+            ("ci-2", "dev-audit"),
+            ("Dev", "1dev", "dev_x", "-dev"),
+        )
+    ],
+    ids=["profile-contract"],
+)
+def test_current_and_explicit_profile_validation_have_identical_verdicts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pytest.TempPathFactory,
+    valid_names: tuple[str, ...],
+    invalid_names: tuple[str, ...],
+) -> None:
+    """AC4: current and explicit resolution agree for all six contract names."""
+    monkeypatch.setenv("AXM_HOME", str(tmp_path))
+
+    for name in valid_names:
+        monkeypatch.setenv("AXM_PROFILE", name)
+        assert _profile_module().current_profile() == name
+        assert profile_isolation(name).profile == name
+
+    for name in invalid_names:
+        monkeypatch.setenv("AXM_PROFILE", name)
+        with pytest.raises(ConfigError):
+            _profile_module().current_profile()
+        with pytest.raises(ConfigError):
+            profile_isolation(name)
 
 
 def test_profile_env_propagates_active_profile(

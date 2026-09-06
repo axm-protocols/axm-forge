@@ -57,3 +57,23 @@ def test_invalid_profile_returns_typed_failure(
 
     assert result.success is False
     assert result.error
+
+
+@pytest.mark.integration
+def test_dashed_profile_tool_call_creates_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC5: serving ``ci-2`` succeeds without creating its profile root."""
+    monkeypatch.setenv("AXM_HOME", str(tmp_path))
+    monkeypatch.setenv("AXM_PROFILE", "ci-2")
+    expected_root = axm_config.profile_root()
+    assert expected_root is not None
+    assert expected_root.exists() is False
+    assert list(tmp_path.iterdir()) == []
+
+    result = axm_config.ProfileIsolationTool().execute(profile="ci-2")
+
+    assert result.success is True
+    assert expected_root.exists() is False
+    assert list(tmp_path.iterdir()) == []

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from axm_config import ProfileIsolationTool
 from axm_config.doctor import render_doctor_report
 from axm_config.tools import ConfigDoctorTool
 
@@ -47,3 +50,42 @@ def test_execute_text_matches_shared_helper(
     result = ConfigDoctorTool().execute(namespace="demo")
 
     assert result.text == render_doctor_report(result.data)
+
+
+def test_profile_isolation_tool_serves_ci_2(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC1: the isolation tool serves the dashed profile ``ci-2``."""
+    monkeypatch.setenv("AXM_HOME", str(tmp_path))
+
+    result = ProfileIsolationTool().execute(profile="ci-2")
+
+    assert result.success is True
+    assert result.data["profile"] == "ci-2"
+
+
+def test_profile_isolation_tool_serves_dev_audit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC1: the isolation tool serves the dashed profile ``dev-audit``."""
+    monkeypatch.setenv("AXM_HOME", str(tmp_path))
+
+    result = ProfileIsolationTool().execute(profile="dev-audit")
+
+    assert result.success is True
+    assert result.data["profile"] == "dev-audit"
+
+
+def test_profile_isolation_tool_refuses_leading_digit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC2: the tool refuses ``1dev`` and names the invalid profile."""
+    monkeypatch.setenv("AXM_HOME", str(tmp_path))
+
+    result = ProfileIsolationTool().execute(profile="1dev")
+
+    assert result.success is False
+    assert "1dev" in result.error

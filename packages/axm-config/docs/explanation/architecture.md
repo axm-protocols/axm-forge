@@ -47,9 +47,12 @@ graph TD
 ## State-profile transport boundary
 
 `profile.py` selects both the state transport and the configuration store.
-`current_profile()` reads `AXM_PROFILE`: an unset or empty value means
-`production`; every explicit name must match
-`^[a-z][a-z0-9-]{0,31}$`, otherwise `ConfigError` names the rejected value.
+`validate_profile_name()` owns the single profile-name contract:
+`^[a-z][a-z0-9-]{0,31}$`. Both `current_profile()` and an explicit
+`profile_isolation(name)` consume that validator, so active and queried profiles
+have identical verdicts. Names such as `ci-2` and `dev-audit` are valid; names
+such as `Dev`, `1dev`, `dev_x`, and `-dev` raise `ConfigError` naming the
+rejected value. An unset or empty `AXM_PROFILE` still means `production`.
 
 Production has no separate profile root and keeps `~/.axm/config.toml`.
 A profile such as `dev` resolves to `~/.axm/profiles/dev`, with

@@ -62,8 +62,10 @@ axm profile_isolation --profile scratch
 The structured result contains `profile`, `isolated`, `tickets_db`,
 `warden_socket`, `warden_log`, `sessions_root`, `quality_dir`, and
 `protocols_dir`. Omit `--profile` to use the current `AXM_PROFILE` (or
-`production` when it is unset). Invalid profile names return a failed tool
-result instead of propagating an exception.
+`production` when it is unset). Explicit and active profile names share the
+same `^[a-z][a-z0-9-]{0,31}$` contract: dashed names such as `ci-2` and
+`dev-audit` are accepted, while names such as `1dev` return a failed tool
+result naming the rejected value instead of propagating an exception.
 
 ## Validation
 

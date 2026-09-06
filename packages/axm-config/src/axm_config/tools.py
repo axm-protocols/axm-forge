@@ -13,7 +13,6 @@ from axm.tools.base import ToolResult
 
 from axm_config.doctor import config_doctor_data, render_doctor_report
 from axm_config.isolation import profile_isolation
-from axm_config.resolver import validate_segment
 
 __all__ = ["ConfigDoctorTool", "ProfileIsolationTool"]
 
@@ -74,8 +73,6 @@ class ProfileIsolationTool:
     def execute(self, *, profile: str | None = None) -> ToolResult:
         """Return resolved profile paths and their isolation verdict."""
         try:
-            if profile is not None:
-                validate_segment(profile, kind="profile")
             isolation = profile_isolation(profile)
         except Exception as exc:  # noqa: BLE001 - AXMTool boundary
             return ToolResult(success=False, error=str(exc))

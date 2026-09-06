@@ -22,13 +22,18 @@ DEFAULT_PROFILE = "production"
 _PROFILE_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 
 
+def validate_profile_name(name: str) -> str:
+    """Return a valid profile name or raise :class:`ConfigError`."""
+    if not _PROFILE_RE.fullmatch(name):
+        msg = f"invalid profile {name!r}: must match {_PROFILE_RE.pattern}"
+        raise ConfigError(msg)
+    return name
+
+
 def current_profile() -> str:
     """Return the active, lexically validated state profile."""
     profile = os.environ.get(PROFILE_ENV_VAR) or DEFAULT_PROFILE
-    if not _PROFILE_RE.fullmatch(profile):
-        msg = f"invalid profile {profile!r}: must match {_PROFILE_RE.pattern}"
-        raise ConfigError(msg)
-    return profile
+    return validate_profile_name(profile)
 
 
 def profile_root() -> Path | None:

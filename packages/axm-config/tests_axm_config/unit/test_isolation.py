@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import axm_config
 
 __all__: list[str] = []
@@ -50,3 +52,16 @@ def test_is_isolated_accepts_all_six_contained_paths() -> None:
     result = axm_config.is_isolated(root, _contained_paths(root))
 
     assert result == (True, [])
+
+
+def test_profile_isolation_refuses_explicit_leading_digit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """AC3: an explicit ``1dev`` profile raises a diagnostic ConfigError."""
+    monkeypatch.setenv("AXM_HOME", str(tmp_path))
+
+    with pytest.raises(axm_config.ConfigError) as exc_info:
+        axm_config.profile_isolation("1dev")
+
+    assert "1dev" in str(exc_info.value)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from axm_config.profile import current_profile
+from axm_config.profile import current_profile, validate_profile_name
 
 __all__ = ["ProfileIsolation", "is_isolated", "profile_isolation"]
 
@@ -36,7 +36,9 @@ def is_isolated(
 
 def profile_isolation(profile: str | None = None) -> ProfileIsolation:
     """Resolve a profile's state paths without creating filesystem entries."""
-    selected_profile = profile if profile is not None else current_profile()
+    selected_profile = (
+        validate_profile_name(profile) if profile is not None else current_profile()
+    )
     home = _home_path()
     root = home / "profiles" / selected_profile
     paths = _profile_paths(root)
