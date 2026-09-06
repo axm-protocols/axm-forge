@@ -4,22 +4,39 @@ from __future__ import annotations
 
 from importlib import import_module
 
-
-def _gh_auth_credential() -> object:
-    return import_module("axm_git.credentials").GH_AUTH_CREDENTIAL
+from axm_vault import AuthDependencySpec, CredentialGroup
 
 
-def test_gh_auth_declaration_names_tool_and_commands() -> None:
+def _credential_groups() -> list[CredentialGroup]:
+    provider = import_module("axm_git.credentials").GH_AUTH_CREDENTIAL
+    assert callable(provider)
+    groups = provider()
+    assert isinstance(groups, list)
+    assert all(isinstance(group, CredentialGroup) for group in groups)
+    return groups
+
+
+def test_credentials_provider_yields_one_gh_auth_dependency() -> None:
     """AC1: The declaration identifies gh and its status/login commands."""
-    declaration = _gh_auth_credential()
+    groups = _credential_groups()
+    dependencies = [
+        dependency for group in groups for dependency in group.auth_dependencies
+    ]
 
-    assert declaration.name == "gh"
-    assert declaration.status_command == "gh auth status"
-    assert declaration.login_command == "gh auth login"
+    assert groups
+    assert [dependency.name for dependency in dependencies].count("gh") == 1
 
 
-def test_gh_auth_declaration_genre_is_imported() -> None:
+def test_gh_auth_dependency_dump_matches_vault_model_fields() -> None:
     """AC2: The declaration genre is owned outside axm_git."""
-    declaration = _gh_auth_credential()
+    dependency = next(
+        dependency
+        for group in _credential_groups()
+        for dependency in group.auth_dependencies
+        if dependency.name == "gh"
+    )
+    dumped = dependency.model_dump()
 
-    assert not type(declaration).__module__.startswith("axm_git")
+    assert set(dumped) == set(AuthDependencySpec.model_fields)
+    validated = AuthDependencySpec.model_validate(dependency)
+    assert validated is dependency
