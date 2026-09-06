@@ -4,7 +4,7 @@ from axm_vault import AuthDependencySpec, AuthStatus, CredentialGroup
 
 from axm_git.core.gh_auth import gh_auth_state
 
-__all__ = ["GH_AUTH_CREDENTIAL", "gh_credentials"]
+__all__ = ["GH_AUTH_CREDENTIAL", "GhAuthDependency", "gh_credentials"]
 
 
 class _GhAuthSource:
@@ -20,9 +20,40 @@ class _GhAuthSource:
                 return AuthStatus.DISCONNECTED
 
 
+class GhAuthDependency(AuthDependencySpec):  # type: ignore[explicit-any]
+    """GitHub CLI authentication dependency with catalog metadata."""
+
+    package: str
+    status_command: str
+    login_command: str
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        source: object,
+        package: str,
+        status_command: str,
+        login_command: str,
+    ) -> None:
+        super().__init__(
+            name=name,
+            source=source,
+            package=package,
+            status_command=status_command,
+            login_command=login_command,
+        )
+
+
 def gh_credentials() -> list[CredentialGroup]:
     """Declare the GitHub CLI session consumed by axm-git."""
-    dependency = AuthDependencySpec(name="gh", source=_GhAuthSource())
+    dependency = GhAuthDependency(
+        name="gh",
+        source=_GhAuthSource(),
+        package="axm-git",
+        status_command="gh auth status",
+        login_command="gh auth login",
+    )
     group = CredentialGroup(
         id="gh",
         package="axm-git",
