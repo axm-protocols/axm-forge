@@ -16,6 +16,7 @@ from importlib import import_module
 from typing import Any, cast
 from unittest.mock import patch
 
+import httpx
 import pytest
 from axm.tools.base import ToolResult
 from mcp.server.fastmcp import FastMCP
@@ -121,6 +122,49 @@ def test_headers_bind_contract_to_session_identity(
 
     contract = mcp_app.contract_for_session_id("sess-a")
     assert contract.execution_root == os.path.realpath("/tmp/a")
+
+
+def test_built_http_app_binds_contract_from_ordinary_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: the served ASGI app binds scope from an ordinary request."""
+    registry = _session_registry()
+    monkeypatch.setattr(mcp_app, "session_contract_registry", registry)
+    monkeypatch.setattr(
+        mcp_app,
+        "resolve_serve_mode",
+        lambda explicit=None: "shared",
+        raising=False,
+    )
+    payload = {
+        "execution_root": "/scope/sid-1",
+        "allowed_prefixes": ["/scope/sid-1", "/scope/shared"],
+        "markdown_only_prefixes": [],
+    }
+    app = mcp_app.build_http_app()
+
+    async def post_request() -> None:
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            await client.post(
+                "/mcp",
+                headers={
+                    MCP_SESSION_ID_HEADER: "sid-1",
+                    "X-AXM-Write-Contract": json.dumps(payload),
+                    "accept": "application/json, text/event-stream",
+                    "content-type": "application/json",
+                },
+                json={"jsonrpc": "2.0", "id": 1, "method": "ping"},
+            )
+
+    asyncio.run(post_request())
+
+    contract = mcp_app.contract_for_session_id("sid-1")
+    assert contract.execution_root == payload["execution_root"]
+    assert contract.allowed_prefixes == payload["allowed_prefixes"]
 
 
 def test_session_identity_header_lookup_is_case_insensitive() -> None:

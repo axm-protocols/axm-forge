@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -12,9 +12,9 @@ from axm.tools.base import ToolResult
 from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import ValidationError
 
-from axm_mcp.discovery import ToolEntry
 from axm_mcp.facade import catalog as catalog_module
 from axm_mcp.facade.catalog import ToolCatalog, UnknownToolError
+from tests_axm_mcp.unit._helpers import _catalog
 
 
 class _AuditTool:
@@ -83,11 +83,6 @@ class _CoercibleIntTool:
 def _plain(**kwargs: Any) -> dict[str, Any]:
     """Plain dispatcher tool."""
     return {"ok": 1}
-
-
-def _catalog(**tools: object) -> ToolCatalog:
-    """Build a catalog from fake tools, casting to the ToolEntry contract."""
-    return ToolCatalog({k: cast(ToolEntry, v) for k, v in tools.items()})
 
 
 @pytest.fixture

@@ -3,28 +3,12 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
 
 from axm_mcp import server, wrapping
 from axm_mcp.server import DEFAULT_PORT, serve
-
-
-@pytest.fixture
-def _restore_http_mode() -> Iterator[None]:
-    """Save and restore the module-global ``_HTTP_MODE`` around each test.
-
-    The flag is process-global; serving flips it. We snapshot and restore so
-    one test's serve path cannot leak ``True`` into another test.
-    """
-    saved = wrapping._HTTP_MODE
-    try:
-        yield
-    finally:
-        wrapping._HTTP_MODE = saved
-
 
 # ──────────────────────── Unit tests ──────────────────────────
 

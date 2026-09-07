@@ -7,26 +7,13 @@ these helpers are tested in ``test_app.py``.
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from axm_mcp.cli import read_pid, remove_pid_file, write_pid
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def tmp_pid_file(tmp_path: Path) -> Generator[Path, None, None]:
-    """Redirect PID file to a temp directory."""
-    pid_file = tmp_path / "mcp-server.pid"
-    with (
-        patch("axm_mcp.cli.PID_DIR", tmp_path),
-        patch("axm_mcp.cli.PID_FILE", pid_file),
-    ):
-        yield pid_file
 
 
 class TestPidHelpers:

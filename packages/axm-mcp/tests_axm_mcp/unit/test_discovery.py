@@ -30,7 +30,7 @@ from axm_mcp.discovery import (
     register_one,
     register_tools,
 )
-from tests_axm_mcp.unit._helpers import _DISCOVER
+from tests_axm_mcp.unit._helpers import _DISCOVER, FakeMCP
 
 # ─────────────────────────────── disable patterns ────────────────────────────
 
@@ -478,23 +478,6 @@ class TestVerifyViaMCP:
         result = tools["formal_esbmc"].execute(source_file="/tmp/test.c")
         assert not result.success
         assert "buffer overflow" in (result.error or "")
-
-
-# ───────────────────────── typed schema registration ─────────────────────────
-
-
-class FakeMCP:
-    """Minimal FastMCP stand-in that captures registered tools."""
-
-    def __init__(self) -> None:
-        self.tools: dict[str, Any] = {}
-
-    def tool(self, *, name: str) -> Any:
-        def decorator(fn: Any) -> Any:
-            self.tools[name] = fn
-            return fn
-
-        return decorator
 
 
 class ReplaceOp(pydantic.BaseModel):

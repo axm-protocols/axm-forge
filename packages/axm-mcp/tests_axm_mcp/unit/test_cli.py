@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
-from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,21 +18,6 @@ from axm_mcp.cli import (
     is_process_alive,
     stop,
 )
-
-
-@pytest.fixture
-def _restore_http_mode() -> Iterator[None]:
-    """Save and restore the module-global ``_HTTP_MODE`` around each test.
-
-    The flag is process-global; serving flips it. We snapshot and restore so
-    one test's serve path cannot leak ``True`` into another test.
-    """
-    saved = wrapping._HTTP_MODE
-    try:
-        yield
-    finally:
-        wrapping._HTTP_MODE = saved
-
 
 # ──────────────────────── Helpers ──────────────────────────
 

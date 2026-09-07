@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import subprocess
 import time
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
+import httpx
 import pytest
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 
 
 @pytest.mark.e2e
@@ -172,6 +179,285 @@ def _stop_server(
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=10)
+
+
+def _write_contract_header(scope: Path) -> str:
+    """Render the transport header used by one shared-server session."""
+    return json.dumps(
+        {
+            "execution_root": str(scope),
+            "allowed_prefixes": [str(scope)],
+            "markdown_only_prefixes": [],
+        }
+    )
+
+
+def _tool_decision(result: Any) -> tuple[bool, str]:
+    """Extract the ToolResult decision from an MCP CallToolResult."""
+    structured = getattr(result, "structuredContent", None)
+    if isinstance(structured, dict) and "success" in structured:
+        return bool(structured["success"]), str(structured.get("error", ""))
+    rendered = "\n".join(
+        str(block.text)
+        for block in result.content
+        if getattr(block, "type", None) == "text"
+    )
+    try:
+        payload = json.loads(rendered)
+    except json.JSONDecodeError:
+        fields = {
+            key: value
+            for line in rendered.splitlines()
+            if ": " in line
+            for key, value in [line.split(": ", 1)]
+        }
+        if "success" in fields:
+            return fields["success"].casefold() == "true", fields.get("error", "")
+        return not bool(getattr(result, "isError", False)), rendered
+    if isinstance(payload, dict) and "success" in payload:
+        return bool(payload["success"]), str(payload.get("error", ""))
+    return not bool(getattr(result, "isError", False)), rendered
+
+
+@asynccontextmanager
+async def _session_transport(url: str, headers: dict[str, str]):
+    """Own the configured HTTP client for one MCP transport session."""
+    async with httpx.AsyncClient(headers=headers) as http_client:
+        async with streamable_http_client(url, http_client=http_client) as streams:
+            yield streams
+
+
+async def _call_shared_tool(
+    free_port: int,
+    *,
+    headers: dict[str, str],
+    name: str,
+    arguments: dict[str, object],
+) -> tuple[bool, str, str]:
+    """Open one real streamable-HTTP session and call one MCP tool."""
+    url = f"http://127.0.0.1:{free_port}/mcp"
+    async with _session_transport(url, headers) as streams:
+        read_stream, write_stream, get_session_id = streams
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            result = await session.call_tool(name, arguments)
+            session_id = get_session_id()
+    assert session_id is not None
+    success, error = _tool_decision(result)
+    return success, error, session_id
+
+
+async def _call_direct_across_sessions(
+    free_port: int,
+    scope_a: Path,
+    scope_b: Path,
+) -> tuple[tuple[bool, str], tuple[bool, str]]:
+    """Keep B alive while A writes once locally and once across its boundary."""
+    url = f"http://127.0.0.1:{free_port}/mcp"
+    headers_b = {"X-AXM-Write-Contract": _write_contract_header(scope_b)}
+    headers_a = {"X-AXM-Write-Contract": _write_contract_header(scope_a)}
+    async with _session_transport(url, headers_b) as streams_b:
+        read_b, write_b, _get_b_session_id = streams_b
+        async with ClientSession(read_b, write_b) as session_b:
+            await session_b.initialize()
+            await session_b.list_tools()
+            async with _session_transport(url, headers_a) as streams_a:
+                read_a, write_a, _get_a_session_id = streams_a
+                async with ClientSession(read_a, write_a) as session_a:
+                    await session_a.initialize()
+                    own = await session_a.call_tool(
+                        "batch_edit",
+                        {
+                            "path": str(scope_a),
+                            "operations": [
+                                {
+                                    "op": "create",
+                                    "file": "own-control.txt",
+                                    "content": "owned by A",
+                                }
+                            ],
+                        },
+                    )
+                    cross = await session_a.call_tool(
+                        "batch_edit",
+                        {
+                            "path": str(scope_b),
+                            "operations": [
+                                {
+                                    "op": "create",
+                                    "file": "blocked.txt",
+                                    "content": "must not land",
+                                }
+                            ],
+                        },
+                    )
+    return _tool_decision(own), _tool_decision(cross)
+
+
+def _start_ready_shared(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> tuple[subprocess.Popen[str], dict[str, str]]:
+    """Start a shared server and require its public status probe to pass."""
+    process, env, stderr_path = _shared_mode_process(
+        tmp_path,
+        cli_binary,
+        free_port,
+        sandbox_env,
+    )
+    status = _wait_for_status(cli_binary, free_port, env, process)
+    assert status.returncode == 0, stderr_path.read_text(encoding="utf-8")
+    return process, env
+
+
+@pytest.mark.e2e
+def test_shared_direct_batch_edit_writes_within_declared_scope(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC2: a direct tool writes inside its session's declared perimeter."""
+    scope = tmp_path / "direct-own"
+    scope.mkdir()
+    process, env = _start_ready_shared(tmp_path, cli_binary, free_port, sandbox_env)
+    try:
+        success, error, _session_id = asyncio.run(
+            _call_shared_tool(
+                free_port,
+                headers={"X-AXM-Write-Contract": _write_contract_header(scope)},
+                name="batch_edit",
+                arguments={
+                    "path": str(scope),
+                    "operations": [
+                        {
+                            "op": "create",
+                            "file": "direct.txt",
+                            "content": "direct content",
+                        }
+                    ],
+                },
+            )
+        )
+        assert success, error
+        assert (scope / "direct.txt").read_text() == "direct content"
+    finally:
+        _stop_server(cli_binary, env, process)
+
+
+@pytest.mark.e2e
+def test_shared_direct_batch_edit_rejects_other_session_scope(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC2: session A cannot write inside session B's declared perimeter."""
+    scope_a = tmp_path / "session-a"
+    scope_b = tmp_path / "session-b"
+    scope_a.mkdir()
+    scope_b.mkdir()
+    process, env = _start_ready_shared(tmp_path, cli_binary, free_port, sandbox_env)
+    try:
+        own, cross = asyncio.run(
+            _call_direct_across_sessions(free_port, scope_a, scope_b)
+        )
+        assert own[0], own[1]
+        assert (scope_a / "own-control.txt").read_text() == "owned by A"
+        assert not cross[0]
+        assert not (scope_b / "blocked.txt").exists()
+    finally:
+        _stop_server(cli_binary, env, process)
+
+
+@pytest.mark.e2e
+def test_shared_facade_write_file_writes_within_declared_scope(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC3: axm_call writes inside its session's declared perimeter."""
+    scope = tmp_path / "facade-own"
+    scope.mkdir()
+    process, env = _start_ready_shared(tmp_path, cli_binary, free_port, sandbox_env)
+    try:
+        success, error, _session_id = asyncio.run(
+            _call_shared_tool(
+                free_port,
+                headers={"X-AXM-Write-Contract": _write_contract_header(scope)},
+                name="axm_call",
+                arguments={
+                    "name": "write_file",
+                    "arguments": {
+                        "path": str(scope),
+                        "file": "facade.txt",
+                        "content": "facade content",
+                    },
+                },
+            )
+        )
+        assert success, error
+        assert (scope / "facade.txt").read_text() == "facade content"
+    finally:
+        _stop_server(cli_binary, env, process)
+
+
+@pytest.mark.e2e
+def test_shared_facade_write_file_rejects_unbound_session(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC3: axm_call refuses and names a session with no declared perimeter."""
+    declared_scope = tmp_path / "declared"
+    unbound_scope = tmp_path / "unbound"
+    declared_scope.mkdir()
+    unbound_scope.mkdir()
+    process, env = _start_ready_shared(tmp_path, cli_binary, free_port, sandbox_env)
+    try:
+        declared_success, declared_error, _declared_id = asyncio.run(
+            _call_shared_tool(
+                free_port,
+                headers={
+                    "X-AXM-Write-Contract": _write_contract_header(declared_scope)
+                },
+                name="axm_call",
+                arguments={
+                    "name": "write_file",
+                    "arguments": {
+                        "path": str(declared_scope),
+                        "file": "control.txt",
+                        "content": "declared control",
+                    },
+                },
+            )
+        )
+        success, error, session_id = asyncio.run(
+            _call_shared_tool(
+                free_port,
+                headers={},
+                name="axm_call",
+                arguments={
+                    "name": "write_file",
+                    "arguments": {
+                        "path": str(unbound_scope),
+                        "file": "blocked.txt",
+                        "content": "must not land",
+                    },
+                },
+            )
+        )
+        assert declared_success, declared_error
+        assert (declared_scope / "control.txt").read_text() == "declared control"
+        assert not success
+        assert session_id in error
+        assert not (unbound_scope / "blocked.txt").exists()
+    finally:
+        _stop_server(cli_binary, env, process)
 
 
 @pytest.mark.e2e

@@ -16,6 +16,7 @@ import pytest
 
 from axm_mcp.discovery import register_one
 from axm_mcp.schema import collect_dispatcher_params, extract_docstring_params
+from tests_axm_mcp.unit._helpers import FakeMCP
 
 # ────────────────────────────── Fixtures ─────────────────────────────────
 
@@ -71,20 +72,6 @@ def _make_dispatcher_module() -> tuple[Any, dict[str, Any], types.ModuleType]:
     mod.dispatcher = dispatcher
 
     return dispatcher, actions, mod
-
-
-class FakeMCP:
-    """Minimal FastMCP stand-in that captures registered tools."""
-
-    def __init__(self) -> None:
-        self.tools: dict[str, Any] = {}
-
-    def tool(self, *, name: str) -> Any:
-        def decorator(fn: Any) -> Any:
-            self.tools[name] = fn
-            return fn
-
-        return decorator
 
 
 # ──────────────── collect_dispatcher_params tests ───────────────────

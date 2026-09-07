@@ -8,7 +8,6 @@ real PID-file / filesystem I/O. PID-helper round-trips live in
 from __future__ import annotations
 
 import signal
-from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,17 +20,6 @@ pytestmark = pytest.mark.integration
 # The CLI's default bind port (axm_mcp.cli.DEFAULT_PORT). Asserted as a literal
 # so these command tests reference only the ``app`` entry point.
 _DEFAULT_PORT = 9427
-
-
-@pytest.fixture
-def tmp_pid_file(tmp_path: Path) -> Generator[Path, None, None]:
-    """Redirect PID file to a temp directory."""
-    pid_file = tmp_path / "mcp-server.pid"
-    with (
-        patch("axm_mcp.cli.PID_DIR", tmp_path),
-        patch("axm_mcp.cli.PID_FILE", pid_file),
-    ):
-        yield pid_file
 
 
 def _serve_ok(args: list[str]) -> None:

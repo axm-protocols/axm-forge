@@ -52,7 +52,7 @@ graph LR
 
 ### Streamable HTTP (advanced)
 
-A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared, while write contracts remain isolated by the `mcp-session-id` carried by each request. A session that declares `X-AXM-Write-Contract` is bound to that decoded scope; a session without the header remains unbound.
+A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared, while write contracts remain isolated by the `mcp-session-id` carried by each request. In shared mode, the served ASGI application runs a middleware on every HTTP request: when both `mcp-session-id` and `X-AXM-Write-Contract` are present, it binds the decoded scope to that identity before FastMCP dispatches the tool. A session without a declared scope remains unbound.
 
 ```mermaid
 graph LR
@@ -69,12 +69,15 @@ graph LR
 ```mermaid
 sequenceDiagram
     participant Client as MCP Client
-    participant Server as axm-mcp server
+    participant Server as axm-mcp ASGI server
+    participant Middleware as Session-contract middleware
     participant FastMCP as FastMCP
     participant Tool as AXM Tool
 
     Client->>Server: POST /mcp + mcp-session-id + optional X-AXM-Write-Contract
-    Server->>FastMCP: Route to registered tool
+    Server->>Middleware: Forward request headers
+    Middleware->>Middleware: Bind declared scope to mcp-session-id
+    Middleware->>FastMCP: Dispatch request
     FastMCP->>Tool: execute(**kwargs)
     Tool-->>FastMCP: ToolResult
     FastMCP-->>Server: MCP response
@@ -87,7 +90,7 @@ sequenceDiagram
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `session_id_from_headers()`, `bind_session_from_headers()`, `contract_for_session_id()` | FastMCP server instance — discovers tools, reads the in-flight HTTP session identity case-insensitively, binds its declared write contract on session start, resolves that same session at write time, and releases the binding on session end. The process entry points live in `cli.py` |
+| `mcp_app.py` | `mcp`, `build_http_app()`, `session_id_from_headers()`, `bind_session_from_headers()`, `contract_for_session_id()` | FastMCP server instance and served ASGI application — discovers tools, wraps Streamable HTTP with the session-contract middleware in shared mode, binds declarations from ordinary request headers before dispatch, and resolves that same identity at write time. The process entry points live in `cli.py` |
 | `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
 | `settings.py` | `resolve_serve_mode()` | Resolves the serving policy on each call with explicit CLI value → `AXM_MCP_SERVE_MODE` → `[mcp] serve_mode` in `~/.axm/config.toml` → `dedicated` precedence |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT`, `SharedModeNotArmedError` | Streamable HTTP transport — rejects unarmed shared mode before binding, then sets `wrapping._HTTP_MODE = True` and runs FastMCP on port 9427 (or `AXM_MCP_PORT`) |
@@ -114,7 +117,7 @@ sequenceDiagram
 | `verify` as meta-tool | Single call replaces 3 separate tool invocations |
 | AST enrichment of failures | Adds blast-radius context to help agents prioritize fixes |
 | Compact facade (default) | Four meta-tools keep the `tools/list` payload small; the full catalog stays reachable via `axm_call`. Reversible with `AXM_MCP_FACADE=0` |
-| Serving policy resolved at startup | The CLI flag has highest precedence, followed by `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode`, then `dedicated`. A configured `shared` value arms registration and the registry-backed resolver before Streamable HTTP starts; no value is cached, so the unchanged service command observes a configuration edit on its next start |
+| Serving policy resolved at startup | The CLI flag has highest precedence, followed by `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode`, then `dedicated`. A configured `shared` value arms registration and the registry-backed resolver, and makes `build_http_app()` install the per-request session-contract middleware before Streamable HTTP starts. Dedicated mode serves the unwrapped FastMCP application. No value is cached, so the unchanged service command observes a configuration edit on its next start |
 
 ## Tool Lifecycle
 
@@ -135,7 +138,7 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
   path (`cli._stdio`) leaves it `False` — one process per conversation means
   no cross-session contention, and the tool runs inline
 - **Shared-mode startup guard** — the requested mode is resolved afresh for each `serve` invocation (explicit flag, environment, config file, then `dedicated`). A configured `shared` value sets up shared registration before importing the app, then calls `server.serve(shared=True, ...)` with the registry-backed per-session resolver. The server still raises `SharedModeNotArmedError` before binding the transport when that resolver is absent. The explicit `axm-mcp serve --shared` stdio compatibility path remains refused because stdio cannot provide a session identity
-- **Per-call write scope** — direct tools and facade-dispatched tools both receive `build_wrappers(shared_mode=True, write_contract_resolver=_resolve_session_contract)`, which resolves `current_session_id()` then `contract_for_session_id()` for every request. Session start reads `mcp-session-id` and binds only an explicitly declared `X-AXM-Write-Contract`; session end releases that identity's binding. Distinct identities therefore retain distinct scopes even when requests interleave, and session A cannot use `axm_call` to write under session B's prefixes. An undeclared, unknown, or closed identity raises `UnboundSessionError` naming that identity and is refused before the tool runs. The default single-client mode remains permissive when no write contract exists
+- **Per-request binding, per-call enforcement** — in shared mode, `build_http_app()` installs an ASGI middleware that examines every HTTP request before FastMCP dispatch. A request carrying both `mcp-session-id` and an explicit `X-AXM-Write-Contract` refreshes that identity's registry binding; missing or malformed declarations grant nothing and do not turn into transport errors. Direct tools and facade-dispatched tools both receive `build_wrappers(shared_mode=True, write_contract_resolver=_resolve_session_contract)`, which resolves `current_session_id()` then `contract_for_session_id()` at call time. Distinct identities therefore retain distinct scopes even when requests interleave, and session A cannot use either the direct route or `axm_call` to write under session B's prefixes. An undeclared, unknown, or closed identity raises `UnboundSessionError` naming that identity and is refused before the tool runs. Dedicated mode serves the unwrapped application and keeps its existing permissive fallback when no write contract exists
 - **Never block the event loop** — in HTTP mode **every** tool's synchronous
   body is offloaded to a worker thread via `asyncio.to_thread`, so one slow
   call (a multi-minute `verify`) cannot freeze `/health`, keep-alives, or the

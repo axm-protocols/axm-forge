@@ -24,6 +24,9 @@ from typing import cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+from starlette.applications import Starlette
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from axm_mcp.discovery import (
     ToolEntry,
@@ -39,6 +42,7 @@ from axm_mcp.session_contracts import (
     UnboundSessionError,
     WriteContract,
 )
+from axm_mcp.settings import resolve_serve_mode
 from axm_mcp.verify import VerifyTool
 from axm_mcp.web_fetch import WebFetchTool
 
@@ -74,6 +78,46 @@ def session_id_from_headers(headers: Mapping[str, str]) -> str:
     if session_id is None:
         raise UnboundSessionError("no current MCP session identity")
     return session_id
+
+
+__all__ = ["build_http_app"]
+
+
+class _SessionContractMiddleware:
+    """Bind per-session write contracts before MCP request dispatch."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        if scope["type"] == "http":
+            headers = Headers(scope=scope)
+            if headers.get(_WRITE_CONTRACT_HEADER) is not None:
+                try:
+                    bind_session_from_headers(headers)
+                except (UnboundSessionError, ValueError):
+                    pass
+        await self._app(scope, receive, send)
+
+
+class _SessionAwareFastMCP(FastMCP[object]):
+    """FastMCP variant whose HTTP transport binds shared-session contracts."""
+
+    def streamable_http_app(self) -> Starlette:
+        app = super().streamable_http_app()
+        if resolve_serve_mode() == "shared":
+            app.add_middleware(_SessionContractMiddleware)
+        return app
+
+
+def build_http_app() -> ASGIApp:
+    """Build the served HTTP app, binding contracts only in shared mode."""
+    return mcp.streamable_http_app()
 
 
 def bind_session_from_headers(headers: Mapping[str, str]) -> None:
@@ -142,7 +186,7 @@ def _resolve_session_contract() -> WriteContract:
 
 _SHARED_MODE = os.environ.get("AXM_MCP_SHARED") == "1"
 
-mcp = FastMCP("axm-mcp")
+mcp = _SessionAwareFastMCP("axm-mcp")
 
 # Auto-discover and register tools from installed packages.
 # Internal-public registry (no leading underscore): a legitimate seam that

@@ -13,6 +13,7 @@ from axm_mcp.discovery import ToolEntry
 from axm_mcp.facade.catalog import ToolCatalog
 from axm_mcp.facade.tools import FACADE_TOOLS, register_facade
 from axm_mcp.session_contracts import SessionContractRegistry, WriteContract
+from tests_axm_mcp.unit._helpers import _catalog
 
 
 class _EchoTool:
@@ -35,11 +36,6 @@ class _WriteFileProbe:
     def execute(self, *, path: str, file: str, content: str) -> ToolResult:
         self.calls.append((path, file))
         return ToolResult(success=True, text=content)
-
-
-def _catalog(**tools: object) -> ToolCatalog:
-    """Build a catalog from fake tools, casting to the ToolEntry contract."""
-    return ToolCatalog({k: cast(ToolEntry, v) for k, v in tools.items()})
 
 
 def _call_text(server: FastMCP, tool: str, **arguments: object) -> str:
