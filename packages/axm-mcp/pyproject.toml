@@ -15,6 +15,7 @@ classifiers = [
 ]
 dependencies = [
     "axm",
+    "axm-config",
     "cyclopts>=4.21.0",
     "httpx>=0.28",
     # Plafonne a la 1.x : la 2.0 renomme FastMCP en MCPServer et change les

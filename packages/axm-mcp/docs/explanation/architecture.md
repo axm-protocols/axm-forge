@@ -89,6 +89,7 @@ sequenceDiagram
 |---|---|---|
 | `mcp_app.py` | `mcp`, `discovered_tools`, `session_contract_registry` | FastMCP server instance — discovers tools, registers them, binds declared write contracts on session start, and releases them on session end. The process entry points live in `cli.py` |
 | `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
+| `settings.py` | `resolve_serve_mode()` | Resolves the serving policy on each call with explicit CLI value → `AXM_MCP_SERVE_MODE` → `[mcp] serve_mode` in `~/.axm/config.toml` → `dedicated` precedence |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT`, `SharedModeNotArmedError` | Streamable HTTP transport — rejects unarmed shared mode before binding, then sets `wrapping._HTTP_MODE = True` and runs FastMCP on port 9427 (or `AXM_MCP_PORT`) |
 | `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `register_list_tools()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
@@ -113,6 +114,7 @@ sequenceDiagram
 | `verify` as meta-tool | Single call replaces 3 separate tool invocations |
 | AST enrichment of failures | Adds blast-radius context to help agents prioritize fixes |
 | Compact facade (default) | Four meta-tools keep the `tools/list` payload small; the full catalog stays reachable via `axm_call`. Reversible with `AXM_MCP_FACADE=0` |
+| Serving policy resolved at startup | The CLI flag has highest precedence, followed by `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode`, then `dedicated`. No value is cached, so the unchanged service command observes a configuration edit on its next start |
 
 ## Tool Lifecycle
 
@@ -132,7 +134,7 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
   and the implicit-path warning in `_warn_implicit_path`. The stdio default
   path (`cli._stdio`) leaves it `False` — one process per conversation means
   no cross-session contention, and the tool runs inline
-- **Shared-mode startup guard** — `server.serve(shared=True, ...)` raises `SharedModeNotArmedError` before binding the transport unless a per-session resolver is installed. `axm-mcp serve --shared` is refused with exit code 1 where stdio cannot provide a session identity
+- **Shared-mode startup guard** — the requested mode is resolved afresh for each `serve` invocation (explicit flag, environment, config file, then `dedicated`). `server.serve(shared=True, ...)` raises `SharedModeNotArmedError` before binding the transport unless a per-session resolver is installed. `axm-mcp serve --shared` — or an equivalent configured `shared` mode — is refused with exit code 1 where stdio cannot provide a session identity
 - **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. Session start binds only an explicitly declared perimeter; session end releases it. An undeclared or closed session remains unbound and is refused before the tool runs. The default single-client mode remains permissive when no write contract exists
 - **Never block the event loop** — in HTTP mode **every** tool's synchronous
   body is offloaded to a worker thread via `asyncio.to_thread`, so one slow

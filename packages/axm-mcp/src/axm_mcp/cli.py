@@ -21,6 +21,8 @@ from typing import Annotated
 import cyclopts
 import httpx
 
+from axm_mcp.settings import resolve_serve_mode
+
 __all__ = ["app", "main"]
 
 DEFAULT_PORT = 9427
@@ -115,8 +117,8 @@ def serve(
     host: Annotated[str, cyclopts.Parameter(help="Bind address.")] = "127.0.0.1",
     port: Annotated[int, cyclopts.Parameter(help="Bind port.")] = DEFAULT_PORT,
     shared: Annotated[
-        bool, cyclopts.Parameter(help="Require per-session write contracts.")
-    ] = False,
+        bool | None, cyclopts.Parameter(help="Require per-session write contracts.")
+    ] = None,
 ) -> None:
     """Start the MCP server with Streamable HTTP transport.
 
@@ -126,7 +128,15 @@ def serve(
     removes the file when it still contains *our* PID — so a failed start does
     not delete the legitimate server's PID file.
     """
-    if shared:
+    explicit_mode = None if shared is None else ("shared" if shared else "dedicated")
+    try:
+        serve_mode = resolve_serve_mode(explicit_mode)
+    except ValueError as exc:
+        print(f"Invalid serve mode: {exc}", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1) from exc
+
+    shared_mode = serve_mode == "shared"
+    if shared_mode:
         print(  # noqa: T201
             "Shared mode is unavailable on stdio because it has no session identity.",
             file=sys.stderr,

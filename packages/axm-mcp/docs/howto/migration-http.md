@@ -32,9 +32,10 @@ This holds whether a tool is called directly or through `axm_call` — both go
 through the same execution path.
 
 Here, “shared” describes one HTTP process serving several clients. It is not the
-`serve --shared` authorization flag: that flag requires a per-session identity
+`serve --shared` authorization policy: that policy requires a per-session identity
 and write-contract binding, so the current CLI refuses it instead of granting an
-undeclared default perimeter.
+undeclared default perimeter. The policy can also come from AXM configuration;
+configuring `shared` has the same safety guard as passing `--shared`.
 
 ## Prerequisites
 
@@ -67,6 +68,23 @@ axm-mcp serve --port 8080
 # or
 AXM_MCP_PORT=8080 axm-mcp serve
 ```
+
+### Select the serving policy without changing the service command
+
+The default policy is `dedicated`. To configure it persistently, edit
+`~/.axm/config.toml`:
+
+```toml
+[mcp]
+serve_mode = "dedicated"
+```
+
+Resolution order is an explicit CLI value, `AXM_MCP_SERVE_MODE`, the
+`[mcp] serve_mode` value, then the `dedicated` default. Only `shared` and
+`dedicated` are accepted. The file is read for every `serve` invocation, so an
+installed launchd service can return to `dedicated` on its next start after a
+configuration edit; its command line and plist do not need to be regenerated.
+The current CLI still refuses `shared` when no per-session identity is available.
 
 ## Step 2 — Verify the server is running
 
@@ -124,6 +142,20 @@ file when present).
 ## Step 4 — Restart Claude Code
 
 Restart your Claude Code session so it picks up the new `.mcp.json` config. The MCP client will now connect to the HTTP server instead of forking a stdio process.
+
+## Reverting the serving policy
+
+If a configured `shared` policy prevents startup, restore the safe policy by
+editing only `~/.axm/config.toml`:
+
+```toml
+[mcp]
+serve_mode = "dedicated"
+```
+
+The next launchd restart or manual `axm-mcp serve` call reads the new value with
+the same command line. An `AXM_MCP_SERVE_MODE` environment value still outranks
+the file and must be removed or changed if one is set.
 
 ## Rolling back to stdio
 

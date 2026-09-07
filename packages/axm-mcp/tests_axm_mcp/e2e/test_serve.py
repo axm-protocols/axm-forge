@@ -61,3 +61,29 @@ def test_shared_stdio_is_refused(
 
     assert result.returncode == 1
     assert "shared mode" in result.stderr.lower()
+
+
+@pytest.mark.e2e
+def test_invalid_configured_serve_mode_is_refused(
+    tmp_path: Path,
+    cli_binary: str,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC6: serve exits 1 and names an invalid environment-configured mode."""
+    env = sandbox_env(tmp_path)
+    env["AXM_MCP_SERVE_MODE"] = "bogus"
+
+    result = subprocess.run(  # noqa: S603
+        [cli_binary, "serve"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=15,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "bogus" in result.stderr.lower()
+    assert "invalid" in result.stderr.lower()
+    assert "serve mode" in result.stderr.lower()

@@ -819,6 +819,7 @@ name = "axm-mcp"
 source = { editable = "packages/axm-mcp" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-config" },
     { name = "cyclopts" },
     { name = "httpx" },
     { name = "mcp", extra = ["cli"] },
@@ -910,6 +911,7 @@ requires-dist = [
     { name = "axm-audit", marker = "extra == 'forge'", editable = "packages/axm-audit" },
     { name = "axm-bib", marker = "extra == 'all'" },
     { name = "axm-bib", marker = "extra == 'bib'" },
+    { name = "axm-config", editable = "packages/axm-config" },
     { name = "axm-edit", marker = "extra == 'all'", editable = "packages/axm-edit" },
     { name = "axm-edit", marker = "extra == 'edit'", editable = "packages/axm-edit" },
     { name = "axm-edit", marker = "extra == 'forge'", editable = "packages/axm-edit" },

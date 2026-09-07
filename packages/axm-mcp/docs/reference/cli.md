@@ -35,8 +35,15 @@ start when a live `axm-mcp` server already owns the file, and on exit only
 removes the file when it still holds this process's PID — so a failed start
 (e.g. a bind conflict) never deletes a healthy server's PID file.
 
-`--shared` requests strict per-session write contracts. The CLI refuses this
-flag with exit code 1 because its stdio-facing lifecycle has no session identity
+The serving policy is resolved in this order: an explicit `--shared`/negative
+flag value, `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode` in
+`~/.axm/config.toml`, then the `dedicated` default. Resolution happens for every
+`serve` invocation; changing the file therefore affects the next start without
+changing the installed service command or regenerating its plist. Only `shared`
+and `dedicated` are valid values.
+
+`shared` requests strict per-session write contracts. The CLI refuses this
+policy with exit code 1 because its stdio-facing lifecycle has no session identity
 to arm the resolver; it never falls back to a process-wide default perimeter.
 
 #### `status`
@@ -58,7 +65,7 @@ the stale PID file is cleaned up.
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, refused `serve --shared` without session identity, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
+| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, invalid serve mode, refused `shared` mode without session identity, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
 
 ### Environment Variables
 
@@ -66,7 +73,15 @@ the stale PID file is cleaned up.
 |---|---|---|
 | `AXM_MCP_FACADE` | `1` | `1` (or unset) exposes the compact facade; `0`/`false`/`no` registers every discovered tool directly (legacy) |
 | `AXM_MCP_PORT` | `9427` | HTTP bind port when `--port` is not passed to `serve` |
+| `AXM_MCP_SERVE_MODE` | `[mcp] serve_mode` or `dedicated` | Serving policy (`shared` or `dedicated`); outranks the AXM config file |
 | `AXM_DISABLE_TOOLS` | *(empty)* | Comma-separated list of tool **names or glob patterns** excluded at discovery time — e.g. `bib_*,ticket_*,ast_dead_code`. Useful to trim a shared server's surface. Applied in `discover_tools()`; a disabled tool is neither registered nor indexed by the facade |
+
+Persistent serving policy uses the common AXM configuration file:
+
+```toml
+[mcp]
+serve_mode = "dedicated"
+```
 
 ### Service Management
 
