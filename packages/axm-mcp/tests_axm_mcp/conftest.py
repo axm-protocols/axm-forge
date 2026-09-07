@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from collections.abc import Generator, Iterator
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -16,14 +15,16 @@ from axm_mcp import wrapping
 
 
 @pytest.fixture
-def tmp_pid_file(tmp_path: Path) -> Generator[Path, None, None]:
+def tmp_pid_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[Path, None, None]:
     """Redirect PID file to a temp directory."""
-    pid_file = tmp_path / "mcp-server.pid"
-    with (
-        patch("axm_mcp.cli.PID_DIR", tmp_path),
-        patch("axm_mcp.cli.PID_FILE", pid_file),
-    ):
-        yield pid_file
+    monkeypatch.delenv("AXM_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("AXM_PROFILE", "production")
+    pid_file = tmp_path / ".axm" / "mcp-server.pid"
+    pid_file.parent.mkdir(parents=True)
+    yield pid_file
 
 
 @pytest.fixture

@@ -21,7 +21,7 @@ from typing import Annotated
 import cyclopts
 import httpx
 
-from axm_mcp.settings import resolve_serve_mode
+from axm_mcp.settings import resolve_pid_file, resolve_serve_mode
 
 __all__ = ["app", "main"]
 
@@ -33,22 +33,30 @@ app = cyclopts.App(
     version_flags=[],
 )
 
-PID_DIR = Path.home() / ".axm"
-PID_FILE = PID_DIR / "mcp-server.pid"
+
+PID_FILE: Path | None = None
+
+
+def _active_pid_file() -> Path:
+    """Resolve the profile path, honoring an explicit compatibility override."""
+    override = PID_FILE
+    return override if override is not None else resolve_pid_file()
 
 
 def write_pid(pid: int) -> None:
     """Write PID file, creating parent directory if needed."""
-    PID_DIR.mkdir(parents=True, exist_ok=True)
-    PID_FILE.write_text(str(pid))
+    pid_file = _active_pid_file()
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    pid_file.write_text(str(pid))
 
 
 def read_pid() -> int | None:
     """Read PID from file, returning None if absent or invalid."""
-    if not PID_FILE.exists():
+    pid_file = _active_pid_file()
+    if not pid_file.exists():
         return None
     try:
-        return int(PID_FILE.read_text().strip())
+        return int(pid_file.read_text().strip())
     except (ValueError, OSError):
         return None
 
@@ -108,7 +116,7 @@ def is_axm_mcp_process(pid: int) -> bool:
 
 def remove_pid_file() -> None:
     """Remove PID file if it exists."""
-    PID_FILE.unlink(missing_ok=True)
+    _active_pid_file().unlink(missing_ok=True)
 
 
 @app.command

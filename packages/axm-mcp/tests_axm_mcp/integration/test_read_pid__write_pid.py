@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from axm_mcp.cli import read_pid, remove_pid_file, write_pid
+from axm_mcp.settings import resolve_pid_file
 
 pytestmark = pytest.mark.integration
 
@@ -57,3 +58,44 @@ class TestPidHelpers:
         write_pid(8)
         remove_pid_file()
         assert read_pid() is None
+
+    def test_profiles_keep_independent_pid_files(
+        self,
+        tmp_path: Path,
+        tmp_pid_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """AC1: dev and production retain their own PID values."""
+        monkeypatch.delenv("AXM_HOME", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        monkeypatch.setenv("AXM_PROFILE", "dev")
+        write_pid(111)
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        write_pid(222)
+
+        monkeypatch.setenv("AXM_PROFILE", "dev")
+        assert read_pid() == 111
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        assert read_pid() == 222
+
+    def test_removing_production_pid_preserves_dev_pid(
+        self,
+        tmp_path: Path,
+        tmp_pid_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """AC2: removing production's PID leaves dev's file and value intact."""
+        monkeypatch.delenv("AXM_HOME", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        monkeypatch.setenv("AXM_PROFILE", "dev")
+        write_pid(111)
+        dev_pid_file = resolve_pid_file()
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        write_pid(222)
+        remove_pid_file()
+
+        monkeypatch.setenv("AXM_PROFILE", "dev")
+        assert dev_pid_file.exists()
+        assert read_pid() == 111

@@ -30,10 +30,13 @@ The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "
 
 #### `serve`
 
-Writes a **transactional** PID file (`~/.axm/mcp-server.pid`): it refuses to
-start when a live `axm-mcp` server already owns the file, and on exit only
-removes the file when it still holds this process's PID — so a failed start
-(e.g. a bind conflict) never deletes a healthy server's PID file.
+Writes a **transactional**, profile-scoped PID file. The default `production`
+profile keeps the historical path (`~/.axm/mcp-server.pid`); other
+`AXM_PROFILE` values use their own PID file. The command therefore refuses a
+second live server in the same profile while allowing servers from different
+profiles to coexist. On exit, it only removes the active profile's file when it
+still holds this process's PID, so a failed start (e.g. a bind conflict) never
+deletes a healthy server's PID file.
 
 The serving policy is resolved in this order: an explicit `--shared`/negative
 flag value, `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode` in
@@ -58,10 +61,10 @@ a non-200.
 
 #### `stop`
 
-Reads the PID file, verifies the target process's command line carries the
-`axm-mcp` marker (guarding against OS PID reuse), then sends `SIGTERM`. If the
-PID is stale or has been reused by an unrelated process, no signal is sent and
-the stale PID file is cleaned up.
+Reads the active `AXM_PROFILE` PID file, verifies the target process's command
+line carries the `axm-mcp` marker (guarding against OS PID reuse), then sends
+`SIGTERM`. If the PID is stale or has been reused by an unrelated process, no
+signal is sent and only that profile's stale PID file is cleaned up.
 
 ### Exit Codes
 
@@ -77,6 +80,7 @@ the stale PID file is cleaned up.
 | `AXM_MCP_FACADE` | `1` | `1` (or unset) exposes the compact facade; `0`/`false`/`no` registers every discovered tool directly (legacy) |
 | `AXM_MCP_PORT` | `9427` | HTTP bind port when `--port` is not passed to `serve` |
 | `AXM_MCP_SERVE_MODE` | `[mcp] serve_mode` or `dedicated` | Serving policy (`shared` or `dedicated`); outranks the AXM config file |
+| `AXM_PROFILE` | `production` | Selects the profile-scoped PID file used by `serve` and `stop`; distinct profiles can run concurrently |
 | `AXM_DISABLE_TOOLS` | *(empty)* | Comma-separated list of tool **names or glob patterns** excluded at discovery time — e.g. `bib_*,ticket_*,ast_dead_code`. Useful to trim a shared server's surface. Applied in `discover_tools()`; a disabled tool is neither registered nor indexed by the facade |
 
 Persistent serving policy uses the common AXM configuration file:
