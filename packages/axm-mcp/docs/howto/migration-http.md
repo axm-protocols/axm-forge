@@ -31,11 +31,12 @@ explicitly designed not to let one slow call stall the others:
 This holds whether a tool is called directly or through `axm_call` — both go
 through the same execution path.
 
-Here, “shared” describes one HTTP process serving several clients. It is not the
-`serve --shared` authorization policy: that policy requires a per-session identity
-and write-contract binding, so the current CLI refuses it instead of granting an
-undeclared default perimeter. The policy can also come from AXM configuration;
-configuring `shared` has the same safety guard as passing `--shared`.
+Here, “shared” describes one HTTP process serving several clients. Strict shared
+authorization additionally requires a per-session identity and write-contract
+binding. Configure that policy with `[mcp] serve_mode = "shared"`: the CLI then
+arms the registry-backed resolver before starting Streamable HTTP. The explicit
+`serve --shared` flag remains a refused stdio compatibility path and never grants
+an undeclared default perimeter.
 
 ## Prerequisites
 
@@ -71,20 +72,21 @@ AXM_MCP_PORT=8080 axm-mcp serve
 
 ### Select the serving policy without changing the service command
 
-The default policy is `dedicated`. To configure it persistently, edit
-`~/.axm/config.toml`:
+The default policy is `dedicated`. To enable strict shared authorization
+persistently, edit `~/.axm/config.toml`:
 
 ```toml
 [mcp]
-serve_mode = "dedicated"
+serve_mode = "shared"
 ```
 
 Resolution order is an explicit CLI value, `AXM_MCP_SERVE_MODE`, the
 `[mcp] serve_mode` value, then the `dedicated` default. Only `shared` and
 `dedicated` are accepted. The file is read for every `serve` invocation, so an
-installed launchd service can return to `dedicated` on its next start after a
-configuration edit; its command line and plist do not need to be regenerated.
-The current CLI still refuses `shared` when no per-session identity is available.
+installed launchd service adopts the configured policy on its next start; its
+command line and plist do not need to be regenerated. With `shared`, startup
+installs the per-session resolver and proceeds over Streamable HTTP. Verify it
+with `axm-mcp status` before switching clients.
 
 ## Step 2 — Verify the server is running
 
@@ -143,10 +145,10 @@ file when present).
 
 Restart your Claude Code session so it picks up the new `.mcp.json` config. The MCP client will now connect to the HTTP server instead of forking a stdio process.
 
-## Reverting the serving policy
+## Returning to the dedicated serving policy
 
-If a configured `shared` policy prevents startup, restore the safe policy by
-editing only `~/.axm/config.toml`:
+To leave strict shared authorization, restore the default policy by editing only
+`~/.axm/config.toml`:
 
 ```toml
 [mcp]

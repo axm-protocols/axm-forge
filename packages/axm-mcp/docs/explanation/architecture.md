@@ -114,7 +114,7 @@ sequenceDiagram
 | `verify` as meta-tool | Single call replaces 3 separate tool invocations |
 | AST enrichment of failures | Adds blast-radius context to help agents prioritize fixes |
 | Compact facade (default) | Four meta-tools keep the `tools/list` payload small; the full catalog stays reachable via `axm_call`. Reversible with `AXM_MCP_FACADE=0` |
-| Serving policy resolved at startup | The CLI flag has highest precedence, followed by `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode`, then `dedicated`. No value is cached, so the unchanged service command observes a configuration edit on its next start |
+| Serving policy resolved at startup | The CLI flag has highest precedence, followed by `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode`, then `dedicated`. A configured `shared` value arms registration and the registry-backed resolver before Streamable HTTP starts; no value is cached, so the unchanged service command observes a configuration edit on its next start |
 
 ## Tool Lifecycle
 
@@ -134,7 +134,7 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
   and the implicit-path warning in `_warn_implicit_path`. The stdio default
   path (`cli._stdio`) leaves it `False` — one process per conversation means
   no cross-session contention, and the tool runs inline
-- **Shared-mode startup guard** — the requested mode is resolved afresh for each `serve` invocation (explicit flag, environment, config file, then `dedicated`). `server.serve(shared=True, ...)` raises `SharedModeNotArmedError` before binding the transport unless a per-session resolver is installed. `axm-mcp serve --shared` — or an equivalent configured `shared` mode — is refused with exit code 1 where stdio cannot provide a session identity
+- **Shared-mode startup guard** — the requested mode is resolved afresh for each `serve` invocation (explicit flag, environment, config file, then `dedicated`). A configured `shared` value sets up shared registration before importing the app, then calls `server.serve(shared=True, ...)` with the registry-backed per-session resolver. The server still raises `SharedModeNotArmedError` before binding the transport when that resolver is absent. The explicit `axm-mcp serve --shared` stdio compatibility path remains refused because stdio cannot provide a session identity
 - **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. Session start reads `mcp-session-id` and binds only an explicitly declared `X-AXM-Write-Contract`; session end releases that identity's binding. Distinct identities therefore retain distinct scopes even when requests interleave. An undeclared, unknown, or closed identity raises `UnboundSessionError` naming that identity and is refused before the tool runs. The default single-client mode remains permissive when no write contract exists
 - **Never block the event loop** — in HTTP mode **every** tool's synchronous
   body is offloaded to a worker thread via `asyncio.to_thread`, so one slow

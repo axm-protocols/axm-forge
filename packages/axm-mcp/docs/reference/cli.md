@@ -22,7 +22,7 @@ The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "
 | Command | Flags | Description |
 |---|---|---|
 | `axm-mcp` (no subcommand) | — | Run in **stdio** mode (backward-compatible default) |
-| `axm-mcp serve` | `--host` (default `127.0.0.1`), `--port` (default `9427`), `--shared` | Start the **Streamable HTTP** server; `--shared` is rejected until a transport can supply per-session identity |
+| `axm-mcp serve` | `--host` (default `127.0.0.1`), `--port` (default `9427`), `--shared` | Start the **Streamable HTTP** server; `[mcp] serve_mode = "shared"` arms strict per-session contracts, while the explicit `--shared` stdio compatibility path remains refused |
 | `axm-mcp status` | `--host`, `--port` | Query the running server's `/health` endpoint |
 | `axm-mcp stop` | — | Send `SIGTERM` to the running server (identity-verified) |
 | `axm-mcp install` | `--port`, `--binary <path>` | Install as a launchd service (macOS) |
@@ -42,9 +42,12 @@ flag value, `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode` in
 changing the installed service command or regenerating its plist. Only `shared`
 and `dedicated` are valid values.
 
-`shared` requests strict per-session write contracts. The CLI refuses this
-policy with exit code 1 because its stdio-facing lifecycle has no session identity
-to arm the resolver; it never falls back to a process-wide default perimeter.
+A `shared` value supplied by `AXM_MCP_SERVE_MODE` or `[mcp] serve_mode`
+arms the Streamable HTTP server with the registry-backed per-session resolver.
+The server then starts normally and can be checked with `axm-mcp status`; it
+never falls back to a process-wide default perimeter. The explicit `--shared`
+flag remains the stdio compatibility path and is refused with exit code 1
+because stdio cannot supply a session identity.
 
 #### `status`
 
@@ -65,7 +68,7 @@ the stale PID file is cleaned up.
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, invalid serve mode, refused `shared` mode without session identity, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
+| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, invalid serve mode, explicit `--shared` on the stdio compatibility path, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
 
 ### Environment Variables
 
@@ -80,8 +83,10 @@ Persistent serving policy uses the common AXM configuration file:
 
 ```toml
 [mcp]
-serve_mode = "dedicated"
+serve_mode = "shared"
 ```
+
+Use `dedicated` (the default) to retain the standard HTTP serving policy.
 
 ### Service Management
 

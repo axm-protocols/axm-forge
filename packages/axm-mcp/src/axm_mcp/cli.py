@@ -136,14 +136,22 @@ def serve(
         raise SystemExit(1) from exc
 
     shared_mode = serve_mode == "shared"
-    if shared_mode:
+    if shared is True:
         print(  # noqa: T201
             "Shared mode is unavailable on stdio because it has no session identity.",
             file=sys.stderr,
         )
         raise SystemExit(1)
 
+    if shared_mode:
+        os.environ["AXM_MCP_SHARED"] = "1"
+    else:
+        os.environ.pop("AXM_MCP_SHARED", None)
+
+    from axm_mcp import mcp_app as _mcp_app
     from axm_mcp import server as _server
+
+    session_resolver = _mcp_app._resolve_session_contract if shared_mode else None
 
     existing = read_pid()
     if (
@@ -161,7 +169,15 @@ def serve(
     own_pid = os.getpid()
     write_pid(own_pid)
     try:
-        _server.serve(host=host, port=port)
+        if shared_mode:
+            _server.serve(
+                host=host,
+                port=port,
+                shared=True,
+                session_resolver=session_resolver,
+            )
+        else:
+            _server.serve(host=host, port=port)
     finally:
         if read_pid() == own_pid:
             remove_pid_file()
