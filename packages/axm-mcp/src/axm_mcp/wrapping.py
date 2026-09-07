@@ -18,12 +18,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
+from axm.tools.write_scope import WriteContract
+
 from axm_mcp.concurrency import _DEFAULT_TIMEOUT, KeyedLock
+from axm_mcp.session_contracts import UnboundSessionError
 
 if TYPE_CHECKING:
     from axm_mcp.discovery import (
@@ -113,6 +116,8 @@ class _WrapperCtx:
 
     name: str
     should_trace: bool
+    write_contract_resolver: Callable[[], WriteContract | None]
+    shared_mode: bool
 
 
 def _unwrap_nested_kwargs(kwargs: dict[str, object]) -> None:
@@ -218,11 +223,41 @@ def _flatten_exception(name: str, exc: Exception) -> dict[str, object]:
     return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
+def _write_refusal(
+    ctx: _WrapperCtx,
+    tool_input: dict[str, object],
+) -> dict[str, object] | None:
+    """Resolve and enforce the current session's write perimeter."""
+    from axm.tools.write_scope import decide_write_access
+
+    try:
+        contract = ctx.write_contract_resolver()
+    except UnboundSessionError as exc:
+        if not ctx.shared_mode:
+            raise
+        reason = str(exc)
+        logger.warning("Refusing write tool %s: %s", ctx.name, reason)
+        return {"success": False, "error": reason}
+
+    if contract is None and ctx.shared_mode:
+        reason = f"shared mode refused {ctx.name}: no write contract is attached"
+        logger.warning("Refusing write tool %s: %s", ctx.name, reason)
+        return {"success": False, "error": reason}
+
+    decision = decide_write_access(contract, ctx.name, tool_input)
+    if decision.allowed:
+        return None
+    return {"success": False, "error": decision.reason}
+
+
 def _build_plain_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
     """Build the wrapper for a plain dispatcher function."""
     _plain_tool = cast("PlainTool", tool)
 
     def _wrapper(**kwargs: object) -> dict[str, object] | str:
+        refusal = _write_refusal(ctx, kwargs)
+        if refusal is not None:
+            return refusal
         _unwrap_nested_kwargs(kwargs)
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
@@ -243,6 +278,9 @@ def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
     _tool_like = cast("ToolLike", tool)
 
     def _wrapper(**kwargs: object) -> dict[str, object] | str:
+        refusal = _write_refusal(ctx, kwargs)
+        if refusal is not None:
+            return refusal
         _unwrap_nested_kwargs(kwargs)
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
@@ -330,7 +368,13 @@ def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
     return _async_wrapper
 
 
-def build_wrappers(name: str, tool: ToolEntry) -> tuple[_SyncWrapper, _AnyWrapper]:
+def build_wrappers(
+    name: str,
+    tool: ToolEntry,
+    *,
+    shared_mode: bool = False,
+    write_contract_resolver: Callable[[], WriteContract | None] | None = None,
+) -> tuple[_SyncWrapper, _AnyWrapper]:
     """Build the ``(sync, async)`` wrapper pair for one tool.
 
     The single construction seam shared by the direct MCP registration path
@@ -345,21 +389,27 @@ def build_wrappers(name: str, tool: ToolEntry) -> tuple[_SyncWrapper, _AnyWrappe
         trace/flatten/exception contract and the async wrapper adds the HTTP
         ``to_thread`` offload plus the optional per-key lock.
     """
-    from axm.tools.write_scope import decide_write_access, write_contract_from_env
+    resolver: Callable[[], WriteContract | None]
+    if write_contract_resolver is None:
+        from axm.tools.write_scope import write_contract_from_env
 
-    write_contract = write_contract_from_env()
+        write_contract_from_env()
+        resolver = write_contract_from_env
+    else:
+        resolver = write_contract_resolver
     is_plain = callable(tool) and not hasattr(tool, "execute")
     # Protocol tools already trace via orchestrator.run_tool()
-    ctx = _WrapperCtx(name=name, should_trace=not name.startswith("protocol_"))
+    ctx = _WrapperCtx(
+        name=name,
+        should_trace=not name.startswith("protocol_"),
+        write_contract_resolver=resolver,
+        shared_mode=shared_mode,
+    )
     base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
     )
 
-    def sync_wrapper(**kwargs: object) -> dict[str, object] | str:
-        decision = decide_write_access(write_contract, name, kwargs)
-        if not decision.allowed:
-            return {"success": False, "error": decision.reason}
-        return base_sync_wrapper(**kwargs)
+    sync_wrapper = base_sync_wrapper
 
     exec_doc = getattr(getattr(tool, "execute", tool), "__doc__", None)
     sync_wrapper.__doc__ = exec_doc or f"Execute {name} tool."

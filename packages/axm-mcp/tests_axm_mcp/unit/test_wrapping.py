@@ -19,7 +19,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from axm.tools.base import ToolResult
+from axm.tools.write_scope import WriteContract, decide_write_access
 
+from axm_mcp.session_contracts import SessionContractRegistry
 from axm_mcp.wrapping import build_wrappers
 
 
@@ -815,3 +817,144 @@ class TestHttpLockBehavior:
         finally:
             wrapping._HTTP_MODE = original
         assert out == "ok"
+
+
+def _contract(root: str, prefix: str) -> WriteContract:
+    return WriteContract.from_mapping(
+        {"execution_root": root, "allowed_prefixes": [prefix]}
+    )
+
+
+def _shared_wrapper(
+    recorder: Any,
+    registry: SessionContractRegistry,
+    current_session: dict[str, str],
+) -> Any:
+    return build_wrappers(
+        "batch_edit",
+        recorder,
+        shared_mode=True,
+        write_contract_resolver=lambda: registry.resolve(current_session["id"]),
+    )[0]
+
+
+def test_shared_wrapper_resolves_contract_for_each_emitting_session() -> None:
+    """AC1: one wrapper set resolves the perimeter of every emitting session."""
+    calls: list[dict[str, object]] = []
+
+    def recorder(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"success": True}
+
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    registry.bind("s-a", _contract("/workspace", "/workspace/a"))
+    registry.bind("s-b", _contract("/workspace", "/workspace/b"))
+    current_session = {"id": "s-a"}
+    wrapper = _shared_wrapper(recorder, registry, current_session)
+    request = {
+        "path": "/workspace/b",
+        "operations": [{"op": "create", "file": "out.txt", "content": "session-b"}],
+    }
+
+    refused = wrapper(**request)
+
+    assert isinstance(refused, dict)
+    assert refused["success"] is False
+    assert calls == []
+
+    current_session["id"] = "s-b"
+    allowed = wrapper(**request)
+
+    assert allowed == {"success": True}
+    assert calls == [request]
+
+
+def test_shared_wrapper_refuses_unbound_session() -> None:
+    """AC2: shared mode refuses a session with no attached perimeter."""
+    calls: list[dict[str, object]] = []
+
+    def recorder(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"success": True}
+
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    current_session = {"id": "s-ghost"}
+    wrapper = _shared_wrapper(recorder, registry, current_session)
+
+    result = wrapper(
+        path="/workspace",
+        operations=[{"op": "create", "file": "out.txt", "content": "blocked"}],
+    )
+
+    assert isinstance(result, dict)
+    assert result["success"] is False
+    assert (
+        "refus" in str(result["error"]).lower()
+        or "no write contract" in str(result["error"]).lower()
+    )
+    assert calls == []
+
+
+def test_shared_wrapper_refusal_warns_with_session_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC3: an unbound-session refusal logs its session id at WARNING."""
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    current_session = {"id": "s-ghost"}
+    wrapper = _shared_wrapper(
+        lambda **_kwargs: {"success": True}, registry, current_session
+    )
+
+    with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
+        wrapper(
+            path="/workspace",
+            operations=[{"op": "create", "file": "out.txt", "content": "blocked"}],
+        )
+
+    warnings = [
+        record
+        for record in caplog.records
+        if record.name == "axm_mcp.wrapping" and record.levelno == logging.WARNING
+    ]
+    assert warnings
+    assert any("s-ghost" in record.getMessage() for record in warnings)
+
+
+def test_single_client_without_contract_keeps_allow_reason() -> None:
+    """AC4: single-client mode keeps the literal no-contract allow decision."""
+    calls: list[dict[str, object]] = []
+    decisions: list[Any] = []
+
+    def recorder(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"success": True}
+
+    def record_decision(
+        contract: object,
+        tool_name: str,
+        tool_input: dict[str, object],
+    ) -> Any:
+        decision = decide_write_access(contract, tool_name, tool_input)
+        decisions.append(decision)
+        return decision
+
+    with patch(
+        "axm.tools.write_scope.decide_write_access",
+        side_effect=record_decision,
+    ):
+        wrapper = build_wrappers(
+            "batch_edit",
+            recorder,
+            shared_mode=False,
+            write_contract_resolver=lambda: None,
+        )[0]
+        result = wrapper(
+            path="/workspace",
+            operations=[{"op": "create", "file": "out.txt", "content": "allowed"}],
+        )
+
+    assert result == {"success": True}
+    assert len(calls) == 1
+    assert len(decisions) == 1
+    assert decisions[0].allowed is True
+    assert decisions[0].reason == "no write contract is in force"

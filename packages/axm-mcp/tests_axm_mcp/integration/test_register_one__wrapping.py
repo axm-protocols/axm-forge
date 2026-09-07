@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -116,3 +117,79 @@ class TestConcurrentProtocolCheck:
             assert order[2] == "X-start"
         finally:
             _wrapping._HTTP_MODE = original
+
+
+@pytest.mark.asyncio
+async def test_registered_shared_wrapper_isolates_real_session_perimeters(
+    tmp_path: Path,
+) -> None:
+    """AC1: a registered shared wrapper enforces the emitting session perimeter."""
+    from axm.tools.base import ToolResult
+    from axm.tools.write_scope import WriteContract
+
+    from axm_mcp.session_contracts import SessionContractRegistry
+    from axm_mcp.wrapping import build_wrappers
+
+    perimeter_a = tmp_path / "a"
+    perimeter_b = tmp_path / "b"
+    perimeter_a.mkdir()
+    perimeter_b.mkdir()
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    registry.bind(
+        "s-a",
+        WriteContract.from_mapping(
+            {
+                "execution_root": str(tmp_path),
+                "allowed_prefixes": [str(perimeter_a)],
+            }
+        ),
+    )
+    registry.bind(
+        "s-b",
+        WriteContract.from_mapping(
+            {
+                "execution_root": str(tmp_path),
+                "allowed_prefixes": [str(perimeter_b)],
+            }
+        ),
+    )
+    current_session = {"id": "s-a"}
+
+    class FilesystemWriter:
+        def execute(self, *, path: str, file: str, content: str) -> ToolResult:
+            Path(path, file).write_text(content, encoding="utf-8")
+            return ToolResult(success=True, text="written")
+
+    def shared_build(name: str, tool: Any) -> tuple[Any, Any]:
+        return build_wrappers(
+            name,
+            tool,
+            shared_mode=True,
+            write_contract_resolver=lambda: registry.resolve(current_session["id"]),
+        )
+
+    mock_mcp = MagicMock()
+    with patch("axm_mcp.discovery.build_wrappers", side_effect=shared_build):
+        register_one(mock_mcp, "write_file", FilesystemWriter())
+    wrapper = mock_mcp.tool.return_value.call_args[0][0]
+    target = perimeter_b / "out.txt"
+
+    refused = await wrapper(
+        path=str(perimeter_b),
+        file=target.name,
+        content="owned-by-b",
+    )
+
+    assert isinstance(refused, dict)
+    assert refused["success"] is False
+    assert not target.exists()
+
+    current_session["id"] = "s-b"
+    allowed = await wrapper(
+        path=str(perimeter_b),
+        file=target.name,
+        content="owned-by-b",
+    )
+
+    assert allowed == "written"
+    assert target.read_text(encoding="utf-8") == "owned-by-b"

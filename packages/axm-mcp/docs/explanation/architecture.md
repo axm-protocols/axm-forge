@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-mcp` is a thin MCP shell whose only import from AXM core is `axm.tools.base` (shared types + `tool_metadata`) — no business-tool implementations. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (the simple default, one process per conversation) and **Streamable HTTP** (an advanced option, single shared server).
+`axm-mcp` is a thin MCP shell whose imports from AXM core are limited to shared tool infrastructure (`axm.tools.base` and `axm.tools.write_scope`) — no business-tool implementations. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (the simple default, one process per conversation) and **Streamable HTTP** (an advanced option, single shared server).
 
 By default (`AXM_MCP_FACADE=1`) the discovered tools are surfaced through a **compact facade**: four meta-tools (`axm_search` / `axm_describe` / `axm_call` / `axm_capabilities`) index the catalog and keep the `tools/list` payload small, while a *hot path* of tools opting in via `expose_directly` plus the built-ins (`verify`, `web_fetch`, `list_tools`) are registered individually. Setting `AXM_MCP_FACADE=0` falls back to the legacy behaviour — every discovered tool registered directly.
 
@@ -95,7 +95,7 @@ sequenceDiagram
 | `facade/catalog.py` | `ToolCatalog`, `UnknownToolError` | Searchable index over discovered tools — backs the four facade meta-tools (`search`/`describe`/`call`/`capabilities`, `hot_path()`) |
 | `facade/tools.py` | `register_facade()`, `FACADE_TOOLS` | Registers `axm_search` / `axm_describe` / `axm_call` / `axm_capabilities` against a `ToolCatalog` |
 | `web_fetch.py` | `fetch_page()`, `WebFetchTool` | Built-in `web_fetch` tool — anti-bot page fetching via Scrapling (modes: auto / basic / dynamic / stealth) |
-| `wrapping.py` | `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable; `protocol_*` and `git_*` tools are serialized with async keyed locks |
+| `wrapping.py` | `build_wrappers()`, `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable, resolves its write perimeter at call time, and serializes `protocol_*` and `git_*` tools with async keyed locks |
 | `schema.py` | `signature_params()`, `apply_signature()`, `extract_docstring_params()` | Derives a tool's typed `__signature__` from its `execute()` (falling back to docstring params) so FastMCP and `ToolCatalog.describe` build the right schema |
 | `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
 | `verify_format.py` | `format_verify_text()` | Compact text rendering of a `verify_project` result |
@@ -106,7 +106,7 @@ sequenceDiagram
 
 | Decision | Rationale |
 |---|---|
-| Imports from `axm` core limited to `axm.tools.base` | Only the shared types + `tool_metadata` (and `ToolResult`, used by the `verify`/`web_fetch` built-ins) — never a business-tool implementation, so `axm-mcp` stays decoupled from any specific tool package and works with any combination of installed packages |
+| Imports from `axm` core limited to shared tool infrastructure | `axm.tools.base` supplies shared types and metadata; `axm.tools.write_scope` supplies the generic write-contract model and decision function. Neither is a business-tool implementation, so `axm-mcp` stays decoupled from specific tool packages |
 | `ToolLike` Protocol | Duck typing via `Protocol` — no class inheritance needed |
 | Entry points for discovery | Standard Python mechanism, no config files needed |
 | `verify` as meta-tool | Single call replaces 3 separate tool invocations |
@@ -118,7 +118,7 @@ sequenceDiagram
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
 2. **Registration** (facade, default): the `expose_directly` hot path is registered individually via `register_one()`, the built-ins (`verify`, `web_fetch`) are registered directly, and `register_facade()` registers the four facade meta-tools over a `ToolCatalog`. In legacy mode (`AXM_MCP_FACADE=0`), `register_tools()` registers **every** discovered tool individually instead.
 3. **Listing**: `register_list_tools()` registers `list_tools`, which always enumerates the **full** surface (so facade-only tools remain discoverable)
-4. **Execution**: MCP client calls a tool **directly or via `axm_call`** → both paths go through the *same* wrapper pair built by `wrapping.build_wrappers()` (there is a single execution path; `ToolCatalog` holds the same wrappers `register_one` registers). The wrapper delegates to `tool.execute(**kwargs)` → on a **successful** `ToolResult` with `text` set, returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting. So tracing (1 call = 1 trace), exception flattening and the per-key lock are invariant regardless of which path reached the tool.
+4. **Execution**: MCP client calls a tool **directly or via `axm_call`** → both paths go through the *same* wrapper pair built by `wrapping.build_wrappers()` (there is a single execution path; `ToolCatalog` holds the same wrappers `register_one` registers). At each call, the wrapper resolves the current write contract before delegating to `tool.execute(**kwargs)`, so one long-lived wrapper set does not freeze a session's perimeter. On a **successful** `ToolResult` with `text` set, it returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting. So write-scope enforcement, tracing (1 call = 1 trace), exception flattening and the per-key lock are invariant regardless of which path reached the tool.
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
 
 ## Concurrency Model (HTTP mode)
@@ -131,6 +131,7 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
   and the implicit-path warning in `_warn_implicit_path`. The stdio default
   path (`cli._stdio`) leaves it `False` — one process per conversation means
   no cross-session contention, and the tool runs inline
+- **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. An unbound session is refused before the tool runs and produces a warning; the default single-client mode remains permissive when no write contract exists
 - **Never block the event loop** — in HTTP mode **every** tool's synchronous
   body is offloaded to a worker thread via `asyncio.to_thread`, so one slow
   call (a multi-minute `verify`) cannot freeze `/health`, keep-alives, or the
