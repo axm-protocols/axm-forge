@@ -55,6 +55,9 @@ all    = [
 [project.scripts]
 axm-mcp = "axm_mcp:main"
 
+[project.entry-points."axm.daemons"]
+axm-mcp = "axm_mcp.daemon:daemon_descriptor"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"

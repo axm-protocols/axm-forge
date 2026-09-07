@@ -20,6 +20,7 @@
 - 🛠️ **MCP bridge** — Exposes discovered tools as Model Context Protocol callables
 - ✅ **Verify** — One-shot project quality check: audit + init check + AST enrichment
 - 🚀 **HTTP transport** — Optional persistent Streamable HTTP server (`axm-mcp serve`) for a single shared process across conversations
+- ⚙️ **Supervisor discovery** — Publishes an `axm.daemons` descriptor so an AXM supervisor can launch and probe the profile-scoped HTTP service
 
 ## Installation
 

@@ -84,7 +84,12 @@ Port can also be set via the `AXM_MCP_PORT` environment variable.
 
 ## Service Management (macOS)
 
-`axm-mcp` can run as a persistent background service managed by launchd:
+AXM supervisors discover the HTTP service through the package's `axm.daemons`
+entry point. The published launch plan preserves `AXM_PROFILE` and an explicit
+`AXM_MCP_PORT`, so the supervised process and its health probe use the same
+profile-scoped PID file and port.
+
+`axm-mcp` can also run as a persistent background service managed by launchd:
 
 ```bash
 # Install and start the service
