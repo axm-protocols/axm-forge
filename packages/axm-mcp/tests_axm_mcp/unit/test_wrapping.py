@@ -895,6 +895,39 @@ def test_shared_wrapper_refuses_unbound_session() -> None:
     assert calls == []
 
 
+def test_shared_wrapper_refuses_when_resolver_returns_no_contract() -> None:
+    """AC2: shared mode refuses on a resolver that yields None without raising.
+
+    The registry-backed resolver raises for an unknown session, so every other
+    shared-mode test is refused *before* the reversal is consulted. This one
+    exercises the reversal itself: a resolver that legitimately reports "no
+    perimeter" by returning None must still be refused, because in shared mode
+    the absence of a contract means denial, not permission.
+    """
+    calls: list[dict[str, object]] = []
+
+    def recorder(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"success": True}
+
+    wrapper = build_wrappers(
+        "batch_edit",
+        recorder,
+        shared_mode=True,
+        write_contract_resolver=lambda: None,
+    )[0]
+
+    result = wrapper(
+        path="/workspace",
+        operations=[{"op": "create", "file": "out.txt", "content": "blocked"}],
+    )
+
+    assert isinstance(result, dict)
+    assert result["success"] is False
+    assert "no write contract" in str(result["error"]).lower()
+    assert calls == []
+
+
 def test_shared_wrapper_refusal_warns_with_session_id(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
