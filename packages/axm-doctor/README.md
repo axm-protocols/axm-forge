@@ -19,7 +19,7 @@ Env bootstrap + auth-status doctor (detect, propose, orchestrate)
 
 - ✅ **Bootstrap-safe detection** — importing `axm_doctor` (or `axm_doctor.detect`) pulls **no** AXM package: `detect.py` defers its AXM imports and the package re-exports lazily (PEP 562). `detect_tool` remains a stdlib + pydantic probe. On each `detect_auth` call, the credential catalog is discovered lazily; if it is unavailable, detection safely degrades to binary presence.
 - ✅ **Config-resolvability checks** — `detect_git_identity` reports whether a git committer identity is resolvable (a truthy `[git].default` in the **axm-config** store, else the exit code of `git config --get user.email`) and `detect_gh_config` reports whether `gh` carries a base config (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent). Value-free like auth: only the store presence and exit codes are inspected, never the identity/config value. Both degrade to `unconfigured` on any error instead of raising. The `env_doctor` tool surfaces them under a `config` key (`{git: {state}, gh: {state}}`).
-- ✅ **Declaration-driven, read-only auth** — each package that drives a third-party tool declares how to probe it and owns every tool-specific path, service name and recovery command. `detect_auth` only translates the declaration outcomes into `logged_in`, `logged_out` or `not_installed`; it never reads or returns authentication material. Without a declaration, an installed binary yields `undetermined` because its session cannot be verified, while an absent binary yields `not_installed`.
+- ✅ **Declaration-driven, read-only auth** — each package that drives a third-party tool declares how to probe it and owns every tool-specific path, service name and recovery command. `detect_auth` only translates the declaration outcomes into `logged_in`, `logged_out` or `not_installed`; it never reads or returns authentication material. `AuthStatus.declaration_consulted` is `True` when such a declaration was found and consulted, including when its probe could not conclude. Without a declaration, the flag is `False`: an installed binary yields `undetermined` because its session cannot be verified, while an absent binary yields `not_installed`.
 - ✅ **Frozen result models** — `ToolStatus`, `AuthStatus`, `GitIdentityStatus` and `GhConfigStatus` are immutable pydantic models; authentication results contain state metadata, never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the *official* install command for a known tool (`uv`, `claude`, `codex`) without running anything; `run_install` is a **dry-run by default** (`confirm=False`) that only echoes the command it would run. It installs strictly when the caller opts in with `confirm=True`, then re-detects the tool via `detect_tool`.
 - ✅ **Kind-aware, value-free provenance** — `collect_credential_provenance` reports each declaration with its coordinate, declared `kind`, serving layer/state, and presence flag. Credential kinds (for example `token`) and `auth_dependency` coexist in one report; a failing declaration is isolated as `unknown` / absent without erasing healthy peer verdicts.
@@ -30,8 +30,8 @@ from axm_doctor import detect_tool, detect_auth
 from axm_doctor.detect import detect_git_identity, detect_gh_config
 
 detect_tool("uv")      # ToolStatus(name='uv', state='present', version='0.5.1', path=...)
-detect_auth("gh")      # declaration outcome -> AuthStatus(state='logged_in', ...)
-detect_auth("unknown") # no declaration: PATH presence -> undetermined / not_installed
+detect_auth("gh")      # declaration -> AuthStatus(state='logged_in', declaration_consulted=True, ...)
+detect_auth("unknown") # PATH fallback -> AuthStatus(..., declaration_consulted=False)
 detect_git_identity()  # GitIdentityStatus(state='configured')  — store [git].default or `git config user.email`
 detect_gh_config()     # GhConfigStatus(state='configured')     — `gh config get git_protocol`
 ```

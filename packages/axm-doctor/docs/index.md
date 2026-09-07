@@ -43,8 +43,8 @@ from axm_doctor import detect_tool, detect_auth
 print(detect_tool("uv"))      # ToolStatus(state='present', version='0.5.1', ...)
 
 # Resolve a package-owned, read-only authentication declaration.
-print(detect_auth("gh"))       # declaration outcome -> logged_in/out/not_installed
-print(detect_auth("unknown"))  # no declaration: PATH presence -> undetermined/not_installed
+print(detect_auth("gh"))       # declaration_consulted=True + declared outcome
+print(detect_auth("unknown"))  # declaration_consulted=False + PATH fallback
 ```
 
 ```python
@@ -81,7 +81,7 @@ provision_missing(confirm=True)  # delegates to vault's run_setup(only=...) — 
 
 - ✅ **Bootstrap layer** — importing the detection surface pulls no AXM package (deferred AXM imports + PEP 562 lazy re-exports). `detect_tool` uses stdlib + pydantic only; `detect_auth` discovers the credential catalog lazily and safely falls back to binary presence when the catalog is unavailable.
 - ✅ **Config-resolvability checks** — `detect_git_identity` (a `[git].default` in the **axm-config** store, else `git config --get user.email` exit code) and `detect_gh_config` (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent) report whether a git committer identity and `gh` base config are resolvable — value-free (presence + exit code only, never the value), degrading to `unconfigured` on error. The `env_doctor` tool surfaces them under a `config` key.
-- ✅ **Declaration-driven, read-only auth** — packages that drive third-party tools own their probes and all tool-specific session knowledge. `detect_auth` only maps declaration outcomes to `logged_in`, `logged_out` or `not_installed`; no authentication material transits through doctor. Without a declaration, PATH presence yields `undetermined`, while an absent binary remains `not_installed`.
+- ✅ **Declaration-driven, read-only auth** — packages that drive third-party tools own their probes and all tool-specific session knowledge. `detect_auth` only maps declaration outcomes to `logged_in`, `logged_out` or `not_installed`; no authentication material transits through doctor. `AuthStatus.declaration_consulted` is `True` whenever an installed declaration was found and consulted, even if its probe could not conclude. Without a declaration it is `False`: PATH presence yields `undetermined`, while an absent binary remains `not_installed`.
 - ✅ **Frozen models** — immutable `ToolStatus` / `AuthStatus` / `GitIdentityStatus` / `GhConfigStatus`; authentication results expose state metadata, never a token.
 - ✅ **Install plans, never silent installs** — `install_command` proposes the official command for a known tool; `run_install` is a dry-run by default (`confirm=False`) and installs only on explicit opt-in (`confirm=True`), then re-detects the tool.
 - ✅ **Typed declaration provenance** — `collect_credential_provenance` translates axm-vault's live, value-free report into immutable `CredentialProvenance` rows containing a coordinate, declared `kind`, serving layer/state, and presence flag. Credential kinds and `auth_dependency` rows coexist; one raising declaration degrades only its own row to a cautious `unknown` / absent verdict. `auth_status` preserves its per-tool `auth` map and value-free `{layer, present}` credential shape, while exposing separate `undetermined` and `logged_out` tool lists so consumers do not mistake an unverifiable session for a closed one.

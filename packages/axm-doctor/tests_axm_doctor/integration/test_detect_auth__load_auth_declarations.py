@@ -85,6 +85,51 @@ def test_declared_auth_dependency_drives_logged_in_verdict(
 
 
 @pytest.mark.integration
+def test_declared_inconclusive_probe_reports_consulted_declaration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: an inconclusive installed declaration is still reported as consulted."""
+    _install_provider(
+        tmp_path,
+        monkeypatch,
+        module_name="declared_inconclusive",
+        source="""
+            from axm_vault import AuthDependencySpec, CredentialGroup
+
+
+            class InconclusiveSource:
+                def status(self):
+                    return "inconclusive"
+
+
+            def credentials():
+                return [
+                    CredentialGroup(
+                        id="declared-inconclusive",
+                        package="declared-inconclusive",
+                        title="Declared inconclusive",
+                        specs=(),
+                        auth_dependencies=(
+                            AuthDependencySpec(
+                                name="declared-inconclusive",
+                                source=InconclusiveSource(),
+                            ),
+                        ),
+                    ),
+                ]
+        """,
+    )
+
+    declarations = detect_module.load_auth_declarations()
+    status = detect_auth("declared-inconclusive")
+
+    assert "declared-inconclusive" in declarations
+    assert status.state == "logged_out"
+    assert status.declaration_consulted is True
+
+
+@pytest.mark.integration
 def test_raising_declaration_is_indeterminate_for_that_tool_alone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -136,6 +181,60 @@ def test_raising_declaration_is_indeterminate_for_that_tool_alone(
     assert isinstance(failed, AuthStatus)
     assert failed.state == "logged_out"
     assert healthy.state == "logged_in"
+
+
+@pytest.mark.integration
+def test_raising_provider_does_not_hide_another_consulted_declaration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: one raising provider cannot hide another consulted declaration."""
+    _install_provider(
+        tmp_path,
+        monkeypatch,
+        module_name="provider_raising",
+        source="""
+            def credentials():
+                raise RuntimeError("provider failed")
+        """,
+    )
+    _install_provider(
+        tmp_path,
+        monkeypatch,
+        module_name="provider_healthy",
+        source="""
+            from axm_vault import AuthDependencySpec, CredentialGroup
+
+
+            class ConnectedSource:
+                def status(self):
+                    return "connected"
+
+
+            def credentials():
+                return [
+                    CredentialGroup(
+                        id="provider-healthy",
+                        package="provider-healthy",
+                        title="Provider healthy",
+                        specs=(),
+                        auth_dependencies=(
+                            AuthDependencySpec(
+                                name="provider-healthy-tool",
+                                source=ConnectedSource(),
+                            ),
+                        ),
+                    ),
+                ]
+        """,
+    )
+
+    declarations = detect_module.load_auth_declarations()
+    status = detect_auth("provider-healthy-tool")
+
+    assert "provider-healthy-tool" in declarations
+    assert status.state == "logged_in"
+    assert status.declaration_consulted is True
 
 
 @pytest.mark.integration

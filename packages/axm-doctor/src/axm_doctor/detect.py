@@ -22,7 +22,7 @@ from queue import Empty, Queue
 from threading import Thread
 from typing import TYPE_CHECKING, Literal, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from axm_vault import AuthDependencySpec
@@ -77,6 +77,10 @@ class AuthStatus(BaseModel, frozen=True):  # type: ignore[explicit-any]
     tool: str
     state: AuthState
     login_cmd: str | None = None
+    declaration_consulted: bool = Field(
+        default=False,
+        description="a declaration was discovered and consulted to produce this state",
+    )
 
 
 def detect_tool(name: str) -> ToolStatus:
@@ -178,12 +182,17 @@ def detect_auth(tool: str) -> AuthStatus:
         return AuthStatus(
             tool=tool,
             state=_detect_declared_auth(declaration),
+            declaration_consulted=True,
         )
 
     state: AuthState = (
         "undetermined" if shutil.which(tool) is not None else "not_installed"
     )
-    return AuthStatus(tool=tool, state=state)
+    return AuthStatus(
+        tool=tool,
+        state=state,
+        declaration_consulted=False,
+    )
 
 
 def _probe_version(name: str) -> str | None:

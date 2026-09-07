@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import axm_doctor.detect as detect_module
-from axm_doctor.detect import detect_auth
+from axm_doctor.detect import detect_auth, detect_tool, load_auth_declarations
 
 pytestmark = pytest.mark.integration
 
@@ -87,11 +87,25 @@ def test_detector_module_holds_no_third_party_auth_literal() -> None:
     assert all(literal not in source for literal in _FORBIDDEN_AUTH_LITERALS)
 
 
-def test_undeclared_present_binary_is_undetermined() -> None:
+def test_undeclared_present_binary_is_undetermined(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """AC1: an undeclared binary on PATH has an undetermined auth state."""
-    status = detect_auth("sh")
+    tool = "axm-doctor-undeclared-auth-test"
+    executable = tmp_path / tool
+    executable.write_text("#!/bin/sh\nprintf '1.0\\n'\n", encoding="utf-8")
+    executable.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path))
 
+    declarations = load_auth_declarations()
+    tool_status = detect_tool(tool)
+    status = detect_auth(tool)
+
+    assert tool not in declarations
+    assert tool_status.state == "present"
     assert status.state == "undetermined"
+    assert status.declaration_consulted is False
 
 
 def test_declaration_alone_drives_all_three_auth_states(
