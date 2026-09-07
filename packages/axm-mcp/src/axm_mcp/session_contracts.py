@@ -2,14 +2,52 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from threading import Lock
+from typing import TypedDict, cast
 
 from axm.tools.write_scope import WriteContract
+from pydantic import TypeAdapter, ValidationError
 
-__all__ = ["SessionContractRegistry", "UnboundSessionError", "WriteContract"]
+__all__ = [
+    "SessionContractRegistry",
+    "UnboundSessionError",
+    "WriteContract",
+    "WriteContractHeaderError",
+    "parse_write_contract_header",
+]
 
 
 class UnboundSessionError(RuntimeError):
     """Raised when no write contract is bound to a session."""
+
+
+class _WriteContractPayload(TypedDict):
+    execution_root: str
+    allowed_prefixes: list[str]
+    markdown_only_prefixes: list[str]
+
+
+_WRITE_CONTRACT_ADAPTER = TypeAdapter(_WriteContractPayload)
+
+
+class WriteContractHeaderError(ValueError):
+    """Raised when the X-AXM-Write-Contract header cannot be decoded."""
+
+
+def parse_write_contract_header(raw: str) -> WriteContract:
+    """Decode and validate an X-AXM-Write-Contract header value."""
+    try:
+        payload = _WRITE_CONTRACT_ADAPTER.validate_json(raw)
+    except ValidationError as exc:
+        raise WriteContractHeaderError(
+            f"invalid X-AXM-Write-Contract header: {exc}"
+        ) from exc
+    return WriteContract(
+        execution_root=payload["execution_root"],
+        allowed_prefixes=cast("tuple[str, ...]", payload["allowed_prefixes"]),
+        markdown_only_prefixes=cast(
+            "tuple[str, ...]", payload["markdown_only_prefixes"]
+        ),
+    )
 
 
 class SessionContractRegistry:

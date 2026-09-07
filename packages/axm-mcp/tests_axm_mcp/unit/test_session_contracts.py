@@ -82,3 +82,53 @@ def test_purge_expired_evicts_old_and_keeps_fresh_binding() -> None:
     with pytest.raises(session_contracts.UnboundSessionError):
         registry.resolve("s-old")
     assert registry.resolve("s-new") is contract_b
+
+
+def test_parse_write_contract_header_binds_exact_decoded_contract() -> None:
+    """AC1: the three header fields survive decoding and registry binding."""
+    session_contracts = _session_contracts()
+    raw = json.dumps(
+        {
+            "execution_root": "/tmp/root",
+            "allowed_prefixes": ["/tmp/root/src"],
+            "markdown_only_prefixes": ["/tmp/root/docs"],
+        }
+    )
+
+    contract = session_contracts.parse_write_contract_header(raw)
+    registry = session_contracts.SessionContractRegistry(clock=lambda: 100.0)
+    registry.bind("s1", contract)
+
+    assert contract.execution_root == "/tmp/root"
+    assert contract.allowed_prefixes == ["/tmp/root/src"]
+    assert contract.markdown_only_prefixes == ["/tmp/root/docs"]
+    assert registry.resolve("s1") is contract
+
+
+def test_parse_write_contract_header_rejects_non_json_payload() -> None:
+    """AC2: invalid JSON raises the typed error naming the HTTP header."""
+    session_contracts = _session_contracts()
+
+    with pytest.raises(session_contracts.WriteContractHeaderError) as exc_info:
+        session_contracts.parse_write_contract_header("not-json")
+
+    assert "X-AXM-Write-Contract" in str(exc_info.value)
+
+
+def test_parse_write_contract_header_rejects_missing_execution_root() -> None:
+    """AC3: a missing execution_root raises without creating a binding."""
+    session_contracts = _session_contracts()
+    registry = session_contracts.SessionContractRegistry(clock=lambda: 100.0)
+    raw = json.dumps(
+        {
+            "allowed_prefixes": ["/tmp/root/src"],
+            "markdown_only_prefixes": [],
+        }
+    )
+
+    with pytest.raises(session_contracts.WriteContractHeaderError) as exc_info:
+        session_contracts.parse_write_contract_header(raw)
+
+    assert "execution_root" in str(exc_info.value)
+    with pytest.raises(session_contracts.UnboundSessionError):
+        registry.resolve("s1")
