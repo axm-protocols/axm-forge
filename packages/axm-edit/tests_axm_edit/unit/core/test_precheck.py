@@ -89,6 +89,25 @@ class TestCheckAnchorWholeLine:
 
         assert check_anchor_whole_line(0, "a.py", lines, "def f():\n    return 1") == []
 
+    def test_complete_line_with_trailing_newline_is_aligned(self) -> None:
+        """AC1: a complete line including its terminal newline is aligned."""
+        lines = ["alpha", "beta", "gamma", ""]
+
+        diagnostics = check_anchor_whole_line(0, "a.py", lines, "beta\n")
+
+        assert all(item.code != "ANCHOR_NOT_WHOLE_LINE" for item in diagnostics)
+
+    def test_complete_lines_through_final_newline_are_aligned(self) -> None:
+        """AC2: complete lines ending at the file's final newline are aligned."""
+        lines = ["alpha", "beta", "gamma", ""]
+
+        diagnostics = [
+            *check_anchor_whole_line(0, "a.py", lines, "beta\n"),
+            *check_anchor_whole_line(0, "a.py", lines, "beta\ngamma\n"),
+        ]
+
+        assert all(item.code != "ANCHOR_NOT_WHOLE_LINE" for item in diagnostics)
+
     def test_single_line_partial_anchor_is_never_flagged(self) -> None:
         """AC4: a mono-line anchor never yields ANCHOR_NOT_WHOLE_LINE."""
         lines = ["def f():", "    return 1", ""]
@@ -207,7 +226,7 @@ class TestAnchorDiagnosticsLocateTheirEdit:
             0,
             "a.py",
             lines,
-            "def f():\n",
+            "f():\n",
             edit_index=0,
         )
 

@@ -31,6 +31,56 @@ def _snapshot(root: Path) -> dict[str, str]:
     }
 
 
+def test_exact_form_feed_anchor_with_final_newline_is_accepted(
+    tmp_path: Path,
+) -> None:
+    """AC3: exact decoded text keeps form-feed and the final newline."""
+    _write(tmp_path, "exact.py", "alpha\x0cbeta\n")
+    _write(tmp_path, "control.py", "alpha\nbeta\ngamma\n")
+    raw_ops: list[dict[str, object]] = [
+        {
+            "op": "replace",
+            "file": "exact.py",
+            "edits": [{"old": "alpha\x0cbeta\n", "new": "changed\n"}],
+        },
+        {
+            "op": "replace",
+            "file": "control.py",
+            "edits": [{"old": "beta\n", "new": "changed\n"}],
+        },
+    ]
+
+    diagnostics = collect_preflight_diagnostics(tmp_path, raw_ops)
+
+    anchor_codes = {"ANCHOR_NOT_FOUND", "ANCHOR_NOT_WHOLE_LINE"}
+    assert all(item.code not in anchor_codes for item in diagnostics)
+
+
+def test_final_line_anchor_with_terminal_newline_is_accepted(
+    tmp_path: Path,
+) -> None:
+    """AC3: the final complete line remains aligned with its newline."""
+    _write(tmp_path, "final.py", "alpha\nbeta\n")
+    _write(tmp_path, "control.py", "alpha\nbeta\ngamma\n")
+    raw_ops: list[dict[str, object]] = [
+        {
+            "op": "replace",
+            "file": "final.py",
+            "edits": [{"old": "beta\n", "new": "changed\n"}],
+        },
+        {
+            "op": "replace",
+            "file": "control.py",
+            "edits": [{"old": "beta\n", "new": "changed\n"}],
+        },
+    ]
+
+    diagnostics = collect_preflight_diagnostics(tmp_path, raw_ops)
+
+    anchor_codes = {"ANCHOR_NOT_FOUND", "ANCHOR_NOT_WHOLE_LINE"}
+    assert all(item.code not in anchor_codes for item in diagnostics)
+
+
 def test_collect_preflight_diagnostics_merges_static_and_fs_diagnostics(
     tmp_path: Path,
 ) -> None:

@@ -206,7 +206,7 @@ def _falls_on_line_boundaries(text: str, start: int, needle: str) -> bool:
     """Whether ``needle`` at ``start`` spans whole lines of ``text``."""
     end = start + len(needle)
     starts_a_line = start == 0 or text[start - 1] == "\n"
-    ends_a_line = end == len(text) or text[end] == "\n"
+    ends_a_line = needle.endswith("\n") or end == len(text) or text[end] == "\n"
     return starts_a_line and ends_a_line
 
 

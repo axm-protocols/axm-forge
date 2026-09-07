@@ -78,6 +78,42 @@ def test_batch_edit_check_reports_zero_diagnostics_on_valid_operations(
 
 
 @pytest.mark.e2e
+def test_batch_edit_check_accepts_whole_line_with_terminal_newline(
+    tmp_path: Path,
+) -> None:
+    """AC4: the CLI accepts a complete-line anchor ending with a newline."""
+    target = tmp_path / "pkg" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+    operations = [
+        {
+            "op": "replace",
+            "file": "pkg/mod.py",
+            "edits": [{"old": "beta\n", "new": "delta\n"}],
+        }
+    ]
+
+    proc = subprocess.run(
+        [
+            str(_axm_binary()),
+            "batch_edit_check",
+            "--path",
+            str(tmp_path),
+            "--operations",
+            json.dumps(operations),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    assert "ANCHOR_NOT_WHOLE_LINE" not in combined
+    assert "blocking: no" in proc.stdout, combined
+
+
+@pytest.mark.e2e
 def test_batch_edit_check_prints_the_blocking_summary_line(tmp_path: Path) -> None:
     """AC4: a batch with an unknown edit key prints `blocking: yes`."""
     target = tmp_path / "pkg" / "mod.py"

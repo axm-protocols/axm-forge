@@ -393,7 +393,7 @@ def _read_contents(
             continue
         text = _read_text(root, op.file)
         if text is not None:
-            contents[op.file] = text.splitlines()
+            contents[op.file] = text.split("\n")
     return contents
 
 
