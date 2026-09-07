@@ -337,9 +337,7 @@ def test_text_roundtrip_mcp(mock_log: MagicMock) -> None:
     register_one(mcp, "text_tool", tool)
 
     async def _run() -> Any:
-        content_list, _raw = await mcp._tool_manager.call_tool(
-            "text_tool", {}, convert_result=True
-        )
+        content_list, _raw = await mcp.call_tool("text_tool", {})
         return content_list
 
     content_list = asyncio.run(_run())

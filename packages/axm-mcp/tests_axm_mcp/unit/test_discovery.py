@@ -13,6 +13,7 @@ Helper namespacing: the two divergent ``_make_ep`` helpers were renamed
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -289,8 +290,8 @@ class TestMCPRegistration:
         tools = discover_tools()
         register_tools(mcp, tools)
 
-        # The tool should be listed in mcp's tools
-        tool_names = [t.name for t in mcp._tool_manager._tools.values()]
+        # The tool should be listed in mcp's tools, read through the public API
+        tool_names = [t.name for t in asyncio.run(mcp.list_tools())]
         assert "test_register" in tool_names
 
 
