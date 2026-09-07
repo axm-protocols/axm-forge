@@ -91,13 +91,13 @@ sequenceDiagram
 | `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
 | `settings.py` | `resolve_serve_mode()` | Resolves the serving policy on each call with explicit CLI value → `AXM_MCP_SERVE_MODE` → `[mcp] serve_mode` in `~/.axm/config.toml` → `dedicated` precedence |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT`, `SharedModeNotArmedError` | Streamable HTTP transport — rejects unarmed shared mode before binding, then sets `wrapping._HTTP_MODE = True` and runs FastMCP on port 9427 (or `AXM_MCP_PORT`) |
-| `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
+| `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution against the same session, git repository, or file target |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `register_list_tools()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
 | `facade/catalog.py` | `ToolCatalog`, `UnknownToolError` | Searchable index over discovered tools — backs the four facade meta-tools (`search`/`describe`/`call`/`capabilities`, `hot_path()`) |
 | `facade/tools.py` | `register_facade()`, `FACADE_TOOLS` | Registers `axm_search` / `axm_describe` / `axm_call` / `axm_capabilities` against a `ToolCatalog` |
 | `web_fetch.py` | `fetch_page()`, `WebFetchTool` | Built-in `web_fetch` tool — anti-bot page fetching via Scrapling (modes: auto / basic / dynamic / stealth) |
 | `session_contracts.py` | `SessionContractRegistry`, `UnboundSessionError`, `WriteContract` | Thread-safe session-id → write-contract bindings, with explicit release and expiry |
-| `wrapping.py` | `build_wrappers()`, `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable, resolves its write perimeter at call time, and serializes `protocol_*` and `git_*` tools with async keyed locks |
+| `wrapping.py` | `build_wrappers()`, `log_external_step()`, `_session_lock`, `_git_lock`, `_write_lock` | Wraps each tool as a sync callable, resolves its write perimeter at call time, and serializes protocol, git, and file-mutation tools with async keyed locks |
 | `schema.py` | `signature_params()`, `apply_signature()`, `extract_docstring_params()` | Derives a tool's typed `__signature__` from its `execute()` (falling back to docstring params) so FastMCP and `ToolCatalog.describe` build the right schema |
 | `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
 | `verify_format.py` | `format_verify_text()` | Compact text rendering of a `verify_project` result |
@@ -143,12 +143,16 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
 - **Protocol sessions** are serialized per `session_id` via `KeyedLock`
 - **Git operations** are serialized per normalized `repo_path` via `KeyedLock`
   (`/repo` and `/repo/` resolve to the same key)
+- **File mutations** through `write_file` and `edit_file` are serialized per
+  normalized target path. `batch_edit` locks every `path` + `operations[].file`
+  target in sorted order, after normalization and deduplication, so overlapping
+  batches cannot deadlock while mutations of distinct files remain concurrent
 - **Lock timeout** — a `KeyedLock` acquire that exceeds its timeout is
   flattened into the AXM error envelope (`success=False`, "resource busy,
   retry") rather than propagating a raw `TimeoutError` to the MCP client
 - **Bounded memory** — `KeyedLock` reaps idle (unheld, unawaited) entries
   opportunistically on release via per-key refcounting, so its map does not
-  grow unbounded with session ids / repo paths over the server's lifetime
+  grow unbounded with session ids, repo paths, or file paths over the server's lifetime
 
 ## Service Lifecycle (macOS)
 

@@ -991,3 +991,71 @@ def test_single_client_without_contract_keeps_allow_reason() -> None:
     assert len(decisions) == 1
     assert decisions[0].allowed is True
     assert decisions[0].reason == "no write contract is in force"
+
+
+def _write_lock_keys(name: str, kwargs: dict[str, object]) -> tuple[str, ...]:
+    from axm_mcp import wrapping
+
+    selected = wrapping._select_lock(name, kwargs)
+    assert selected is not None
+    return tuple(selected[1])
+
+
+def test_write_and_edit_file_use_their_normalized_path_as_lock_key() -> None:
+    """AC1: write_file and edit_file lock on their non-empty normalized path."""
+    from axm_mcp import wrapping
+
+    path = "/tmp/axm/a.py"
+    expected = wrapping._normalize_lock_key(path)
+    assert expected is not None
+
+    for tool_name in ("write_file", "edit_file"):
+        keys = _write_lock_keys(tool_name, {"path": path})
+        assert keys == (expected,)
+        assert keys
+
+
+def test_equivalent_write_file_paths_share_one_lock_key() -> None:
+    """AC2: equivalent designations of one file collapse onto one lock key."""
+    first = _write_lock_keys(
+        "write_file",
+        {"path": "/tmp/axm/sub/../a.py"},
+    )
+    second = _write_lock_keys(
+        "write_file",
+        {"path": "/tmp/axm/a.py/"},
+    )
+
+    assert first == second
+
+
+def test_distinct_write_file_paths_have_distinct_lock_keys() -> None:
+    """AC3: distinct files retain distinct per-file lock keys."""
+    first = _write_lock_keys("write_file", {"path": "/tmp/axm/a.py"})
+    second = _write_lock_keys("write_file", {"path": "/tmp/axm/b.py"})
+
+    assert first != second
+
+
+def test_batch_edit_keys_each_operation_file_under_root() -> None:
+    """AC4: batch_edit yields sorted normalized keys for every operation file."""
+    from axm_mcp import wrapping
+
+    root = "/tmp/axm/repo"
+    keys = _write_lock_keys(
+        "batch_edit",
+        {
+            "path": root,
+            "operations": [
+                {"file": "b.py"},
+                {"file": "a.py"},
+            ],
+        },
+    )
+    expected = (
+        wrapping._normalize_lock_key(f"{root}/a.py"),
+        wrapping._normalize_lock_key(f"{root}/b.py"),
+    )
+
+    assert all(key is not None for key in expected)
+    assert keys == expected

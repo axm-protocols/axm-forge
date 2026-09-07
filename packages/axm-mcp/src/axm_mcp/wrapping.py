@@ -19,6 +19,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
@@ -305,13 +306,42 @@ def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
     return _wrapper
 
 
-def _select_lock(name: str) -> tuple[KeyedLock, str] | None:
+_write_lock = KeyedLock()
+
+
+def _select_lock(
+    name: str,
+    kwargs: dict[str, object],
+) -> tuple[KeyedLock, tuple[str, ...]] | None:
     """Return the ``(lock, key_param)`` for a tool, or ``None``."""
     if name.startswith("protocol_"):
-        return _session_lock, "session_id"
+        key = _normalize_lock_key(kwargs.get("session_id"))
+        return _session_lock, (key,) if key is not None else ()
     if name.startswith("git_"):
-        return _git_lock, "path"
-    return None
+        key = _normalize_lock_key(kwargs.get("path"))
+        return _git_lock, (key,) if key is not None else ()
+    if name in {"write_file", "edit_file"}:
+        key = _normalize_lock_key(kwargs.get("path"))
+        return _write_lock, (key,) if key is not None else ()
+    if name != "batch_edit":
+        return None
+
+    root = kwargs.get("path")
+    operations = kwargs.get("operations")
+    if not isinstance(root, str) or not isinstance(operations, list):
+        return _write_lock, ()
+
+    keys: set[str] = set()
+    for operation in cast("list[object]", operations):
+        if not isinstance(operation, dict):
+            continue
+        file = cast("dict[object, object]", operation).get("file")
+        if not isinstance(file, str):
+            continue
+        key = _normalize_lock_key(str(Path(root, file)))
+        if key is not None:
+            keys.add(key)
+    return _write_lock, tuple(sorted(keys))
 
 
 def _normalize_lock_key(key: object) -> str | None:
@@ -342,24 +372,32 @@ def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
     timeout (:data:`concurrency._DEFAULT_TIMEOUT`) is flattened into the AXM
     error envelope instead of propagating to FastMCP as a raw protocol error.
     """
-    selected = _select_lock(name)
 
     async def _async_wrapper(**kwargs: object) -> dict[str, object] | str:
         if not _HTTP_MODE:
             return wrapper(**kwargs)
-        key = _normalize_lock_key(kwargs.get(selected[1])) if selected else None
-        if selected is None or key is None:
+        selected = _select_lock(name, kwargs)
+        if selected is None or not selected[1]:
             return await asyncio.to_thread(wrapper, **kwargs)
-        lock = selected[0]
+        lock, keys = selected
+        waiting_key = keys[0]
         try:
-            async with lock(key):
+            async with AsyncExitStack() as stack:
+                for key in keys:
+                    waiting_key = key
+                    await stack.enter_async_context(lock(key))
                 return await asyncio.to_thread(wrapper, **kwargs)
         except TimeoutError as exc:
-            logger.warning("Tool %r timed out acquiring lock %r: %s", name, key, exc)
+            logger.warning(
+                "Tool %r timed out acquiring lock %r: %s",
+                name,
+                waiting_key,
+                exc,
+            )
             return {
                 "success": False,
                 "error": (
-                    f"{name}: resource {key!r} busy "
+                    f"{name}: resource {waiting_key!r} busy "
                     f"(lock timeout after {_DEFAULT_TIMEOUT}s); retry shortly"
                 ),
             }
