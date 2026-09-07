@@ -6,19 +6,37 @@ import importlib
 from pathlib import Path
 
 import pytest
+from axm_vault.catalog import load_catalog
 from axm_vault.doctor import doctor_data
 
 
 @pytest.mark.integration
-def test_default_probe_matches_the_live_vault_catalogue() -> None:
-    """AC4: the default probe returns exactly the live vault coordinates."""
+def test_default_probe_partitions_secrets_and_auth_dependencies() -> None:
+    """AC4: the probe reports the live secrets AND the declared auth deps.
+
+    Authentication dependencies are deliberately not secrets: ``doctor_data``
+    maps provisionable keyring coordinates only, while the probe additionally
+    reports every declared auth dependency. Asserting the two sets equal held
+    only while no auth dependency was declared; the partition below states the
+    real contract.
+    """
     credentials = importlib.import_module("axm_doctor.credentials")
 
     rows = credentials.collect_credential_provenance()
     live_provenance = doctor_data()
+    expected_auth = {
+        f"{group.id}.{dependency.name}"
+        for group in load_catalog().groups()
+        for dependency in group.auth_dependencies
+    }
 
-    assert {row.coordinate for row in rows} == set(live_provenance)
-    if not live_provenance:
+    secrets = {row.coordinate for row in rows if row.kind != "auth_dependency"}
+    auth = {row.coordinate for row in rows if row.kind == "auth_dependency"}
+
+    assert secrets == set(live_provenance)
+    assert auth == expected_auth
+    assert {row.coordinate for row in rows} == secrets | auth
+    if not live_provenance and not expected_auth:
         assert rows == []
 
 
