@@ -15,12 +15,15 @@ Imports from axm core are limited to ``axm.tools.base`` (shared types +
 
 from __future__ import annotations
 
+import json
 import os
 import time
+from collections.abc import Mapping
 from contextvars import ContextVar
 from typing import cast
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
 
 from axm_mcp.discovery import (
     ToolEntry,
@@ -54,16 +57,75 @@ _current_session_id = ContextVar[str | None]("axm_mcp_current_session_id", defau
 session_contract_registry = SessionContractRegistry(clock=time.monotonic)
 
 
+_WRITE_CONTRACT_HEADER = "X-AXM-Write-Contract"
+
+
+def _header_value(headers: Mapping[str, str], name: str) -> str | None:
+    folded_name = name.casefold()
+    return next(
+        (value for key, value in headers.items() if key.casefold() == folded_name),
+        None,
+    )
+
+
+def session_id_from_headers(headers: Mapping[str, str]) -> str:
+    """Return the MCP session identity carried by request headers."""
+    session_id = _header_value(headers, MCP_SESSION_ID_HEADER)
+    if session_id is None:
+        raise UnboundSessionError("no current MCP session identity")
+    return session_id
+
+
+def bind_session_from_headers(headers: Mapping[str, str]) -> None:
+    """Bind a declared write contract to its request session identity."""
+    from axm_mcp.session_contracts import parse_write_contract_header
+
+    session_id = session_id_from_headers(headers)
+    raw_contract = _header_value(headers, _WRITE_CONTRACT_HEADER)
+    if raw_contract is not None:
+        normalized = WriteContract.from_json(raw_contract)
+        normalized_header = json.dumps(
+            {
+                "execution_root": normalized.execution_root,
+                "allowed_prefixes": normalized.allowed_prefixes,
+                "markdown_only_prefixes": normalized.markdown_only_prefixes,
+            }
+        )
+        session_contract_registry.bind(
+            session_id,
+            parse_write_contract_header(normalized_header),
+        )
+
+
+def contract_for_session_id(session_id: str) -> WriteContract:
+    """Resolve the write contract attached to one MCP session identity."""
+    return session_contract_registry.resolve(session_id)
+
+
+def current_session_id() -> str:
+    """Return the identity of the in-flight MCP HTTP request."""
+    request = mcp.get_context().request_context.request
+    if request is None:
+        raise UnboundSessionError("no current MCP session identity")
+    return session_id_from_headers(request.headers)
+
+
 def _on_session_start(
     *,
-    registry: SessionContractRegistry,
-    session_id: str,
-    write_contract_json: str | None,
+    registry: SessionContractRegistry | None = None,
+    session_id: str | None = None,
+    write_contract_json: str | None = None,
 ) -> None:
     """Bind a declared write contract when an MCP session starts."""
-    _current_session_id.set(session_id)
-    if write_contract_json is not None:
-        registry.bind(session_id, WriteContract.from_json(write_contract_json))
+    if registry is not None and session_id is not None:
+        _current_session_id.set(session_id)
+        if write_contract_json is not None:
+            registry.bind(session_id, WriteContract.from_json(write_contract_json))
+        return
+    request = mcp.get_context().request_context.request
+    if request is None:
+        raise UnboundSessionError("no current MCP session identity")
+    bind_session_from_headers(request.headers)
 
 
 def _on_session_end(*, registry: SessionContractRegistry, session_id: str) -> None:
@@ -75,10 +137,7 @@ def _on_session_end(*, registry: SessionContractRegistry, session_id: str) -> No
 
 def _resolve_session_contract() -> WriteContract:
     """Resolve the contract belonging to the current MCP session."""
-    session_id = _current_session_id.get()
-    if session_id is None:
-        raise UnboundSessionError("no current MCP session identity")
-    return session_contract_registry.resolve(session_id)
+    return contract_for_session_id(current_session_id())
 
 
 _SHARED_MODE = os.environ.get("AXM_MCP_SHARED") == "1"

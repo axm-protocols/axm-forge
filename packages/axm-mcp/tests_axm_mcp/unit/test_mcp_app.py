@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 import pytest
 from axm.tools.base import ToolResult
+from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
 
 from axm_mcp import mcp_app
 from axm_mcp.session_contracts import SessionContractRegistry, UnboundSessionError
@@ -94,6 +95,62 @@ def test_session_end_releases_bound_perimeter() -> None:
 
     with pytest.raises(UnboundSessionError):
         registry.resolve("s-a")
+
+
+def test_headers_bind_contract_to_session_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: request headers bind the declared scope to their identity."""
+    registry = _session_registry()
+    monkeypatch.setattr(mcp_app, "session_contract_registry", registry)
+    headers = {
+        MCP_SESSION_ID_HEADER: "sess-a",
+        "X-AXM-Write-Contract": '{"execution_root": "/tmp/a"}',
+    }
+
+    mcp_app.bind_session_from_headers(headers)
+
+    contract = mcp_app.contract_for_session_id("sess-a")
+    assert contract.execution_root == os.path.realpath("/tmp/a")
+
+
+def test_session_identity_header_lookup_is_case_insensitive() -> None:
+    """AC1: session identity lookup accepts transport header casing."""
+    headers = {MCP_SESSION_ID_HEADER.swapcase(): "sess-a"}
+
+    assert mcp_app.session_id_from_headers(headers) == "sess-a"
+
+
+def test_contract_lookup_for_unbound_identity_names_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: an unbound-session error names the unresolved identity."""
+    registry = _session_registry()
+    monkeypatch.setattr(mcp_app, "session_contract_registry", registry)
+
+    with pytest.raises(UnboundSessionError) as exc_info:
+        mcp_app.contract_for_session_id("sess-ghost")
+
+    assert "sess-ghost" in str(exc_info.value)
+
+
+def test_header_binding_does_not_survive_session_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: session end releases the identity's header-bound contract."""
+    registry = _session_registry()
+    monkeypatch.setattr(mcp_app, "session_contract_registry", registry)
+    headers = {
+        MCP_SESSION_ID_HEADER: "sess-a",
+        "X-AXM-Write-Contract": '{"execution_root": "/tmp/a"}',
+    }
+    mcp_app.bind_session_from_headers(headers)
+    assert mcp_app.contract_for_session_id("sess-a").execution_root
+
+    mcp_app._on_session_end(registry=registry, session_id="sess-a")
+
+    with pytest.raises(UnboundSessionError):
+        mcp_app.contract_for_session_id("sess-a")
 
 
 class TestDecouplingShape:

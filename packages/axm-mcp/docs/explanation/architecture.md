@@ -52,7 +52,7 @@ graph LR
 
 ### Streamable HTTP (advanced)
 
-A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared.
+A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared, while write contracts remain isolated by the `mcp-session-id` carried by each request. A session that declares `X-AXM-Write-Contract` is bound to that decoded scope; a session without the header remains unbound.
 
 ```mermaid
 graph LR
@@ -73,7 +73,7 @@ sequenceDiagram
     participant FastMCP as FastMCP
     participant Tool as AXM Tool
 
-    Client->>Server: POST /mcp (tool call)
+    Client->>Server: POST /mcp + mcp-session-id + optional X-AXM-Write-Contract
     Server->>FastMCP: Route to registered tool
     FastMCP->>Tool: execute(**kwargs)
     Tool-->>FastMCP: ToolResult
@@ -87,7 +87,7 @@ sequenceDiagram
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `discovered_tools`, `session_contract_registry` | FastMCP server instance — discovers tools, registers them, binds declared write contracts on session start, and releases them on session end. The process entry points live in `cli.py` |
+| `mcp_app.py` | `mcp`, `session_id_from_headers()`, `bind_session_from_headers()`, `contract_for_session_id()` | FastMCP server instance — discovers tools, reads the in-flight HTTP session identity case-insensitively, binds its declared write contract on session start, resolves that same session at write time, and releases the binding on session end. The process entry points live in `cli.py` |
 | `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
 | `settings.py` | `resolve_serve_mode()` | Resolves the serving policy on each call with explicit CLI value → `AXM_MCP_SERVE_MODE` → `[mcp] serve_mode` in `~/.axm/config.toml` → `dedicated` precedence |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT`, `SharedModeNotArmedError` | Streamable HTTP transport — rejects unarmed shared mode before binding, then sets `wrapping._HTTP_MODE = True` and runs FastMCP on port 9427 (or `AXM_MCP_PORT`) |
@@ -135,7 +135,7 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
   path (`cli._stdio`) leaves it `False` — one process per conversation means
   no cross-session contention, and the tool runs inline
 - **Shared-mode startup guard** — the requested mode is resolved afresh for each `serve` invocation (explicit flag, environment, config file, then `dedicated`). `server.serve(shared=True, ...)` raises `SharedModeNotArmedError` before binding the transport unless a per-session resolver is installed. `axm-mcp serve --shared` — or an equivalent configured `shared` mode — is refused with exit code 1 where stdio cannot provide a session identity
-- **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. Session start binds only an explicitly declared perimeter; session end releases it. An undeclared or closed session remains unbound and is refused before the tool runs. The default single-client mode remains permissive when no write contract exists
+- **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. Session start reads `mcp-session-id` and binds only an explicitly declared `X-AXM-Write-Contract`; session end releases that identity's binding. Distinct identities therefore retain distinct scopes even when requests interleave. An undeclared, unknown, or closed identity raises `UnboundSessionError` naming that identity and is refused before the tool runs. The default single-client mode remains permissive when no write contract exists
 - **Never block the event loop** — in HTTP mode **every** tool's synchronous
   body is offloaded to a worker thread via `asyncio.to_thread`, so one slow
   call (a multi-minute `verify`) cannot freeze `/health`, keep-alives, or the
