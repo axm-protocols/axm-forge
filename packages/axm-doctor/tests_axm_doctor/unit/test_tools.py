@@ -9,7 +9,7 @@ import pytest
 from axm_doctor.credentials import CredentialProvenance
 from axm_doctor.detect import AuthStatus, GhConfigStatus, GitIdentityStatus, ToolStatus
 from axm_doctor.orchestrate import MissingSecret
-from axm_doctor.tools import AuthStatusTool, EnvDoctorTool
+from axm_doctor.tools import AuthStatusTool, EnvDoctorTool, _auth_map
 
 
 def test_env_doctor_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -92,12 +92,36 @@ def test_auth_status_no_token_in_result(monkeypatch: pytest.MonkeyPatch) -> None
     # The data is shaped as {tool: {state, login_cmd}} — never a token key.
     for entry in result.data["auth"].values():
         assert "token" not in entry
-        assert set(entry) <= {"state", "login_cmd"}
+        assert set(entry) <= {"state", "login_cmd", "declaration_consulted"}
 
 
 def test_auth_status_name() -> None:
     """AC2: AuthStatusTool advertises the auth_status identifier."""
     assert AuthStatusTool().name == "auth_status"
+
+
+def test_auth_map_carries_declaration_consulted_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: each auth row carries its detector's declaration-consulted flag."""
+    import axm_doctor.tools as tools_mod
+
+    monkeypatch.setattr(tools_mod, "THIRD_PARTY_AUTH", ("declared", "fallback"))
+    monkeypatch.setattr(
+        tools_mod,
+        "detect_auth",
+        lambda tool: AuthStatus(
+            tool=tool,
+            state="undetermined",
+            declaration_consulted=tool == "declared",
+        ),
+    )
+
+    auth = _auth_map()
+
+    assert auth["declared"]["declaration_consulted"] is True
+    assert auth["fallback"]["declaration_consulted"] is False
+    assert auth["declared"]["state"] == auth["fallback"]["state"]
 
 
 def test_env_doctor_exposes_config_key(monkeypatch: pytest.MonkeyPatch) -> None:

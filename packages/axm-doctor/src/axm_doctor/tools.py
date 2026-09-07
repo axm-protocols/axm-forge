@@ -39,10 +39,14 @@ PROBED_TOOLS: tuple[str, ...] = ("uv", "git", "gh", "node", "npm", "claude", "co
 THIRD_PARTY_AUTH: tuple[str, ...] = ("gh", "claude", "codex")
 
 
-def _auth_map() -> dict[str, dict[str, str | None]]:
+def _auth_map() -> dict[str, dict[str, str | bool | None]]:
     """Build the value-free ``{tool: {state, login_cmd}}`` auth report."""
     return {
-        tool: {"state": status.state, "login_cmd": status.login_cmd}
+        tool: {
+            "state": status.state,
+            "login_cmd": status.login_cmd,
+            "declaration_consulted": status.declaration_consulted,
+        }
         for tool in THIRD_PARTY_AUTH
         for status in (detect_auth(tool),)
     }
@@ -160,7 +164,9 @@ class AuthStatusTool:
         except Exception as exc:  # noqa: BLE001 # MCP boundary: any error -> failure
             return ToolResult(success=False, error=str(exc))
         auth_text = "\n".join(
-            f"- {tool}: {entry['state']}" for tool, entry in auth.items()
+            f"- {tool}: {entry['state']}"
+            f"{' [no declaration]' if not entry['declaration_consulted'] else ''}"
+            for tool, entry in auth.items()
         )
         return ToolResult(
             success=True,

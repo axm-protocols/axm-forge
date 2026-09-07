@@ -68,9 +68,11 @@ axm-doctor bootstrap   # interactive repair: installs absent tools / runs vault 
 ```
 
 The same read-only surface is exposed as the `env_doctor` and `auth_status`
-`axm.tools` (MCP + `axm <tool>` CLI + DAG node). `auth_status` keeps its
-value-free `{layer, present}` data contract while its text groups provenance by
-declared kind; it never serializes a token value.
+`axm.tools` (MCP + `axm <tool>` CLI + DAG node). In the per-tool auth map,
+`auth_status` publishes `{state, login_cmd, declaration_consulted}`; its text adds
+`[no declaration]` only when no discovered declaration covered that tool. The
+credential report keeps its value-free `{layer, present}` shape and groups
+provenance by declared kind; no token value is ever serialized.
 
 ## Installation
 
