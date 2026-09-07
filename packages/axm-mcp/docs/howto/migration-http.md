@@ -31,6 +31,11 @@ explicitly designed not to let one slow call stall the others:
 This holds whether a tool is called directly or through `axm_call` — both go
 through the same execution path.
 
+Here, “shared” describes one HTTP process serving several clients. It is not the
+`serve --shared` authorization flag: that flag requires a per-session identity
+and write-contract binding, so the current CLI refuses it instead of granting an
+undeclared default perimeter.
+
 ## Prerequisites
 
 - A recent `axm-mcp` with the `serve`/`status`/`stop` subcommands (run

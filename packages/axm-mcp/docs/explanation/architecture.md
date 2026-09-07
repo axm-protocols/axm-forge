@@ -87,14 +87,15 @@ sequenceDiagram
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `discovered_tools` | FastMCP server instance — discovers tools, registers them, and registers the `verify` meta-tool (`VerifyTool`). The process entry points live in `cli.py` |
+| `mcp_app.py` | `mcp`, `discovered_tools`, `session_contract_registry` | FastMCP server instance — discovers tools, registers them, binds declared write contracts on session start, and releases them on session end. The process entry points live in `cli.py` |
 | `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
-| `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT` | Streamable HTTP transport — sets `wrapping._HTTP_MODE = True` then runs the FastMCP instance over HTTP on port 9427 (or `AXM_MCP_PORT`) |
+| `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT`, `SharedModeNotArmedError` | Streamable HTTP transport — rejects unarmed shared mode before binding, then sets `wrapping._HTTP_MODE = True` and runs FastMCP on port 9427 (or `AXM_MCP_PORT`) |
 | `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `register_list_tools()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
 | `facade/catalog.py` | `ToolCatalog`, `UnknownToolError` | Searchable index over discovered tools — backs the four facade meta-tools (`search`/`describe`/`call`/`capabilities`, `hot_path()`) |
 | `facade/tools.py` | `register_facade()`, `FACADE_TOOLS` | Registers `axm_search` / `axm_describe` / `axm_call` / `axm_capabilities` against a `ToolCatalog` |
 | `web_fetch.py` | `fetch_page()`, `WebFetchTool` | Built-in `web_fetch` tool — anti-bot page fetching via Scrapling (modes: auto / basic / dynamic / stealth) |
+| `session_contracts.py` | `SessionContractRegistry`, `UnboundSessionError`, `WriteContract` | Thread-safe session-id → write-contract bindings, with explicit release and expiry |
 | `wrapping.py` | `build_wrappers()`, `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable, resolves its write perimeter at call time, and serializes `protocol_*` and `git_*` tools with async keyed locks |
 | `schema.py` | `signature_params()`, `apply_signature()`, `extract_docstring_params()` | Derives a tool's typed `__signature__` from its `execute()` (falling back to docstring params) so FastMCP and `ToolCatalog.describe` build the right schema |
 | `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
@@ -116,7 +117,7 @@ sequenceDiagram
 ## Tool Lifecycle
 
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
-2. **Registration** (facade, default): the `expose_directly` hot path is registered individually via `register_one()`, the built-ins (`verify`, `web_fetch`) are registered directly, and `register_facade()` registers the four facade meta-tools over a `ToolCatalog`. In legacy mode (`AXM_MCP_FACADE=0`), `register_tools()` registers **every** discovered tool individually instead.
+2. **Registration** (facade, default): the `expose_directly` hot path is registered individually via `register_one()`, the built-ins (`verify`, `web_fetch`) are registered directly, and `register_facade()` registers the four facade meta-tools over a `ToolCatalog`. In legacy mode (`AXM_MCP_FACADE=0`), `register_tools()` registers **every** discovered tool individually instead. When strict shared mode is armed, direct registration passes both `shared_mode=True` and the registry-backed per-session resolver to the wrappers.
 3. **Listing**: `register_list_tools()` registers `list_tools`, which always enumerates the **full** surface (so facade-only tools remain discoverable)
 4. **Execution**: MCP client calls a tool **directly or via `axm_call`** → both paths go through the *same* wrapper pair built by `wrapping.build_wrappers()` (there is a single execution path; `ToolCatalog` holds the same wrappers `register_one` registers). At each call, the wrapper resolves the current write contract before delegating to `tool.execute(**kwargs)`, so one long-lived wrapper set does not freeze a session's perimeter. On a **successful** `ToolResult` with `text` set, it returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting. So write-scope enforcement, tracing (1 call = 1 trace), exception flattening and the per-key lock are invariant regardless of which path reached the tool.
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
@@ -131,7 +132,8 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
   and the implicit-path warning in `_warn_implicit_path`. The stdio default
   path (`cli._stdio`) leaves it `False` — one process per conversation means
   no cross-session contention, and the tool runs inline
-- **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. An unbound session is refused before the tool runs and produces a warning; the default single-client mode remains permissive when no write contract exists
+- **Shared-mode startup guard** — `server.serve(shared=True, ...)` raises `SharedModeNotArmedError` before binding the transport unless a per-session resolver is installed. `axm-mcp serve --shared` is refused with exit code 1 where stdio cannot provide a session identity
+- **Per-call write scope** — `build_wrappers(shared_mode=True, ...)` resolves the emitting session's contract for every request. Session start binds only an explicitly declared perimeter; session end releases it. An undeclared or closed session remains unbound and is refused before the tool runs. The default single-client mode remains permissive when no write contract exists
 - **Never block the event loop** — in HTTP mode **every** tool's synchronous
   body is offloaded to a worker thread via `asyncio.to_thread`, so one slow
   call (a multi-minute `verify`) cannot freeze `/health`, keep-alives, or the

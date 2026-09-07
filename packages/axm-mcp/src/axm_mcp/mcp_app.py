@@ -16,6 +16,8 @@ Imports from axm core are limited to ``axm.tools.base`` (shared types +
 from __future__ import annotations
 
 import os
+import time
+from contextvars import ContextVar
 from typing import cast
 
 from mcp.server.fastmcp import FastMCP
@@ -29,6 +31,11 @@ from axm_mcp.discovery import (
 )
 from axm_mcp.facade import ToolCatalog
 from axm_mcp.facade.tools import FACADE_TOOLS, register_facade
+from axm_mcp.session_contracts import (
+    SessionContractRegistry,
+    UnboundSessionError,
+    WriteContract,
+)
 from axm_mcp.verify import VerifyTool
 from axm_mcp.web_fetch import WebFetchTool
 
@@ -43,6 +50,39 @@ def _facade_enabled() -> bool:
 
 
 # FastMCP server instance
+_current_session_id = ContextVar[str | None]("axm_mcp_current_session_id", default=None)
+session_contract_registry = SessionContractRegistry(clock=time.monotonic)
+
+
+def _on_session_start(
+    *,
+    registry: SessionContractRegistry,
+    session_id: str,
+    write_contract_json: str | None,
+) -> None:
+    """Bind a declared write contract when an MCP session starts."""
+    _current_session_id.set(session_id)
+    if write_contract_json is not None:
+        registry.bind(session_id, WriteContract.from_json(write_contract_json))
+
+
+def _on_session_end(*, registry: SessionContractRegistry, session_id: str) -> None:
+    """Release a session contract when its MCP session ends."""
+    registry.release(session_id)
+    if _current_session_id.get() == session_id:
+        _current_session_id.set(None)
+
+
+def _resolve_session_contract() -> WriteContract:
+    """Resolve the contract belonging to the current MCP session."""
+    session_id = _current_session_id.get()
+    if session_id is None:
+        raise UnboundSessionError("no current MCP session identity")
+    return session_contract_registry.resolve(session_id)
+
+
+_SHARED_MODE = os.environ.get("AXM_MCP_SHARED") == "1"
+
 mcp = FastMCP("axm-mcp")
 
 # Auto-discover and register tools from installed packages.
@@ -69,7 +109,15 @@ _EXTRA_TOOLS = {
 def _register_direct(tools: dict[str, ToolEntry]) -> None:
     """Register each tool in *tools* as an individual MCP tool."""
     for name, tool in tools.items():
-        register_one(mcp, name, tool)
+        register_one(
+            mcp,
+            name,
+            tool,
+            registration=(
+                _SHARED_MODE,
+                _resolve_session_contract if _SHARED_MODE else None,
+            ),
+        )
 
 
 if _facade_enabled():

@@ -70,6 +70,15 @@ class TestServeCallsMcpRun:
             assert mock_mcp.settings.port == 9999
 
 
+def test_shared_mode_requires_armed_session_resolver() -> None:
+    """AC1: shared mode fails before binding without a session resolver."""
+    with patch("axm_mcp.server.mcp") as mock_mcp:
+        with pytest.raises(server.SharedModeNotArmedError):
+            server.serve(shared=True)
+
+    mock_mcp.run.assert_not_called()
+
+
 class TestServeDefaultPort:
     """AC3: default port is 9427."""
 

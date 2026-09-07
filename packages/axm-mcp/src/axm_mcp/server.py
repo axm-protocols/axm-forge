@@ -8,7 +8,9 @@ conversations.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 
+from axm.tools.write_scope import WriteContract
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -20,6 +22,10 @@ __all__ = ["DEFAULT_PORT", "health_check", "serve"]
 
 _MIN_PORT = 1
 _MAX_PORT = 65535
+
+
+class SharedModeNotArmedError(RuntimeError):
+    """Raised when shared serving lacks a per-session contract resolver."""
 
 
 @mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
@@ -38,6 +44,9 @@ async def health_check(request: Request) -> JSONResponse:
 def serve(
     host: str = "127.0.0.1",
     port: int | None = None,
+    *,
+    shared: bool = False,
+    session_resolver: Callable[[], WriteContract | None] | None = None,
 ) -> None:
     """Start the MCP server with Streamable HTTP transport.
 
@@ -45,6 +54,11 @@ def serve(
         host: Bind address (default 127.0.0.1).
         port: Bind port. Falls back to AXM_MCP_PORT env var, then 9427.
     """
+    if shared and session_resolver is None:
+        raise SharedModeNotArmedError(
+            "shared mode requires an armed per-session contract resolver"
+        )
+
     if port is None:
         env_port = os.environ.get("AXM_MCP_PORT")
         port = int(env_port) if env_port else DEFAULT_PORT

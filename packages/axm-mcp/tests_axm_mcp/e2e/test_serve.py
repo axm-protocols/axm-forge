@@ -41,3 +41,23 @@ def test_serve(
     # The survivor's PID file is untouched -- still points at the first daemon.
     assert pid_file.read_text().strip() == str(first.pid)
     assert first.poll() is None
+
+
+@pytest.mark.e2e
+def test_shared_stdio_is_refused(
+    tmp_path: Path,
+    cli_binary: str,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC5: stdio cannot arm shared mode without a session identity."""
+    result = subprocess.run(  # noqa: S603
+        [cli_binary, "serve", "--shared"],
+        capture_output=True,
+        text=True,
+        env=sandbox_env(tmp_path),
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "shared mode" in result.stderr.lower()

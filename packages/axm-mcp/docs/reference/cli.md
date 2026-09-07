@@ -22,7 +22,7 @@ The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "
 | Command | Flags | Description |
 |---|---|---|
 | `axm-mcp` (no subcommand) | — | Run in **stdio** mode (backward-compatible default) |
-| `axm-mcp serve` | `--host` (default `127.0.0.1`), `--port` (default `9427`) | Start the **Streamable HTTP** server |
+| `axm-mcp serve` | `--host` (default `127.0.0.1`), `--port` (default `9427`), `--shared` | Start the **Streamable HTTP** server; `--shared` is rejected until a transport can supply per-session identity |
 | `axm-mcp status` | `--host`, `--port` | Query the running server's `/health` endpoint |
 | `axm-mcp stop` | — | Send `SIGTERM` to the running server (identity-verified) |
 | `axm-mcp install` | `--port`, `--binary <path>` | Install as a launchd service (macOS) |
@@ -34,6 +34,10 @@ Writes a **transactional** PID file (`~/.axm/mcp-server.pid`): it refuses to
 start when a live `axm-mcp` server already owns the file, and on exit only
 removes the file when it still holds this process's PID — so a failed start
 (e.g. a bind conflict) never deletes a healthy server's PID file.
+
+`--shared` requests strict per-session write contracts. The CLI refuses this
+flag with exit code 1 because its stdio-facing lifecycle has no session identity
+to arm the resolver; it never falls back to a process-wide default perimeter.
 
 #### `status`
 
@@ -54,7 +58,7 @@ the stale PID file is cleaned up.
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
+| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, refused `serve --shared` without session identity, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
 
 ### Environment Variables
 

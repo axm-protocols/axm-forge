@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 from collections.abc import Iterator
 from importlib import import_module
 from typing import Any
@@ -18,6 +19,7 @@ import pytest
 from axm.tools.base import ToolResult
 
 from axm_mcp import mcp_app
+from axm_mcp.session_contracts import SessionContractRegistry, UnboundSessionError
 
 
 class TestMCPServer:
@@ -46,6 +48,52 @@ class TestInitMain:
             with pytest.raises(SystemExit, match="0"):
                 axm_mcp.main()
             mock_mcp.run.assert_called_once()
+
+
+def _session_registry() -> SessionContractRegistry:
+    return SessionContractRegistry(clock=lambda: 0.0)
+
+
+def test_session_start_binds_declared_perimeter() -> None:
+    """AC2: the session-start hook binds its declared write perimeter."""
+    registry = _session_registry()
+
+    mcp_app._on_session_start(
+        registry=registry,
+        session_id="s-a",
+        write_contract_json='{"execution_root": "/tmp/a"}',
+    )
+
+    assert registry.resolve("s-a").execution_root == os.path.realpath("/tmp/a")
+
+
+def test_session_start_without_perimeter_stays_unbound() -> None:
+    """AC3: no perimeter declaration grants no default session contract."""
+    registry = _session_registry()
+
+    mcp_app._on_session_start(
+        registry=registry,
+        session_id="s-plain",
+        write_contract_json=None,
+    )
+
+    with pytest.raises(UnboundSessionError):
+        registry.resolve("s-plain")
+
+
+def test_session_end_releases_bound_perimeter() -> None:
+    """AC4: the session-end hook releases the closed session's contract."""
+    registry = _session_registry()
+    mcp_app._on_session_start(
+        registry=registry,
+        session_id="s-a",
+        write_contract_json='{"execution_root": "/tmp/a"}',
+    )
+
+    mcp_app._on_session_end(registry=registry, session_id="s-a")
+
+    with pytest.raises(UnboundSessionError):
+        registry.resolve("s-a")
 
 
 class TestDecouplingShape:

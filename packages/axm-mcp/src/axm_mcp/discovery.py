@@ -4,6 +4,7 @@ import fnmatch
 import importlib.metadata
 import logging
 import os
+from collections.abc import Callable
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
@@ -12,6 +13,7 @@ from axm_mcp.schema import (
     IntrospectableFn,
     apply_signature,
 )
+from axm_mcp.session_contracts import WriteContract
 from axm_mcp.wrapping import build_wrappers
 
 if TYPE_CHECKING:
@@ -28,6 +30,9 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 _EP_GROUP = "axm.tools"
+
+type _WriteContractResolver = Callable[[], WriteContract | None]
+type _RegistrationConfig = tuple[bool, _WriteContractResolver | None]
 
 
 def is_disabled(name: str, patterns: list[str]) -> bool:
@@ -123,6 +128,9 @@ def discover_tools() -> dict[str, ToolEntry]:
 def register_tools(  # type: ignore[explicit-any]
     mcp: FastMCP,
     tools: dict[str, ToolEntry],
+    *,
+    shared_mode: bool = False,
+    write_contract_resolver: _WriteContractResolver | None = None,
 ) -> None:
     """Register discovered tools as MCP tool callables.
 
@@ -134,7 +142,12 @@ def register_tools(  # type: ignore[explicit-any]
         tools: Dict from discover_tools().
     """
     for name, tool in tools.items():
-        register_one(mcp, name, tool)
+        register_one(
+            mcp,
+            name,
+            tool,
+            registration=(shared_mode, write_contract_resolver),
+        )
         logger.info("Registered MCP tool: %s", name)
 
 
@@ -144,6 +157,7 @@ def register_one(  # type: ignore[explicit-any]
     tool: ToolEntry,
     *,
     override_module: ModuleType | None = None,
+    registration: _RegistrationConfig | None = None,
 ) -> None:
     """Register a single tool, capturing in closure.
 
@@ -179,7 +193,16 @@ def register_one(  # type: ignore[explicit-any]
         else cast(IntrospectableFn, cast(ToolLike, tool).execute)
     )
     # Single construction seam — the same wrappers the facade path reuses.
-    _sync_wrapper, wrapper = build_wrappers(name, tool)
+    if registration is None:
+        _sync_wrapper, wrapper = build_wrappers(name, tool)
+    else:
+        shared_mode, write_contract_resolver = registration
+        _sync_wrapper, wrapper = build_wrappers(
+            name,
+            tool,
+            shared_mode=shared_mode,
+            write_contract_resolver=write_contract_resolver,
+        )
     apply_signature(wrapper, exec_fn, override_module)
 
     # Register AFTER setting the signature so FastMCP sees it.

@@ -5,7 +5,7 @@ from threading import Lock
 
 from axm.tools.write_scope import WriteContract
 
-__all__ = ["SessionContractRegistry", "UnboundSessionError"]
+__all__ = ["SessionContractRegistry", "UnboundSessionError", "WriteContract"]
 
 
 class UnboundSessionError(RuntimeError):

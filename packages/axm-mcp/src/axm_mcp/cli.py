@@ -114,6 +114,9 @@ def serve(
     *,
     host: Annotated[str, cyclopts.Parameter(help="Bind address.")] = "127.0.0.1",
     port: Annotated[int, cyclopts.Parameter(help="Bind port.")] = DEFAULT_PORT,
+    shared: Annotated[
+        bool, cyclopts.Parameter(help="Require per-session write contracts.")
+    ] = False,
 ) -> None:
     """Start the MCP server with Streamable HTTP transport.
 
@@ -123,6 +126,13 @@ def serve(
     removes the file when it still contains *our* PID — so a failed start does
     not delete the legitimate server's PID file.
     """
+    if shared:
+        print(  # noqa: T201
+            "Shared mode is unavailable on stdio because it has no session identity.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     from axm_mcp import server as _server
 
     existing = read_pid()
