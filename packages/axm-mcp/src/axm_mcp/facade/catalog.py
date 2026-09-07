@@ -21,10 +21,11 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import inspect
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
+from axm.tools.write_scope import WriteContract
 from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import TypeAdapter, ValidationError
 
@@ -169,16 +170,32 @@ class ToolCatalog:
     Args:
         tools: The ``discover_tools()`` mapping (name -> tool entry).  The
             catalog stores it by reference; it does not re-discover.
+        shared_mode: Arm per-session write-contract enforcement for every facade
+            wrapper when true.
+        write_contract_resolver: Resolve the emitting session's contract for each
+            facade call; dedicated mode keeps the environment-backed fallback.
     """
 
-    def __init__(self, tools: dict[str, ToolEntry]) -> None:
+    def __init__(
+        self,
+        tools: dict[str, ToolEntry],
+        *,
+        shared_mode: bool = False,
+        write_contract_resolver: Callable[[], WriteContract | None] | None = None,
+    ) -> None:
         self._entries = tools
         # Build the SAME wrapper pair the direct MCP path uses, so
         # ``axm_call`` runs through the identical lock/trace/flatten contract
         # (there is a single execution path). Built lazily-eager here so
         # discovery cost is paid once, at catalog construction.
         self._wrappers: dict[str, tuple[_SyncWrapper, _AnyWrapper]] = {
-            name: build_wrappers(name, tool) for name, tool in tools.items()
+            name: build_wrappers(
+                name,
+                tool,
+                shared_mode=shared_mode,
+                write_contract_resolver=write_contract_resolver,
+            )
+            for name, tool in tools.items()
         }
 
     # ── introspection ────────────────────────────────────────────────────

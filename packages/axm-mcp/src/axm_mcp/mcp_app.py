@@ -166,7 +166,7 @@ _EXTRA_TOOLS = {
 
 
 def _register_direct(tools: dict[str, ToolEntry]) -> None:
-    """Register each tool in *tools* as an individual MCP tool."""
+    """Register direct tools with the shared-mode resolver used by the facade."""
     for name, tool in tools.items():
         register_one(
             mcp,
@@ -184,7 +184,11 @@ if _facade_enabled():
     # built-ins — so ``axm_describe``/``axm_search`` see ``verify``/``web_fetch``
     # too (they are already exposed directly on the hot path, but the facade
     # must not claim they are "unknown"). Discovered tools win on name clash.
-    catalog = ToolCatalog({**_BUILTINS, **discovered_tools})
+    catalog = ToolCatalog(
+        {**_BUILTINS, **discovered_tools},
+        shared_mode=_SHARED_MODE,
+        write_contract_resolver=(_resolve_session_contract if _SHARED_MODE else None),
+    )
     # Hot path: tools that opt in via expose_directly, registered individually.
     _hot = {name: discovered_tools[name] for name in catalog.hot_path()}
     _register_direct(_hot)

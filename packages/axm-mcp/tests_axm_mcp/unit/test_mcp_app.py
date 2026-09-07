@@ -9,18 +9,27 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import os
 from collections.abc import Iterator
 from importlib import import_module
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 from axm.tools.base import ToolResult
+from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
 
 from axm_mcp import mcp_app
-from axm_mcp.session_contracts import SessionContractRegistry, UnboundSessionError
+from axm_mcp.discovery import ToolEntry
+from axm_mcp.facade.catalog import ToolCatalog
+from axm_mcp.facade.tools import register_facade
+from axm_mcp.session_contracts import (
+    SessionContractRegistry,
+    UnboundSessionError,
+    WriteContract,
+)
 
 
 class TestMCPServer:
@@ -200,6 +209,33 @@ class _ColdTool:
         return ToolResult(success=True, text="ok")
 
 
+class _WriteFileProbe:
+    def execute(self, *, path: str, file: str, content: str) -> ToolResult:
+        return ToolResult(success=True, text=f"wrote {path}/{file}: {content}")
+
+
+def _registered_text(server: FastMCP, tool: str, **arguments: object) -> str:
+    result = asyncio.run(server.call_tool(tool, arguments))
+    blocks = result[0] if isinstance(result, tuple) else result
+    return blocks[0].text if isinstance(blocks, list) else str(blocks)
+
+
+def _write_decision(rendered: str) -> tuple[bool, str]:
+    try:
+        payload = json.loads(rendered)
+    except json.JSONDecodeError:
+        fields = {
+            key: value
+            for line in rendered.splitlines()
+            if ": " in line
+            for key, value in [line.split(": ", 1)]
+        }
+        if "success" not in fields:
+            return True, rendered
+        return fields["success"].casefold() == "true", fields.get("error", "")
+    return bool(payload["success"]), str(payload.get("error", ""))
+
+
 class _FakeEP:
     def __init__(self, name: str, obj: object) -> None:
         self.name = name
@@ -235,6 +271,41 @@ def _exposed_names(monkeypatch: pytest.MonkeyPatch, facade: str) -> set[str]:
     with patch(_DISCOVER, _fake_entry_points):
         app = _reload_app()
     return {t.name for t in asyncio.run(app.mcp.list_tools())}
+
+
+def test_direct_and_facade_paths_return_the_same_write_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: direct and facade doors yield one identical refusal decision."""
+    registry = _session_registry()
+    registry.bind(
+        "sess-a",
+        WriteContract.from_mapping(
+            {"execution_root": "/scope_a", "allowed_prefixes": ["/scope_a"]}
+        ),
+    )
+    server = FastMCP("shared-parity")
+    probe = _WriteFileProbe()
+    tools = {"write_file": cast(ToolEntry, probe)}
+    monkeypatch.setattr(mcp_app, "mcp", server)
+    monkeypatch.setattr(mcp_app, "_SHARED_MODE", True)
+    monkeypatch.setattr(mcp_app, "session_contract_registry", registry)
+    monkeypatch.setattr(mcp_app, "current_session_id", lambda: "sess-a")
+    mcp_app._register_direct(tools)
+    catalog = ToolCatalog(
+        tools,
+        shared_mode=True,
+        write_contract_resolver=mcp_app._resolve_session_contract,
+    )
+    register_facade(server, catalog)
+    arguments = {"path": "/scope_b", "file": "x.txt", "content": "blocked"}
+
+    direct = _registered_text(server, "write_file", **arguments)
+    facade = _registered_text(
+        server, "axm_call", name="write_file", arguments=arguments
+    )
+
+    assert _write_decision(direct) == _write_decision(facade)
 
 
 def test_facade_mode_hides_cold_tool(

@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 from axm_mcp.discovery import ToolEntry
 from axm_mcp.facade.catalog import ToolCatalog
 from axm_mcp.facade.tools import FACADE_TOOLS, register_facade
+from axm_mcp.session_contracts import SessionContractRegistry, WriteContract
 
 
 class _EchoTool:
@@ -25,6 +26,15 @@ class _EchoTool:
     def execute(self, *, msg: str) -> ToolResult:
         """Echo a message back."""
         return ToolResult(success=True, data={"msg": msg}, text=f"echo: {msg}")
+
+
+class _WriteFileProbe:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def execute(self, *, path: str, file: str, content: str) -> ToolResult:
+        self.calls.append((path, file))
+        return ToolResult(success=True, text=content)
 
 
 def _catalog(**tools: object) -> ToolCatalog:
@@ -70,6 +80,36 @@ def test_four_tools_registered(server: FastMCP) -> None:
 def test_call_via_fastmcp_returns_text(server: FastMCP) -> None:
     text = _call_text(server, "axm_call", name="echo", arguments={"msg": "hi"})
     assert "echo: hi" in text
+
+
+def test_shared_facade_refuses_out_of_scope_path_without_executing_tool() -> None:
+    """AC1: facade dispatch enforces the emitting session's write contract."""
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    registry.bind(
+        "sess-a",
+        WriteContract.from_mapping(
+            {"execution_root": "/scope_a", "allowed_prefixes": ["/scope_a"]}
+        ),
+    )
+    probe = _WriteFileProbe()
+    catalog = ToolCatalog(
+        {"write_file": cast(ToolEntry, probe)},
+        shared_mode=True,
+        write_contract_resolver=lambda: registry.resolve("sess-a"),
+    )
+    facade_server = FastMCP("shared-facade")
+    register_facade(facade_server, catalog)
+
+    rendered = _call_text(
+        facade_server,
+        "axm_call",
+        name="write_file",
+        arguments={"path": "/scope_b", "file": "x.txt", "content": "blocked"},
+    )
+
+    assert "success: False" in rendered
+    assert "error:" in rendered and "/scope_b" in rendered
+    assert probe.calls == []
 
 
 def test_call_unknown_tool_returns_error(server: FastMCP) -> None:

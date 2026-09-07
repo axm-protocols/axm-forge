@@ -417,10 +417,11 @@ def build_wrappers(
 
     The single construction seam shared by the direct MCP registration path
     (:func:`axm_mcp.discovery.register_one`) and the facade path
-    (:class:`axm_mcp.facade.catalog.ToolCatalog`). Both invoke the *same*
-    wrappers, so kwarg-unwrapping, implicit-path warnings, tracing, exception
-    flattening and per-key locking are invariant regardless of whether a tool
-    is reached directly or via ``axm_call`` — there is one execution path.
+    (:class:`axm_mcp.facade.catalog.ToolCatalog`). Both callers pass the same
+    shared-mode flag and per-request write-contract resolver, so write-scope
+    enforcement cannot diverge between exposure routes. In dedicated mode,
+    omitting the resolver preserves the environment-backed fallback. The same
+    wrappers also keep kwarg unwrapping, tracing, flattening and locking aligned.
 
     Returns:
         ``(sync_wrapper, async_wrapper)`` where the sync wrapper carries the
