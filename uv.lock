@@ -884,6 +884,8 @@ web = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "axm-ast" },
+    { name = "axm-edit" },
     { name = "mypy" },
     { name = "prek" },
     { name = "pytest" },
@@ -940,6 +942,8 @@ provides-extras = ["all", "anvil", "ast", "audit", "bib", "edit", "forge", "git"
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "axm-ast", editable = "packages/axm-ast" },
+    { name = "axm-edit", editable = "packages/axm-edit" },
     { name = "mypy", specifier = ">=1.19" },
     { name = "prek", specifier = ">=0.4.9" },
     { name = "pytest", specifier = ">=9.0.3" },

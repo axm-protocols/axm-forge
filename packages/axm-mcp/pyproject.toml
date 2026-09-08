@@ -94,6 +94,14 @@ dev = [
     "prek>=0.4.9",
     "types-pyyaml>=6.0.12.20250915",
     "types-jsonschema>=4.26.0.20260202",
+    # test-only: the shared-mode e2e suite drives real write tools through the
+    # server (batch_edit from axm-edit) and the catalog test resolves ast_impact
+    # from axm-ast. Both are optional *runtime* extras, so a package-scoped run
+    # resolved neither and 5 tests failed on `Unknown tool` / KeyError. Declared
+    # here rather than promoted to runtime deps: the server must stay usable
+    # without them, they are only needed to exercise the tools it serves.
+    "axm-edit",
+    "axm-ast",
 ]
 docs = [
     "mkdocs-material>=9.0",
