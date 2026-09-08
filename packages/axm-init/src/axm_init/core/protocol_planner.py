@@ -71,6 +71,7 @@ def _render_contract(declaration: ContractDecl) -> str:
     return (
         f"{_python_header()}\n"
         "from pydantic import BaseModel\n\n"
+        f'__all__ = ["{declaration.model_name}"]\n\n'
         f"{_SKELETON_MARKER}\n"
         f"class {declaration.model_name}(BaseModel):\n"
         '    """Incomplete generated protocol contract."""\n\n'
@@ -79,26 +80,28 @@ def _render_contract(declaration: ContractDecl) -> str:
 
 
 def _render_prompt(declaration: PromptDecl) -> str:
-    return f"{_python_header()}\n{_SKELETON_MARKER}\nPROMPT = {declaration.text!r}\n"
+    return f"{_SKELETON_MARKER}\n\n{declaration.text}\n"
 
 
 def _render_node(declaration: NodeDecl) -> str:
     return (
         f"{_python_header()}\n"
+        f'__all__ = ["{declaration.factory_name}"]\n\n'
         f"{_SKELETON_MARKER}\n"
         f"def {declaration.factory_name}() -> None:\n"
         '    """Raise until the generated node is implemented."""\n'
-        f'    raise NotImplementedError("node {declaration.name} is incomplete")\n'
+        '    raise NotImplementedError("Scaffold: implementation required")\n'
     )
 
 
 def _render_phase(declaration: PhaseDecl) -> str:
     return (
         f"{_python_header()}\n"
+        f'__all__ = ["{declaration.factory_name}"]\n\n'
         f"{_SKELETON_MARKER}\n"
         f"def {declaration.factory_name}() -> None:\n"
         '    """Raise until the generated phase is implemented."""\n'
-        f'    raise NotImplementedError("phase {declaration.name} is incomplete")\n'
+        '    raise NotImplementedError("Scaffold: implementation required")\n'
     )
 
 
@@ -170,7 +173,7 @@ def _prompt_files(
 ) -> list[_PlannedFile]:
     return [
         _PlannedFile(
-            PurePosixPath(f"{action_root}/prompts/{prompt.name}.py"),
+            PurePosixPath(f"{action_root}/prompts/{prompt.name}.md"),
             partial(_render_prompt, prompt),
         )
         for prompt in declaration.prompts
@@ -208,7 +211,7 @@ def _planned_files(declaration: ProtocolScaffoldDecl) -> tuple[_PlannedFile, ...
         ticket = declaration.ticket
         files.append(
             _PlannedFile(
-                PurePosixPath(f"{unit_root}/ticket.py"),
+                PurePosixPath(f"{action_root}/ticket.py"),
                 lambda: _render_ticket(ticket),
             )
         )

@@ -99,12 +99,12 @@ def _expected_paths(*, ticket: bool = True) -> list[str]:
         "src/protocols_dev/work/exec/phases/build.py",
         "src/protocols_dev/work/exec/phases/close.py",
         "src/protocols_dev/work/exec/prompts/__init__.py",
-        "src/protocols_dev/work/exec/prompts/instructions.py",
-        "src/protocols_dev/work/exec/prompts/review.py",
+        "src/protocols_dev/work/exec/prompts/instructions.md",
+        "src/protocols_dev/work/exec/prompts/review.md",
         "src/protocols_dev/work/exec/protocol.py",
     ]
     if ticket:
-        paths.append("src/protocols_dev/work/ticket.py")
+        paths.append("src/protocols_dev/work/exec/ticket.py")
     return sorted(paths)
 
 
@@ -177,7 +177,7 @@ def test_reports_incompatible_occupied_path_as_conflict(
     assert sum(_path(candidate) == occupied_path for candidate in plan.operations) == 1
 
 
-def test_renders_only_inert_declaration_backed_skeletons(
+def test_renders_inert_and_detectable_protocol_skeletons(
     declaration: ProtocolScaffoldDecl,
 ) -> None:
     """AC4: render marked, inert skeletons and draft-only metadata."""
@@ -188,26 +188,36 @@ def test_renders_only_inert_declaration_backed_skeletons(
         content = operations[
             f"src/protocols_dev/work/exec/nodes/{component}.py"
         ].content
-        assert "raise NotImplementedError" in content
+        assert f'__all__ = ["build_{component}"]' in content
+        assert (
+            'raise NotImplementedError("Scaffold: implementation required")' in content
+        )
 
     for component in ("build", "close"):
         content = operations[
             f"src/protocols_dev/work/exec/phases/{component}.py"
         ].content
-        assert "raise NotImplementedError" in content
+        assert f'__all__ = ["build_{component}"]' in content
+        assert (
+            'raise NotImplementedError("Scaffold: implementation required")' in content
+        )
 
     for component in ("request", "result"):
         content = operations[
             f"src/protocols_dev/work/exec/contracts/{component}.py"
         ].content
         assert SKELETON_MARKER in content
+        model_name = component.title()
+        assert f'__all__ = ["{model_name}"]' in content
+        assert f"class {model_name}(BaseModel):" in content
+        assert "Incomplete generated protocol contract." in content
 
     for component, prompt_text in (
         ("instructions", "Perform only the declared work."),
         ("review", "Review the declared result."),
     ):
         content = operations[
-            f"src/protocols_dev/work/exec/prompts/{component}.py"
+            f"src/protocols_dev/work/exec/prompts/{component}.md"
         ].content
         assert SKELETON_MARKER in content
         assert prompt_text in content
@@ -257,3 +267,38 @@ def test_classifies_owned_incomplete_skeleton_as_update(
     assert SKELETON_MARKER in operation.content
     assert "Request" in operation.content
     assert sum(_path(candidate) == target for candidate in plan.operations) == 1
+
+
+def test_plans_prompts_as_markdown_resources(
+    declaration: ProtocolScaffoldDecl,
+) -> None:
+    """AC2: plan prompts as Markdown, never as Python prompt modules."""
+    plan = _plan(declaration)
+    prompt_paths = [
+        _path(operation)
+        for operation in plan.operations
+        if "/prompts/" in _path(operation)
+    ]
+
+    assert "src/protocols_dev/work/exec/prompts/instructions.md" in prompt_paths
+    assert "src/protocols_dev/work/exec/prompts/review.md" in prompt_paths
+    assert all(
+        path.endswith(".md") or path.endswith("/__init__.py") for path in prompt_paths
+    )
+
+
+def test_plans_one_ticket_declaration_per_ticket_bearing_protocol(
+    declaration: ProtocolScaffoldDecl,
+) -> None:
+    """AC3: keep each ticket declaration beside its protocol assembly."""
+    review_declaration = declaration.model_copy(update={"action": "review"})
+    paths = {
+        *(_path(operation) for operation in _plan(declaration).operations),
+        *(_path(operation) for operation in _plan(review_declaration).operations),
+    }
+
+    assert "src/protocols_dev/work/exec/protocol.py" in paths
+    assert "src/protocols_dev/work/exec/ticket.py" in paths
+    assert "src/protocols_dev/work/review/protocol.py" in paths
+    assert "src/protocols_dev/work/review/ticket.py" in paths
+    assert "src/protocols_dev/work/ticket.py" not in paths
