@@ -74,16 +74,9 @@ def test_versioned_quality_command_roles_use_unified_structured_invocation() -> 
         f"quality-command roles without an auditable invocation: {missing_roles}"
     )
 
-    # Scaffold templates run in a THIRD-PARTY project through `uvx`, which
-    # installs from PyPI — not from this checkout. The published axm-audit
-    # still ships its dedicated facade, and published `axm` treats
-    # `--json-output` as value-taking, so the unified form fails there
-    # (measured: `parameter --json-output requires an argument`). They must
-    # migrate WITH the release that drops those facades, not before.
     violations = [
         f"{path.relative_to(root)}: {line}"
-        for role, commands in invocations.items()
-        if role != "scaffold workflow templates"
+        for commands in invocations.values()
         for path, line in commands
         if not _UNIFIED_COMMAND.search(line) or "--json-output" not in line
     ]
@@ -98,13 +91,15 @@ def test_scaffold_templates_keep_a_form_the_published_package_exposes() -> None:
 
     Templates run through ``uvx`` inside a project that does not have this
     checkout, so they resolve from PyPI — not from the local sources. The
-    published ``axm-audit`` still ships its dedicated facade, and published
-    ``axm`` treats ``--json-output`` as value-taking (measured: ``parameter
-    --json-output requires an argument``). Migrating the templates ahead of
-    the release therefore breaks the CI of every newly scaffolded project.
+    published ``axm-audit`` (0.12.0) and ``axm-init`` (0.15.0) dropped their
+    dedicated facades, so the retired form now exits 1 with EMPTY stdout and
+    the ``jq '.score'`` downstream of it reads nothing (measured 2026-09-08
+    against the published wheels). The unified form returns the JSON payload
+    on stdout for both tools.
 
     This pins the templates to the *published* contract rather than to the
-    local one; the release that drops the facade must flip both together.
+    local one, and it is the exact inverse of what it asserted before the
+    facades were released — the two flip together, by construction.
     """
     root = Path(__file__).resolve().parents[4]
     template_lines = [
@@ -112,8 +107,12 @@ def test_scaffold_templates_keep_a_form_the_published_package_exposes() -> None:
     ]
     assert template_lines, "no auditable invocation in the scaffold templates"
 
-    premature = [line for line in template_lines if "--json-output" in line]
-    assert not premature, (
-        "scaffold templates use --json-output, which the published axm rejects "
-        f"as value-taking; they must migrate with the release, not before: {premature}"
+    retired = [
+        line
+        for line in template_lines
+        if not _UNIFIED_COMMAND.search(line) or "--json-output" not in line
+    ]
+    assert not retired, (
+        "scaffold templates use a facade the published packages no longer "
+        f"expose; it exits 1 with empty stdout and the badge reads nothing: {retired}"
     )
