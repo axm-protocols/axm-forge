@@ -26,6 +26,7 @@ dependencies = [
     "axm",
     "axm-ingot",
     "axm-vault",
+    "tomlkit>=0.13.3",
 ]
 
 [project.urls]
