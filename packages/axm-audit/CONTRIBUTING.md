@@ -24,7 +24,7 @@ All contributions must pass the quality gate:
 uv run ruff check src/ tests/   # lint
 uv run ruff format src/ tests/  # format
 uv run mypy src/ tests/         # type check
-uv run axm-audit audit .        # full audit (score ≥ 90 to pass)
+uv run axm audit .              # full audit (score ≥ 90 to pass)
 ```
 
 ## Code Conventions
@@ -65,7 +65,7 @@ Documentation lives in `docs/` and follows the [Diátaxis](https://diataxis.fr) 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Commit changes following convention
-4. Ensure `uv run axm-audit audit .` passes (Grade A or B)
+4. Ensure `uv run axm audit .` passes (Grade A or B)
 5. Push and create a PR
 
 ## Reporting Issues

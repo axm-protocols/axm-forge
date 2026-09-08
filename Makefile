@@ -82,7 +82,7 @@ axm-audit:  ## Run axm-audit on each package
 axm-init:  ## Run axm-init check on each package
 	@for pkg in axm-anvil axm-ast axm-audit axm-edit axm-init axm-git axm-smelt; do \
 		echo "\n🏗️ Checking $$pkg..."; \
-		uv run --package axm-init axm-init check packages/$$pkg --json || exit 1; \
+		uv run --package axm-init axm init_check packages/$$pkg --json-output || exit 1; \
 	done
 
 quality: axm-audit axm-init  ## Full AXM quality gate (pre-push)
