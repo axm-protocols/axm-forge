@@ -224,7 +224,7 @@ def _nonscalar_names(params: list[inspect.Parameter]) -> frozenset[str]:
     return frozenset(p.name for p in params if is_nonscalar(p.annotation))
 
 
-def _emit(result: Any) -> None:
+def _emit(result: Any, *, json_output: bool = False) -> None:
     """Render a ToolResult-like without ever swallowing a failure's ``error``.
 
     The raw-token fallback applies only to text-tolerant parameters; a purely
@@ -245,6 +245,11 @@ def _emit(result: Any) -> None:
     error = getattr(result, "error", None)
     if success is False and isinstance(error, str) and error:
         sys.stderr.write(error + "\n")
+    if json_output:
+        data = getattr(result, "data", None)
+        mapping = data if isinstance(data, dict) else {}
+        sys.stdout.write(json.dumps(mapping, indent=2, default=str) + "\n")
+        return
     text = getattr(result, "text", None)
     if isinstance(text, str):
         sys.stdout.write(text + "\n")
@@ -277,6 +282,21 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
     json_params = _nonscalar_names(params)
     text_params = _text_tolerant_names(params)
     cli_params = [cli_param(p) for p in params]
+    tool_param_names = [p.name for p in cli_params]
+    has_local_json_output = "json_output" in tool_param_names
+    shared_cli_params = (
+        []
+        if has_local_json_output
+        else [
+            inspect.Parameter(
+                "json_output",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=bool,
+                default=False,
+            )
+        ]
+    )
+    cli_params.extend(shared_cli_params)
     ordered_names = [p.name for p in cli_params]
 
     def _command(*args: Any, **kwargs: Any) -> None:
@@ -295,12 +315,15 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
                         continue
                     sys.stderr.write(f"{key}: invalid JSON: {exc}\n")
                     raise SystemExit(2) from exc
+        shared_json_output = (
+            False if has_local_json_output else bool(kwargs.pop("json_output", False))
+        )
         try:
             result = exec_fn(**kwargs)
         except Exception as exc:  # surface any tool error on stderr
             sys.stderr.write(f"{exc}\n")
             raise SystemExit(1) from exc
-        _emit(result)
+        _emit(result, json_output=shared_json_output)
         if getattr(result, "success", True) is False:
             raise SystemExit(1)
 

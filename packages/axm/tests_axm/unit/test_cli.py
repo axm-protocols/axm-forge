@@ -48,6 +48,28 @@ class _AuditTool:
         return ToolResult(success=True, data={"score": 90}, text=f"audit {path}: 90")
 
 
+class _LocalJsonOutputTool:
+    """Model the output contract shared by the three tools with a local flag."""
+
+    label = ""
+
+    def execute(self, *, path: str = ".", json_output: bool = False) -> ToolResult:
+        mode = "json" if json_output else "human"
+        return ToolResult(success=True, text=f"{self.label}:{mode}")
+
+
+class _ScaffoldLocalJsonTool(_LocalJsonOutputTool):
+    label = "scaffold"
+
+
+class _ReserveLocalJsonTool(_LocalJsonOutputTool):
+    label = "reserve"
+
+
+class _CheckLocalJsonTool(_LocalJsonOutputTool):
+    label = "check"
+
+
 class _BatchTool:
     """Tool with a non-scalar (list) parameter."""
 
@@ -283,7 +305,7 @@ class TestBuildCommand:
     def test_signature_mirrors_tool(self) -> None:
         cmd = build_command_for_tool("audit", _AuditTool())
         names = list(cmd.__signature__.parameters)
-        assert names == ["path", "category"]
+        assert names == ["path", "category", "json_output"]
 
     def test_signature_params_are_positional_or_keyword(self) -> None:
         """Keyword-only tool params relax to POSITIONAL_OR_KEYWORD for ``axm t .``."""
@@ -295,6 +317,31 @@ class TestBuildCommand:
         cmd = build_command_for_tool("audit", _AuditTool())
         cmd(path="/x", category=None)
         assert "audit /x: 90" in capsys.readouterr().out
+
+    def test_shared_structured_mode_preserves_default_and_local_output_modes(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """AC1: shared JSON is additive and local JSON flags keep their contract."""
+        audit = build_command_for_tool("audit", _AuditTool())
+
+        audit(path="/x", category=None)
+        assert capsys.readouterr().out.strip() == "audit /x: 90"
+
+        audit(path="/x", category=None, json_output=True)
+        assert json.loads(capsys.readouterr().out) == {"score": 90}
+
+        local_tools = (
+            ("scaffold", _ScaffoldLocalJsonTool()),
+            ("reserve", _ReserveLocalJsonTool()),
+            ("check", _CheckLocalJsonTool()),
+        )
+        for name, tool in local_tools:
+            command = build_command_for_tool(name, tool)
+            assert list(command.__signature__.parameters).count("json_output") == 1
+            command(path="/x", json_output=False)
+            assert capsys.readouterr().out.strip() == f"{name}:human"
+            command(path="/x", json_output=True)
+            assert capsys.readouterr().out.strip() == f"{name}:json"
 
     def test_positional_args_bind_to_params(
         self, capsys: pytest.CaptureFixture[str]

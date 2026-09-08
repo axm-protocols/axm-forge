@@ -28,11 +28,13 @@ Commands depend on which AXM packages are installed:
 
 ## Non-scalar parameters
 
-Each tool's CLI signature mirrors its `execute` signature exactly, including the
-`Annotated[..., cyclopts.Parameter(...)]` convention. Purely structured
-parameters (`list` / `dict` / `tuple` / `set` / pydantic models) are passed as a
-single JSON string and decoded before the call. This also applies when the
-annotation is wrapped in `Optional` / `X | None` or `Annotated[...]`:
+Each tool's CLI signature is derived from its `execute` signature, including the
+`Annotated[..., cyclopts.Parameter(...)]` convention. The wrapper also adds the
+shared `--json-output` option when the tool does not already declare a local
+`json_output` parameter. Purely structured parameters (`list` / `dict` / `tuple`
+/ `set` / pydantic models) are passed as a single JSON string and decoded before
+the call. This also applies when the annotation is wrapped in `Optional` /
+`X | None` or `Annotated[...]`:
 
 ```bash
 axm batch_edit --path . --operations '[{"op": "replace", "file": "x.py"}]'
@@ -45,8 +47,21 @@ text, preserving Unicode and consecutive spaces. Consequently, text that is
 itself valid JSON (`null`, `123`, or a quoted string) is decoded rather than
 preserved literally.
 
-This keeps the tool signature and the CLI signature identical without CLI-only
-flags. Invalid JSON still exits with code `2` for purely structured parameters.
+Invalid JSON still exits with code `2` for purely structured parameters.
+
+## Output modes
+
+By default, generated tool commands write the human-readable `ToolResult.text`
+to standard output. Pass `--json-output` to write the structured
+`ToolResult.data` mapping as valid JSON instead:
+
+```bash
+axm audit . --json-output
+```
+
+Diagnostics remain on standard error and do not contaminate JSON output. If a
+tool already defines its own `json_output` parameter, the wrapper does not add
+or intercept another one: that tool keeps its existing flag and output contract.
 
 Tool `execute` parameters are keyword-only by convention, but the CLI relaxes
 them so **both** the positional form `axm audit .` and the keyword form

@@ -8,6 +8,7 @@ preferred, falling back to ``python -m axm.cli`` when no script is on PATH.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -147,3 +148,19 @@ def test_axm_version_prints_version() -> None:
     printed = proc.stdout.strip()
     assert _SEMVER.match(printed)
     assert printed == __version__
+
+
+def test_audit_structured_output_matches_direct_tool_result() -> None:
+    """AC2: unified audit JSON preserves the tool contract's score fields."""
+    package_root = Path(__file__).parents[2]
+    audit_ep = next(ep for ep in entry_points(group="axm.tools") if ep.name == "audit")
+    loaded = audit_ep.load()
+    audit_tool = loaded() if isinstance(loaded, type) else loaded
+    direct = audit_tool.execute(path=str(package_root), category="lint")
+
+    proc = _run("audit", str(package_root), "--category", "lint", "--json-output")
+
+    assert proc.returncode == 0, proc.stderr
+    rendered = json.loads(proc.stdout)
+    for key in ("score", "grade", "passed", "failed"):
+        assert rendered[key] == direct.data[key]
