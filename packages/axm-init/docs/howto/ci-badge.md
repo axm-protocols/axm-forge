@@ -110,7 +110,8 @@ jobs:
 ```
 
 !!! note "uvx vs uv run"
-    Use `uvx axm-init` for external projects (installs from PyPI).
+    Use `uvx --from axm-init axm` for external projects (installs from PyPI).
+    Within the axm-init repo itself, use `uv run axm` (local library).
 
 ### Logo handling
 
