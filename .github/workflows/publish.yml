@@ -22,6 +22,11 @@ jobs:
       package-dir: ${{ steps.detect.outputs.package-dir }}
       publishable: ${{ steps.detect.outputs.publishable }}
     steps:
+      # The detection reads the repository: it checks that the tag prefix has a
+      # package directory, and reads that package's classifiers to decide where
+      # it may be published. Without a checkout the working directory is empty
+      # and every tag is rejected.
+      - uses: actions/checkout@v7
       - id: detect
         run: |
           TAG="${GITHUB_REF#refs/tags/}"

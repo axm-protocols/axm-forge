@@ -22,6 +22,8 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           PREFIX="${TAG%%/*}"
           DIR="packages/$PREFIX"
+          # This job checks out the repository before detecting, so the
+          # package directory is readable here.
           if [ ! -f "$DIR/pyproject.toml" ]; then
             echo "::error::No package for tag prefix '$PREFIX' (expected $DIR/pyproject.toml)"
             exit 1
