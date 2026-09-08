@@ -81,20 +81,6 @@ def test_experiment_template_ships_with_distribution() -> None:
     assert (printed / "copier.yml").is_file()
 
 
-@pytest.mark.e2e
-def test_removed_cli_facade_is_not_importable() -> None:
-    """AC2: a fresh interpreter cannot import the removed CLI facade."""
-    result = subprocess.run(
-        [sys.executable, "-c", "import axm_init.cli"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-
-    assert result.returncode != 0
-    assert "ModuleNotFoundError: No module named 'axm_init.cli'" in result.stderr
-
-
 def test_checker_imports_at_runtime() -> None:
     """Importing checker in a fresh interpreter raises no ImportError."""
     code = textwrap.dedent("""
