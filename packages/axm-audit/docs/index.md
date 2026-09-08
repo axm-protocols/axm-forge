@@ -37,7 +37,7 @@ Two further categories — **Structure** (`pyproject.toml` completeness, test-py
 ## Quick Example
 
 ```bash
-axm audit .
+axm audit . --json-output
 ```
 
 ```python

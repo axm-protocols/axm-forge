@@ -76,7 +76,7 @@ test: test-all  ## Run all workspace tests (alias)
 axm-audit:  ## Run axm-audit on each package
 	@for pkg in axm-anvil axm-ast axm-audit axm-edit axm-init axm-git axm-smelt; do \
 		echo "\n🔍 Auditing $$pkg..."; \
-		uv run --package axm-audit axm-audit audit packages/$$pkg --json || exit 1; \
+		uv run --package axm-audit axm audit packages/$$pkg --json-output || exit 1; \
 	done
 
 axm-init:  ## Run axm-init check on each package

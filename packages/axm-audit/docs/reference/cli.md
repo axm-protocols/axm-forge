@@ -11,7 +11,7 @@ tool's `execute()` signature; there is no package-specific CLI facade.
 Audit a project's code quality against the AXM standard.
 
 ```bash
-axm audit [PATH] [--category CATEGORY]
+axm audit [PATH] --json-output [--category CATEGORY]
 ```
 
 ### `axm audit_test`

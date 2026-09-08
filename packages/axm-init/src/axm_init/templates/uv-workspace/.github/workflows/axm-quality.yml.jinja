@@ -83,7 +83,7 @@ jobs:
 
           for PKG_DIR in packages/*/; do
             PKG=$(basename "$PKG_DIR")
-            RESULT=$(uvx axm-audit audit "$PKG_DIR" --json) || true
+            RESULT=$(uvx --from axm-audit axm audit "$PKG_DIR" --json-output) || true
             echo "$RESULT" > "_publish/reports/axm-audit/$PKG.json"
 
             SCORE=$(echo "$RESULT" | jq '.score')

@@ -75,7 +75,7 @@ jobs:
         id: audit
         run: |
           source /tmp/badge-helpers.sh
-          RESULT=$(uvx axm-audit audit . --json) || true
+          RESULT=$(uvx --from axm-audit axm audit . --json-output) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
           write_badge "_publish/badges" "axm-audit" "axm-audit" "$SCORE" /tmp/axm-logo.svg

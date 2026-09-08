@@ -24,7 +24,7 @@ pip install axm-audit
 ### CLI
 
 ```bash
-axm audit .
+axm audit . --json-output
 ```
 
 ### Python API
@@ -58,8 +58,8 @@ Focus on a specific area:
 
 ```bash
 # CLI
-axm audit . --category lint
-axm audit . --category security
+axm audit . --json-output --category lint
+axm audit . --json-output --category security
 ```
 
 ```python

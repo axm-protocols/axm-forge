@@ -140,7 +140,7 @@ jobs:
           fi
 
           # ── axm-audit ─────────────────────────────────────────────────
-          RESULT=$(uv run --package axm-audit axm-audit audit "$PKG_DIR" --json) || true
+          RESULT=$(uv run --package axm-audit axm audit "$PKG_DIR" --json-output) || true
           echo "$RESULT" > "_publish/reports/axm-audit/$PKG.json"
           # Guard: empty / malformed RESULT or non-numeric .score -> explicit
           # error/red badge + exit 1 (fails the job), never a bogus "%"/red badge.

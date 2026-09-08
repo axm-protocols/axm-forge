@@ -6,10 +6,10 @@ The fastest way to audit a project:
 
 ```bash
 # Full audit
-axm audit .
+axm audit . --json-output
 
 # Filter by category
-axm audit . --category lint
+axm audit . --json-output --category lint
 ```
 
 The unified CLI auto-discovers `AuditTool` through its `axm.tools` entry point.
@@ -122,6 +122,6 @@ The unified CLI renders each tool's compact `ToolResult.text`, while MCP and
 Python callers retain the corresponding structured `ToolResult.data` payload:
 
 ```bash
-axm audit .
+axm audit . --json-output
 axm audit_test .
 ```

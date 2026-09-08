@@ -9,7 +9,7 @@ asserts, or mock patterns that drift from production behavior.
 ## CLI
 
 ```bash
-axm audit [PATH] --category test_quality
+axm audit [PATH] --json-output --category test_quality
 ```
 
 Runs the `test_quality` category through the `audit` AXMTool. The unified CLI

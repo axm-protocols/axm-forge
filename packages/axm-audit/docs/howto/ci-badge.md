@@ -45,7 +45,7 @@ jobs:
       - name: Run AXM Audit
         id: audit
         run: |
-          RESULT=$(uvx --from axm-audit axm audit .) || true
+          RESULT=$(uvx --from axm-audit axm audit . --json-output) || true
           GRADE=$(printf '%s\n' "$RESULT" | awk -F'|' 'NR == 1 {print $2}' | awk '{print $1}')
           SCORE=$(printf '%s\n' "$RESULT" | awk -F'|' 'NR == 1 {print $2}' | awk '{print $2}')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"

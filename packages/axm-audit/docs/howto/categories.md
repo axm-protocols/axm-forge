@@ -38,9 +38,9 @@ state is also allowed; only embedded secret locations are findings.
 
 ```bash
 # Filter to one category
-axm audit . --category lint
-axm audit . --category security
-axm audit . --category deps
+axm audit . --json-output --category lint
+axm audit . --json-output --category security
+axm audit . --json-output --category deps
 ```
 
 ## Python API
