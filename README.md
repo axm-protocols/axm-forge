@@ -130,7 +130,13 @@ graph TD
 
 ## Development
 
-Each package is independently versioned with prefixed tags (`anvil/v*`, `ast/v*`, `audit/v*`, `echo/v*`, `edit/v*`, `init/v*`, `git/v*`, `smelt/v*`).
+Each package is independently versioned with a tag prefixed by its **full package
+name** — `axm-ast/v0.5.2`, `axm-git/v0.6.0`, `axm/v0.8.0`. The prefix *is* the
+package directory, so CI derives everything from the tag alone: publishing a new
+package needs no workflow change, only a tag.
+
+A package declares where it may be published through its own classifiers; one
+carrying `Private :: Do Not Upload` is built but never uploaded.
 
 | Command | Description |
 |---|---|
