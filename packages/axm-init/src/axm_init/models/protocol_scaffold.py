@@ -4,7 +4,7 @@ import keyword
 from pathlib import PurePath
 from typing import Annotated, Self
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "ContractDecl",
@@ -54,6 +54,8 @@ class _StrictDecl(BaseModel):  # type: ignore[explicit-any]
 
 
 class ContractDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Declare a named data contract used by a protocol component."""
+
     name: Segment
 
     @property
@@ -62,14 +64,18 @@ class ContractDecl(_StrictDecl):  # type: ignore[explicit-any]
 
 
 class PromptDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Declare a named prompt and its text."""
+
     name: Segment
     text: str
 
 
 class NodeDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Declare a node with optional contract and prompt references."""
+
     name: Segment
-    contract: Segment
-    prompt: Segment
+    contract: Segment | None = None
+    prompt: Segment | None = None
 
     @property
     def factory_name(self) -> str:
@@ -77,8 +83,10 @@ class NodeDecl(_StrictDecl):  # type: ignore[explicit-any]
 
 
 class PhaseDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Declare a phase and the nodes it contains, if any."""
+
     name: Segment
-    nodes: list[Segment]
+    nodes: list[Segment] = Field(default_factory=list)
 
     @property
     def factory_name(self) -> str:
@@ -86,19 +94,23 @@ class PhaseDecl(_StrictDecl):  # type: ignore[explicit-any]
 
 
 class TicketDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Bind a ticket type to one declared input contract."""
+
     ticket_type: QualifiedName
     input_contract: Segment
 
 
 class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Validate a complete protocol declaration and its component references."""
+
     domain: Segment
     unit: Segment
     action: Segment
     contracts: list[ContractDecl]
     nodes: list[NodeDecl]
-    prompts: list[PromptDecl]
-    phases: list[PhaseDecl]
-    ticket: TicketDecl
+    prompts: list[PromptDecl] = Field(default_factory=list)
+    phases: list[PhaseDecl] = Field(default_factory=list)
+    ticket: TicketDecl | None = None
 
     @property
     def graph_name(self) -> str:
@@ -108,6 +120,7 @@ class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
     def _validate_declaration(self) -> Self:
         self._reject_duplicate_components()
         self._reject_public_name_collisions()
+        self._validate_component_references()
         self._validate_ticket_binding()
         return self
 
@@ -128,8 +141,37 @@ class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
             msg = "derived public names must be unique"
             raise ValueError(msg)
 
+    def _validate_component_references(self) -> None:
+        declared_contracts = {contract.name for contract in self.contracts}
+        declared_prompts = {prompt.name for prompt in self.prompts}
+        declared_nodes = {node.name for node in self.nodes}
+
+        for node in self.nodes:
+            if node.contract is not None and node.contract not in declared_contracts:
+                msg = (
+                    f"node contract {node.contract!r} must reference "
+                    "a declared contract"
+                )
+                raise ValueError(msg)
+            if node.prompt is not None and node.prompt not in declared_prompts:
+                msg = f"node prompt {node.prompt!r} must reference a declared prompt"
+                raise ValueError(msg)
+
+        for phase in self.phases:
+            for node_reference in phase.nodes:
+                if node_reference not in declared_nodes:
+                    msg = (
+                        f"phase node {node_reference!r} must reference a declared node"
+                    )
+                    raise ValueError(msg)
+
     def _validate_ticket_binding(self) -> None:
+        if self.ticket is None:
+            return
         declared_contracts = {contract.name for contract in self.contracts}
         if self.ticket.input_contract not in declared_contracts:
-            msg = "ticket input_contract must reference a declared contract"
+            msg = (
+                f"ticket input_contract {self.ticket.input_contract!r} "
+                "must reference a declared contract"
+            )
             raise ValueError(msg)
