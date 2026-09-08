@@ -1,352 +1,38 @@
 {
-  "score": 80.8,
+  "score": 80.9,
   "grade": "B",
-  "total": 31,
-  "failed": 7,
-  "success": false,
-  "checks": [
-    {
-      "rule_id": "ARCH_CIRCULAR",
-      "passed": true,
-      "message": "0 circular import(s) found",
-      "details": {
-        "cycles": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_GOD_CLASS",
-      "passed": false,
-      "message": "1 god class(es) found",
-      "details": {
-        "god_classes": [
-          {
-            "name": "TypeScriptBackend",
-            "file": "axm_ast/core/backends/typescript.py",
-            "lines": 236,
-            "methods": 16
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_COUPLING",
-      "passed": true,
-      "message": "Coupling: 1 module(s) above threshold (-3 pts)",
-      "details": {
-        "max_fan_out": 15,
-        "max_fan_in": 45,
-        "avg_coupling": 4.91,
-        "n_over_threshold": 1,
-        "over_threshold": [
-          {
-            "module": "axm_ast.cli",
-            "fan_out": 12,
-            "role": "leaf",
-            "effective_threshold": 10,
-            "severity": "warning"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_DUPLICATION",
-      "passed": true,
-      "message": "0 duplicate block(s) found",
-      "details": {
-        "dup_count": 0,
-        "clones": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 0/100 (10 high-complexity functions)",
-      "details": {
-        "high_complexity_count": 10,
-        "top_offenders": [
-          {
-            "file": "axm_ast/core/analyzer.py",
-            "function": "analyze_package",
-            "cc": 13,
-            "rank": "C",
-            "cognitive": 22,
-            "reason": "cc+cog"
-          },
-          {
-            "file": "axm_ast/core/impact.py",
-            "function": "_add_workspace_git_coupling",
-            "cc": 8,
-            "rank": "B",
-            "cognitive": 20,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_ast/core/context.py",
-            "function": "_group_by_subpackage",
-            "cc": 9,
-            "rank": "B",
-            "cognitive": 18,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_ast/core/analyzer.py",
-            "function": "fingerprint_source_tree",
-            "cc": 8,
-            "rank": "B",
-            "cognitive": 17,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_ast/core/doc_impact.py",
-            "function": "find_stale_signatures",
-            "cc": 9,
-            "rank": "B",
-            "cognitive": 17,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_ast/core/workspace.py",
-            "function": "_expand_workspace_members",
-            "cc": 8,
-            "rank": "B",
-            "cognitive": 16,
-            "reason": "cog"
-          },
-          {
-            "file": "axm_ast/core/dead_code.py",
-            "function": "find_dead_code",
-            "cc": 13,
-            "rank": "C",
-            "cognitive": 16,
-            "reason": "cc+cog"
-          },
-          {
-            "file": "axm_ast/cli.py",
-            "function": "describe",
-            "cc": 11,
-            "rank": "C",
-            "cognitive": 12,
-            "reason": "cc"
-          },
-          {
-            "file": "axm_ast/core/impact.py",
-            "function": "analyze_impact",
-            "cc": 11,
-            "rank": "C",
-            "cognitive": 9,
-            "reason": "cc"
-          },
-          {
-            "file": "axm_ast/core/callers.py",
-            "function": "_visit_references",
-            "cc": 11,
-            "rank": "C",
-            "cognitive": 11,
-            "reason": "cc"
-          }
-        ],
-        "cognitive_disabled": false
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_TESTS",
-      "passed": false,
-      "message": "Test coverage: 89% (89/100)",
-      "details": {
-        "coverage": 89.32184338703634,
-        "failures": [
-          {
-            "test": "tests_axm_ast/unit/core/backends/test_typescript.py",
-            "traceback": "('/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/backends/test_typescript.py', 13, \"Skipped: could not import 'tree_sitter_typescript': No module named 'tree_sitter_typescript'\")"
-          },
-          {
-            "test": "tests_axm_ast/unit/core/backends/test_typescript_calls.py",
-            "traceback": "('/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/backends/test_typescript_calls.py', 9, \"Skipped: could not import 'tree_sitter_typescript': No module named 'tree_sitter_typescript'\")"
-          },
-          {
-            "test": "tests_axm_ast/unit/core/test_analyzer_node.py",
-            "traceback": "('/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/test_analyzer_node.py', 11, \"Skipped: could not import 'tree_sitter_typescript': No module named 'tree_sitter_typescript'\")"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_DEAD_CODE",
-      "passed": true,
-      "message": "No dead code detected.",
-      "details": {
-        "dead_count": 0,
-        "symbols": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_LINT",
-      "passed": true,
-      "message": "Lint score: 100/100 (0 issues)",
-      "details": {
-        "issue_count": 0,
-        "checked": "src/ tests_axm_ast/",
-        "issues": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_FORMAT",
-      "passed": true,
-      "message": "Format score: 100/100 (0 unformatted)",
-      "details": {
-        "unformatted_count": 0,
-        "unformatted_files": [],
-        "checked": "src/ tests_axm_ast/"
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_DIFF_SIZE",
-      "passed": true,
-      "message": "No uncommitted changes",
-      "details": {
-        "lines_changed": 0
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
-      "details": {
-        "vuln_count": 1,
-        "top_vulns": [
-          {
-            "name": "pymdown-extensions",
-            "version": "10.21.3",
-            "vuln_ids": [
-              "PYSEC-2026-3609",
-              "PYSEC-2026-3654"
-            ],
-            "fix_versions": [
-              "11.0.0",
-              "11.0.1"
-            ]
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "DEPS_HYGIENE",
-      "passed": true,
-      "message": "Clean dependencies (0 issues)",
-      "details": {
-        "issue_count": 0,
-        "top_issues": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_ast/",
-        "errors": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": false,
-      "message": "2 source module(s) without tests; 3 orphan test(s)",
-      "details": {
-        "missing": [
-          "base.py",
-          "extract.py"
-        ],
-        "orphan": [
-          "tests_axm_ast/unit/core/backends/test_extract.py",
-          "tests_axm_ast/unit/core/backends/test_typescript_calls.py",
-          "tests_axm_ast/unit/core/test_analyzer_node.py"
-        ],
-        "exempt": [
-          "_trace_protocol.py",
-          "callers.py",
-          "doc_impact.py",
-          "git_coupling.py",
-          "inspect_resolve.py",
-          "search.py",
-          "structural_diff.py"
-        ],
-        "exempt_tests": [
-          "tests_axm_ast/unit/test_init.py"
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "passed": false,
-      "message": "9 integration/e2e test(s) named after source modules",
-      "details": {
-        "anti_mirror": [
-          "tests_axm_ast/e2e/test_callees.py",
-          "tests_axm_ast/e2e/test_callers.py",
-          "tests_axm_ast/e2e/test_context.py",
-          "tests_axm_ast/e2e/test_coupling_gaps.py",
-          "tests_axm_ast/e2e/test_describe.py",
-          "tests_axm_ast/e2e/test_doc_policy.py",
-          "tests_axm_ast/e2e/test_graph.py",
-          "tests_axm_ast/e2e/test_impact.py",
-          "tests_axm_ast/integration/test_inspect.py"
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_BARE_EXCEPT",
-      "passed": true,
-      "message": "0 bare except(s) found",
-      "details": {
-        "bare_except_count": 0,
-        "locations": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_BLOCKING_IO",
-      "passed": true,
-      "message": "0 blocking-IO violation(s) found",
-      "details": {
-        "violations": []
-      },
-      "metadata": null
-    },
+  "passed": [
+    "ARCH_CIRCULAR: 0 circular import(s) found",
+    "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
+    "ARCH_DUPLICATION: 0 duplicate block(s) found",
+    "QUALITY_DEAD_CODE: No dead code detected.",
+    "QUALITY_LINT: Lint score: 100/100 (0 issues)",
+    "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_HYGIENE: Clean dependencies (0 issues)",
+    "QUALITY_TYPE: Type score: 100/100 (0 errors)",
+    "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
+    "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "passed": true,
-      "message": "Docstring coverage: 100% (225/226)",
+      "message": "Docstring coverage: 100% (217/218)",
+      "text": "     \u2022 axm_ast/tools/_base.py: wrapper",
+      "fix_hint": "Add docstrings to public functions"
+    },
+    "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
+    {
+      "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
+      "message": "0 tool secret location(s) found",
       "details": {
-        "coverage": 1.0,
-        "total": 226,
-        "documented": 225,
-        "missing": [
-          "axm_ast/tools/_base.py:wrapper"
-        ]
+        "findings": []
       },
-      "metadata": null
+      "metadata": {
+        "findings": []
+      }
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
       "message": "no tests found",
-      "details": null,
       "metadata": {
         "clusters": [],
         "bucket_counts": {
@@ -356,123 +42,66 @@
         }
       }
     },
-    {
-      "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "passed": false,
-      "message": "2 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "details": {
-        "findings": [
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/core/test_analyzer_node.py",
-            "line": 9,
-            "import_module": "axm_ast.core.analyzer",
-            "private_symbol": "_is_node_project",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/tests_axm_ast/unit/tools/test_coupling_gaps.py",
-            "line": 12,
-            "import_module": "axm_ast.tools.coupling_gaps",
-            "private_symbol": "_render_text",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
+    "TEST_QUALITY_FILE_NAMING: no tests/ directory",
+    "TEST_QUALITY_NO_PACKAGE_SYMBOL: no tests/ directory",
+    "TEST_QUALITY_PYRAMID_LEVEL: no tests/ directory",
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
-      "passed": true,
       "message": "no tautologies found",
-      "details": null,
       "metadata": {
         "verdicts": []
       }
     },
+    "QUALITY_SECURITY: Security score: 100/100 (0 high, 0 medium severity issues)",
+    "PRACTICE_SECURITY: 0 potential secret(s) found",
+    "STRUCTURE_TESTS_PYRAMID: pyramid layout ok: unit, integration, e2e",
+    "STRUCTURE_PYPROJECT: pyproject.toml completeness: 9/9 fields",
+    "TOOL_RUFF: ruff found",
+    "TOOL_MYPY: mypy found",
+    "TOOL_UV: uv found"
+  ],
+  "failed": [
     {
-      "rule_id": "QUALITY_SECURITY",
-      "passed": true,
-      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
-      "details": {
-        "high_count": 0,
-        "medium_count": 0,
-        "top_issues": []
-      },
-      "metadata": null
+      "rule_id": "ARCH_GOD_CLASS",
+      "message": "1 god class(es) found",
+      "text": "\u2022 typescript.py:TypeScriptBackend 236L/16M",
+      "fix_hint": "Split large classes into smaller, focused classes"
     },
     {
-      "rule_id": "PRACTICE_SECURITY",
-      "passed": true,
-      "message": "0 potential secret(s) found",
-      "details": {
-        "secret_count": 0,
-        "matches": []
-      },
-      "metadata": null
+      "rule_id": "QUALITY_COMPLEXITY",
+      "message": "Complexity score: 0/100 (13 high-complexity functions)",
+      "text": "\u2022 axm_ast/core/analyzer.py:analyze_package cc=13 (C) cog=22 [cc+cog]\n\u2022 axm_ast/core/impact.py:analyze_impact cc=22 (D) cog=22 [cc+cog]\n\u2022 axm_ast/core/impact.py:_add_workspace_git_coupling cc=8 (B) cog=20 [cog]\n\u2022 axm_ast/core/context.py:_group_by_subpackage cc=9 (B) cog=18 [cog]\n\u2022 axm_ast/core/analyzer.py:fingerprint_source_tree cc=8 (B) cog=17 [cog]\n\u2022 axm_ast/core/impact.py:_filter_precise_callers cc=12 (C) cog=17 [cc+cog]\n\u2022 axm_ast/core/doc_impact.py:find_stale_signatures cc=9 (B) cog=17 [cog]\n\u2022 axm_ast/tools/impact.py:ImpactTool._execute_batch cc=11 (C) cog=16 [cc+cog]\n\u2022 axm_ast/core/impact.py:_imports_definition_module cc=13 (C) cog=16 [cc+cog]\n\u2022 axm_ast/core/workspace.py:_expand_workspace_members cc=8 (B) cog=16 [cog]\n\u2022 axm_ast/core/dead_code.py:find_dead_code cc=13 (C) cog=16 [cc+cog]\n\u2022 axm_ast/cli.py:describe cc=11 (C) cog=12 [cc]\n\u2022 axm_ast/core/callers.py:_visit_references cc=11 (C) cog=11 [cc]",
+      "fix_hint": "Refactor complex functions into smaller units"
     },
     {
-      "rule_id": "STRUCTURE_TESTS_PYRAMID",
-      "passed": true,
-      "message": "pyramid layout ok: unit, integration, e2e",
-      "details": {
-        "self_contained": true
-      },
-      "metadata": null
+      "rule_id": "QUALITY_TESTS",
+      "message": "Test coverage: 89% (88/100)",
+      "text": "\u2022 cov 89% \u2192 100%\n\u2022 FAIL tests_axm_ast/unit/core/backends/test_typescript.py\n\u2022 FAIL tests_axm_ast/unit/core/backends/test_typescript_calls.py\n\u2022 FAIL tests_axm_ast/unit/core/test_analyzer_node.py",
+      "fix_hint": "Increase test coverage to >= 90%"
     },
     {
-      "rule_id": "STRUCTURE_PYPROJECT",
-      "passed": true,
-      "message": "pyproject.toml completeness: 9/9 fields",
-      "details": {
-        "fields_present": 9,
-        "total_fields": 9,
-        "missing": []
-      },
-      "metadata": null
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
-      "rule_id": "TOOL_RUFF",
-      "passed": true,
-      "message": "ruff found",
-      "details": null,
-      "metadata": null
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "message": "2 source module(s) without tests; 3 orphan test(s)",
+      "text": "\u2022 untested: base.py extract.py\n\u2022 orphan: tests_axm_ast/unit/core/backends/test_extract.py tests_axm_ast/unit/core/backends/test_typescript_calls.py tests_axm_ast/unit/core/test_analyzer_node.py",
+      "fix_hint": "Create test files: tests_axm_ast/test_base.py, tests_axm_ast/test_extract.py; tests_axm_ast/unit/core/backends/test_extract.py \u2192 move to tests_axm_ast/unit/test_extract.py; tests_axm_ast/unit/core/backends/test_typescript_calls.py \u2192 rename to test_typescript.py or merge into tests_axm_ast/unit/test_typescript.py; tests_axm_ast/unit/core/test_analyzer_node.py \u2192 rename to test_analyzer.py or merge into tests_axm_ast/unit/test_analyzer.py"
     },
     {
-      "rule_id": "TOOL_MYPY",
-      "passed": true,
-      "message": "mypy found",
-      "details": null,
-      "metadata": null
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "message": "9 integration/e2e test(s) named after source modules",
+      "text": "\u2022 anti-mirror: tests_axm_ast/e2e/test_callees.py tests_axm_ast/e2e/test_callers.py tests_axm_ast/e2e/test_context.py tests_axm_ast/e2e/test_coupling_gaps.py tests_axm_ast/e2e/test_describe.py (+4 more)",
+      "fix_hint": "tests_axm_ast/e2e/test_callees.py \u2192 rename to test_<scenario>.py describing what the test verifies (scenario-named, not source-mirrored)"
     },
     {
-      "rule_id": "TOOL_UV",
-      "passed": true,
-      "message": "uv found",
-      "details": null,
-      "metadata": null
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "message": "5 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_ast/unit/core/test_analyzer_node.py:9 axm_ast.core.analyzer._is_node_project (function)\n\u2022 [attribute] tests_axm_ast/unit/core/test_impact.py:333 axm_ast.core._imports_definition_module (function)\n\u2022 [attribute] tests_axm_ast/unit/core/test_impact.py:345 axm_ast.core._imports_definition_module (function)\n\u2022 [attribute] tests_axm_ast/unit/core/test_impact.py:357 axm_ast.core._imports_definition_module (function)\n\u2022 [import] tests_axm_ast/unit/tools/test_coupling_gaps.py:12 axm_ast.tools.coupling_gaps._render_text (function)",
+      "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]
 }

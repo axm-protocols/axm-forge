@@ -1,244 +1,42 @@
 {
   "score": 94.5,
   "grade": "A",
-  "total": 31,
-  "failed": 3,
-  "success": false,
-  "checks": [
-    {
-      "rule_id": "ARCH_CIRCULAR",
-      "passed": true,
-      "message": "0 circular import(s) found",
-      "details": {
-        "cycles": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_GOD_CLASS",
-      "passed": true,
-      "message": "0 god class(es) found",
-      "details": {
-        "god_classes": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_COUPLING",
-      "passed": true,
-      "message": "Coupling: 1 module(s) above threshold (-3 pts)",
-      "details": {
-        "max_fan_out": 23,
-        "max_fan_in": 11,
-        "avg_coupling": 4.57,
-        "n_over_threshold": 1,
-        "over_threshold": [
-          {
-            "module": "axm_anvil.core.move",
-            "fan_out": 23,
-            "role": "orchestrator",
-            "effective_threshold": 15,
-            "severity": "warning"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_DUPLICATION",
-      "passed": true,
-      "message": "0 duplicate block(s) found",
-      "details": {
-        "dup_count": 0,
-        "clones": []
-      },
-      "metadata": null
-    },
+  "passed": [
+    "ARCH_CIRCULAR: 0 circular import(s) found",
+    "ARCH_GOD_CLASS: 0 god class(es) found",
+    "ARCH_COUPLING: Coupling: 1 module(s) above threshold (-3 pts)",
+    "ARCH_DUPLICATION: 0 duplicate block(s) found",
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
       "message": "Complexity score: 90/100 (1 high-complexity functions)",
-      "details": {
-        "high_complexity_count": 1,
-        "top_offenders": [
-          {
-            "file": "axm_anvil/core/move.py",
-            "function": "move_symbols",
-            "cc": 11,
-            "rank": "C",
-            "cognitive": 10,
-            "reason": "cc"
-          }
-        ],
-        "cognitive_disabled": false
-      },
-      "metadata": null
+      "text": "\u2022 axm_anvil/core/move.py:move_symbols cc=11 (C) cog=10 [cc]",
+      "fix_hint": "Refactor complex functions into smaller units"
     },
+    "QUALITY_TESTS: Test coverage: 91% (91/100)",
+    "QUALITY_DEAD_CODE: No dead code detected.",
+    "QUALITY_LINT: Lint score: 100/100 (0 issues)",
+    "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_HYGIENE: 1 dependency issue(s) found",
+    "QUALITY_TYPE: Type score: 100/100 (0 errors)",
+    "PRACTICE_TEST_MIRROR: All source modules have test files",
+    "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
+    "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
+    "PRACTICE_DOCSTRING: Docstring coverage: 100% (60/60)",
+    "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
-      "rule_id": "QUALITY_TESTS",
-      "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
+      "message": "0 tool secret location(s) found",
       "details": {
-        "coverage": 91.06273274133486,
-        "failures": []
+        "findings": []
       },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_DEAD_CODE",
-      "passed": true,
-      "message": "No dead code detected.",
-      "details": {
-        "dead_count": 0,
-        "symbols": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_LINT",
-      "passed": true,
-      "message": "Lint score: 100/100 (0 issues)",
-      "details": {
-        "issue_count": 0,
-        "checked": "src/ tests_axm_anvil/",
-        "issues": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_FORMAT",
-      "passed": true,
-      "message": "Format score: 100/100 (0 unformatted)",
-      "details": {
-        "unformatted_count": 0,
-        "unformatted_files": [],
-        "checked": "src/ tests_axm_anvil/"
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_DIFF_SIZE",
-      "passed": true,
-      "message": "No uncommitted changes",
-      "details": {
-        "lines_changed": 0
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
-      "details": {
-        "vuln_count": 1,
-        "top_vulns": [
-          {
-            "name": "pymdown-extensions",
-            "version": "10.21.3",
-            "vuln_ids": [
-              "PYSEC-2026-3609",
-              "PYSEC-2026-3654"
-            ],
-            "fix_versions": [
-              "11.0.0",
-              "11.0.1"
-            ]
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "DEPS_HYGIENE",
-      "passed": true,
-      "message": "1 dependency issue(s) found",
-      "details": {
-        "issue_count": 1,
-        "top_issues": [
-          {
-            "code": "DEP002",
-            "module": "pydantic",
-            "message": "'pydantic' defined as a dependency but not used in the codebase"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_anvil/",
-        "errors": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": {
-        "missing": [],
-        "orphan": [],
-        "exempt": [
-          "cli.py",
-          "extract.py",
-          "postprocess.py",
-          "rename.py"
-        ],
-        "exempt_tests": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "passed": false,
-      "message": "1 integration/e2e test(s) named after source modules",
-      "details": {
-        "anti_mirror": [
-          "tests_axm_anvil/e2e/test_move.py"
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_BARE_EXCEPT",
-      "passed": true,
-      "message": "0 bare except(s) found",
-      "details": {
-        "bare_except_count": 0,
-        "locations": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_BLOCKING_IO",
-      "passed": true,
-      "message": "0 blocking-IO violation(s) found",
-      "details": {
-        "violations": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_DOCSTRING",
-      "passed": true,
-      "message": "Docstring coverage: 100% (60/60)",
-      "details": {
-        "coverage": 1.0,
-        "total": 60,
-        "documented": 60,
-        "missing": []
-      },
-      "metadata": null
+      "metadata": {
+        "findings": []
+      }
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
       "message": "no tests found",
-      "details": null,
       "metadata": {
         "clusters": [],
         "bucket_counts": {
@@ -248,296 +46,42 @@
         }
       }
     },
-    {
-      "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "passed": false,
-      "message": "20 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "details": {
-        "findings": [
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
-            "line": 7,
-            "import_module": "axm_anvil.core.callers",
-            "private_symbol": "_discover_callers",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
-            "line": 7,
-            "import_module": "axm_anvil.core.callers",
-            "private_symbol": "_discover_module_import_callers",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
-            "line": 7,
-            "import_module": "axm_anvil.core.callers",
-            "private_symbol": "_find_import_line",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
-            "line": 7,
-            "import_module": "axm_anvil.core.callers",
-            "private_symbol": "_iter_workspace_py_files",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
-            "line": 7,
-            "import_module": "axm_anvil.core.callers",
-            "private_symbol": "_rewrite_module_import_caller",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_callers.py",
-            "line": 7,
-            "import_module": "axm_anvil.core.callers",
-            "private_symbol": "_scan_workspace_py_files",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_extract.py",
-            "line": 8,
-            "import_module": "axm_anvil.core.extract",
-            "private_symbol": "_mkdir_tracking",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 8,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_process_callers",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 221,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 187,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_graph_cache_session",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 188,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 189,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 190,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 203,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_graph_cache_session",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 204,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 205,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_graph_cache_session",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 206,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 218,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_graph_cache_session",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_move.py",
-            "line": 219,
-            "import_module": "axm_anvil.core.move",
-            "private_symbol": "_build_current_graph",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-anvil/tests_axm_anvil/unit/core/test_postprocess.py",
-            "line": 16,
-            "import_module": "axm_anvil.core",
-            "private_symbol": "_ruff_fix",
-            "symbol_kind": "function",
-            "access_kind": "attribute"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
+    "TEST_QUALITY_FILE_NAMING: no tests/ directory",
+    "TEST_QUALITY_NO_PACKAGE_SYMBOL: no tests/ directory",
+    "TEST_QUALITY_PYRAMID_LEVEL: no tests/ directory",
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
-      "passed": true,
       "message": "no tautologies found",
-      "details": null,
       "metadata": {
         "verdicts": []
       }
     },
+    "QUALITY_SECURITY: Security score: 100/100 (0 high, 0 medium severity issues)",
+    "PRACTICE_SECURITY: 0 potential secret(s) found",
+    "STRUCTURE_TESTS_PYRAMID: pyramid layout ok: unit, integration, e2e",
+    "STRUCTURE_PYPROJECT: pyproject.toml completeness: 9/9 fields",
+    "TOOL_RUFF: ruff found",
+    "TOOL_MYPY: mypy found",
+    "TOOL_UV: uv found"
+  ],
+  "failed": [
     {
-      "rule_id": "QUALITY_SECURITY",
-      "passed": true,
-      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
-      "details": {
-        "high_count": 0,
-        "medium_count": 0,
-        "top_issues": [
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "postprocess.py",
-            "line": 5
-          },
-          {
-            "severity": "LOW",
-            "code": "B603",
-            "message": "subprocess call - check for execution of untrusted input.",
-            "file": "postprocess.py",
-            "line": 34
-          },
-          {
-            "severity": "LOW",
-            "code": "B112",
-            "message": "Try, Except, Continue detected.",
-            "file": "move.py",
-            "line": 1558
-          },
-          {
-            "severity": "LOW",
-            "code": "B112",
-            "message": "Try, Except, Continue detected.",
-            "file": "move.py",
-            "line": 1710
-          }
-        ]
-      },
-      "metadata": null
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
-      "rule_id": "PRACTICE_SECURITY",
-      "passed": true,
-      "message": "0 potential secret(s) found",
-      "details": {
-        "secret_count": 0,
-        "matches": []
-      },
-      "metadata": null
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "message": "1 integration/e2e test(s) named after source modules",
+      "text": "\u2022 anti-mirror: tests_axm_anvil/e2e/test_move.py",
+      "fix_hint": "tests_axm_anvil/e2e/test_move.py \u2192 rename to test_<scenario>.py describing what the test verifies (scenario-named, not source-mirrored)"
     },
     {
-      "rule_id": "STRUCTURE_TESTS_PYRAMID",
-      "passed": true,
-      "message": "pyramid layout ok: unit, integration, e2e",
-      "details": {
-        "self_contained": true
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "STRUCTURE_PYPROJECT",
-      "passed": true,
-      "message": "pyproject.toml completeness: 9/9 fields",
-      "details": {
-        "fields_present": 9,
-        "total_fields": 9,
-        "missing": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "TOOL_RUFF",
-      "passed": true,
-      "message": "ruff found",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TOOL_MYPY",
-      "passed": true,
-      "message": "mypy found",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TOOL_UV",
-      "passed": true,
-      "message": "uv found",
-      "details": null,
-      "metadata": null
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "message": "20 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_anvil/unit/core/test_callers.py:7 axm_anvil.core.callers._discover_callers (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_callers.py:7 axm_anvil.core.callers._discover_module_import_callers (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_callers.py:7 axm_anvil.core.callers._find_import_line (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_callers.py:7 axm_anvil.core.callers._iter_workspace_py_files (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_callers.py:7 axm_anvil.core.callers._rewrite_module_import_caller (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_callers.py:7 axm_anvil.core.callers._scan_workspace_py_files (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_extract.py:8 axm_anvil.core.extract._mkdir_tracking (function)\n\u2022 [import] tests_axm_anvil/unit/core/test_move.py:8 axm_anvil.core.move._process_callers (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:221 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:187 axm_anvil.core.move._graph_cache_session (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:188 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:189 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:190 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:203 axm_anvil.core.move._graph_cache_session (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:204 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:205 axm_anvil.core.move._graph_cache_session (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:206 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:218 axm_anvil.core.move._graph_cache_session (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_move.py:219 axm_anvil.core.move._build_current_graph (function)\n\u2022 [attribute] tests_axm_anvil/unit/core/test_postprocess.py:16 axm_anvil.core._ruff_fix (function)",
+      "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]
 }

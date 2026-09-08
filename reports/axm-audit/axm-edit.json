@@ -1,247 +1,40 @@
 {
-  "score": 95.0,
-  "grade": "A",
-  "total": 31,
-  "failed": 4,
-  "success": false,
-  "checks": [
-    {
-      "rule_id": "ARCH_CIRCULAR",
-      "passed": true,
-      "message": "0 circular import(s) found",
-      "details": {
-        "cycles": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_GOD_CLASS",
-      "passed": true,
-      "message": "0 god class(es) found",
-      "details": {
-        "god_classes": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_COUPLING",
-      "passed": true,
-      "message": "Coupling: 1 module(s) above threshold (-3 pts)",
-      "details": {
-        "max_fan_out": 13,
-        "max_fan_in": 17,
-        "avg_coupling": 4.7,
-        "n_over_threshold": 1,
-        "over_threshold": [
-          {
-            "module": "axm_edit.tools.batch_edit",
-            "fan_out": 13,
-            "role": "leaf",
-            "effective_threshold": 10,
-            "severity": "warning"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "ARCH_DUPLICATION",
-      "passed": true,
-      "message": "0 duplicate block(s) found",
-      "details": {
-        "dup_count": 0,
-        "clones": []
-      },
-      "metadata": null
-    },
+  "score": 78.3,
+  "grade": "C",
+  "passed": [
+    "ARCH_CIRCULAR: 0 circular import(s) found",
+    "ARCH_GOD_CLASS: 0 god class(es) found",
+    "ARCH_COUPLING: Coupling: 1 module(s) above threshold (-3 pts)",
+    "ARCH_DUPLICATION: 0 duplicate block(s) found",
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
       "message": "Complexity score: 90/100 (1 high-complexity functions)",
-      "details": {
-        "high_complexity_count": 1,
-        "top_offenders": [
-          {
-            "file": "axm_edit/tools/batch_edit.py",
-            "function": "_apply_lint",
-            "cc": 11,
-            "rank": "C",
-            "cognitive": 14,
-            "reason": "cc"
-          }
-        ],
-        "cognitive_disabled": false
-      },
-      "metadata": null
+      "text": "\u2022 axm_edit/tools/search_files.py:render_text cc=13 (C) cog=17 [cc+cog]",
+      "fix_hint": "Refactor complex functions into smaller units"
     },
+    "QUALITY_DEAD_CODE: No dead code detected.",
+    "QUALITY_LINT: Lint score: 100/100 (0 issues)",
+    "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_HYGIENE: 1 dependency issue(s) found",
+    "PRACTICE_TEST_MIRROR: All source modules have test files",
+    "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
+    "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
+    "PRACTICE_DOCSTRING: Docstring coverage: 100% (78/78)",
+    "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
-      "rule_id": "QUALITY_TESTS",
-      "passed": true,
-      "message": "Test coverage: 95% (94/100)",
+      "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
+      "message": "0 tool secret location(s) found",
       "details": {
-        "coverage": 94.79669193659545,
-        "failures": []
+        "findings": []
       },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_DEAD_CODE",
-      "passed": true,
-      "message": "No dead code detected.",
-      "details": {
-        "dead_count": 0,
-        "symbols": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_LINT",
-      "passed": true,
-      "message": "Lint score: 100/100 (0 issues)",
-      "details": {
-        "issue_count": 0,
-        "checked": "src/ tests_axm_edit/",
-        "issues": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_FORMAT",
-      "passed": true,
-      "message": "Format score: 100/100 (0 unformatted)",
-      "details": {
-        "unformatted_count": 0,
-        "unformatted_files": [],
-        "checked": "src/ tests_axm_edit/"
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_DIFF_SIZE",
-      "passed": true,
-      "message": "No uncommitted changes",
-      "details": {
-        "lines_changed": 0
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
-      "details": {
-        "vuln_count": 1,
-        "top_vulns": [
-          {
-            "name": "pymdown-extensions",
-            "version": "10.21.3",
-            "vuln_ids": [
-              "PYSEC-2026-3609",
-              "PYSEC-2026-3654"
-            ],
-            "fix_versions": [
-              "11.0.0",
-              "11.0.1"
-            ]
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "DEPS_HYGIENE",
-      "passed": true,
-      "message": "1 dependency issue(s) found",
-      "details": {
-        "issue_count": 1,
-        "top_issues": [
-          {
-            "code": "DEP002",
-            "module": "axm-ast",
-            "message": "'axm-ast' defined as a dependency but not used in the codebase"
-          }
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
-      "details": {
-        "error_count": 0,
-        "checked": "src/ tests_axm_edit/",
-        "errors": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": {
-        "missing": [],
-        "orphan": [],
-        "exempt": [
-          "checkpoint.py",
-          "engine.py"
-        ],
-        "exempt_tests": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "passed": false,
-      "message": "6 integration/e2e test(s) named after source modules",
-      "details": {
-        "anti_mirror": [
-          "tests_axm_edit/e2e/test_batch_edit.py",
-          "tests_axm_edit/e2e/test_batch_edit_check.py",
-          "tests_axm_edit/e2e/test_file_bytes.py",
-          "tests_axm_edit/e2e/test_search_files.py",
-          "tests_axm_edit/e2e/test_write_file.py",
-          "tests_axm_edit/integration/test_lint.py"
-        ]
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_BARE_EXCEPT",
-      "passed": true,
-      "message": "0 bare except(s) found",
-      "details": {
-        "bare_except_count": 0,
-        "locations": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_BLOCKING_IO",
-      "passed": true,
-      "message": "0 blocking-IO violation(s) found",
-      "details": {
-        "violations": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_DOCSTRING",
-      "passed": true,
-      "message": "Docstring coverage: 100% (77/77)",
-      "details": {
-        "coverage": 1.0,
-        "total": 77,
-        "documented": 77,
-        "missing": []
-      },
-      "metadata": null
+      "metadata": {
+        "findings": []
+      }
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
       "message": "no tests found",
-      "details": null,
       "metadata": {
         "clusters": [],
         "bucket_counts": {
@@ -251,106 +44,60 @@
         }
       }
     },
+    "TEST_QUALITY_FILE_NAMING: no tests/ directory",
+    "TEST_QUALITY_NO_PACKAGE_SYMBOL: no tests/ directory",
+    "TEST_QUALITY_PYRAMID_LEVEL: no tests/ directory",
+    "QUALITY_SECURITY: Security score: 100/100 (0 high, 0 medium severity issues)",
+    "PRACTICE_SECURITY: 0 potential secret(s) found",
+    "STRUCTURE_TESTS_PYRAMID: pyramid layout ok: unit, integration, e2e",
+    "STRUCTURE_PYPROJECT: pyproject.toml completeness: 9/9 fields",
+    "TOOL_RUFF: ruff found",
+    "TOOL_MYPY: mypy found",
+    "TOOL_UV: uv found"
+  ],
+  "failed": [
     {
-      "rule_id": "TEST_QUALITY_FILE_NAMING",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "passed": false,
-      "message": "8 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "rule_id": "QUALITY_TESTS",
+      "message": "No coverage data (pytest-cov not configured)",
       "details": {
-        "findings": [
+        "coverage": 0.0,
+        "failures": [
           {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/integration/test_batch_apply__edit.py",
-            "line": 8,
-            "import_module": "axm_edit.core.engine",
-            "private_symbol": "_validate_replace",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/core/test_engine.py",
-            "line": 12,
-            "import_module": "axm_edit.core.engine",
-            "private_symbol": "_not_found_error",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/core/test_engine.py",
-            "line": 210,
-            "import_module": "axm_edit.core.engine",
-            "private_symbol": "_rewrite_error",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/core/test_engine.py",
-            "line": 229,
-            "import_module": "axm_edit.core.engine",
-            "private_symbol": "_group_operations",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/tools/test_batch_edit.py",
-            "line": 19,
-            "import_module": "axm_edit.tools.batch_edit",
-            "private_symbol": "_apply_lint",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/tools/test_batch_edit.py",
-            "line": 19,
-            "import_module": "axm_edit.tools.batch_edit",
-            "private_symbol": "_parse_operations",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/tools/test_batch_edit.py",
-            "line": 19,
-            "import_module": "axm_edit.tools.batch_edit",
-            "private_symbol": "_render_op_lines",
-            "symbol_kind": "function",
-            "access_kind": "import"
-          },
-          {
-            "test_file": "/home/runner/work/axm-forge/axm-forge/packages/axm-edit/tests_axm_edit/unit/tools/test_batch_edit_check.py",
-            "line": 8,
-            "import_module": "axm_edit.tools.batch_edit_check",
-            "private_symbol": "_parse_check_operations",
-            "symbol_kind": "function",
-            "access_kind": "import"
+            "test": "tests_axm_edit/unit/tools/test_search_files.py",
+            "traceback": "E   ModuleNotFoundError: No module named 'tiktoken'"
           }
         ]
       },
-      "metadata": null
+      "fix_hint": "Add pytest-cov: uv add --dev pytest-cov"
     },
     {
-      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
-      "passed": true,
-      "message": "no tests/ directory",
-      "details": null,
-      "metadata": null
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "message": "Type check BLOCKED: audit environment incomplete \u2014 missing type stubs or unfollowed imports for: tiktoken. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem.",
+      "text": "\u2022 [import-not-found] tests_axm_edit/unit/tools/test_search_files.py:5: Cannot find implementation or library stub for module named \"tiktoken\"",
+      "fix_hint": "audit environment incomplete \u2014 missing type stubs or unfollowed imports for: tiktoken. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem."
+    },
+    {
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "message": "6 integration/e2e test(s) named after source modules",
+      "text": "\u2022 anti-mirror: tests_axm_edit/e2e/test_batch_edit.py tests_axm_edit/e2e/test_batch_edit_check.py tests_axm_edit/e2e/test_file_bytes.py tests_axm_edit/e2e/test_search_files.py tests_axm_edit/e2e/test_write_file.py (+1 more)",
+      "fix_hint": "tests_axm_edit/e2e/test_batch_edit.py \u2192 rename to test_<scenario>.py describing what the test verifies (scenario-named, not source-mirrored)"
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "message": "8 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_edit/integration/test_batch_apply__edit.py:8 axm_edit.core.engine._validate_replace (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:12 axm_edit.core.engine._not_found_error (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:210 axm_edit.core.engine._rewrite_error (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:229 axm_edit.core.engine._group_operations (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._apply_lint (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._parse_operations (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._render_op_lines (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit_check.py:8 axm_edit.tools.batch_edit_check._parse_check_operations (function)",
+      "fix_hint": "Re-export the symbol publicly or test via the public API"
     },
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
-      "passed": false,
       "message": "1 tautology finding(s)",
-      "details": null,
+      "text": "\u2022 tests_axm_edit/unit/models/test_operations.py:142 test_operation_union_accepts_a_rewrite_payload [isinstance_only]",
       "metadata": {
         "verdicts": [
           {
@@ -363,105 +110,8 @@
             "reason": "significant setup with weak assert \u2014 non-trivial scenario"
           }
         ]
-      }
-    },
-    {
-      "rule_id": "QUALITY_SECURITY",
-      "passed": true,
-      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
-      "details": {
-        "high_count": 0,
-        "medium_count": 0,
-        "top_issues": [
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "batch_edit.py",
-            "line": 8
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "run_command.py",
-            "line": 10
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "lint.py",
-            "line": 18
-          },
-          {
-            "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "lint.py",
-            "line": 44
-          },
-          {
-            "severity": "LOW",
-            "code": "B603",
-            "message": "subprocess call - check for execution of untrusted input.",
-            "file": "lint.py",
-            "line": 44
-          }
-        ]
       },
-      "metadata": null
-    },
-    {
-      "rule_id": "PRACTICE_SECURITY",
-      "passed": true,
-      "message": "0 potential secret(s) found",
-      "details": {
-        "secret_count": 0,
-        "matches": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "STRUCTURE_TESTS_PYRAMID",
-      "passed": true,
-      "message": "pyramid layout ok: unit, integration, e2e",
-      "details": {
-        "self_contained": true
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "STRUCTURE_PYPROJECT",
-      "passed": true,
-      "message": "pyproject.toml completeness: 9/9 fields",
-      "details": {
-        "fields_present": 9,
-        "total_fields": 9,
-        "missing": []
-      },
-      "metadata": null
-    },
-    {
-      "rule_id": "TOOL_RUFF",
-      "passed": true,
-      "message": "ruff found",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TOOL_MYPY",
-      "passed": true,
-      "message": "mypy found",
-      "details": null,
-      "metadata": null
-    },
-    {
-      "rule_id": "TOOL_UV",
-      "passed": true,
-      "message": "uv found",
-      "details": null,
-      "metadata": null
+      "fix_hint": "Replace tautological asserts with behavioral assertions on real outputs"
     }
   ]
 }

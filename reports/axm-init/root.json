@@ -1,358 +1,13 @@
 {
-  "project": "/home/runner/work/axm-forge/axm-forge",
   "score": 86,
   "grade": "B",
   "context": "workspace",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
-  "categories": {
-    "changelog": {
-      "earned": 2,
-      "total": 5
-    },
-    "ci": {
-      "earned": 16,
-      "total": 16
-    },
-    "docs": {
-      "earned": 12,
-      "total": 15
-    },
-    "pyproject": {
-      "earned": 4,
-      "total": 11
-    },
-    "structure": {
-      "earned": 8,
-      "total": 8
-    },
-    "tooling": {
-      "earned": 16,
-      "total": 16
-    },
-    "workspace": {
-      "earned": 21,
-      "total": 21
-    }
-  },
-  "checks": [
-    {
-      "name": "changelog.gitcliff_config",
-      "category": "changelog",
-      "passed": false,
-      "earned": 0,
-      "weight": 3,
-      "message": "No [tool.git-cliff] config found"
-    },
-    {
-      "name": "changelog.no_manual_changelog",
-      "category": "changelog",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "No manual CHANGELOG.md"
-    },
-    {
-      "name": "ci.ci_lint_job",
-      "category": "ci",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "Lint job present"
-    },
-    {
-      "name": "ci.ci_security_job",
-      "category": "ci",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Security audit job present"
-    },
-    {
-      "name": "ci.ci_test_job",
-      "category": "ci",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "Matrix test job present"
-    },
-    {
-      "name": "ci.ci_workflow_exists",
-      "category": "ci",
-      "passed": true,
-      "earned": 4,
-      "weight": 4,
-      "message": "CI workflow found"
-    },
-    {
-      "name": "ci.dependabot",
-      "category": "ci",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Dependabot configured"
-    },
-    {
-      "name": "ci.trusted_publishing",
-      "category": "ci",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Trusted Publishing (OIDC) configured"
-    },
-    {
-      "name": "docs.gen_ref_pages",
-      "category": "docs",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "gen_ref_pages.py found"
-    },
-    {
-      "name": "docs.mkdocs_exists",
-      "category": "docs",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "mkdocs.yml found"
-    },
-    {
-      "name": "docs.plugins",
-      "category": "docs",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "All plugins configured"
-    },
-    {
-      "name": "docs.readme",
-      "category": "docs",
-      "passed": false,
-      "earned": 0,
-      "weight": 3,
-      "message": "README missing 2 section(s)"
-    },
-    {
-      "name": "docs.readme_badges",
-      "category": "docs",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "README has axm-audit + axm-init badges"
-    },
-    {
-      "name": "docs.standalone_api_ref",
-      "category": "docs",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "reference/api/ builds standalone"
-    },
-    {
-      "name": "pyproject.pyproject_dynamic_version",
-      "category": "pyproject",
-      "passed": false,
-      "earned": 0,
-      "weight": 3,
-      "message": "Version is not dynamically managed"
-    },
-    {
-      "name": "pyproject.pyproject_exists",
-      "category": "pyproject",
-      "passed": true,
-      "earned": 4,
-      "weight": 4,
-      "message": "pyproject.toml found"
-    },
-    {
-      "name": "pyproject.pyproject_ruff_rules",
-      "category": "pyproject",
-      "passed": false,
-      "earned": 0,
-      "weight": 2,
-      "message": "Missing 9 essential ruff rule(s)"
-    },
-    {
-      "name": "pyproject.pyproject_wheel_doc_shipping",
-      "category": "pyproject",
-      "passed": false,
-      "earned": 0,
-      "weight": 2,
-      "message": "2 auto-detected docs/*.md file(s) not force-included"
-    },
-    {
-      "name": "structure.contributing",
-      "category": "structure",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "CONTRIBUTING.md found"
-    },
-    {
-      "name": "structure.license_file",
-      "category": "structure",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "LICENSE file found"
-    },
-    {
-      "name": "structure.python_version",
-      "category": "structure",
-      "passed": true,
-      "earned": 1,
-      "weight": 1,
-      "message": ".python-version found"
-    },
-    {
-      "name": "structure.uv_lock",
-      "category": "structure",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "uv.lock found"
-    },
-    {
-      "name": "tooling.makefile",
-      "category": "tooling",
-      "passed": true,
-      "earned": 4,
-      "weight": 4,
-      "message": "Makefile complete"
-    },
-    {
-      "name": "tooling.precommit_basic",
-      "category": "tooling",
-      "passed": true,
-      "earned": 1,
-      "weight": 1,
-      "message": "Basic hooks present"
-    },
-    {
-      "name": "tooling.precommit_conventional",
-      "category": "tooling",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Conventional commits hook present"
-    },
-    {
-      "name": "tooling.precommit_exists",
-      "category": "tooling",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": ".pre-commit-config.yaml found"
-    },
-    {
-      "name": "tooling.precommit_installed",
-      "category": "tooling",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Skipped in CI (local-only hook enforcement)"
-    },
-    {
-      "name": "tooling.precommit_mypy",
-      "category": "tooling",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "MyPy hook present"
-    },
-    {
-      "name": "tooling.precommit_ruff",
-      "category": "tooling",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Ruff hook present"
-    },
-    {
-      "name": "workspace.matrix_packages",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "CI uses --package strategy"
-    },
-    {
-      "name": "workspace.members_consistent",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "14 member(s) consistent"
-    },
-    {
-      "name": "workspace.monorepo_plugin",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "monorepo plugin configured"
-    },
-    {
-      "name": "workspace.packages_layout",
-      "category": "workspace",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "14 member(s) in packages/"
-    },
-    {
-      "name": "workspace.pytest_importmode",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "import_mode = 'importlib' set"
-    },
-    {
-      "name": "workspace.pytest_testpaths",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "testpaths cover 14 member suite(s)"
-    },
-    {
-      "name": "workspace.quality_workflow",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "axm-quality.yml configured with audit + coverage"
-    },
-    {
-      "name": "workspace.requires_python_compat",
-      "category": "workspace",
-      "passed": true,
-      "earned": 1,
-      "weight": 1,
-      "message": "All members: >=3.12"
-    },
-    {
-      "name": "workspace.root_name_collision",
-      "category": "workspace",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "Root 'axm-forge-workspace' does not collide with 14 member(s)"
-    },
-    {
-      "name": "workspace.suite_dir_uniqueness",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "14 member suite name(s) are unique"
-    }
-  ],
+  "passed_count": 34,
   "failures": [
     {
       "name": "changelog.gitcliff_config",
-      "weight": 3,
       "message": "No [tool.git-cliff] config found",
       "details": [
         "git-cliff auto-generates CHANGELOG from conventional commits"
@@ -361,7 +16,6 @@
     },
     {
       "name": "docs.readme",
-      "weight": 3,
       "message": "README missing 2 section(s)",
       "details": [
         "Missing: Features, Installation"
@@ -370,7 +24,6 @@
     },
     {
       "name": "pyproject.pyproject_dynamic_version",
-      "weight": 3,
       "message": "Version is not dynamically managed",
       "details": [
         "Missing: dynamic = [\"version\"]",
@@ -380,7 +33,6 @@
     },
     {
       "name": "pyproject.pyproject_ruff_rules",
-      "weight": 2,
       "message": "Missing 9 essential ruff rule(s)",
       "details": [
         "Missing: B, BLE, E, F, I, N, PLR, S, UP"
@@ -389,7 +41,6 @@
     },
     {
       "name": "pyproject.pyproject_wheel_doc_shipping",
-      "weight": 2,
       "message": "2 auto-detected docs/*.md file(s) not force-included",
       "details": [
         "docs/contributing.md",
