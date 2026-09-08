@@ -1,14 +1,16 @@
 {
-  "score": 71.4,
-  "grade": "C",
+  "score": 88.3,
+  "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_COUPLING: Coupling: 1 module(s) above threshold (-3 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
+    "QUALITY_TESTS: Test coverage: 94% (94/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
     "DEPS_HYGIENE: Clean dependencies (0 issues)",
+    "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     "PRACTICE_DOCSTRING: Docstring coverage: 100% (156/156)",
@@ -67,20 +69,6 @@
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
-      "rule_id": "QUALITY_TESTS",
-      "message": "No coverage data (pytest-cov not configured)",
-      "details": {
-        "coverage": 0.0,
-        "failures": [
-          {
-            "test": "tests_axm_init/integration/test_missing_secrets__pypi_credentials.py",
-            "traceback": "E   ModuleNotFoundError: No module named 'axm_doctor'"
-          }
-        ]
-      },
-      "fix_hint": "Add pytest-cov: uv add --dev pytest-cov"
-    },
-    {
       "rule_id": "QUALITY_DEAD_CODE",
       "message": "Found 1 dead (unreferenced) symbol(s).",
       "text": "\u2022 _advance_past_marker /home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/adapters/workspace_patcher.py:192",
@@ -91,12 +79,6 @@
       "message": "2 vulnerable package(s) found",
       "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+4\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
       "fix_hint": "Run: pip-audit --fix to remediate"
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "message": "Type check BLOCKED: audit environment incomplete \u2014 missing type stubs or unfollowed imports for: axm_doctor.orchestrate. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem.",
-      "text": "\u2022 [import-not-found] tests_axm_init/integration/test_missing_secrets__pypi_credentials.py:9: Cannot find implementation or library stub for module named \"axm_doctor.orchestrate\"",
-      "fix_hint": "audit environment incomplete \u2014 missing type stubs or unfollowed imports for: axm_doctor.orchestrate. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem."
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",

@@ -1,6 +1,6 @@
 {
-  "score": 78.3,
-  "grade": "C",
+  "score": 95.2,
+  "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
@@ -12,11 +12,13 @@
       "text": "\u2022 axm_edit/tools/search_files.py:render_text cc=13 (C) cog=17 [cc+cog]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
+    "QUALITY_TESTS: Test coverage: 95% (94/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
     "DEPS_HYGIENE: 1 dependency issue(s) found",
+    "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
@@ -57,30 +59,10 @@
   ],
   "failed": [
     {
-      "rule_id": "QUALITY_TESTS",
-      "message": "No coverage data (pytest-cov not configured)",
-      "details": {
-        "coverage": 0.0,
-        "failures": [
-          {
-            "test": "tests_axm_edit/unit/tools/test_search_files.py",
-            "traceback": "E   ModuleNotFoundError: No module named 'tiktoken'"
-          }
-        ]
-      },
-      "fix_hint": "Add pytest-cov: uv add --dev pytest-cov"
-    },
-    {
       "rule_id": "DEPS_AUDIT",
       "message": "1 vulnerable package(s) found",
       "text": "\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
       "fix_hint": "Run: pip-audit --fix to remediate"
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "message": "Type check BLOCKED: audit environment incomplete \u2014 missing type stubs or unfollowed imports for: tiktoken. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem.",
-      "text": "\u2022 [import-not-found] tests_axm_edit/unit/tools/test_search_files.py:5: Cannot find implementation or library stub for module named \"tiktoken\"",
-      "fix_hint": "audit environment incomplete \u2014 missing type stubs or unfollowed imports for: tiktoken. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem."
     },
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",

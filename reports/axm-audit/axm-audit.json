@@ -1,5 +1,5 @@
 {
-  "score": 81.8,
+  "score": 89.3,
   "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -10,6 +10,7 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
@@ -83,12 +84,6 @@
       "message": "2 dependency issue(s) found",
       "text": "\u2022 DEP002 cyclopts: unused dep\n\u2022 DEP002 pytest-json-report: unused dep",
       "fix_hint": "Run: deptry . to see details"
-    },
-    {
-      "rule_id": "QUALITY_TYPE",
-      "message": "Type check BLOCKED: audit environment incomplete \u2014 missing type stubs or unfollowed imports for: keyring. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem.",
-      "text": "\u2022 [import-not-found] tests_axm_audit/fixtures/tool_secret_locations/auth_keyring_service.py:3: Cannot find implementation or library stub for module named \"keyring\"\n\u2022 [import-not-found] tests_axm_audit/fixtures/tool_secret_locations/auth_internal_paths.py:3: Cannot find implementation or library stub for module named \"keyring\"",
-      "fix_hint": "audit environment incomplete \u2014 missing type stubs or unfollowed imports for: keyring. The type result is unreliable until the env is fixed (install the stubs / run `uv sync`); this is an environment problem, not a code problem."
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
