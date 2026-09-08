@@ -22,7 +22,7 @@ dependencies = [
     # APIs (mcp_app.py importe encore `mcp.server.fastmcp.FastMCP`). Sans le
     # plafond, une resolution neuve tire la 2.x et le serveur ne demarre plus
     # (ModuleNotFoundError au boot). A lever avec la migration vers MCPServer.
-    "mcp[cli]>=1.25.0,<2",
+    "mcp[cli]>=1.25.0,<3",
     "starlette>=1.2",
 ]
 
@@ -89,7 +89,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.15.1",
-    "ruff==0.16.4",
+    "ruff==0.16.6",
     "mypy>=1.19",
     "prek>=0.4.9",
     "types-pyyaml>=6.0.12.20250915",
