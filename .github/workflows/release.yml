@@ -2,24 +2,10 @@ name: Release
 
 on:
   push:
+    # Same single rule as publish.yml: the long tag convention makes the
+    # prefix the package directory, so no list to keep in sync.
     tags:
-      - "axm/v*"
-      - "mcp/v*"
-      - "anvil/v*"
-      - "ast/v*"
-      - "audit/v*"
-      - "edit/v*"
-      - "init/v*"
-      - "git/v*"
-      - "smelt/v*"
-      - "ingot/v*"
-      - "echo/v*"
-      - "config/v*"
-      - "vault/v*"
-      - "doctor/v*"
-
-permissions:
-  contents: write
+      - "*/v*"
 
 jobs:
   release:
@@ -35,52 +21,13 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           PREFIX="${TAG%%/*}"
-          if [[ "$TAG" == axm/* ]]; then
-            echo "package=axm" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == mcp/* ]]; then
-            echo "package=axm-mcp" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-mcp" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == anvil/* ]]; then
-            echo "package=axm-anvil" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-anvil" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == ast/* ]]; then
-            echo "package=axm-ast" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-ast" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == audit/* ]]; then
-            echo "package=axm-audit" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-audit" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == edit/* ]]; then
-            echo "package=axm-edit" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-edit" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == init/* ]]; then
-            echo "package=axm-init" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-init" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == git/* ]]; then
-            echo "package=axm-git" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-git" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == smelt/* ]]; then
-            echo "package=axm-smelt" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-smelt" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == ingot/* ]]; then
-            echo "package=axm-ingot" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-ingot" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == echo/* ]]; then
-            echo "package=axm-echo" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-echo" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == config/* ]]; then
-            echo "package=axm-config" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-config" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == vault/* ]]; then
-            echo "package=axm-vault" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-vault" >> "$GITHUB_OUTPUT"
-          elif [[ "$TAG" == doctor/* ]]; then
-            echo "package=axm-doctor" >> "$GITHUB_OUTPUT"
-            echo "package-dir=packages/axm-doctor" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::Unknown tag prefix: $TAG"
+          DIR="packages/$PREFIX"
+          if [ ! -f "$DIR/pyproject.toml" ]; then
+            echo "::error::No package for tag prefix '$PREFIX' (expected $DIR/pyproject.toml)"
             exit 1
           fi
+          echo "package=$PREFIX" >> "$GITHUB_OUTPUT"
+          echo "package-dir=$DIR" >> "$GITHUB_OUTPUT"
           echo "tag-prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
