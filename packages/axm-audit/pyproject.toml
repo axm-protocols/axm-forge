@@ -604,7 +604,19 @@ check_untyped_defs = true
 plugins = ["pydantic.mypy"]
 # fix-corpus input/expected trees are fixture mini-packages that reference
 # modules only resolvable inside a per-test temp dir — skip type analysis.
-exclude = ["tests_axm_audit/fixtures/fix_corpus/[^/]+/(input|expected)/"]
+#
+# tool_secret_locations/ and unpaired_cognitive/ hold code *samples*: files the
+# rules read as text to exercise detection (a fixture importing `keyring` is the
+# input to the secret-location rule, not a dependency of axm-audit). Type-checking
+# them demands their imports be installed, which would either fail the pre-push
+# sweep or force an `ignore_missing_imports` that blinds the real `src/` to the
+# same missing stub. Excluded here so the radar stays live where it matters.
+# `__init__.py`/`conftest.py` are real modules and stay analysed.
+exclude = [
+    "tests_axm_audit/fixtures/fix_corpus/[^/]+/(input|expected)/",
+    "tests_axm_audit/fixtures/tool_secret_locations/(?!__init__)[^/]+\\.py$",
+    "tests_axm_audit/fixtures/unpaired_cognitive/(?!__init__)[^/]+\\.py$",
+]
 
 [[tool.mypy.overrides]]
 module = ["tests_axm_audit.*"]
