@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from hashlib import blake2s
 
 from axm_config import current_profile
 
@@ -11,14 +12,31 @@ from axm_mcp.settings import resolve_http_port, resolve_pid_file
 
 __all__ = ["daemon_descriptor"]
 
-_SERVICE_ID = "axm-mcp"
+_SERVICE_ID = "io.axm.mcp"
+
+
+def _service_id(profile: str) -> str:
+    if profile == "production":
+        return _SERVICE_ID
+
+    digest = blake2s(profile.encode("utf-8"), digest_size=4).hexdigest()
+    stem = "".join(
+        character
+        for character in profile.lower()
+        if character.isascii() and character.isalnum()
+    )
+    if not stem or not stem[0].isalpha():
+        stem = f"p{stem}"
+    stem = stem[: 63 - len(digest)]
+    return f"{_SERVICE_ID}.{stem}{digest}"
 
 
 def daemon_descriptor() -> Mapping[str, Mapping[str, object]]:
     """Build the side-effect-free launch descriptor for the active profile."""
+    profile = current_profile()
     port = resolve_http_port()
     pid_file = resolve_pid_file()
-    environment = {"AXM_PROFILE": current_profile()}
+    environment = {"AXM_PROFILE": profile}
     explicit_port = os.environ.get("AXM_MCP_PORT")
     if explicit_port is not None:
         environment["AXM_MCP_PORT"] = explicit_port
@@ -31,4 +49,4 @@ def daemon_descriptor() -> Mapping[str, Mapping[str, object]]:
         "probe": probe,
         "environment": environment,
     }
-    return {_SERVICE_ID: service}
+    return {_service_id(profile): service}

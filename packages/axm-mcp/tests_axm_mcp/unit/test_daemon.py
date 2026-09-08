@@ -83,3 +83,52 @@ def test_dev_profile_without_port_is_rejected(
 
     with pytest.raises(NonProductionPortError):
         _daemon_module().daemon_descriptor()
+
+
+def test_dev_profile_publishes_hashed_service_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: key the development descriptor by its exact profile-derived id."""
+    monkeypatch.setenv("AXM_PROFILE", "dev")
+    monkeypatch.setenv("AXM_MCP_PORT", "9500")
+
+    descriptor = _daemon_module().daemon_descriptor()
+
+    assert set(descriptor) == {"io.axm.mcp.dev3680d487"}
+
+
+def test_staging_profile_publishes_hashed_service_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: key the staging descriptor by its exact profile-derived id."""
+    monkeypatch.setenv("AXM_PROFILE", "staging")
+    monkeypatch.setenv("AXM_MCP_PORT", "9501")
+
+    descriptor = _daemon_module().daemon_descriptor()
+
+    assert set(descriptor) == {"io.axm.mcp.staginge0df4265"}
+
+
+def test_production_and_dev_descriptors_coexist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: preserve two isolated services when production and dev are merged."""
+    monkeypatch.setenv("AXM_PROFILE", "production")
+    monkeypatch.delenv("AXM_MCP_PORT", raising=False)
+    production = _daemon_module().daemon_descriptor()
+
+    monkeypatch.setenv("AXM_PROFILE", "dev")
+    monkeypatch.setenv("AXM_MCP_PORT", "9500")
+    development = _daemon_module().daemon_descriptor()
+
+    registry = {**production, **development}
+    assert len(registry) == 2
+
+    services = list(registry.values())
+    assert all(isinstance(service, dict) for service in services)
+    pid_files = {service["pid_file"] for service in services}
+    ports = {
+        service["probe"]["url"].rsplit(":", maxsplit=1)[-1] for service in services
+    }
+    assert len(pid_files) == 2
+    assert len(ports) == 2
