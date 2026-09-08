@@ -74,12 +74,46 @@ def test_versioned_quality_command_roles_use_unified_structured_invocation() -> 
         f"quality-command roles without an auditable invocation: {missing_roles}"
     )
 
+    # Scaffold templates run in a THIRD-PARTY project through `uvx`, which
+    # installs from PyPI — not from this checkout. The published axm-audit
+    # still ships its dedicated facade, and published `axm` treats
+    # `--json-output` as value-taking, so the unified form fails there
+    # (measured: `parameter --json-output requires an argument`). They must
+    # migrate WITH the release that drops those facades, not before.
     violations = [
         f"{path.relative_to(root)}: {line}"
-        for commands in invocations.values()
+        for role, commands in invocations.items()
+        if role != "scaffold workflow templates"
         for path, line in commands
         if not _UNIFIED_COMMAND.search(line) or "--json-output" not in line
     ]
     assert not violations, "retired or unstructured audit invocations:\n" + "\n".join(
         violations
+    )
+
+
+@pytest.mark.integration
+def test_scaffold_templates_keep_a_form_the_published_package_exposes() -> None:
+    """A scaffold template must invoke a form that PyPI actually serves.
+
+    Templates run through ``uvx`` inside a project that does not have this
+    checkout, so they resolve from PyPI — not from the local sources. The
+    published ``axm-audit`` still ships its dedicated facade, and published
+    ``axm`` treats ``--json-output`` as value-taking (measured: ``parameter
+    --json-output requires an argument``). Migrating the templates ahead of
+    the release therefore breaks the CI of every newly scaffolded project.
+
+    This pins the templates to the *published* contract rather than to the
+    local one; the release that drops the facade must flip both together.
+    """
+    root = Path(__file__).resolve().parents[4]
+    template_lines = [
+        line for path in _workflow_templates(root) for line in _command_lines(path)
+    ]
+    assert template_lines, "no auditable invocation in the scaffold templates"
+
+    premature = [line for line in template_lines if "--json-output" in line]
+    assert not premature, (
+        "scaffold templates use --json-output, which the published axm rejects "
+        f"as value-taking; they must migrate with the release, not before: {premature}"
     )
