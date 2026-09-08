@@ -583,6 +583,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "tiktoken" },
 ]
 docs = [
     { name = "mkdocs-gen-files" },
@@ -607,6 +608,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "ruff", specifier = "==0.16.4" },
+    { name = "tiktoken", specifier = ">=0.9" },
 ]
 docs = [
     { name = "mkdocs-gen-files", specifier = ">=0.5" },
@@ -765,6 +767,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "axm-doctor" },
     { name = "mypy" },
     { name = "pip-audit" },
     { name = "prek" },
@@ -796,6 +799,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "axm-doctor", editable = "packages/axm-doctor" },
     { name = "mypy", specifier = ">=1.20.0" },
     { name = "pip-audit", specifier = ">=2.7.3" },
     { name = "prek", specifier = ">=0.4.9" },

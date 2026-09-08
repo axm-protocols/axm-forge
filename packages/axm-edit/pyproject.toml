@@ -72,6 +72,11 @@ dev = [
     "mypy>=1.20.0",
     "prek>=0.4.9",
     "pip-audit>=2.0",
+    # test-only: test_search_files asserts the token cost of rendered search
+    # output against the real o200k_base encoding. Undeclared, the module was
+    # missing from the package env — the whole test file failed at collection
+    # (silently uncovered) and mypy could not resolve the import.
+    "tiktoken>=0.9",
 ]
 docs = [
     "mkdocs-material>=9.0",
@@ -146,6 +151,11 @@ disable_error_code = [
 
 [[tool.mypy.overrides]]
 module = ["axm_core.*", "axm.*"]
+ignore_missing_imports = true
+
+# tiktoken ships no stubs (same override as axm-smelt, its other consumer).
+[[tool.mypy.overrides]]
+module = ["tiktoken.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

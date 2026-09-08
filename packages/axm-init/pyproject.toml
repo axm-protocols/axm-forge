@@ -82,6 +82,12 @@ dev = [
     "radon>=6.0.1",
     "ruff==0.16.4",
     "types-PyYAML>=6.0",
+    # test-only: an integration test asserts that doctor's missing_secrets
+    # discovers axm-init's own credential catalog. Undeclared, the module was
+    # absent from the package env — the test collected 0 items (silently
+    # uncovered) and mypy could not resolve the import. Test-scoped on purpose:
+    # axm-init has no runtime dependency on doctor.
+    "axm-doctor",
 ]
 docs = [
     "mkdocs-material>=9.5.0",
