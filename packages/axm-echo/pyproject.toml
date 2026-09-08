@@ -46,8 +46,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = "echo/v(?P<version>.*)"
-raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match echo/v*" }
+tag-pattern = "axm-echo/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match axm-echo/v*" }
 fallback-version = "0.0.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
@@ -265,4 +265,4 @@ commit_parsers = [
     { message = "^refactor", group = "🔧 Refactor" },
     { message = "^test", group = "🧪 Tests" },
 ]
-tag_pattern = "echo/v[0-9].*"
+tag_pattern = "axm-echo/v[0-9].*"

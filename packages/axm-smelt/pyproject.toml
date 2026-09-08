@@ -38,8 +38,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
-tag-pattern = "smelt/v(?P<version>.*)"
-raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match smelt/v*" }
+tag-pattern = "axm-smelt/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match axm-smelt/v*" }
 fallback-version = "0.1.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
@@ -331,5 +331,5 @@ commit_parsers = [
     { message = "^refactor", group = "🔧 Refactor" },
     { message = "^test", group = "🧪 Tests" },
 ]
-tag_pattern = "smelt/v[0-9].*"
+tag_pattern = "axm-smelt/v[0-9].*"
 include_path = "packages/axm-smelt/**"
