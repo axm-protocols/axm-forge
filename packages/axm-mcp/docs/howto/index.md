@@ -1,9 +1,13 @@
 # How-To Guides
 
-Task-oriented guides for common workflows.
+| Goal | Guide |
+|---|---|
+| Expose a Python operation to MCP clients | [Add a tool](add-tool.md) |
+| Use a persistent process over Streamable HTTP | [Migrate to HTTP](migration-http.md) |
+| Interpret aggregated quality findings | [Verify a project](verify.md) |
 
-## Available Guides
-
-- [Add a Tool](add-tool.md) — Register a new MCP tool
-- [Migrate to HTTP Transport](migration-http.md) — Switch from stdio to HTTP
-- [Verify a Project](verify.md) — Run the full quality gate
+For a first connection, follow the [Quick Start](../tutorials/quickstart.md).
+For precise command, environment or response behavior, use the
+[CLI](../reference/cli.md), [configuration](../reference/configuration.md)
+and [facade](../reference/facade.md) references. Shared HTTP deployments also
+need the [write-contract reference](../reference/shared-contracts.md).

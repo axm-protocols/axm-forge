@@ -1,97 +1,100 @@
 # Add a New Tool
 
-Expose your own Python tool as an MCP-callable function via `axm-mcp`.
+Expose a request/response operation once, using an `axm.tools` entry point.
+Use an AXMTool implementation with explicit typed keyword parameters so the
+MCP schema, facade contract and AXM CLI can describe the same operation.
 
-## Prerequisites
+## 1. Implement the operation
 
-Your tool must satisfy the `AXMTool` protocol from `axm.tools.base` — any class with a `name` property and an `execute()` method qualifies (no inheritance needed).
-
-## Step 1: Create the Tool Class
+Put this in `my_package/tools.py`:
 
 ```python
+from __future__ import annotations
+
 from axm.tools.base import ToolResult
 
+__all__ = ["MyTool"]
+
 
 class MyTool:
+    domain = "example"
+    tags = frozenset({"greeting"})
+    expose_directly = False
+
     @property
     def name(self) -> str:
         return "my_tool"
 
-    def execute(self, *, path: str = ".") -> ToolResult:
-        """Do something useful."""
-        return ToolResult(success=True, data={"result": "ok"})
+    def execute(self, *, name: str = "world") -> ToolResult:
+        """Return a greeting.
+
+        Args:
+            name: Person to greet.
+        """
+        greeting = f"Hello, {name}!"
+        return ToolResult(
+            success=True,
+            data={"greeting": greeting},
+            text=greeting,
+        )
 ```
 
-### Dual-format results
+This satisfies the structural AXMTool protocol; inheritance is not required.
+The class must be constructible without arguments for entry-point discovery.
+Keep the entry-point name and `name` property consistent.
 
-`execute()` returns a `ToolResult(success, data, text=None, error=None)`. The
-wrapper treats the two payloads differently:
+## 2. Publish the entry point
 
-- **`data`** — the structured dict that programmatic callers (hooks, gates,
-  DAG nodes) read.
-- **`text`** — an optional pre-rendered string. On a **successful** result with
-  `text` set, the wrapper short-circuits and returns the raw string (FastMCP
-  renders it as `TextContent`), so the agent sees clean markdown instead of
-  JSON. A **failing** result (or a raised exception) never short-circuits: it is
-  flattened to `{success: False, error: ...}` so the failure signal always
-  reaches the caller.
-
-```python
-return ToolResult(
-    success=True,
-    data={"score": 90, "issues": []},   # for hooks/gates
-    text="my_tool: 90/100 (0 issues)",  # for the agent
-)
-```
-
-Reserved keys in `data` (`success`, `error`, `hint`) are relocated to
-`data_*` rather than clobbering the envelope.
-
-### Facade discovery metadata (optional)
-
-The facade reads three optional class attributes (via `tool_metadata`) — set
-them so agents can *find* your tool through `axm_search`, and so a
-frequently-used tool can bypass the facade:
-
-```python
-class MyTool:
-    expose_directly = True          # register on the HOT PATH (its own tools/list
-                                    # entry) instead of only behind axm_call
-    domain = "quality"              # groups it under axm_capabilities
-    tags = frozenset({"lint", "ci"})  # matched by axm_search's keyword search
-
-    @property
-    def name(self) -> str:
-        return "my_tool"
-    ...
-```
-
-- **`expose_directly`** (default `False`) — `True` registers the tool as an
-  individual MCP tool (the hot path), so it shows up directly in `tools/list`.
-  Reserve it for high-frequency tools; everything else stays compact behind the
-  facade.
-- **`domain`** — a short grouping key surfaced by `axm_capabilities`.
-- **`tags`** — extra keywords `axm_search` matches against (name + summary +
-  tags + domain).
-
-## Step 2: Register as Entry Point
-
-In your package's `pyproject.toml`:
+Add to your installable package's `pyproject.toml`:
 
 ```toml
 [project.entry-points."axm.tools"]
 my_tool = "my_package.tools:MyTool"
 ```
 
-## Step 3: Install and Verify
+Declare `axm` in the package's dependencies. Install your package into the
+server environment; for a dedicated virtual environment:
 
 ```bash
-uv pip install -e .
-axm-mcp
+uv pip install --python /absolute/path/to/server-venv/bin/python -e /absolute/path/to/my-package
 ```
 
-Call `list_tools` — your tool should appear in the list (it always enumerates the full surface). To invoke it, use the facade: `axm_describe` for its contract, then `axm_call`.
+Restart that environment's server. Merely adding a Python file or installing
+into another venv does not update its entry-point catalog.
 
-## How Discovery Works
+## 3. Discover and invoke
 
-`axm-mcp` uses `importlib.metadata.entry_points(group="axm.tools")` at startup (`discover_tools()`). Each entry point is instantiated if it is a class, or used as-is if it is a plain dispatcher function. By default (`AXM_MCP_FACADE=1`) the discovered tools are then surfaced through the compact facade — reachable via `axm_search` / `axm_describe` / `axm_call` — unless they opt into the direct hot path with `expose_directly`. Set `AXM_MCP_FACADE=0` to register every discovered tool directly instead. Either way, no configuration is needed — just install the package.
+Send these MCP `tools/call` parameter objects separately:
+
+```json
+{"name": "axm_describe", "arguments": {"name": "my_tool"}}
+```
+
+```json
+{"name": "axm_call", "arguments": {"name": "my_tool", "arguments": {"name": "Ada"}}}
+```
+
+The result is `Hello, Ada!`. It is intentionally absent from the direct
+MCP list because `expose_directly=False`; `list_tools` still enumerates it.
+
+## Metadata and errors
+
+`domain` groups capabilities, `tags` improves substring discovery, and
+`expose_directly=True` gives a frequently used tool its own direct MCP
+entry. There is no need for a second registration to keep facade access.
+
+Programmatic AXMTool calls retain `data`. At the MCP boundary, a successful
+`text` replaces that structured payload; failures with nonempty text retain
+diagnostics with an error prefix when needed. See the
+[result contract](../reference/facade.md#toolresult-at-the-mcp-boundary)
+before building a consumer.
+
+Return `ToolResult(success=False, error="...")` for a known failure.
+Execution exceptions are flattened by the wrapper. Do not use reserved
+envelope/data relocation keys for unrelated payload fields, and avoid
+catch-all kwargs when explicit parameters can reject user mistakes.
+
+For a mutating tool, documenting its effects and registering an entry point
+does not automatically classify every payload for shared write enforcement.
+Review the AXM write-scope decision layer and
+[shared-policy limitations](../reference/shared-contracts.md).

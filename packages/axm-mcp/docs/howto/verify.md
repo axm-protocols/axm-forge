@@ -1,72 +1,61 @@
 # Use the Verify Tool
 
-Run a one-shot quality check on any Python project.
+Use `verify` to collect audit, governance and optional AST context for an
+existing package. Install `axm-mcp[forge]` for all three providers, or the
+individual `audit`, `init` and `ast` extras.
 
-## Basic Usage
+## Call
 
-```json
-{"name": "verify", "arguments": {"path": "/path/to/project"}}
-```
-
-## What It Does
-
-`verify` orchestrates three tools in one call:
-
-1. **`audit`** (from `axm-audit`) — Lint, types, complexity, security, coverage, architecture
-2. **`init_check`** (from `axm-init`) — 49 governance checks against AXM gold standard
-3. **AST enrichment** (from `axm-ast`) — Adds caller/impact context to failures
-
-## Output Structure
-
-`verify` is a dual-format tool: it returns a `ToolResult` whose **`data`** is the
-structured dict below (what hooks and gates read) and whose **`text`** is a
-compact rendered summary (what the MCP agent sees, e.g.
-`verify | audit A 97.0 (30/31) · governance A 100 (35/35)`). The `text` view is
-rendered by `format_verify_text`; the `data` view is:
+This is an MCP `tools/call` parameter object:
 
 ```json
-{
-  "audit": {
-    "score": 93.9,
-    "grade": "A",
-    "passed": ["QUALITY_LINT: ok", "..."],
-    "failed": [
-      {
-        "rule_id": "QUALITY_TYPE",
-        "message": "5 errors",
-        "fix_hint": "Add type hints",
-        "context": {
-          "affected_modules": ["foo.bar"],
-          "callers": [{"symbol": "cli.main", "location": "cli.py:58"}],
-          "test_files": ["tests/unit/test_foo.py"],
-          "impact_score": "HIGH",
-          "symbols_analyzed": 2
-        }
-      }
-    ]
-  },
-  "governance": {
-    "score": 90,
-    "grade": "A",
-    "passed": ["pyproject.exists: ok", "..."],
-    "failed": []
-  }
-}
+{"name": "verify", "arguments": {"path": "/absolute/path/to/package"}}
 ```
 
-The `context` block (added by AST enrichment, `enrich_failure`) reports:
+Use a package root for package-specific results. The default is `"."`;
+it refers to the server's working directory. The tool passes the path to
+`audit` and `init_check` without changing their category or framework options.
 
-- **`impact_score`** — an **ordinal** string (`"LOW"` < `"MEDIUM"` < `"HIGH"`),
-  the maximum across all analyzed symbols — **not** a numeric ratio.
-- **`callers`** — a list of **dicts** (expanded from `ast_impact`'s callers), not
-  bare location strings; truncated past a cap with a trailing `note` entry.
-- **`test_files`** — de-duplicated test files touching the affected symbols.
-- **`symbols_analyzed`** — how many symbols were successfully analyzed.
+## Interpret the outcome
 
-## Graceful Degradation
+1. Read both **audit** and **governance** sections.
+2. A missing provider produces `null` in structured data and a skipped
+   section in the text. This is incomplete verification, not a pass.
+3. A provider failure/exception produces an `{"error": "..."}` section.
+4. Inspect failed rules even if the outer tool call succeeded.
+5. Treat AST context as additional impact information, not a complete
+   dependency or test-coverage proof.
 
-- If `axm-audit` is not installed → `audit` is `null`
-- If `axm-init` is not installed → `governance` is `null`
-- If `axm-ast` is not installed → failures have no `context` enrichment
+`VerifyTool.execute` returns `ToolResult(success=True, ...)` whenever
+aggregation completes, including when sections contain findings or errors.
+The tool's transport success must not be your CI quality predicate.
 
-Install more packages to get richer results.
+## Data versus text
+
+MCP returns a compact rendered summary. The underlying Python result contains
+`data={"audit": ..., "governance": ...}`. It does not add a global
+`quality_ok` boolean. Provider sections retain their providers' schemas;
+counts and rule sets depend on the installed versions.
+
+When eligible audit failures contain resolvable symbols and `ast_impact`
+is available, `context` may include:
+
+| Field | Meaning |
+|---|---|
+| `affected_modules` | De-duplicated extracted symbol/module identifiers, despite the field name |
+| `callers` | Aggregated caller dictionaries, truncated with a trailing note after the cap |
+| `test_files` | De-duplicated test paths returned by AST |
+| `impact_score` | Maximum ordinal label LOW, MEDIUM or HIGH |
+| `symbols_analyzed` | Successful symbol analyses |
+
+No resolvable symbols or failed AST queries means no context. Some findings
+cannot be enriched.
+
+## Operational effects
+
+This is an orchestration convenience, not a pure in-memory check. Providers
+may launch subprocesses, run tests, create reports/caches, or perform
+dependency/network checks according to their own defaults. Run against a
+checkout where those operations are intended. `verify` itself does not
+repair findings or commit changes. For category controls or focused test
+runs, discover and call the appropriate audit tool directly.
