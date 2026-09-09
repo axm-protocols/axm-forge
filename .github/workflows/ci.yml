@@ -7,88 +7,19 @@ on:
     branches: [main]
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Detect which packages changed so test/mypy only run for affected packages.
-  # A change to a shared file (root pyproject, uv.lock, workflows, scaffold
-  # templates) can affect every package, so it forces the full matrix.
-  # ---------------------------------------------------------------------------
   changes:
-    name: Detect changed packages
+    name: Detect workspace packages
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.set.outputs.packages }}
-      any: ${{ steps.set.outputs.any }}
+      packages: ${{ steps.matrix.outputs.packages }}
+      all: ${{ steps.matrix.outputs.all }}
+      any: ${{ steps.matrix.outputs.any }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          # Pin the comparison base. Left unset, the action resolves it from the
-          # push event, which names whatever branch the commits arrived on --
-          # and a branch deleted after the fact makes every later run die with
-          # `couldn't find remote ref <branch>`, skipping the whole matrix.
-          # Measured: the same commit passed on 08/09 and failed on 09/09 with
-          # no code change, once `main-contributors-refresh` was removed.
-          base: main
-          filters: |
-            shared:
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - '.python-version'
-              - '.github/workflows/**'
-              - 'packages/axm-init/src/axm_init/templates/**'
-            axm:
-              - 'packages/axm/**'
-            axm-mcp:
-              - 'packages/axm-mcp/**'
-            axm-anvil:
-              - 'packages/axm-anvil/**'
-            axm-ast:
-              - 'packages/axm-ast/**'
-            axm-audit:
-              - 'packages/axm-audit/**'
-            axm-edit:
-              - 'packages/axm-edit/**'
-            axm-init:
-              - 'packages/axm-init/**'
-            axm-git:
-              - 'packages/axm-git/**'
-            axm-smelt:
-              - 'packages/axm-smelt/**'
-            axm-ingot:
-              - 'packages/axm-ingot/**'
-            axm-echo:
-              - 'packages/axm-echo/**'
-            axm-config:
-              - 'packages/axm-config/**'
-            axm-vault:
-              - 'packages/axm-vault/**'
-            axm-doctor:
-              - 'packages/axm-doctor/**'
-      - name: Compute package matrix
-        id: set
-        env:
-          SHARED: ${{ steps.filter.outputs.shared }}
-          CHANGES: ${{ steps.filter.outputs.changes }}
-        run: |
-          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot","axm-echo","axm-config","axm-vault","axm-doctor"]'
-          if [ "$SHARED" = "true" ]; then
-            echo "Shared file changed -> full matrix"
-            PACKAGES="$ALL"
-          else
-            # `changes` is a JSON array of matched filter names; drop the
-            # `shared` entry (already handled) and keep the package names.
-            PACKAGES=$(echo "$CHANGES" | jq -c '[.[] | select(. != "shared")]')
-          fi
-          echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
-          if [ "$PACKAGES" = "[]" ]; then
-            echo "any=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "any=true" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Selected packages: $PACKAGES"
+      - uses: ./.github/actions/workspace-matrix
+        id: matrix
 
   lint:
     name: Lint & Type Check
@@ -107,44 +38,24 @@ jobs:
         run: uv run ruff check .
       - name: Ruff format
         run: uv run ruff format --check .
-      # MyPy is per-package: each step runs only when that package (or a
-      # shared file) changed, keyed off the `changes` job output.
-      - name: MyPy (axm-anvil)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-anvil')
-        run: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src/ packages/axm-anvil/tests_axm_anvil/
-      - name: MyPy (axm-ast)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-ast')
-        run: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src/ packages/axm-ast/tests_axm_ast/
-      - name: MyPy (axm-audit)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-audit')
-        run: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src/ packages/axm-audit/tests_axm_audit/
-      - name: MyPy (axm-edit)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-edit')
-        run: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src/ packages/axm-edit/tests_axm_edit/
-      - name: MyPy (axm-init)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-init')
-        run: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src/ packages/axm-init/tests_axm_init/
-      - name: MyPy (axm-git)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-git')
-        run: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src/ packages/axm-git/tests_axm_git/
-      - name: MyPy (axm-smelt)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-smelt')
-        run: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src/ packages/axm-smelt/tests_axm_smelt/
-      - name: MyPy (axm-ingot)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-ingot')
-        run: uv run --package axm-ingot mypy --config-file packages/axm-ingot/pyproject.toml packages/axm-ingot/src/ packages/axm-ingot/tests_axm_ingot/
-      - name: MyPy (axm-echo)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-echo')
-        run: uv run --package axm-echo mypy --config-file packages/axm-echo/pyproject.toml packages/axm-echo/src/ packages/axm-echo/tests_axm_echo/
-      - name: MyPy (axm-config)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-config')
-        run: uv run --package axm-config mypy --config-file packages/axm-config/pyproject.toml packages/axm-config/src/ packages/axm-config/tests_axm_config/
-      - name: MyPy (axm-vault)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-vault')
-        run: uv run --package axm-vault mypy --config-file packages/axm-vault/pyproject.toml packages/axm-vault/src/ packages/axm-vault/tests_axm_vault/
-      - name: MyPy (axm-doctor)
-        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-doctor')
-        run: uv run --package axm-doctor mypy --config-file packages/axm-doctor/pyproject.toml packages/axm-doctor/src/ packages/axm-doctor/tests_axm_doctor/
+      - name: Workspace matrix regression tests
+        run: uv run pytest tests/e2e/test_workspace_ci.py --no-cov
+      - name: MyPy (affected workspace members)
+        env:
+          MEMBERS: ${{ needs.changes.outputs.packages }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          for member in json.loads(os.environ["MEMBERS"]):
+              subprocess.run(
+                  ["uv", "run", "--package", member["name"],
+                   "--directory", member["path"], "mypy",
+                   "--config-file", "pyproject.toml", "src", *member["tests"]],
+                  check=True,
+              )
+          PY
 
   security:
     name: Security Audit
@@ -160,7 +71,9 @@ jobs:
         continue-on-error: true  # warn-only until all transitive CVEs have upstream fixes
 
   test:
-    name: Test ${{ matrix.package }} (Python ${{ matrix.python-version }})
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    name: Test ${{ matrix.package.name }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.any == 'true'
@@ -180,11 +93,16 @@ jobs:
         run: |
           git config --global user.email "ci@axm.local"
           git config --global user.name "axm CI"
-      - run: uv run --package ${{ matrix.package }} --directory packages/${{ matrix.package }} pytest --cov
+      - name: Test package
+        env:
+          PACKAGE: ${{ matrix.package.name }}
+          PACKAGE_DIR: ${{ matrix.package.path }}
+          UV_PYTHON: ${{ matrix.python-version }}
+        run: uv run --package "$PACKAGE" --directory "$PACKAGE_DIR" pytest --cov
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v7
         with:
-          files: packages/${{ matrix.package }}/coverage.xml
-          flags: ${{ matrix.package }}
+          files: ${{ matrix.package.path }}/coverage.xml
+          flags: ${{ matrix.package.name }}
           fail_ci_if_error: false

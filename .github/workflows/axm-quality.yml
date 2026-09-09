@@ -7,110 +7,46 @@ on:
 permissions:
   contents: write
 
+# Prefer the newest full snapshot; publication also checks the current main SHA.
+concurrency:
+  group: axm-quality-main
+  cancel-in-progress: true
+
 jobs:
-  # ---------------------------------------------------------------------------
-  # Detect which packages changed so badges/audit/coverage only recompute for
-  # affected packages. A change to a shared file (root pyproject, uv.lock,
-  # workflows, scaffold templates) can affect every package -> full matrix.
-  # Mirrors the `changes` job in ci.yml.
-  # ---------------------------------------------------------------------------
   changes:
-    name: Detect changed packages
+    name: Detect workspace packages
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.set.outputs.packages }}
-      any: ${{ steps.set.outputs.any }}
+      packages: ${{ steps.matrix.outputs.packages }}
+      all: ${{ steps.matrix.outputs.all }}
+      any: ${{ steps.matrix.outputs.any }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          # Pin the comparison base -- see the note in ci.yml: an unset base is
-          # resolved from the push event and breaks once that branch is deleted.
-          base: main
-          filters: |
-            shared:
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - '.python-version'
-              - '.github/workflows/**'
-              - 'packages/axm-init/src/axm_init/templates/**'
-            axm:
-              - 'packages/axm/**'
-            axm-mcp:
-              - 'packages/axm-mcp/**'
-            axm-anvil:
-              - 'packages/axm-anvil/**'
-            axm-ast:
-              - 'packages/axm-ast/**'
-            axm-audit:
-              - 'packages/axm-audit/**'
-            axm-edit:
-              - 'packages/axm-edit/**'
-            axm-init:
-              - 'packages/axm-init/**'
-            axm-git:
-              - 'packages/axm-git/**'
-            axm-smelt:
-              - 'packages/axm-smelt/**'
-            axm-ingot:
-              - 'packages/axm-ingot/**'
-            axm-echo:
-              - 'packages/axm-echo/**'
-      - name: Compute package matrix
-        id: set
-        env:
-          SHARED: ${{ steps.filter.outputs.shared }}
-          CHANGES: ${{ steps.filter.outputs.changes }}
-        run: |
-          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt","axm-ingot","axm-echo"]'
-          if [ "$SHARED" = "true" ]; then
-            echo "Shared file changed -> full matrix"
-            PACKAGES="$ALL"
-          else
-            # `changes` is a JSON array of matched filter names; drop the
-            # `shared` entry (already handled) and keep the package names.
-            PACKAGES=$(echo "$CHANGES" | jq -c '[.[] | select(. != "shared")]')
-          fi
-          echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
-          if [ "$PACKAGES" = "[]" ]; then
-            echo "any=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "any=true" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Selected packages: $PACKAGES"
+      - uses: ./.github/actions/workspace-matrix
+        id: matrix
 
-  # ---------------------------------------------------------------------------
-  # One parallel job per impacted package: test+coverage, axm-audit, axm-init
-  # check. Each job emits ONLY its own package's badges + reports as an
-  # artifact. The aggregate (root badges, averages) is computed downstream in
-  # `publish`, which merges these against the reports already on gh-pages.
-  # ---------------------------------------------------------------------------
   badges:
-    name: Badges ${{ matrix.package }}
+    name: Badges ${{ matrix.package.name }}
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.any == 'true'
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+        package: ${{ fromJSON(needs.changes.outputs.all) }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
+      - run: uv sync --all-packages --all-groups
       - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Define badge helpers
         run: |
-          cp .github/scripts/badge-helpers.sh /tmp/badge-helpers.sh
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
-            > /tmp/audit-logo.svg || true
+          cp assets/logo.svg /tmp/audit-logo.svg
           cp /tmp/audit-logo.svg /tmp/init-logo.svg || true
 
       - name: Configure git identity (required by axm-init scaffold tests)
@@ -118,12 +54,12 @@ jobs:
           git config --global user.email "ci@axm.local"
           git config --global user.name "axm CI"
 
-      - name: Test + audit + init check (${{ matrix.package }})
+      - name: Test + audit + init check (${{ matrix.package.name }})
         env:
-          PKG: ${{ matrix.package }}
+          PKG: ${{ matrix.package.name }}
+          PKG_DIR: ${{ matrix.package.path }}
         run: |
-          source /tmp/badge-helpers.sh
-          PKG_DIR="packages/$PKG/"
+          source "$GITHUB_WORKSPACE/.github/scripts/badge-helpers.sh"
           mkdir -p _publish/badges/$PKG \
                    _publish/reports/coverage \
                    _publish/reports/axm-audit \
@@ -132,7 +68,7 @@ jobs:
           # ── coverage ──────────────────────────────────────────────────
           echo "📦 Testing $PKG..."
           uv run --package "$PKG" --directory "$PKG_DIR" \
-            pytest --cov --cov-report=json:"../../_publish/reports/coverage/$PKG.json" \
+            pytest --cov --cov-report=json:"$GITHUB_WORKSPACE/_publish/reports/coverage/$PKG.json" \
             --no-cov-on-fail -q 2>&1 || true
 
           COV_FILE="_publish/reports/coverage/$PKG.json"
@@ -158,55 +94,35 @@ jobs:
           # ── axm-init ──────────────────────────────────────────────────
           IRESULT=$(uv run --package axm-init axm init_check "$PKG_DIR" --json-output) || true
           echo "$IRESULT" > "_publish/reports/axm-init/$PKG.json"
+          require_valid_result "$IRESULT" "_publish/badges/$PKG" "axm-init" "axm-init"
           ISCORE=$(echo "$IRESULT" | jq '.score')
           write_badge "_publish/badges/$PKG" "axm-init" "axm-init" "$ISCORE" /tmp/init-logo.svg
 
       - name: Upload package badges + reports
         uses: actions/upload-artifact@v7
         with:
-          name: badges-${{ matrix.package }}
+          name: badges-${{ matrix.package.name }}
           path: _publish/
           retention-days: 1
 
-  # ---------------------------------------------------------------------------
-  # Single publisher: pulls the per-package artifacts from this run, merges
-  # them with the reports already on gh-pages (untouched packages), recomputes
-  # the workspace-wide averages + root badges, and pushes once. This keeps the
-  # aggregate exact even though only impacted packages were recomputed.
-  # ---------------------------------------------------------------------------
+  # One complete snapshot: no reuse of stale or removed member reports.
   publish:
     name: Aggregate + publish
     runs-on: ubuntu-latest
     needs: [changes, badges]
-    if: needs.changes.outputs.any == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
+      - run: uv sync --all-packages --all-groups
       - run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Define badge helpers
         run: |
-          cp .github/scripts/badge-helpers.sh /tmp/badge-helpers.sh
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
-            > /tmp/audit-logo.svg || true
+          cp assets/logo.svg /tmp/audit-logo.svg
           cp /tmp/audit-logo.svg /tmp/init-logo.svg || true
-
-      # Seed _publish with whatever is already on gh-pages (untouched packages),
-      # then overlay this run's freshly computed packages on top.
-      - name: Fetch existing gh-pages reports
-        run: |
-          mkdir -p _publish
-          git fetch origin gh-pages --depth=1 || true
-          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
-            git --work-tree=_publish checkout origin/gh-pages -- . 2>/dev/null || true
-            echo "Seeded _publish from gh-pages."
-          else
-            echo "No gh-pages yet — first run, starting empty."
-          fi
 
       - name: Download this run's package artifacts
         uses: actions/download-artifact@v8
@@ -215,56 +131,59 @@ jobs:
           path: _artifacts
           merge-multiple: true
 
-      - name: Overlay fresh packages onto gh-pages snapshot
+      - name: Assemble complete snapshot
         run: |
-          # Fresh per-package badges/reports win over the gh-pages snapshot.
-          cp -r _artifacts/. _publish/ 2>/dev/null || true
+          mkdir -p _publish
+          cp -r _artifacts/. _publish/
           rm -rf _artifacts
 
       # axm-init also scores the workspace ROOT (not a package) — always fresh.
       - name: Init check (workspace root)
         run: |
-          source /tmp/badge-helpers.sh
+          source "$GITHUB_WORKSPACE/.github/scripts/badge-helpers.sh"
           mkdir -p _publish/reports/axm-init
           RESULT=$(uv run --package axm-init axm init_check . --json-output) || true
           echo "$RESULT" > _publish/reports/axm-init/root.json
 
-      # Recompute workspace-wide averages from the merged per-package reports.
+      # Aggregate precisely the discovered member set from this run.
       - name: Recompute aggregate badges
         id: agg
+        env:
+          MEMBERS: ${{ needs.changes.outputs.all }}
         run: |
-          source /tmp/badge-helpers.sh
+          source "$GITHUB_WORKSPACE/.github/scripts/badge-helpers.sh"
           mkdir -p _publish/badges
 
-          ALL="axm axm-mcp axm-anvil axm-ast axm-audit axm-edit axm-init axm-git axm-smelt axm-ingot axm-echo"
 
           TOTAL_SCORE=0; TOTAL_COV=0; TOTAL_INIT=0
           AUDIT_COUNT=0; COV_COUNT=0; INIT_COUNT=0
 
-          for PKG in $ALL; do
+          while IFS= read -r PKG; do
             AUD="_publish/reports/axm-audit/$PKG.json"
+            require_valid_result "$(cat "$AUD")" "_publish/badges" "axm-audit" "axm-audit"
             if [ -f "$AUD" ]; then
               S=$(jq '.score // empty' "$AUD")
               if [ -n "$S" ]; then
-                TOTAL_SCORE=$(python3 -c "print(int($TOTAL_SCORE + $S))")
+                TOTAL_SCORE=$(python3 -c "print(float($TOTAL_SCORE) + float($S))")
                 AUDIT_COUNT=$((AUDIT_COUNT + 1))
               fi
             fi
+            COV_COUNT=$((COV_COUNT + 1))
             COVF="_publish/reports/coverage/$PKG.json"
             if [ -f "$COVF" ]; then
               C=$(jq '.totals.percent_covered_display' "$COVF" | tr -d '"')
               TOTAL_COV=$(python3 -c "print(round($TOTAL_COV + float('${C:-0}'), 1))")
-              COV_COUNT=$((COV_COUNT + 1))
             fi
             INITF="_publish/reports/axm-init/$PKG.json"
+            require_valid_result "$(cat "$INITF")" "_publish/badges" "axm-init" "axm-init"
             if [ -f "$INITF" ]; then
               I=$(jq '.score // empty' "$INITF")
               if [ -n "$I" ]; then
-                TOTAL_INIT=$(python3 -c "print(int($TOTAL_INIT + $I))")
+                TOTAL_INIT=$(python3 -c "print(float($TOTAL_INIT) + float($I))")
                 INIT_COUNT=$((INIT_COUNT + 1))
               fi
             fi
-          done
+          done < <(jq -r '.[].name' <<< "$MEMBERS")
 
           AVG_SCORE=$(python3 -c "print(round($TOTAL_SCORE / max($AUDIT_COUNT,1)))")
           AVG_COV=$(python3 -c "print(round($TOTAL_COV / max($COV_COUNT,1)))")
@@ -286,11 +205,23 @@ jobs:
           echo "init=$AVG_INIT" >> "$GITHUB_OUTPUT"
           echo "📊 Aggregate: audit $AVG_SCORE/100 — coverage ${AVG_COV}% — init $AVG_INIT/100 (over $AUDIT_COUNT pkgs)"
 
+      - name: Check snapshot is still current
+        id: current
+        run: |
+          LATEST=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$LATEST" = "$GITHUB_SHA" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping superseded snapshot $GITHUB_SHA (main is $LATEST)"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Push badges and reports to gh-pages
+        if: steps.current.outputs.publish == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./_publish
-          keep_files: true
+          keep_files: false
           commit_message: "ci: audit=${{ steps.agg.outputs.score }} cov=${{ steps.agg.outputs.coverage }}% init=${{ steps.agg.outputs.init }}"
