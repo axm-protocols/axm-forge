@@ -73,7 +73,9 @@ def _scaffold_protocol_profile(tmp_path: Path, label: str) -> Path:
     tool = InitScaffoldTool()
     common = {
         "path": str(dest),
-        "name": "axm-dev",
+        # ``protocols-<domain>`` — what the spec mandates and what the
+        # scaffold emits (root module ``protocols_<domain>``).
+        "name": "protocols-dev",
         "org": "acme",
         "author": "Dev",
         "email": "dev@example.com",
@@ -150,9 +152,9 @@ def test_protocols_rejects_unknown_schema_version(tmp_path: Path) -> None:
 def test_protocols_rejects_distribution_domain_mismatch(tmp_path: Path) -> None:
     """AC3: a distribution inconsistent with its domain is localized."""
     dest = _scaffold_protocol_profile(tmp_path, "distribution")
-    _replace_metadata(dest, 'name = "axm-dev"', 'name = "axm-other"')
+    _replace_metadata(dest, 'name = "protocols-dev"', 'name = "protocols-other"')
     result = CheckEngine(dest, category="protocols").run()
-    _assert_localized_failure(result, "pyproject.toml", "axm-other", "dev")
+    _assert_localized_failure(result, "pyproject.toml", "protocols-other", "dev")
 
 
 @pytest.mark.integration
@@ -290,7 +292,7 @@ def test_protocols_workspace_propagates_member_layout_failure(
     workspace = tmp_path / "workspace"
     scaffold = InitScaffoldTool().execute(
         path=str(workspace),
-        name="axm-suite",
+        name="protocols-suite",
         org="acme",
         author="Dev",
         email="dev@example.com",
@@ -298,7 +300,7 @@ def test_protocols_workspace_propagates_member_layout_failure(
     )
     assert scaffold.success, scaffold.error
 
-    member = workspace / "packages" / "axm-dev"
+    member = workspace / "packages" / "protocols-dev"
     member.mkdir(parents=True)
     profiled_member = _scaffold_protocol_profile(member.parent, member.name)
     missing = _protocol_action_root(profiled_member) / "protocol.py"

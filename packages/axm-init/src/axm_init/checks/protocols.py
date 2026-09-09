@@ -380,7 +380,10 @@ def _validate_identity(
 
     project = _nested(data, "project")
     distribution = project.get("name") if project else None
-    expected_distribution = f"axm-{domain.replace('_', '-')}"
+    # ``protocols-<domain>``, per the specification and per what the scaffold
+    # actually emits (the rendered root module is ``protocols_<domain>``). An
+    # ``axm-`` prefix here would reject every tree the scaffold produces.
+    expected_distribution = f"protocols-{domain.replace('_', '-')}"
     if distribution != expected_distribution:
         details.append(
             _finding(
