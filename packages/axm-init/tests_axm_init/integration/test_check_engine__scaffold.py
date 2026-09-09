@@ -15,19 +15,26 @@ import pytest
 from axm_init.core.checker import CheckEngine
 from axm_init.core.framework import Framework
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init.conftest import (
+    materialize_post_copy_artifacts,
+    scaffold_without_tasks,
+)
 
 
 def _scaffold(tmp_path: Path, framework: str) -> Path:
     """Scaffold a project of *framework* into *tmp_path* and return its root."""
     dest = tmp_path / framework
-    result = InitScaffoldTool().execute(
-        path=str(dest),
-        name="my-app",
-        org="acme",
-        author="Dev",
-        email="dev@example.com",
-        framework=framework,
-    )
+    # Files only: these contracts read the rendered tree, never an artifact the
+    # post-copy tasks produce (a real `uv add` resolves 72 packages per call).
+    with scaffold_without_tasks():
+        result = InitScaffoldTool().execute(
+            path=str(dest),
+            name="my-app",
+            org="acme",
+            author="Dev",
+            email="dev@example.com",
+            framework=framework,
+        )
     assert result.success, result.error
     return dest
 
@@ -82,21 +89,23 @@ def _scaffold_protocol_profile(tmp_path: Path, label: str) -> Path:
         "profile": "protocols",
         "domain": "dev",
     }
-    project = tool.execute(**common)
-    assert project.success, project.error
-    protocol = tool.execute(
-        **common,
-        unit="work",
-        protocols=_PROTOCOL_DECLARATIONS,
-    )
+    with scaffold_without_tasks():
+        project = tool.execute(**common)
+        assert project.success, project.error
+        protocol = tool.execute(
+            **common,
+            unit="work",
+            protocols=_PROTOCOL_DECLARATIONS,
+        )
     assert protocol.success, protocol.error
+    materialize_post_copy_artifacts(dest)
 
     metadata = dest / "pyproject.toml"
     metadata.write_text(
         metadata.read_text(encoding="utf-8")
         + (
             "\n[tool.hatch.build.targets.wheel]\n"
-            'packages = ["src/axm_dev", "src/protocols_dev"]\n'
+            'packages = ["src/protocols_dev"]\n'
             "\n[tool.hatch.build.targets.wheel.force-include]\n"
             '"src/protocols_dev" = "protocols_dev"\n'
         ),
