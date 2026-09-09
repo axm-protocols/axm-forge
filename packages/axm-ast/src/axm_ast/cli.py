@@ -229,7 +229,8 @@ def _print_toc(toc: list[TocEntry], *, json_output: bool) -> None:
     else:
         for entry in toc:
             sym = entry["symbol_count"]
-            doc = f" — {entry['docstring']}" if entry["docstring"] else ""
+            summary = entry.get("docstring")
+            doc = f" — {summary}" if summary else ""
             print(f"  {entry['name']} ({sym} symbols){doc}")
 
 
