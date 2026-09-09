@@ -1,117 +1,58 @@
-# Getting Started
+# Inspect a repository
 
-This tutorial walks you through installing `axm-git` and using the MCP tools.
+Learn the result model without changing repository or remote state.
 
-## Prerequisites
+## Install
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-- Git initialized repository
-
-## Installation
+Use Python 3.12+ and a Git repository that already contains commits.
 
 ```bash
 uv add axm-git
+axm git_preflight --help
+axm git_preflight --path . --diff-lines 0
 ```
 
-Or with pip:
+Run from the repository root. Replace `.` with an absolute repository path
+when your current directory is elsewhere. Installation changes your Python
+project environment; the preflight operation only reads Git state.
 
-```bash
-pip install axm-git
-```
+## Inspect through Python
 
-## Step 1: Check Working Tree Status
-
-Use `git_preflight` to see what files have changed:
+This complete snippet inspects the current directory:
 
 ```python
 from axm_git.tools.commit_preflight import GitPreflightTool
 
-result = GitPreflightTool().execute(path="/path/to/repo")
-print(result.data)
-# {
-#   "files": [{"path": "src/foo.py", "status": "M"}, ...],
-#   "diff_stat": "src/foo.py | 3 ++-\n ...",
-#   "clean": False,
-#   "file_count": 2
-# }
+result = GitPreflightTool().execute(path=".", diff_lines=0)
+if not result.success:
+    raise RuntimeError(result.error)
+print(result.data["clean"])
+print(result.data["files"])
+print(result.text)
 ```
 
-## Step 2: Create a Branch
+`files` contains status/path records; `clean` means there are no status entries
+in the inspected scope. Setting `diff_lines=0` suppresses patch content.
+The `text` field belongs to the result envelope, not inside `data`.
 
-Use `git_branch` to create or switch to a feature branch:
+Passing a package directory scopes this inspection to that directory.
+It does not prove that sibling packages or the repository root are clean.
+The diff summary comes from Git's unstaged diff; it is not a complete
+inventory of every staged or untracked file's contents.
 
-```python
-from axm_git.tools.branch import GitBranchTool
+## Inspect release history
 
-result = GitBranchTool().execute(name="feat/new-feature", path="/path/to/repo")
-print(result.data)
-# {"branch": "feat/new-feature"}
+From the package root, use:
+
+```bash
+axm git_release_diff --path .
 ```
 
-!!! tip "Checkout existing branch"
-    Pass `checkout_only=True` to switch to an existing branch without creating a new one.
+The result suggests a version and summarizes package-scoped history. It does
+not create a tag, fetch remote tags or publish anything. Read the
+[release limitations](../howto/releases.md) before treating the suggestion as
+a publication decision.
 
-## Step 3: Commit Changes
-
-Use `git_commit` to stage and commit files in batches:
-
-```python
-from axm_git.tools.commit import GitCommitTool
-
-result = GitCommitTool().execute(
-    path="/path/to/repo",
-    commits=[
-        {"files": ["src/foo.py"], "message": "feat: add foo module"},
-        {"files": ["tests/test_foo.py"], "message": "test: add foo tests"},
-    ],
-)
-print(result.data["results"])
-# [{"sha": "abc1234", "message": "feat: add foo module", "precommit_passed": True}, ...]
-```
-
-!!! tip "Auto-retry"
-    If a commit hook (like ruff) auto-fixes a file, `git_commit` automatically
-    re-stages and retries the commit once.
-
-## Step 4: Create a Release Tag
-
-Use `git_tag` to compute the next semver version and push the tag:
-
-```python
-from axm_git.tools.tag import GitTagTool
-
-result = GitTagTool().execute(path="/path/to/repo")
-print(result.data)
-# {"tag": "v0.2.0", "bump": "minor", "breaking": False,
-#  "current_tag": "v0.1.0", "commits_included": 3,
-#  "pushed": True, "ci_check": "green"}
-```
-
-The tool automatically:
-
-1. Checks the tree is clean
-2. Checks CI status via `gh` (if available)
-3. Analyzes commits since the last tag
-4. Computes the semver bump based on Conventional Commits
-5. Creates and pushes the annotated tag
-
-## Step 5: Push to Remote
-
-Use `git_push` to push the current branch with safety checks:
-
-```python
-from axm_git.tools.push import GitPushTool
-
-result = GitPushTool().execute(path="/path/to/repo")
-print(result.data)
-# {"branch": "feat/new-feature", "remote": "origin",
-#  "pushed": True, "set_upstream": True}
-```
-
-The tool verifies the tree is clean before pushing, and automatically sets the upstream for new branches.
-
-## Next Steps
-
-- [Architecture](../explanation/architecture.md) — How the project is structured
-- [API Reference](../reference/axm_git/index.md) — Full API documentation
+Continue with [committing explicit files](../howto/commits.md) or
+[CLI and MCP dispatch](../howto/mcp.md). Those guides identify mutations
+before showing their calls.

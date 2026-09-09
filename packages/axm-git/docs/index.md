@@ -1,71 +1,39 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.png" alt="AXM Logo" width="140" />
-</p>
+# axm-git
 
-<h1 align="center">axm-git</h1>
-<p align="center"><strong>Deterministic Git workflows for AI agents.</strong></p>
+Structured Git operations for the AXM CLI, MCP and Python callers.
+The package wraps the Git and GitHub CLIs and returns a `ToolResult` with
+`success`, `data`, `error` and a separate compact `text` rendering.
 
-<p align="center">
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/coverage.json" alt="Coverage"></a>
-  <a href="https://pypi.org/project/axm-git/"><img src="https://img.shields.io/pypi/v/axm-git" alt="PyPI"></a>
-  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
-</p>
+Start with [inspect a repository](tutorials/getting-started.md).
+It does not create commits, branches, tags or remote objects.
 
----
+| Your objective | Read |
+|---|---|
+| Call tools from CLI or an agent | [CLI and MCP](howto/mcp.md) |
+| Commit explicit files and recover from refusal | [Commits and hooks](howto/commits.md) |
+| Create a branch, worktree or PR | [Branches and collaboration](howto/collaboration.md) |
+| Inspect a version bump or publish a tag | [Releases](howto/releases.md) |
+| Select a commit author | [Author identity](howto/identity.md) |
+| Check exact arguments and result keys | [Tool reference](reference/cli.md) |
+| Understand boundaries and guarantees | [Architecture](explanation/architecture.md) |
 
-## What it does
+## Effects at a glance
 
-`axm-git` provides deterministic, structured Git operations designed for AI agents. Instead of parsing raw `git` CLI output, agents get typed JSON responses with clear success/failure semantics and automatic retry on commit-hook fixes.
+`git_preflight`, `git_release_diff` and worktree listing inspect local state.
+`git_branch`, `git_commit`, `git_merge` and worktree add/remove mutate local state.
+`git_clone` and `git_pull` obtain remote content and write locally.
+`git_push`, `git_pr` and `git_tag` affect remote state.
+`git_await_merge` only observes GitHub.
 
-## Features
+**Tagging includes a push to origin.** There is no tag preview/list action.
+The [release guide](howto/releases.md) distinguishes the read-only analysis
+from publication and explains the CI guard's limits.
 
-- 🔍 **Preflight** — Structured working tree status with diff summary
-- 🌿 **Branch** — Create or checkout branches with one call
-- 📦 **Commit** — Batched atomic commits with auto-retry on commit-hook fixes
-- 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
-- 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
-- 🌲 **Worktree** — Add, remove, or list git worktrees
-- 🔀 **PR** — Create GitHub pull requests with optional auto-merge
-- 🔐 **GitHub authentication declaration** — Publishes the `gh auth status` probe and `gh auth login` recovery command through the `axm.credentials` registry, preserving the distinct `logged_in`, `logged_out`, and `not_installed` states
-- 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, branch-delete, commit-phase, merge-squash, worktree-add, worktree-remove, push, pull-main, create-pr, await-merge) auto-discovered via entry-points
+## Interfaces
 
-## Installation
+Install with `uv add axm-git` in a Python 3.12+ environment containing Git.
+Tools are registered in `axm.tools`; GitHub authentication is declared through
+`axm.credentials`. Git commit hooks continue to run normally.
 
-```bash
-uv add axm-git
-```
-
-## Quick Start
-
-```python
-# Check what changed
-git_preflight(path="/path/to/repo")
-# → {files: [{path: "foo.py", status: "M"}, ...], clean: false}
-
-# Create or switch branch
-git_branch(name="feat/new-feature", path="/path/to/repo")
-# → {branch: "feat/new-feature"}
-
-# Commit in batches
-git_commit(path="/path/to/repo", commits=[
-    {"files": ["src/foo.py"], "message": "feat: add foo"},
-    {"files": ["tests/test_foo.py"], "message": "test: add foo tests"},
-])
-
-# Tag a release
-git_tag(path="/path/to/repo")
-# → {tag: "v0.2.0", bump: "minor", pushed: true}
-
-# Push to remote
-git_push(path="/path/to/repo")
-# → {branch: "main", remote: "origin", pushed: true}
-```
-
-## Learn More
-
-- [Getting Started Tutorial](tutorials/getting-started.md)
-- [Architecture](explanation/architecture.md)
-- [CLI Reference](reference/cli.md)
+The [generated Python API](reference/axm_git/index.md) includes tool classes
+and internal helpers. Only version metadata is exported from `axm_git` itself.
