@@ -49,13 +49,14 @@ tool records `[tool.axm-init.protocols]` in that package's
 `pyproject.toml`. The structured result includes the derived distribution
 name, package root, and creation mode.
 
-For a unit preview, select `kind="protocol_unit"`; use `kind="protocol"`
-when targeting an existing unit. In both cases, also provide `unit`, one or
-more action-only payloads in `protocols`, and `preview=true`. The shared
-`domain` and `unit` belong to the request and are injected into every
-payload before validation as a strict `ProtocolScaffoldDecl`. The action then
-completes each qualified graph name; `plan_protocol_scaffold` remains the
-source of the relative operations.
+Select `kind="protocol_unit"` for a new unit or `kind="protocol"` when
+targeting an existing unit. In both cases, also provide `unit` and one or more
+action-only payloads in `protocols`. Set `preview=true` to inspect the plan
+without mutation; leave it false to apply that exact plan. The shared `domain`
+and `unit` belong to the request and are injected into every payload before
+validation as a strict `ProtocolScaffoldDecl`. The action then completes each
+qualified graph name; `plan_protocol_scaffold` is the sole source of the
+relative operations and rendered contents.
 
 The preview result has the same structured shape through direct AXMTool, MCP,
 and CLI calls:
@@ -63,16 +64,27 @@ and CLI calls:
 | Field | Meaning |
 | --- | --- |
 | `profile` | Selected profile (`protocols`) |
-| `mode` | `unit` for preview; `standalone` or `member` for package creation |
+| `mode` | `unit` for protocol planning or application; `standalone` or `member` for package creation |
 | `root` | Absolute target package root |
-| `preview` | `true` for a non-mutating plan |
+| `preview` | `true` for a non-mutating plan; `false` after application |
 | `created`, `updated`, `unchanged`, `conflicts` | Relative paths grouped by planner status |
 | `protocols` | Qualified logical graph names |
 
-Preview never applies planned file contents or merged metadata. Invalid
-combinations are rejected before any write: protocol options without a profile,
-a unit with an empty protocol list, the profile on a non-Python framework, or
-protocol declarations without a unit.
+Preview never applies planned file contents or merged metadata. Application
+creates or updates only paths carried by the plan and writes the merged
+`[tool.axm-init.protocols]` metadata; it does not invoke a standalone-project
+template. Reapplying an owned plan leaves unchanged files byte-for-byte, including
+skeletons extended by a compatible implementation.
+
+Before the first mutation, application resolves every destination and rejects
+paths outside the root, outward-pointing symlinks, conflicts, and incompatible
+occupied paths. If a file or metadata write fails after application begins, it
+removes paths created by that operation and restores the original file and
+metadata bytes. This is application-level rollback, not crash-safe atomicity.
+
+Invalid request combinations are also rejected before any write: protocol
+options without a profile, a unit with an empty protocol list, the profile on a
+non-Python framework, or protocol declarations without a unit.
 
 ## Example
 

@@ -426,6 +426,54 @@ def test_protocol_unit_mode_previews_action_only_protocol(tmp_path: Path) -> Non
 
 
 @pytest.mark.integration
+@pytest.mark.integration
+def test_protocol_mode_without_preview_applies_only_its_plan(tmp_path: Path) -> None:
+    """AC1: non-preview protocol mode writes its plan and no project template."""
+    _write_protocol_project(tmp_path)
+    preview = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        kind="protocol",
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[ACTION_ONLY_PROTOCOL],
+        preview=True,
+        **EXPERIMENT_IDENTITY,
+    )
+    assert preview.success is True, preview.error
+    assert preview.data is not None
+    planned = set(preview.data["created"])
+
+    applied = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        kind="protocol",
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[ACTION_ONLY_PROTOCOL],
+        preview=False,
+        **EXPERIMENT_IDENTITY,
+    )
+
+    assert applied.success is True, applied.error
+    assert applied.data is not None
+    assert set(applied.data["created"]) == planned
+    landed = {
+        path.relative_to(tmp_path).as_posix()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    assert landed == planned | {"pyproject.toml"}
+    assert landed.isdisjoint(
+        {
+            "LICENSE",
+            "CONTRIBUTING.md",
+            "mkdocs.yml",
+            ".github/workflows/ci.yml",
+        }
+    )
+
+
 def test_protocol_mode_previews_action_only_protocol_in_existing_unit(
     tmp_path: Path,
 ) -> None:

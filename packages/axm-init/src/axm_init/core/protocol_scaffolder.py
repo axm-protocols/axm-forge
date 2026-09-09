@@ -184,6 +184,129 @@ def _combine_operations(
             current[operation.path] = operation
 
 
+def _planned_destination(root: Path, operation: PlanOperation) -> Path:
+    """Resolve one planned path and reject every escape from the target root."""
+    if operation.path.is_absolute():
+        raise ValueError(f"outside-root: {operation.path}")
+    root_resolved = root.resolve()
+    lexical = root
+    for part in operation.path.parts:
+        lexical /= part
+        if lexical.is_symlink():
+            link_target = lexical.resolve()
+            try:
+                link_target.relative_to(root_resolved)
+            except ValueError as exc:
+                raise ValueError(f"outward-symlink: {operation.path}") from exc
+    destination = (root / operation.path.as_posix()).resolve()
+    try:
+        destination.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ValueError(f"outside-root: {operation.path}") from exc
+    return destination
+
+
+def _preflight_protocol_plan(
+    root: Path,
+    plan: ProtocolScaffoldPlan,
+) -> tuple[tuple[PlanOperation, Path], ...]:
+    """Validate the complete plan before allowing its first mutation."""
+    resolved: list[tuple[PlanOperation, Path]] = []
+    for operation in plan.operations:
+        destination = _planned_destination(root, operation)
+        occupied = destination.exists() or destination.is_symlink()
+        incompatible = (
+            operation.status is PlanStatus.CONFLICT
+            or (operation.status is PlanStatus.CREATE and occupied)
+            or (
+                operation.status in {PlanStatus.UPDATE, PlanStatus.UNCHANGED}
+                and (not occupied or not destination.is_file())
+            )
+        )
+        if incompatible:
+            raise ValueError(f"occupied-incompatible: {operation.path}")
+        if (
+            operation.status in {PlanStatus.CREATE, PlanStatus.UPDATE}
+            and operation.content is None
+        ):
+            raise ValueError(f"occupied-incompatible: {operation.path}")
+        resolved.append((operation, destination))
+    return tuple(resolved)
+
+
+def _missing_parent_directories(root: Path, destination: Path) -> list[Path]:
+    """Return missing parents in creation order, bounded by root."""
+    missing: list[Path] = []
+    parent = destination.parent
+    while parent != root and not parent.exists():
+        missing.append(parent)
+        parent = parent.parent
+    missing.reverse()
+    return missing
+
+
+def _rollback_protocol_application(
+    *,
+    created_files: list[Path],
+    created_directories: list[Path],
+    original_files: dict[Path, bytes],
+    metadata_path: Path,
+    original_metadata: bytes,
+) -> None:
+    """Restore the exact pre-application bytes and remove owned creations."""
+    for path in reversed(created_files):
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+    for path, content in original_files.items():
+        path.write_bytes(content)
+    metadata_path.write_bytes(original_metadata)
+    for path in reversed(created_directories):
+        if path.is_dir():
+            path.rmdir()
+
+
+def _apply_protocol_plan(
+    root: Path,
+    plan: ProtocolScaffoldPlan,
+    resolved: tuple[tuple[PlanOperation, Path], ...],
+) -> None:
+    """Apply a preflighted plan with in-memory application-level rollback."""
+    metadata_path = root / "pyproject.toml"
+    original_metadata = metadata_path.read_bytes()
+    original_files = {
+        destination: destination.read_bytes()
+        for operation, destination in resolved
+        if operation.status is PlanStatus.UPDATE
+    }
+    created_files: list[Path] = []
+    created_directories: list[Path] = []
+    try:
+        for operation, destination in resolved:
+            if operation.status not in {PlanStatus.CREATE, PlanStatus.UPDATE}:
+                continue
+            for directory in _missing_parent_directories(root, destination):
+                directory.mkdir()
+                created_directories.append(directory)
+            if operation.status is PlanStatus.CREATE:
+                created_files.append(destination)
+            content = operation.content
+            if content is None:
+                raise ValueError(f"occupied-incompatible: {operation.path}")
+            destination.write_text(content, encoding="utf-8")
+        metadata = plan.metadata.encode()
+        if metadata != original_metadata:
+            metadata_path.write_text(plan.metadata, encoding="utf-8")
+    except Exception:
+        _rollback_protocol_application(
+            created_files=created_files,
+            created_directories=created_directories,
+            original_files=original_files,
+            metadata_path=metadata_path,
+            original_metadata=original_metadata,
+        )
+        raise
+
+
 def preview_protocol_scaffold(
     root: Path,
     request: ProtocolScaffoldRequest,
@@ -204,13 +327,16 @@ def preview_protocol_scaffold(
         operations=tuple(combined[path] for path in sorted(combined)),
         metadata=metadata,
     )
+    if not request.preview:
+        resolved = _preflight_protocol_plan(root, final_plan)
+        _apply_protocol_plan(root, final_plan, resolved)
     return build_protocol_scaffold_result(
         final_plan,
         profile=request.profile,
         mode="unit",
         root=PurePosixPath(str(root)),
         graph_names=tuple(item.graph_name for item in request.protocols),
-        preview=True,
+        preview=request.preview,
     )
 
 

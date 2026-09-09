@@ -238,7 +238,7 @@ def _classify(
         return PlanOperation(planned.path, PlanStatus.UNCHANGED, None)
 
     content = planned.render()
-    if existing == content:
+    if existing == content or existing.startswith(content):
         return PlanOperation(planned.path, PlanStatus.UNCHANGED, None)
     return PlanOperation(planned.path, PlanStatus.UPDATE, content)
 

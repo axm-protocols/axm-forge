@@ -427,6 +427,21 @@ class InitScaffoldTool:
             )
             if preview_result is not None:
                 return _apply_json_output(preview_result, json_output)
+            if (
+                isinstance(protocol_request, ProtocolScaffoldRequest)
+                and protocol_request.protocols
+            ):
+                protocol_result = preview_protocol_scaffold(
+                    target_path, protocol_request
+                )
+                return _apply_json_output(
+                    ToolResult(
+                        success=True,
+                        data=protocol_result.model_dump(),
+                        text=protocol_result.message,
+                    ),
+                    json_output,
+                )
             if check_pypi and (
                 availability_error := _check_pypi_availability(project_name)
             ):
