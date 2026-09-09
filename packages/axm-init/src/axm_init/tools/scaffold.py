@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from axm.tools.base import ToolResult
+from tomlkit import parse
+from tomlkit.items import Table
 
 from axm_init.core.framework import Framework
 from axm_init.core.protocol_scaffolder import (
@@ -161,6 +163,35 @@ class _ProjectMeta:
     license_type: str
     author_name: str
     author_email: str
+
+
+def _protocol_profile_error(
+    request: ProtocolScaffoldRequest | None,
+    target_path: Path,
+) -> str | None:
+    """Reject a request that conflicts with an already-owned profile."""
+    if request is None:
+        return None
+    metadata_path = target_path / "pyproject.toml"
+    if not metadata_path.is_file():
+        return None
+    document = parse(metadata_path.read_text(encoding="utf-8"))
+    tool = document.get("tool")
+    if not isinstance(tool, Table):
+        return None
+    axm_init = tool.get("axm-init")
+    if not isinstance(axm_init, Table):
+        return None
+    profile = axm_init.get("protocols")
+    if not isinstance(profile, Table):
+        return None
+    owned_domain = profile.get("domain")
+    if owned_domain is None or owned_domain == request.domain:
+        return None
+    return (
+        f"Protocol profile domain conflict: target owns {owned_domain!r}, "
+        f"request declares {request.domain!r}"
+    )
 
 
 def _protocol_preview_result(
@@ -417,6 +448,12 @@ class InitScaffoldTool:
         try:
             target_path = Path(path).resolve()
             project_name = name or target_path.name
+            if ownership_error := _protocol_profile_error(
+                protocol_request, target_path
+            ):
+                return _apply_json_output(
+                    ToolResult(success=False, error=ownership_error), json_output
+                )
             preview_result = _protocol_preview_result(
                 (
                     protocol_request
