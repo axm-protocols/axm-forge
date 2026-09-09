@@ -1,56 +1,40 @@
 # axm-edit
 
-<p align="center">
-  <strong>Atomic batch file editing for AI agents — replace, rewrite, create, and delete files in a single MCP tool call</strong>
-</p>
+Edit several files in one validated batch, inspect the result, and retain a
+snapshot when your application needs to undo it.
 
-<p align="center">
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/coverage.json" alt="Coverage"></a>
-</p>
+`axm-edit` provides text/file operations. It does not resolve Python symbols
+or automatically update imports and callers: for structural moves and renames,
+use [axm-anvil](https://forge.axm-protocols.io/anvil/).
 
----
+## Start here
 
-## What it does
+- [Tutorial: edit and undo a temporary project](tutorials/getting-started.md)
+- [How-to guides](howto/index.md): MCP, guarded rewrites, rollback
+- [CLI and tool registry](reference/cli.md)
+- [Batch contracts](reference/batch.md) and [filesystem tools](reference/filesystem.md)
+- [Python API](reference/api/index.md)
+- [Architecture and guarantees](explanation/architecture.md)
 
-IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool calls — 70 % of the agent's budget goes to mechanics. `axm-edit` replaces all of that with **1 call**: a validated, atomic batch operation with a targeted per-path checkpoint for rollback (no git involved).
+## What a batch guarantees
 
-## Features
+A validation error rejects the batch before the engine writes any target.
+If apply fails, the engine attempts to restore the captured paths automatically.
+The filesystem is not transactional: other readers can see intermediate
+states, concurrent writers are not locked, and recovery can fail.
 
-- :material-file-edit-outline: **`batch_edit`** — Replace, rewrite, create, and delete files in a single atomic operation with automatic ruff --fix (a `rewrite` replaces a whole file byte for byte, guarded by the sha256 of the bytes currently on disk)
-- :material-magnify-scan: **`file_bytes`** — Read-only byte-level report on a file: sha256, size and a verdict separating literal non-ASCII from textual escape sequences
-- :material-book-open-variant: **`read_file`** — Read file content with optional line-range support
-- :material-file-search-outline: **`search_files`** — Grep-like search across project files (literal or regex)
-- :material-pencil-outline: **`write_file`** — Write (create or overwrite) a single file
-- :material-file-replace-outline: **`edit_file`** — Apply old/new edits to a single file
-- :material-folder-outline: **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
-- :material-console: **`run_command`** — Execute shell commands with timeout and output truncation
-- :material-undo: **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
-- :material-shield-check-outline: **Atomic** — All-or-nothing: validation runs before any file is touched
-- :material-airplane-check: **Preflight** — `batch_edit` runs the same read-only checks as `batch_edit_check` *before* any checkpoint or write: a contract error (unknown edit key, missing anchor, `create` on an existing path) refuses the batch with an actionable remediation, and every diagnostic is returned under `data["preflight"]`
-- :material-sort-descending: **Bottom-to-top** — Line edits applied in reverse order to avoid line-shift problems
-- :material-magnify-scan: **Near-miss report** — A `replace` anchor that matched nothing names the closest line and marks every invisible difference (`<TAB>`, `<SP>`, `<NBSP>`, `<LF>`) instead of dumping raw text
+The `batch_edit` tool adds preflight diagnostics and optional Ruff fix/format.
+The lower-level `batch_apply` root export applies typed operations without
+those extra steps. Use the tool for the complete agent-facing workflow.
 
-## Modules
+## Access
 
-| Module | What it provides |
-|---|---|
-| [`axm_edit.core.anchor_rules`](reference/api/axm_edit/core/anchor_rules.md) | `ANCHOR_RULES_HINT` — single source of truth for the `replace` anchor contract, composed into both tool hints and the `batch_edit` docstring |
-| [`axm_edit.core.engine`](reference/api/axm_edit/core/engine.md) | `batch_apply` — validate-then-apply batch engine |
-| [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint.md) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
-| [`axm_edit.core.diagnostics`](reference/api/axm_edit/core/diagnostics.md) | `explain_near_miss`, `closest_candidate`, `render_invisibles` — near-miss report naming the closest window and its invisible characters |
-| [`axm_edit.models.operations`](reference/api/axm_edit/models/operations.md) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `RewriteOp`, `BatchResult` (incl. `lint_errors`, `rollback_failed`), `RollbackResult` — Pydantic models |
-| [`axm_edit.services.lint`](reference/api/axm_edit/services/lint.md) | `filter_ruff_lines` — keep real ruff diagnostic lines, dropping summary noise (the post-apply lint step) |
-| [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff.md) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
-| [`axm_edit.tools`](reference/api/axm_edit/tools/index.md) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool`, `FileBytesTool` |
+```bash
+uv add axm-edit
+axm batch_edit --help
+axm write_file --help
+```
 
-## Learn More
-
-- [Getting Started](tutorials/getting-started.md) — Install and use all tools in 5 minutes
-- [How-To Guides](howto/index.md) — Task-oriented recipes
-- [MCP Tools Reference](reference/cli.md) — Every tool at a glance
-- [API Reference](reference/api/axm_edit/index.md) — Full module documentation
-- [Architecture](explanation/architecture.md) — Design decisions and module layout
-
-::: axm_edit
+The generic `axm` CLI discovers this package's `axm.tools` entry points.
+An MCP server must have the package installed in its own environment.
+The README is the repository entry point; this page is the MkDocs homepage.

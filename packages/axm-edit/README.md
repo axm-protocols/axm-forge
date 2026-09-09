@@ -1,6 +1,6 @@
 # axm-edit
 
-**Atomic batch file editing for AI agents.**
+**Validated batch file editing for AXM agents and Python callers.**
 
 <p align="center">
   <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-audit.json" alt="axm-audit"></a>
@@ -9,292 +9,82 @@
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
 </p>
 
----
+`batch_edit` replaces, creates, deletes and rewrites files in one request.
+It validates before writing and snapshots the target paths for automatic
+rollback on apply failure. Apply and recovery are best-effort filesystem
+operations, not an OS transaction or a lock against concurrent writers.
 
-## Overview
-
-IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool calls.
-The agent spends 70% of its budget on mechanics.
-
-**`axm-edit` replaces all of that with 1 call.**
-
-## Features
-
-- 🔧 **`batch_edit`** — Replace, rewrite, create, and delete files in a single atomic operation
-- 🧪 **`batch_edit_check`** — Read-only preflight of a batch: diagnostics without touching the disk
-- 🔬 **`file_bytes`** — Read-only byte-level report on a file: sha256, literal non-ASCII vs textual escape sequences
-- 📖 **`read_file`** — Read file content with optional line-range support
-- 🔍 **`search_files`** — Grep-like search across project files (literal or regex)
-- 📂 **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
-- ✏️ **`write_file`** — Write or overwrite file content
-- 🖊️ **`edit_file`** — Find-and-replace (substring) in a single file
-- ▶️ **`run_command`** — Execute shell commands with timeout and output truncation
-- ⏪ **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
-- 🛡️ **Atomic** — All-or-nothing: validation runs before any file is touched
-- 📐 **Bottom-to-top** — Line edits applied in reverse order to avoid line-shift problems
-- 🔒 **Safe** — Path traversal blocked, `old` content validated, targeted path snapshot before writes
-
-## Installation
+## Install
 
 ```bash
 uv add axm-edit
+axm batch_edit --help
 ```
 
-Or as a workspace dependency in `pyproject.toml`:
+Python 3.12+ is required. The dependency `axm` supplies the generic CLI;
+there is no separate `axm-edit` executable. Install `axm-mcp` in the same
+environment to expose the registered `axm.tools` to an MCP client.
 
-```toml
-[project]
-dependencies = ["axm-edit"]
+## Try a batch safely
 
-[tool.uv.sources]
-axm-edit = { workspace = true }
-```
-
-## Quick Start
+This self-contained Python example changes only a temporary directory.
+The root API does not run the tool's preflight or post-edit Ruff pass.
 
 ```python
-from axm_edit.core.engine import batch_apply
-from axm_edit.models.operations import Edit, ReplaceOp, CreateOp
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-result = batch_apply(
-    root=Path("/my/project"),
-    operations=[
-        ReplaceOp(file="src/core.py", edits=[
-            Edit(line=5, old="class OldName:", new="class NewName:"),
+from axm_edit import CreateOp, Edit, ReplaceOp, batch_apply, rollback
+
+with TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root / "settings.txt").write_text("mode = draft\n", encoding="utf-8")
+    result = batch_apply(root, [
+        ReplaceOp(file="settings.txt", edits=[
+            Edit(old="mode = draft", new="mode = ready"),
         ]),
-        CreateOp(file="src/new.py", content='"""New module."""\n'),
-    ],
-)
-print(result.summary)  # {"modified": 1, "created": 1, "deleted": 0}
+        CreateOp(file="notes.txt", content="Ready for review.\n"),
+    ])
+    assert result.success, result.error
+    assert result.summary == {"modified": 1, "created": 1, "deleted": 0}
+    assert result.checkpoint is not None
+    restored = rollback(root, result.checkpoint)
+    assert restored.ok, restored.unrestored
+    assert (root / "settings.txt").read_text() == "mode = draft\n"
+    assert not (root / "notes.txt").exists()
 ```
 
-## MCP Tools
+## Choose an interface
 
-### `batch_edit`
+| Need | Tool |
+|---|---|
+| Validate a proposed batch without writing | `batch_edit_check` |
+| Apply whole-line edits and file operations | `batch_edit` |
+| Undo using a retained structured snapshot | `batch_rollback` |
+| Read, search or list project files | `read_file`, `search_files`, `list_dir` |
+| Write a file or replace substrings | `write_file`, `edit_file` |
+| Inspect SHA-256, UTF-8 and escape sequences | `file_bytes` |
+| Run an executable in a selected directory | `run_command` |
 
-Atomic batch file operations.
+`read_file`, `write_file` and `edit_file` take `path` (project root) and
+`file` (target within it). `file_bytes` instead takes a file path without
+project-root confinement. `run_command` constrains its initial working
+directory, not the executable's filesystem or network access.
 
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | `"."` | Project root directory |
-| `operations` | `list[Op]` | — | List of replace/create/delete/rewrite operations |
-| `lint` | `bool` | `True` | Run `ruff --fix` on changed Python files after apply |
-| `lint_diff` | `bool` | `True` | Surface per-file `lint_diffs` hunks of post-lint mutations |
-| `lint_diff_max_ratio` | `float` | `0.5` | Fallback to `file_reread_recommended` when `len(diff) > ratio * len(post)` |
+The tool `batch_edit` runs Ruff fix/format by default on touched Python files;
+use `lint=False` / CLI `--no-lint` to apply only the supplied edits.
+A successful tool result does not certify lint cleanliness.
+The checkpoint is present in structured `data` after apply starts, but is
+omitted from the compact text returned by the MCP `axm_call` façade.
 
-When `lint_diff=True` and ruff/harness_fix mutates any Python file, `ToolResult.data["lint_diffs"]` lists one entry per file: `{"file", "rules": [ruff codes], "diff": "@L<n>\n-old\n+new..."}`. On large rewrites the entry drops `diff` and carries `"diff_skipped": "file_reread_recommended"`.
+## Documentation
 
-**4 operation types:**
+- [Getting started](https://forge.axm-protocols.io/edit/tutorials/getting-started/)
+- [Batch contracts](https://forge.axm-protocols.io/edit/reference/batch/)
+- [Filesystem tools](https://forge.axm-protocols.io/edit/reference/filesystem/)
+- [Rollback and concurrency limits](https://forge.axm-protocols.io/edit/howto/rollback/)
+- [Python API](https://forge.axm-protocols.io/edit/reference/api/)
 
-#### `replace` — modify lines in an existing file
-
-```json
-{
-    "op": "replace",
-    "file": "src/foo.py",
-    "edits": [
-        {"line": 3,  "old": "import bar",  "new": "import baz"},
-        {"line": 17, "old": "x = bar()",   "new": "x = baz()"}
-    ]
-}
-```
-
-All line numbers reference the **original** file. The engine sorts edits bottom-to-top.
-
-#### `create` — create a new file
-
-```json
-{"op": "create", "file": "src/new.py", "content": "\"\"\"New module.\"\"\"\n"}
-```
-
-Fails if the file already exists — **fail-closed, there is no `overwrite`
-flag**. To replace an existing file, use `rewrite` and hand back the digest of
-the bytes you read.
-
-#### `rewrite` — replace an existing file in full
-
-```json
-{
-    "op": "rewrite",
-    "file": "src/foo.py",
-    "content": "\"\"\"Rewritten module.\"\"\"\nvalue = 1\n",
-    "expected_checksum":
-        "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-}
-```
-
-Three required keys — `file`, `content` and `expected_checksum` (the preflight
-tool `batch_edit_check` names that same key `checksum`; `batch_edit` accepts
-either spelling and normalises it). The digest is
-mandatory: it is the **sha256** hex digest of the file bytes **as currently on
-disk** (read the file, hash it, pass it back). A stale digest is a hard
-refusal, so a concurrent modification is never silently clobbered — and, here
-too, there is deliberately no `overwrite` escape hatch.
-
-`rewrite` carries the exact bytes of `content`: no anchor resolution, no quote
-normalisation, no re-indentation. That makes it the safe way to replace a
-triple-quote-heavy module that anchor-based `replace` cannot address. The
-rewritten file joins the post-apply `ruff --fix` pass like any other touched
-Python file.
-
-#### `delete` — remove a file
-
-```json
-{"op": "delete", "file": "src/old.py"}
-```
-
-### `batch_edit_check`
-
-Read-only preflight of a `batch_edit` operation set. It runs the same validation
-rules as `batch_edit` (broken `old` anchors, `create` on an existing file,
-unknown edit keys, path traversal) and reports what would go wrong — **read-only**:
-no disk write is ever performed, not a single file is created, modified or deleted.
-
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | `"."` | Project root the batch would be applied to |
-| `operations` | `list[Op]` | — | Same operation list as `batch_edit` |
-
-```json
-{
-    "path": "/my/project",
-    "operations": [
-        {
-            "op": "replace",
-            "file": "src/foo.py",
-            "edits": [{"line": 3, "old": "import bar", "new": "import baz"}]
-        },
-        {"op": "create", "file": "src/new.py", "content": "x = 1\n"}
-    ]
-}
-```
-
-Returns `data["ok"]` (`true` when nothing is wrong) and `data["diagnostics"]`,
-one entry per problem found, emitted in **operation order** (the batch's own
-order, then rule family) — plus the machine-readable severity partition
-`data["blocking"]` (`true` as soon as one diagnostic is an error),
-`data["error_count"]` and `data["warning_count"]`. The rendered text ends with
-the matching summary line, `blocking: yes (N errors, M warnings)` or
-`blocking: no (0 errors, M warnings)`, so an agent never has to re-parse the
-diagnostic lines to know whether the batch would be rejected. Since nothing is
-written, it is safe to call it as often as needed before committing to a real
-`batch_edit`.
-
-### `file_bytes`
-
-Byte-exact report on a file **already written to disk** — **read-only**: the
-file is opened once in binary mode, no disk write is ever performed and no
-metadata is changed. `path` is the **absolute** path to the file.
-
-| Param | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | — | Absolute path to the file to inspect |
-| `expected` | `str?` | `None` | Content the caller believes it wrote |
-| `expect_escaped` | `bool` | `False` | Whether escape sequences are expected verbatim on disk |
-| `encoding` | `str` | `"utf-8"` | Decoding used for the report (only `utf-8`) |
-
-Returns `data["verdict"]` — one of `ok`, `mismatch`,
-`literal_where_escaped_expected`, `escaped_where_literal_expected`,
-`decode_error` — plus `data["sha256"]`, `data["size_bytes"]`, the bounded
-occurrence lists with their `*_total` counters, `data["mismatch"]` (offset and
-ASCII-only reprs of the first divergence) and an actionable `data["hint"]`.
-Undecodable bytes are a diagnostic (`encoding_ok: false`), not an error.
-
-### `read_file`
-
-Read file content with optional line-range support.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Project root directory |
-| `file` | `str` | Relative path to the file |
-| `start_line` | `int?` | Optional 1-indexed start line (inclusive) |
-| `end_line` | `int?` | Optional 1-indexed end line (inclusive) |
-
-### `search_files`
-
-Grep-like search across project files.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Project root directory |
-| `pattern` | `str` | Search string or regex (required) |
-| `is_regex` | `bool?` | Treat pattern as regex (default `false`) |
-| `include` | `list[str]?` | Glob patterns to filter files (e.g. `["*.py"]`) |
-
-### `list_dir`
-
-List files and directories with metadata.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Root directory to list (default `"."`) |
-| `max_depth` | `int?` | Recursion depth — 1 for immediate children only (default `1`) |
-
-### `run_command`
-
-Execute shell commands with timeout and output truncation.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Project root directory |
-| `command` | `str` | Shell command string (required) |
-| `cwd` | `str?` | Working directory, relative to root |
-| `timeout` | `int?` | Timeout in seconds (default 30) |
-
-### `write_file`
-
-Write (create or overwrite) a single file. `path` is the **absolute** path
-to the file (not a project root); parent directories are created as needed.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Absolute path to the file to write |
-| `content` | `str` | Text content to write |
-
-### `edit_file`
-
-Find-and-replace in a single file. Unlike `batch_edit` (whole-line `old`),
-`edit_file` matches `old`/`new` as **substrings**. `path` is the **absolute**
-path to the file.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Absolute path to the file to edit |
-| `old` | `str` | Text to find (exact substring match) |
-| `new` | `str` | Replacement text |
-| `count` | `int?` | Max replacements — `-1` for all, else a positive integer (default `1`) |
-
-> **Note** — `write_file` and `edit_file` take an **absolute file path** and are
-> not confined to a project root, unlike the root-relative tools (`read_file`,
-> `search_files`, `list_dir`, `run_command`, `batch_edit`). Like `run_command`,
-> they are not a sandbox: only point them at paths you intend to write.
-
-### `batch_rollback`
-
-Restore the exact paths a batch touched from its snapshot.
-
-| Param | Type | Description |
-|---|---|---|
-| `path` | `str` | Project root directory |
-| `checkpoint` | `str` | Snapshot payload (JSON string) from the `batch_edit` response — pass it back verbatim, it is not a short hash |
-
-## Development
-
-This package is part of the **axm-forge** workspace.
-
-```bash
-git clone https://github.com/axm-protocols/axm-forge.git
-cd axm-forge
-uv sync --all-groups
-
-# Run tests for this package
-uv run pytest --package axm-edit
-```
-
-📖 **[Full documentation](https://forge.axm-protocols.io/edit/)**
-
-## License
-
-Apache-2.0 — © 2026 Gabriel Jarry
+This package lives in [axm-forge](https://github.com/axm-protocols/axm-forge).
+See the workspace contributing guide for development and testing.
+Licensed under Apache-2.0.

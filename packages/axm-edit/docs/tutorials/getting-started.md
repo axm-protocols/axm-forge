@@ -1,99 +1,80 @@
-# Getting Started
+# Edit and undo a temporary project
 
-This tutorial walks you through installing `axm-edit` and using its core tools in 5 minutes.
+Learn the complete tool workflow: check, apply, inspect and undo. This tutorial
+requires Python 3.12+ and creates its own disposable files.
 
-## Prerequisites
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+## Install and inspect the interface
 
 ```bash
 uv add axm-edit
+axm batch_edit --help
+axm batch_edit_check --help
 ```
 
-Or with pip:
+The CLI comes from `axm`. The example below calls the same tool classes directly
+so it can retain the structured checkpoint for rollback.
 
-```bash
-pip install axm-edit
-```
-
-## Step 1: Read a file
+## Run the workflow
 
 ```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from axm_edit.tools.batch_edit import BatchEditTool
+from axm_edit.tools.batch_edit_check import BatchEditCheckTool
+from axm_edit.tools.batch_rollback import BatchRollbackTool
 from axm_edit.tools.read_file import ReadFileTool
 
-tool = ReadFileTool()
-result = tool.execute(path="/my/project", file="src/main.py")
-print(result.data["content"])
-# Output: line-numbered file content
+with TemporaryDirectory() as directory:
+    root = Path(directory)
+    target = root / "settings.txt"
+    target.write_text("mode = draft\n", encoding="utf-8")
+    operations = [
+        {"op": "replace", "file": "settings.txt", "edits": [
+            {"old": "mode = draft", "new": "mode = ready"},
+        ]},
+        {"op": "create", "file": "notes/review.txt", "content": "Ready.\n"},
+    ]
+
+    check = BatchEditCheckTool().execute(path=directory, operations=operations)
+    assert check.success, check.error
+    assert not check.data["blocking"], check.data["diagnostics"]
+    assert target.read_text() == "mode = draft\n"  # Check did not write.
+
+    applied = BatchEditTool().execute(
+        path=directory, operations=operations, lint=False,
+    )
+    assert applied.success, applied.error
+    assert applied.data["summary"] == {"modified": 1, "created": 1, "deleted": 0}
+    assert target.read_text() == "mode = ready\n"
+
+    read = ReadFileTool().execute(path=directory, file="settings.txt")
+    assert read.success, read.error
+    print(read.data["content"])  # The content includes line-number prefixes.
+
+    undone = BatchRollbackTool().execute(
+        path=directory, checkpoint=applied.data["checkpoint"],
+    )
+    assert undone.success, undone.error
+    assert target.read_text() == "mode = draft\n"
+    assert not (root / "notes").exists()
 ```
 
-## Step 2: Search across files
+The `old` value is the whole line, with no trailing newline. A substring such
+as `draft` would not match that line in `batch_edit`.
+`lint=False` keeps the tutorial independent of Ruff and project environments.
 
-```python
-from axm_edit.tools.search_files import SearchFilesTool
+## Interpret the results
 
-tool = SearchFilesTool()
-result = tool.execute(
-    path="/my/project",
-    pattern="TODO",
-    include=["*.py"],
-)
-for match in result.data["matches"]:
-    print(f"{match['file']}:{match['line']}: {match['content']}")
-```
+`check.success` says the check ran; `check.data["blocking"]` says whether
+preflight found an error. Warnings make `ok=False` without necessarily blocking.
+A nonblocking preflight is not a guarantee that engine validation or apply will
+succeed.
 
-## Step 3: Batch edit
+The apply result's `checkpoint` is a JSON snapshot string, not a commit hash.
+It is available here because Python receives structured `data`. Compact MCP
+text omits it; do not invent a checkpoint from that text.
 
-Replace, rewrite, create, and delete files in a single atomic call:
-
-```python
-from axm_edit.tools.batch_edit import BatchEditTool
-
-tool = BatchEditTool()
-result = tool.execute(
-    path="/my/project",
-    operations=[{
-        "op": "replace",
-        "file": "src/main.py",
-        "edits": [{"old": "old_name", "new": "new_name"}],
-    }],
-)
-print(result.data["summary"])
-# {"modified": 1, "created": 0, "deleted": 0}
-```
-
-## Step 4: Run a command
-
-```python
-from axm_edit.tools.run_command import RunCommandTool
-
-tool = RunCommandTool()
-result = tool.execute(
-    path="/my/project",
-    command="python -m pytest -x -q",
-    timeout=60,
-)
-print(result.data["stdout"])
-```
-
-## Step 5: Rollback if needed
-
-Every `batch_edit` returns a `checkpoint` snapshot you can use to restore the
-exact paths the batch touched — and nothing else (unrelated files are never
-touched):
-
-```python
-from axm_edit.tools.batch_rollback import BatchRollbackTool
-
-tool = BatchRollbackTool()
-result = tool.execute(path="/my/project", checkpoint="<checkpoint-from-batch-edit>")
-```
-
-## Next steps
-
-- [How-To Guides](../howto/index.md) — Task-oriented recipes
-- [API Reference](../reference/api/axm_edit/index.md) — Full module documentation
-- [Architecture](../explanation/architecture.md) — Design decisions and module layout
+Next, learn [guarded full-file rewrites](../howto/rewrite.md),
+[recovery limits](../howto/rollback.md), or
+[tool dispatch through MCP and CLI](../howto/mcp.md).
