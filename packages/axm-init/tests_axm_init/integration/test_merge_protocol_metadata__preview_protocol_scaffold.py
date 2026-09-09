@@ -44,12 +44,23 @@ DECLARATION: dict[str, object] = {
 
 
 def _metadata() -> str:
+    """Return a target that already owns the ``dev`` protocol profile.
+
+    The header comment, the inline comments and the unrelated section are the
+    presentation these contracts assert survives a merge. The profile table is
+    declared up front because ownership is a package-creation decision: a unit
+    or protocol request refuses a package declaring none rather than
+    registering one on its behalf.
+    """
     return (
         "# project header\n"
         '[project]\nname = "protocols-dev" # package identity\n'
         'version = "0.1.0"\n\n'
         "[tool.unrelated]\n"
-        "answer = 42 # keep inline\n"
+        "answer = 42 # keep inline\n\n"
+        "[tool.axm-init.protocols]\n"
+        "schema_version = 1\n"
+        'domain = "dev"\n'
     )
 
 

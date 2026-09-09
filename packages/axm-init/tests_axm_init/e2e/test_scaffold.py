@@ -162,8 +162,12 @@ def test_protocol_preview_cli_matches_axmtool_structured_payload(
         "nodes": [{"name": "author", "contract": "brief"}],
     }
     pyproject = tmp_path / "pyproject.toml"
+    # The target must already own the profile: a unit or protocol request
+    # refuses a package declaring no `[tool.axm-init.protocols].domain` rather
+    # than registering one for it (ownership is a package-creation decision).
     pyproject.write_text(
-        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n',
+        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n\n'
+        '[tool.axm-init.protocols]\nschema_version = 1\ndomain = "dev"\n',
         encoding="utf-8",
     )
     direct = InitScaffoldTool().execute(

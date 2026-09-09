@@ -165,13 +165,23 @@ class _ProjectMeta:
     author_email: str
 
 
-def _protocol_profile_error(
-    request: ProtocolScaffoldRequest | None,
-    target_path: Path,
-) -> str | None:
-    """Reject a request that conflicts with an already-owned profile."""
-    if request is None:
-        return None
+_MISSING_PROFILE_ERROR = (
+    "Protocol profile ownership missing: {path} declares no "
+    "[tool.axm-init.protocols] table. Create the package with "
+    "profile='protocols' first — a unit or protocol request never registers "
+    "the profile itself."
+)
+
+
+def _owned_protocol_domain(target_path: Path) -> str | None:
+    """Return the domain the target declares, or ``None`` when it declares no profile.
+
+    Reads ``[tool.axm-init.protocols].domain`` from the target's
+    ``pyproject.toml``. Every absence along that path — no file, no ``tool``
+    table, no ``axm-init`` table, no ``protocols`` table, no ``domain`` key —
+    means the target does not own a protocol profile, which the caller treats
+    as a refusal rather than as permission.
+    """
     metadata_path = target_path / "pyproject.toml"
     if not metadata_path.is_file():
         return None
@@ -186,7 +196,33 @@ def _protocol_profile_error(
     if not isinstance(profile, Table):
         return None
     owned_domain = profile.get("domain")
-    if owned_domain is None or owned_domain == request.domain:
+    return str(owned_domain) if owned_domain is not None else None
+
+
+def _protocol_profile_error(
+    request: ProtocolScaffoldRequest | None,
+    target_path: Path,
+) -> str | None:
+    """Reject a request whose target does not own a compatible profile.
+
+    Two refusals, both evaluated before any write: the target declares no
+    protocol profile at all, or it declares a domain other than the requested
+    one. Declaring the profile is the package-creation decision (``profile=``),
+    never a side effect of a unit or protocol request, and an existing domain is
+    never silently adopted or rewritten.
+    """
+    if request is None:
+        return None
+    owned_domain = _owned_protocol_domain(target_path)
+    if owned_domain is None:
+        # A package-creation request (no unit, no protocols) is precisely the
+        # operation that DECLARES the profile, so an absent one is expected
+        # there. Only a unit or protocol request requires a profile already
+        # owned by the target.
+        if request.unit is None and not request.protocols:
+            return None
+        return _MISSING_PROFILE_ERROR.format(path=target_path / "pyproject.toml")
+    if owned_domain == request.domain:
         return None
     return (
         f"Protocol profile domain conflict: target owns {owned_domain!r}, "

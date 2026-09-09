@@ -19,7 +19,10 @@ def _root(parent: Path, name: str) -> Path:
     root = parent / name
     root.mkdir()
     (root / "pyproject.toml").write_text(
-        '[project]\nname = "example"\nversion = "0.1.0"\n',
+        # Ownership is a package-creation decision, so every root used by
+        # these application contracts declares its profile from the start.
+        '[project]\nname = "example"\nversion = "0.1.0"\n'
+        '\n[tool.axm-init.protocols]\nschema_version = 1\ndomain = "dev"\n',
         encoding="utf-8",
     )
     return root

@@ -137,3 +137,62 @@ def test_domain_conflict_rejection_coexists_with_direct_preview(
     direct_root = tmp_path / "direct-preview"
     _write_project(direct_root, name="protocols-dev")
     _assert_direct_preview_adopts_profile(direct_root)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("label", "metadata"),
+    [
+        ("no-pyproject", None),
+        ("no-tool-table", '[project]\nname = "x"\nversion = "0.1.0"\n'),
+        (
+            "no-protocols-table",
+            '[project]\nname = "x"\nversion = "0.1.0"\n\n'
+            "[tool.axm-init]\nexclude = []\n",
+        ),
+        (
+            "no-domain-key",
+            '[project]\nname = "x"\nversion = "0.1.0"\n\n'
+            "[tool.axm-init.protocols]\nschema_version = 1\n",
+        ),
+    ],
+)
+def test_declared_profile_is_required_for_a_protocol_mode_request(
+    tmp_path: Path,
+    label: str,
+    metadata: str | None,
+) -> None:
+    """A protocol-mode request refuses a target that owns no protocol profile.
+
+    Guards the ownership precondition against the shape that silently adopted a
+    package: a *well-formed* request (``profile="protocols"``, so input
+    validation passes) aimed at a target declaring no
+    ``[tool.axm-init.protocols].domain``. Every absence along that lookup —
+    missing file, missing ``tool`` table, missing ``protocols`` table, missing
+    ``domain`` key — must refuse rather than register the profile itself.
+    """
+    root = tmp_path / label
+    root.mkdir()
+    if metadata is not None:
+        (root / "pyproject.toml").write_text(metadata, encoding="utf-8")
+    before = _snapshot(root)
+
+    result = InitScaffoldTool().execute(
+        path=str(root),
+        kind="protocol_unit",
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[DECLARATION],
+        preview=False,
+        **IDENTITY,
+    )
+
+    assert result.success is False
+    assert "ownership missing" in (result.error or "").lower()
+    assert _snapshot(root) == before
+    if metadata is not None:
+        # No ownership is registered on the way out — the byte-level snapshot
+        # above already proves it, and this states the intent that made the
+        # earlier defect invisible: the request must never write a `domain`.
+        assert "domain" not in (root / "pyproject.toml").read_text(encoding="utf-8")
