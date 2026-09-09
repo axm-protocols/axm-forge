@@ -1,452 +1,136 @@
-# API Reference
+# Python API guide
 
-Public helpers exposed by `axm_ast.core.context`.
-
----
+The stable package-root surface is exported through `axm_ast.__all__`.
+Internal `axm_ast.core.*`, `formatters` and `tools.*` modules remain
+importable but have a different stability boundary. Generated reference is
+available in **Python API** in the navigation, including those implementation
+modules; a generated listing alone is not a usage guide.
 
 ## Root re-exports
 
-The primary analysis functions are re-exported from the package root, so
-the canonical import path is `axm_ast` (their implementation modules under
-`axm_ast.core.*` remain importable too):
-
-```python
-from axm_ast import (
-    find_callers,                  # axm_ast.core.callers
-    trace_flow,                    # axm_ast.core.flows
-    find_dead_code,                # axm_ast.core.dead_code
-    structural_diff,               # axm_ast.core.structural_diff
-    analyze_workspace,             # axm_ast.core.workspace
-    build_workspace_module_graph,  # axm_ast.core.workspace
-)
-```
-
-The result/parameter types they expose are re-exported alongside them so no
-internal type leaks from the public signatures: `CallSite`, `FlowStep`,
-`DeadSymbol`, `StructuralDiffResult`, `WorkspaceInfo` (the result of
-`analyze_workspace` and the parameter of `build_workspace_module_graph`), and
-the already-public `PackageInfo`.
-
-> **`find_dead_code` caveat** — reference matching is by name only against a
-> single global set of referenced names, so a dead symbol homonymous with a
-> live one is silently omitted (a false negative). Symbols reported as dead are
-> high-confidence; truly-dead homonyms may be missed. See the `.. warning::`
-> block in `find_dead_code`'s docstring.
-
----
-
-## `format_context_json`
-
-```python
-from axm_ast.core.context import format_context_json
-
-format_context_json(ctx: dict[str, Any], *, depth: int | None = None) -> dict[str, Any]
-```
-
-Format a context dict (from `build_context`) into a JSON-serializable dict.
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `ctx` | `dict[str, Any]` | *required* | Context dict produced by `build_context` |
-| `depth` | `int \| None` | `None` | Detail level (see below) |
-
-### Depth levels
-
-| Depth | Detail |
+| Export | Use and result |
 |---|---|
-| `None` | Full context with all modules and dependency graph |
-| `0` | Top-5 modules by PageRank (~100 tokens) |
-| `1` | Sub-packages with aggregate counts (~500 tokens) |
-| `2` | Modules within sub-packages (~2 000 tokens) |
-| `3+` | All modules with symbol names listed |
+| `analyze_package(Path)` | Parse one directory into `PackageInfo`; invalid directory raises `ValueError` |
+| `search_symbols(pkg, *, name=None, returns=None, kind=None, inherits=None)` | AND-combined filters; returns `(module_name, symbol)` tuples |
+| `find_callers(pkg, symbol)` | Syntactic call sites as `list[CallSite]` |
+| `trace_flow(pkg, entry, ...)` | Returns `(list[FlowStep], truncated)`, not just steps |
+| `find_dead_code(pkg, *, include_tests=False)` | Returns `list[DeadSymbol]` candidates |
+| `analyze_workspace(Path)` | Parse uv workspace members into `WorkspaceInfo` |
+| `build_workspace_module_graph(ws)` | Merged adjacency mapping |
+| `structural_diff(pkg_path, base, head)` | `StructuralDiffResult` dictionary; check its `error` key |
+| `__version__` | Installed package version |
 
-### Return value
+The root also exports `FunctionInfo`, `FunctionKind`, `ClassInfo`,
+`VariableInfo`, `ParameterInfo`, `ImportInfo`, `ModuleInfo`,
+`PackageInfo`, `WorkspaceInfo`, `CallSite`, `FlowStep`, and
+`DeadSymbol`. These model objects support Pydantic serialization such as
+`model_dump(mode="json")`. `StructuralDiffResult` is a TypedDict, not a
+Pydantic model.
 
-A JSON-serializable dict with the following top-level keys:
+## Search and inspect parsed symbols
 
-| Key | Type | Description |
-|---|---|---|
-| `name` | `str` | Package name |
-| `python` | `str \| None` | `requires-python` value, or `None` if not declared |
-| `stack` | `dict` | Detected technology stack |
-| `patterns` | `dict` | Module/function/class counts and layout |
-| `top_modules` | `list[dict]` | Modules included at the requested depth |
-| `dependency_graph` | `dict` | Dependency graph (depth `None` only) |
-
----
-
-## `format_context_text`
+Run from an axm-forge checkout:
 
 ```python
-from axm_ast.core.context import format_context_text
+from pathlib import Path
+from axm_ast import FunctionInfo, analyze_package, search_symbols
 
-format_context_text(data: dict[str, Any], *, depth: int = 0) -> str
+pkg = analyze_package(Path("packages/axm-ast"))
+for module, symbol in search_symbols(pkg, name="analyze_package"):
+    if isinstance(symbol, FunctionInfo):
+        print(module, symbol.name, symbol.signature)
 ```
 
-Format a context dict (output of `format_context_json`) as compact plain text suitable for `ToolResult.text`.
+Filters are lexical (name, annotation and base-class strings), not type
+inference. No matches produces an empty list. Fuzzy suggestions belong to the
+`ast_search` tool, not this function.
 
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `data` | `dict[str, Any]` | *required* | Formatted context dict from `format_context_json` |
-| `depth` | `int` | `0` | Detail level matching the depth used for `format_context_json` |
-
-### Output by depth
-
-| Depth | Content |
-|---|---|
-| `0` | Header + top modules with star ratings |
-| `1` | Header + sub-packages with module/symbol counts |
-| `2+` | Header + sub-packages with inline symbol names `[sym1, sym2, … (+N)]` |
-
-Header format: `{name} | {layout} | {N} mod · {N} fn · {N} cls`, followed by optional `python:` and `Stack:` lines when present.
-
----
-
-## `build_workspace_context`
+## Trace a call graph
 
 ```python
-from axm_ast.core.workspace import build_workspace_context
+from pathlib import Path
+from axm_ast import analyze_package, trace_flow
 
-build_workspace_context(path: Path) -> dict[str, Any]
+pkg = analyze_package(Path("packages/axm-ast"))
+steps, truncated = trace_flow(pkg, "analyze_package", max_depth=1)
+for step in steps:
+    print(step.depth, step.name, step.module, step.line)
+print("Depth limited:", truncated)
 ```
 
-Build complete workspace context in one call. Lists all packages, their mutual dependencies, per-package stats, and the workspace-level dependency graph.
+The root is depth zero. `detail="source"` enriches steps with function source;
+`trace_flow` always returns the tuple even for `detail="compact"`.
+The tool/CLI renders the compact tree. Invalid detail or missing entry raises
+`ValueError`. Cross-module callees are recorded as single-hop leaves, not
+recursively expanded.
 
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `path` | `Path` | *required* | Path to workspace root |
-
-### Return value
-
-| Key | Type | Description |
-|---|---|---|
-| `workspace` | `str` | Workspace name |
-| `root` | `str` | Absolute path to workspace root |
-| `package_count` | `int` | Number of member packages |
-| `packages` | `list[dict]` | Per-package summary (name, root, module/function/class counts) |
-| `package_graph` | `dict[str, list[str]]` | Inter-package dependency edges |
-
----
-
-## `format_workspace_context`
+## Workspace analysis
 
 ```python
-from axm_ast.core.workspace import format_workspace_context
+from pathlib import Path
+from axm_ast import analyze_workspace, build_workspace_module_graph
 
-format_workspace_context(ctx: dict[str, Any], *, depth: int = 1) -> dict[str, Any]
+workspace = analyze_workspace(Path("."))
+graph = build_workspace_module_graph(workspace)
+for module, dependencies in graph.items():
+    print(module, dependencies)
 ```
 
-Apply depth-based filtering to a workspace context dict.
+This example requires a uv workspace root. Use one member directory for
+single-package APIs. [Scope and language limits](../howto/scope-and-languages.md)
+cover src-layout selection and optional TypeScript support.
 
-### Parameters
+## Dead code and structural changes
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `ctx` | `dict[str, Any]` | *required* | Full workspace context from `build_workspace_context` |
-| `depth` | `int` | `1` | Detail level (see below) |
+`find_dead_code` uses name-based references and exemptions. Homonymous live
+symbols can hide dead ones; dynamic consumers can also escape static matching.
+Review findings before deleting code.
 
-### Depth levels
+`structural_diff` compares symbols and signatures between git refs, with
+temporary worktrees. A function-body-only change with an unchanged signature
+does not appear as a modified symbol. It does not represent uncommitted changes.
+Check `"error" in result` before reading `added`, `removed`, `modified`
+or `summary`. This operation has git metadata side effects despite preserving
+the source checkout.
 
-| Depth | Detail |
-|---|---|
-| `0` | Compact — package names only, no graph or stats |
-| `>= 1` | Full output with all per-package stats and dependency graph |
+## Internal helpers
 
----
+These compatibility anchors preserve older links. Their current signatures are
+generated from source below; integrations should prefer the root surface or
+[AXM tools](tools.md).
 
-## `search_symbols`
+### `format_context_json`
+::: axm_ast.core.context.format_context_json
 
-```python
-from axm_ast.core.analyzer import search_symbols
+### `format_context_text`
+::: axm_ast.core.context.format_context_text
 
-search_symbols(
-    pkg: PackageInfo,
-    *,
-    name: str | None = None,
-    returns: str | None = None,
-    kind: SymbolKind | None = None,
-    inherits: str | None = None,
-) -> list[tuple[str, FunctionInfo | ClassInfo | VariableInfo]]
-```
+### `build_workspace_context`
+::: axm_ast.core.workspace.build_workspace_context
 
-Search for symbols across a package with filters. All filters are AND-combined.
+### `format_workspace_context`
+::: axm_ast.core.workspace.format_workspace_context
 
-### Parameters
+### `search_symbols`
+::: axm_ast.search_symbols
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `pkg` | `PackageInfo` | *required* | Analyzed package info |
-| `name` | `str \| None` | `None` | Filter by symbol name (substring match) |
-| `returns` | `str \| None` | `None` | Filter functions by return type (substring match) |
-| `kind` | `SymbolKind \| None` | `None` | Filter by symbol kind (function, class, variable, etc.) |
-| `inherits` | `str \| None` | `None` | Filter classes by base class name |
+### `format_workspace_text`
+::: axm_ast.core.workspace.format_workspace_text
 
-### Return value
+### `score_impact`
+::: axm_ast.core.impact.score_impact
 
-A list of `(module_name, symbol)` tuples where `module_name` is the dotted module path (e.g. `pkg.sub.mod`) and `symbol` is a `FunctionInfo`, `ClassInfo`, or `VariableInfo`.
+### `format_impact_compact`
+::: axm_ast.tools.impact.format_impact_compact
 
-When serialized by the `ast_search` MCP tool, each symbol becomes a dict with:
+### `render_impact_text`
+::: axm_ast.tools.impact_text.render_impact_text
 
-| Key | Present when | Value |
-|---|---|---|
-| `name` | always | Symbol name |
-| `module` | always | Dotted module path |
-| `signature` | functions | Parameter signature |
-| `return_type` | functions | Return annotation |
-| `kind` | always | `FunctionKind` value (`function`, `method`, `property`, `classmethod`, `staticmethod`, `abstract`), `"class"`, or `"variable"` |
-| `annotation` | variables with type | Type annotation |
-| `value_repr` | variables with value | Short repr of assigned value |
+### `FlowsTool.execute`
+::: axm_ast.tools.flows.FlowsTool.execute
 
-### Fuzzy suggestions
+### `render_impact_batch_text`
+::: axm_ast.tools.impact_text.render_impact_batch_text
 
-When the `ast_search` MCP tool returns **0 results** and a `name` filter was provided, it automatically runs fuzzy matching against all symbols in the package using `difflib.get_close_matches` (cutoff 0.6). Suggestions are returned in `data["suggestions"]` alongside the empty `data["results"]`.
-
-Internally, `_collect_module_candidates` builds the candidate map from each module's symbols. When a module's `name` attribute is `None` (common with tree-sitter parsed modules), it falls back to `module_dotted_name(mod.path, pkg.root)` to produce a proper dotted name (e.g. `axm_ast.core.analyzer`).
-
-Each suggestion dict contains:
-
-| Key | Type | Description |
-|---|---|---|
-| `name` | `str` | Original-cased symbol name |
-| `score` | `float` | Similarity score (0–1) |
-| `kind` | `str` | Symbol kind (`function`, `method`, `class`, `variable`, etc.) |
-| `module` | `str` | Dotted module path where the symbol lives |
-
-When `kind` is also specified, suggestions are filtered to that kind only. Duplicate symbol names across modules are deduplicated, keeping the entry with the highest score.
-
-The `text` output for the 0-hit+suggestions case uses `?`-prefixed lines:
-
-```
-ast_search | name~"get_sesion" | 0 hits · 2 suggestions
-? get_session            .92  func   core.analyzer
-? get_sessions           .85  func   core.analyzer
-```
-
----
-
-## `format_workspace_text`
-
-```python
-from axm_ast.core.workspace import format_workspace_text
-
-format_workspace_text(ctx: dict[str, Any]) -> str
-```
-
-Format a workspace context dict as compact plain text suitable for `ToolResult.text`.
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `ctx` | `dict[str, Any]` | *required* | Workspace context from `build_workspace_context` or `format_workspace_context` |
-
-### Output
-
-Header line: `{workspace} | workspace | {N} packages`, followed by a `Packages:` listing with per-package stats and an optional `Dependencies:` section showing inter-package edges.
-
----
-
-## `score_impact`
-
-```python
-from axm_ast.core.impact import ImpactWeights, score_impact
-
-score_impact(
-    report: ImpactReport | dict[str, Any],
-    weights: ImpactWeights | None = None,
-) -> str
-```
-
-Score a symbol's blast radius as `"LOW"`, `"MEDIUM"`, or `"HIGH"`. The total
-is `callers·caller_weight + reexports·reexport_weight + modules·module_weight + git_coupled·coupled_weight + type_refs·typeref_weight`,
-compared against `medium_threshold` and `high_threshold`.
-
-Pass an `ImpactWeights` instance to override the defaults, or load
-per-package overrides from `[tool.axm-ast.impact]` in `pyproject.toml`
-(keys: `caller_weight`, `reexport_weight`, `module_weight`,
-`coupled_weight`, `typeref_weight`, `medium_threshold`,
-`high_threshold`).
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `report` | `ImpactReport \| dict[str, Any]` | *required* | Report fields: `callers`, `reexports`, `affected_modules`, `git_coupled`, `type_refs`. Extra keys on a dict are ignored |
-| `weights` | `ImpactWeights \| None` | `None` | Override weights/thresholds; defaults to the module-level constants |
-
-### Return value
-
-One of `"LOW"`, `"MEDIUM"`, `"HIGH"`.
-
----
-
-## `format_impact_compact`
-
-```python
-from axm_ast.tools.impact import format_impact_compact
-
-format_impact_compact(
-    impact: dict[str, Any] | list[dict[str, Any]],
-) -> str
-```
-
-Format impact analysis as a compact markdown table.
-
-Accepts either a single impact dict or a list of per-symbol reports.
-When given a list, each symbol gets its own row with per-symbol callers.
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `impact` | `dict[str, Any] \| list[dict[str, Any]]` | *required* | Single impact dict or list of per-symbol impact dicts |
-
-### Return value
-
-Markdown string with symbol table, caller details, and test footer. The `score` field (`LOW`, `MEDIUM`, `HIGH`) determines the displayed severity. When given a list, the maximum score across all reports is used as the headline score.
-
----
-
-## `render_impact_text`
-
-```python
-from axm_ast.tools.impact_text import render_impact_text
-
-render_impact_text(report: dict[str, Any]) -> str
-```
-
-Render a single impact report as human-readable text. Produces a compact key-value format with header, definition location, callers, affected modules, test files, git-coupled files, and cross-package impact.
-
-Falls back to a minimal error line on malformed input.
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `report` | `dict[str, Any]` | *required* | Single impact dict as returned by `_analyze_single` |
-
-### Return value
-
-Multi-line string starting with `ast_impact | {symbol} | {score}`, followed by definition, callers, and test information.
-
----
-
-## `FlowsTool.execute`
-
-```python
-from axm_ast.tools.flows import FlowsTool
-
-tool = FlowsTool()
-result = tool.execute(
-    path=".",
-    entry=None,
-    max_depth=5,
-    cross_module=False,
-    detail="trace",
-    exclude_stdlib=True,
-)
-```
-
-Detect entry points or trace execution flows from a symbol. Without `entry`, returns detected entry points. With `entry`, traces BFS flow from that symbol.
-
-Registered as `ast_flows` via `axm.tools` entry point.
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | `"."` | Path to package directory |
-| `entry` | `str \| None` | `None` | Entry point name to trace from; when `None`, detects entry points |
-| `max_depth` | `int` | `5` | Maximum BFS depth for flow tracing |
-| `cross_module` | `bool` | `False` | Resolve imports and trace into external modules |
-| `detail` | `str` | `"trace"` | Detail level — `"trace"`, `"source"`, or `"compact"` |
-| `exclude_stdlib` | `bool` | `True` | Exclude stdlib/builtin callees from BFS trace |
-
-### Return value
-
-`ToolResult` with:
-
-| Key | Present when | Description |
-|---|---|---|
-| `entry_points` | no `entry` | List of detected entry point dicts |
-| `entry` | with `entry` | Entry symbol name |
-| `steps` / `compact` | with `entry` | Flow steps (trace/source) or compact tree string |
-| `depth` | with `entry` | Actual max depth reached |
-| `count` | always | Number of items returned |
-| `truncated` | with `entry` | `True` when frontier nodes at `max_depth` had unexpanded children |
-
-Returns `success=False` when the entry symbol is not found or `detail` is invalid.
-
-Internally delegates to `_trace_entry` (single-entry BFS tracing with result formatting) and `_detect_entries` (entry point detection).
-
----
-
-## `render_impact_batch_text`
-
-```python
-from axm_ast.tools.impact_text import render_impact_batch_text
-
-render_impact_batch_text(reports: list[dict[str, Any]]) -> str
-```
-
-Render multiple impact reports as human-readable text. Produces a header with symbol count and maximum score, followed by per-symbol sections.
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `reports` | `list[dict[str, Any]]` | *required* | List of per-symbol impact dicts |
-
-### Return value
-
-Multi-line string starting with `ast_impact | {n} symbols | max={score}`, followed by `## {symbol} | {score}` sections. Returns empty string for an empty list.
-
----
-
-## `ImpactTool.execute`
-
-```python
-from axm_ast.tools.impact import ImpactTool
-
-tool = ImpactTool()
-result = tool.execute(path=".", symbol="MyClass.method")
-```
-
-Analyze the blast radius of a symbol (single) or a list of symbols (batch).
-Registered as the `ast_impact` MCP tool. Workspace-aware: when `path`
-points at a uv workspace root, the analysis spans every member package.
-
-At least one of `symbol` or `symbols` must be provided; otherwise the
-call returns a `ToolResult` with `success=False` and an explanatory
-`error` (the public surface validates this without relying on
-production `assert`, which `python -O` would strip).
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | `"."` | Package or workspace directory to analyze |
-| `symbol` | `str \| None` | `None` | Single symbol to analyze (mutually optional with `symbols`) |
-| `symbols` | `list[str] \| None` | `None` | Batch of symbols; routes to per-symbol analysis and aggregated results |
-| `exclude_tests` | `bool` | `False` | If true, drops test files from caller analysis |
-| `detail` | `str \| None` | `None` | Set to `"compact"` for a markdown-table summary instead of the full dict |
-| `include_module_importers` | `bool` | `False` | **Opt-in**, default off. When true, the single-symbol `data` gains a `module_level_importers` list naming modules that only `import pkg.m` the symbol's *module* (or a re-export shim) without referencing the symbol itself — dependents a symbol-level traversal misses. Off, the `data` and `text` are byte-for-byte the legacy output. Best-effort: inert in workspace mode (`analyze_impact_workspace` does not yet accept the toggle — a documented residual) and silently empty when the import graph is unavailable |
-| `**kwargs` | — | — | `test_filter` (`"none"`, `"all"`, `"related"`) controls test caller filtering |
-
-### Return value
-
-`ToolResult`:
-
-| Mode | `data` | `text` |
-|---|---|---|
-| Single, full | Impact dict (callers, reexports, score, …); `module_level_importers` only when opted in | Rendered via `render_impact_text` when fields permit |
-| Single, compact | `{}` | Markdown table from `format_impact_compact` |
-| Batch, full | `{"symbols": [report, …]}` | Rendered via `render_impact_batch_text` when fields permit |
-| Batch, compact | `{}` | Markdown table from `format_impact_compact` |
-| Error | — | — (use `error` field) |
+### `ImpactTool.execute`
+::: axm_ast.tools.impact.ImpactTool.execute

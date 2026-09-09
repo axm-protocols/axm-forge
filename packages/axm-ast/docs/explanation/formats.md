@@ -4,9 +4,9 @@
 
 ## Detail Levels (`describe`)
 
-### Detailed (default)
+### Detailed (dedicated CLI default)
 
-Adds docstrings, parameter types, return types, and visibility indicators (`🔓` public, `🔒` private). This is the default detail level.
+Adds docstrings, parameter types, return types, and visibility indicators (`🔓` public, `🔒` private). The AXM tool defaults to `summary` instead.
 
 ```bash
 axm-ast describe src/mylib
@@ -49,13 +49,13 @@ axm-ast describe src/mylib --compress
 Ultra-lightweight overview returning only module names and symbol counts — no individual function or class details.
 
 ```bash
-axm-ast describe src/mylib --detail toc
+axm-ast describe src/mylib --detail toc --json
 ```
 
 **Includes:**
 
 - Module dotted name
-- Module docstring (first sentence)
+- Module docstring (first sentence), when available
 - Function count, class count, total symbol count
 
 **Excludes:**
@@ -66,8 +66,14 @@ axm-ast describe src/mylib --detail toc
 Combine with `--modules` to filter:
 
 ```bash
-axm-ast describe src/mylib --detail toc --modules core
+axm-ast describe src/mylib --detail toc --json --modules core
 ```
+
+### Names
+
+`--detail names` (or tool `detail="names"`) lists symbols without signatures.
+Use it between a module-only TOC and a signature-level summary. `full` has been
+removed; use `detailed` or inspect selected symbols with source.
 
 ## Detail Levels (`docs`)
 
@@ -127,7 +133,7 @@ axm-ast flows src/mylib --trace main --detail source
 
 ### Compact
 
-Returns a tree-formatted string with box-drawing characters and metadata keys: `entry`, `compact` (the tree string), `depth` (echoing `max_depth`), `cross_module`, and `count`.
+Returns a tree-formatted string with box-drawing characters and metadata keys: `entry`, `compact` (the tree string), `depth` (actual maximum depth reached), `cross_module`, and `count`.
 
 ```bash
 axm-ast flows src/mylib --trace main --detail compact
@@ -196,7 +202,7 @@ tools.cli:12
 
 ## JSON Output
 
-Every command supports `--json` for machine-readable output. JSON output follows consistent conventions:
+Analysis commands support `--json`; `version` does not. Avoid mixing it with text-only compression or compact impact, which take precedence. Dedicated CLI JSON and AXM tool payloads are not interchangeable; see [MCP results](../howto/mcp.md#results-and-errors). Typical CLI outputs include:
 
 - **Describe**: Full module/function/class trees
 - **Graph**: Adjacency list `{module: [dependencies]}`

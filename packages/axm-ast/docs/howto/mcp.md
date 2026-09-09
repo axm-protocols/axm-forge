@@ -1,93 +1,75 @@
 # Use via MCP
 
-`axm-ast` exposes all CLI commands as MCP (Model Context Protocol) tools via `axm-mcp`. AI agents can call them directly without spawning subprocesses.
+Install `axm-ast` and `axm-mcp` in the environment running the MCP server.
+Analysis tools are registered in the `axm.tools` entry-point group.
+The dedicated `axm-ast` CLI is also distributed, but its defaults and JSON
+shapes are not identical to the tools.
 
-## Available Tools
+## Discover the invocation contract
 
-| MCP Tool | Equivalent CLI | Purpose |
-|---|---|---|
-| `ast_context(path, depth?)` | `axm-ast context` | One-shot project dump (stack, layout, patterns, modules) |
-| `ast_describe(path, detail?, compress?, modules?)` | `axm-ast describe` | Full API surface (signatures, docstrings, `__all__`) |
-| `ast_search(path, name?, returns?, kind?, inherits?)` | `axm-ast search` | Semantic symbol lookup |
-| `ast_callees(path, symbol)` | — | Find all functions called by a symbol (inverse of `ast_callers`) |
-| `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |
-| `ast_impact(path, symbol, exclude_tests?, test_filter?, detail?)` | `axm-ast impact` | Change blast radius analysis. `detail="compact"` returns a markdown table. `test_filter="related"` keeps only direct test callers |
-| `ast_inspect(path, symbol?, symbols?)` | `axm-ast inspect` | Full detail on a single symbol or batch list of `symbols`; falls back to module metadata when `symbol` matches a module name (returns `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, `file`) |
-| `ast_graph(path, format?)` | `axm-ast graph` | Import dependency graph. `format`: `"json"` (default), `"mermaid"`, or `"text"`. Always includes `nodes` list |
-| `ast_docs(path, detail?, pages?)` | `axm-ast docs` | Documentation tree dump |
-| `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
-| `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
-| `ast_flows(path, entry?, detail?, max_depth?, cross_module?)` | `axm-ast flows` | Entry point detection and BFS flow tracing |
-| `ast_doc_impact(path, symbols)` | — | Doc refs, undocumented symbols, stale signatures |
-| `ast_file_header(path, file)` | — | Structural header of a file (imports, `__all__`, top-level symbols) without reading the full body |
-| `ast_coupling_gaps(path, symbol?, symbols?)` | `axm-ast coupling-gaps` | Lower-bound coupling report — the structural Protocol/ABC and contract-literal sites the reference-only `ast_impact` walk misses. Omit the symbol to scan the whole public API |
-
-!!! tip "ast_describe detail levels"
-    `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only — **default**),
-    or `"detailed"` (+ docstrings, params, return types). Use `modules=["core"]` to filter by module name substring.
-    Use `compress=True` for an AI-optimized view with signatures and first docstring lines.
-
-!!! tip "ast_docs detail levels"
-    `ast_docs` accepts `detail`: `"toc"` (heading tree + line count per page, ~500 tokens),
-    `"summary"` (headings + first sentence per section), or `"full"` (complete content — **default**).
-    Use `pages=["architecture", "howto"]` to filter pages by name substring.
-    Combine both: `ast_docs(detail="toc", pages=["arch"])` for minimal token scan.
-
-!!! tip "ast_flows detail levels"
-    `ast_flows` with `entry` accepts `detail`: `"trace"` (default, names + positions only),
-    `"source"` (includes function source code for each step), or `"compact"` (tree with
-    box-drawing chars plus `depth` and `cross_module` metadata). Use `cross_module=True`
-    to follow imports into other modules. Use `max_depth` to control BFS depth (default 5).
-
-
-## Workspace Support
-
-All tools with a `path` parameter **auto-detect `uv` workspaces**. When `path` points to a directory with a `pyproject.toml` containing `[tool.uv.workspace]`, the tools automatically switch to workspace mode:
-
-- **`ast_context`** — returns a unified context with all member packages, their dependency graph, and aggregated statistics
-- **`ast_callers`** — searches across all packages, prefixing modules with `pkg_name::` for disambiguation
-- **`ast_impact`** — performs cross-package impact analysis, identifying callers, re-exports, and test files across the workspace
-- **`ast_graph`** — generates an inter-package dependency graph (Mermaid, text, or adjacency list). Single-package mode always includes a `nodes` list
-
-No special arguments needed — just point `path` to the workspace root.
-
-## When to Use What
-
-| Task | Start with | Then use |
-|---|---|---|
-| **Onboarding** | `ast_context` | `ast_describe` |
-| **Writing code** | `ast_describe` → `ast_search` | `ast_impact` before modifying |
-| **Refactoring** | `ast_impact` → `ast_callers` | `ast_graph` for architecture |
-| **Writing docs** | `ast_docs` → `ast_doc_impact` | `ast_describe` for API details |
-| **Debugging** | `ast_search` → `ast_callers` | `ast_inspect` for detail |
-
-## Why MCP over `grep_search`?
-
-- `grep_search("X")` finds text in imports, comments, strings, docstrings, AND calls — noisy
-- `ast_callers(symbol="X")` finds only **actual call-sites** with context (file, line, enclosing function)
-- `ast_search(returns="X")` finds only **functions returning type X** — AST-precise
-
-## Output Format
-
-All tools return JSON. The structure matches the `--json` CLI output for the corresponding command.
+Use `axm_search(query="ast_")` or `list_tools()` to inspect the installed
+catalog, then `axm_describe(name="ast_inspect")` for argument types and defaults.
+Only selected tools appear directly in façade-mode MCP servers. An absent direct
+tool is still callable through `axm_call`:
 
 ```json
 {
-  "success": true,
-  "modules": [
-    {
-      "name": "core.analyzer",
-      "functions": [{"name": "analyze_package", "signature": "..."}],
-      "classes": []
-    }
-  ]
+  "name": "ast_inspect",
+  "arguments": {
+    "path": "packages/axm-ast",
+    "symbols": ["analyze_package", "search_symbols"],
+    "source": true
+  }
 }
 ```
 
-!!! tip "Tool Discovery"
-    Use `list_tools()` in the MCP server to see all available tools with descriptions.
+Pass this object to `axm_call` from the workspace root, or use an absolute
+package path. Do not pass dedicated CLI spellings such as `trace`, `--source`,
+or comma-separated module filters as tool arguments. Several tools accept
+`**kwargs` and may silently ignore unknown names; successful execution does
+not prove that a misspelled option took effect.
 
-!!! info "Agent hints"
-    Each tool carries an `agent_hint` class attribute — a concise, LLM-optimized
-    one-liner that propagates to MCP tool descriptions. When building system prompts,
-    `agent_hint` provides richer guidance than raw docstrings.
+## A focused exploration
+
+1. `ast_context(path=..., depth=1)` establishes package structure.
+2. `ast_search(path=..., name="analyze_package")` identifies definitions.
+3. `ast_inspect(path=..., symbol="analyze_package", source=True)` reads the body.
+4. `ast_impact(path=..., symbols=["analyze_package"])` identifies potential dependents.
+5. `ast_doc_impact(path=..., symbols=["analyze_package"])` locates prose to review.
+
+These are tool-call expressions, not Python imports. Off the direct MCP surface,
+wrap each name and argument mapping in `axm_call`. For source headers use
+`ast_file_header(files=["src/axm_ast/__init__.py"], path=..., max_lines=80)`:
+it returns leading lines, not a semantic import/export inventory.
+
+## Workspace scope
+
+Only `ast_context`, `ast_callers`, `ast_callees`, `ast_impact` and
+`ast_graph` implement workspace aggregation. The dedicated CLI `callees`
+stays single-package even though `ast_callees` is workspace-aware.
+Use a member package for search, inspect, describe, flows and dead-code analysis.
+See [scope and languages](scope-and-languages.md) for graph scopes and parser limits.
+
+## Results and errors
+
+AXM tools return `ToolResult` with `success`, `data`, optional `text` and
+`error`. Check `success` before accessing `data`; batch results also require
+checking their individual entries. The `axm_call` façade returns the rendered
+text, not the complete structured payload. Direct MCP transport may wrap the
+result again.
+
+For example, `ast_inspect` puts one symbol under `data["symbol"]`; the
+dedicated `axm-ast inspect --json` prints that inner symbol directly.
+`ast_impact(detail="compact")` deliberately returns an empty `data` mapping
+and a Markdown table in `text`. Do not parse compact prose as a stable JSON API.
+
+## CLI and DAG access
+
+The generic SDK CLI exposes registered tools as `axm <tool>`, for example
+`axm ast_search --path . --name analyze_package`; inspect its own `--help`
+before translating a dedicated CLI command. `tool_node` in `axm` adapts an
+AXMTool into a DAG node. Neither route uses `axm.commands` or `axm.hooks`;
+those discovery surfaces were removed.
+
+The [tool reference](../reference/tools.md) lists every registered AST tool.
+The [dedicated CLI reference](../reference/cli.md) documents `axm-ast`.

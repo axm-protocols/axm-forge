@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">axm-ast</h1>
-<p align="center"><strong>Python AST introspection CLI for AI agents, powered by tree-sitter.</strong></p>
+<p align="center"><strong>Read-only source analysis for agents: Python and optional TypeScript/TSX extraction.</strong></p>
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -18,11 +18,11 @@
 
 ## What it does
 
-`axm-ast` gives AI agents (and humans) instant, structured access to any Python codebase. One command and your agent knows every function, class, import, and dependency — no manual exploration needed.
+`axm-ast` provides structured static analysis of source files: definitions, imports, call sites and change-impact signals. Parsing does not execute the target code and does not guarantee complete runtime dependency resolution.
 
 ## Quick Example
 
-```bash
+```text
 $ axm-ast context src/mylib
 
 📋 mylib
@@ -41,9 +41,9 @@ $ axm-ast context src/mylib
 
 ## Features
 
-- 🔬 **Describe** — Package introspection with 2 detail levels (`summary`, `detailed`) + compressed AI mode + PageRank ranking + module filtering
+- 🔬 **Describe** — Package introspection with `toc`, `names`, `summary`, `detailed` levels + compressed AI mode + PageRank ranking + module filtering
 - 📊 **Graph** — Import dependency visualization (text, Mermaid, JSON)
-- 🔍 **Search** — Semantic symbol lookup by name, return type, kind, or base class
+- 🔍 **Search** — Lexical symbol lookup by name, return type, kind, or base class
 - 📞 **Callers** — Tree-sitter call-site detection: "who calls this function?"
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
@@ -51,6 +51,14 @@ $ axm-ast context src/mylib
 - 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed)
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detected; `graph --scope workspace`, cross-package `impact`)
 - 📖 **Docs** — One-shot documentation tree dump with progressive disclosure (toc/summary/full) and page filtering
+
+## Scope
+
+Python package analysis is the primary surface. Optional TypeScript/TSX extraction
+requires the `typescript` extra and a Node project root. Workspace aggregation
+is supported by specific tools; see [scope and language limits](howto/scope-and-languages.md).
+The [repository README](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-ast)
+provides installation and development information; this page is the site home.
 
 ## Learn More
 

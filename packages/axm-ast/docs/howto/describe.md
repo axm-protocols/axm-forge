@@ -39,7 +39,7 @@ This shows a **detailed** view: module names, public functions with docstrings a
 === "TOC"
 
     ```bash
-    axm-ast describe src/mylib --detail toc
+    axm-ast describe src/mylib --detail toc --json
     ```
 
     Table-of-contents view: module names, docstrings, and symbol counts only — no individual function/class details. Use this to decide which modules to drill into.
@@ -52,6 +52,16 @@ This shows a **detailed** view: module names, public functions with docstrings a
     ```bash
     axm-ast describe src/mylib --budget 10 --rank
     ```
+
+Both text and JSON TOC output support modules without a docstring summary.
+
+## Tool defaults differ
+
+The dedicated CLI defaults to `detailed`; `ast_describe` defaults to `summary`.
+Both support `names` for symbol names without signatures. `full` is removed.
+For the tool, compression requires `detail="summary"`; the dedicated CLI also
+allows its default `detailed`. `--budget` and `--rank` affect normal CLI text,
+not TOC, names, JSON or compressed output.
 
 ## Ranked Output
 
@@ -75,7 +85,7 @@ axm-ast describe src/mylib --modules core
 axm-ast describe src/mylib --modules core,tools
 
 # Combine with TOC for a focused overview
-axm-ast describe src/mylib --detail toc --modules core
+axm-ast describe src/mylib --detail toc --json --modules core
 ```
 
 ## JSON Output
