@@ -245,6 +245,78 @@ def _protocol_preview_result(
     )
 
 
+def _opt_str_option(options: dict[str, object], key: str) -> str | None:
+    """Read an optional string protocol option."""
+    value = options.get(key)
+    return value if isinstance(value, str) else None
+
+
+def _protocols_option(
+    options: dict[str, object],
+) -> list[dict[str, object]] | str | None:
+    """Read the ``protocols`` option in either of its accepted shapes."""
+    value = options.get("protocols")
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class _ScaffoldContext:
+    """Validated inputs and derived targets shared by every scaffold mode."""
+
+    target_path: Path
+    project_name: str
+    name: str | None
+    description: str
+    license_holder: str | None
+    framework: Framework
+    workspace: bool
+    member: str | None
+    kind: str | None
+    meta: _ProjectMeta
+    protocol_request: ProtocolScaffoldRequest | None
+
+
+def _unknown_kind_error(kind: str | None) -> ToolResult | None:
+    """Reject a *kind* outside the declared contract."""
+    if kind is None or kind in SCAFFOLD_KINDS:
+        return None
+    return ToolResult(
+        success=False,
+        error=(f"Unknown kind '{kind}' — expected one of {', '.join(SCAFFOLD_KINDS)}"),
+    )
+
+
+def _protocol_apply_result(
+    request: ProtocolScaffoldRequest | None,
+    target_path: Path,
+) -> ToolResult | None:
+    """Return the applied-plan result for a protocol request carrying protocols."""
+    if request is None or not request.protocols:
+        return None
+    applied = preview_protocol_scaffold(target_path, request)
+    return ToolResult(
+        success=True,
+        data=applied.model_dump(),
+        text=applied.message,
+    )
+
+
+def _route_protocol_request(
+    request: ProtocolScaffoldRequest | None,
+    target_path: Path,
+) -> ToolResult | None:
+    """Short-circuit the protocol_unit / protocol modes before any template run."""
+    if ownership_error := _protocol_profile_error(request, target_path):
+        return ToolResult(success=False, error=ownership_error)
+    return _protocol_preview_result(request, target_path) or _protocol_apply_result(
+        request, target_path
+    )
+
+
 class InitScaffoldTool:
     """Initialize a new Python project with best practices.
 
@@ -376,7 +448,7 @@ class InitScaffoldTool:
             "author_email": meta.author_email,
         }
 
-    def execute(  # noqa: C901
+    def execute(
         self,
         path: str = ".",
         *,
@@ -435,10 +507,47 @@ class InitScaffoldTool:
             "framework": framework,
             "kind": kind,
         }
+        prepared = self._prepare_context(
+            kwargs,
+            protocol_options={
+                "profile": profile,
+                "domain": domain,
+                "unit": unit,
+                "protocols": protocols,
+                "preview": preview,
+            },
+            check_pypi=check_pypi,
+        )
+        if isinstance(prepared, ToolResult):
+            return _apply_json_output(prepared, json_output)
+
+        try:
+            result = (
+                _route_protocol_request(prepared.protocol_request, prepared.target_path)
+                or self._dispatch_kind(
+                    prepared.kind,
+                    target_path=prepared.target_path,
+                    name=prepared.name,
+                    description=prepared.description,
+                    meta=prepared.meta,
+                )
+                or self._scaffold_from_templates(prepared)
+            )
+        except Exception as exc:
+            result = ToolResult(success=False, error=str(exc))
+        return _apply_json_output(result, json_output)
+
+    def _prepare_context(
+        self,
+        kwargs: dict[str, object],
+        *,
+        protocol_options: dict[str, object],
+        check_pypi: bool,
+    ) -> _ScaffoldContext | ToolResult:
+        """Validate every precondition, returning a context or the refusal."""
         validated = self._validate_inputs(kwargs)
         if isinstance(validated, ToolResult):
-            return _apply_json_output(validated, json_output)
-
+            return validated
         (
             path,
             name,
@@ -454,182 +563,145 @@ class InitScaffoldTool:
         ) = validated
 
         kind = _read_kind(kwargs)
-        if kind is not None and kind not in SCAFFOLD_KINDS:
-            return _apply_json_output(
-                ToolResult(
-                    success=False,
-                    error=(
-                        f"Unknown kind '{kind}' — expected one of "
-                        f"{', '.join(SCAFFOLD_KINDS)}"
-                    ),
-                ),
-                json_output,
-            )
+        if kind_error := _unknown_kind_error(kind):
+            return kind_error
         workspace, member = _apply_kind_flags(
             kind, workspace=workspace, member=member, name=name
         )
+
         protocol_request = prepare_protocol_request(
-            profile=profile,
-            domain=domain,
-            unit=unit,
-            protocols=protocols,
-            preview=preview,
+            profile=_opt_str_option(protocol_options, "profile"),
+            domain=_opt_str_option(protocol_options, "domain"),
+            unit=_opt_str_option(protocol_options, "unit"),
+            protocols=_protocols_option(protocol_options),
+            preview=bool(protocol_options.get("preview", False)),
             framework=framework,
         )
         if isinstance(protocol_request, str):
-            return _apply_json_output(
-                ToolResult(success=False, error=protocol_request), json_output
-            )
+            return ToolResult(success=False, error=protocol_request)
 
         try:
             target_path = Path(path).resolve()
-            project_name = name or target_path.name
-            if ownership_error := _protocol_profile_error(
-                protocol_request, target_path
-            ):
-                return _apply_json_output(
-                    ToolResult(success=False, error=ownership_error), json_output
-                )
-            preview_result = _protocol_preview_result(
-                (
-                    protocol_request
-                    if isinstance(protocol_request, ProtocolScaffoldRequest)
-                    else None
-                ),
-                target_path,
-            )
-            if preview_result is not None:
-                return _apply_json_output(preview_result, json_output)
-            if (
-                isinstance(protocol_request, ProtocolScaffoldRequest)
-                and protocol_request.protocols
-            ):
-                protocol_result = preview_protocol_scaffold(
-                    target_path, protocol_request
-                )
-                return _apply_json_output(
-                    ToolResult(
-                        success=True,
-                        data=protocol_result.model_dump(),
-                        text=protocol_result.message,
-                    ),
-                    json_output,
-                )
-            if check_pypi and (
-                availability_error := _check_pypi_availability(project_name)
-            ):
-                return _apply_json_output(availability_error, json_output)
-            meta = _ProjectMeta(
+        except Exception as exc:  # pragma: no cover - defensive path resolution
+            return ToolResult(success=False, error=str(exc))
+        project_name = name or target_path.name
+        if check_pypi:
+            taken = _check_pypi_availability(project_name)
+            if taken is not None:
+                return taken
+
+        return _ScaffoldContext(
+            target_path=target_path,
+            project_name=project_name,
+            name=name,
+            description=description,
+            license_holder=license_holder,
+            framework=framework,
+            workspace=workspace,
+            member=member,
+            kind=kind,
+            meta=_ProjectMeta(
                 org=org,
                 license_type=license_type,
                 author_name=author,
                 author_email=email,
-            )
+            ),
+            protocol_request=protocol_request,
+        )
 
-            dispatched = self._dispatch_kind(
-                kind,
-                target_path=target_path,
-                name=name,
-                description=description,
-                meta=meta,
-            )
-            if dispatched is not None:
-                return _apply_json_output(dispatched, json_output)
+    def _scaffold_from_templates(self, ctx: _ScaffoldContext) -> ToolResult:
+        """Route the member / workspace / standalone template cascade."""
+        if ctx.member:
+            return self._scaffold_member_with_profile(ctx, ctx.member)
+        return self._scaffold_root(ctx)
 
-            if member:
-                member_result = self._scaffold_member(
-                    target_path,
-                    member,
-                    scaffold_data={
-                        "org": org,
-                        "author_name": author,
-                        "author_email": email,
-                        "license": license_type,
-                        "description": description,
-                    },
-                    license_holder=license_holder,
-                )
-                if member_result.success and isinstance(
-                    protocol_request, ProtocolScaffoldRequest
-                ):
-                    member_root = target_path / "packages" / member
-                    register_protocol_profile(member_root, protocol_request.domain)
-                    member_data = dict(member_result.data or {})
-                    member_data.update(
-                        {
-                            "profile": protocol_request.profile,
-                            "mode": "member",
-                            "distribution": member,
-                            "root": str(member_root),
-                        }
-                    )
-                    member_result = ToolResult(
-                        success=True,
-                        data=member_data,
-                        text=member_result.text,
-                    )
-                return _apply_json_output(member_result, json_output)
+    def _scaffold_member_with_profile(
+        self, ctx: _ScaffoldContext, member: str
+    ) -> ToolResult:
+        """Scaffold a workspace member, registering its protocol profile if asked."""
+        meta = ctx.meta
+        member_result = self._scaffold_member(
+            ctx.target_path,
+            member,
+            scaffold_data={
+                "org": meta.org,
+                "author_name": meta.author_name,
+                "author_email": meta.author_email,
+                "license": meta.license_type,
+                "description": ctx.description,
+            },
+            license_holder=ctx.license_holder,
+        )
+        request = ctx.protocol_request
+        if not member_result.success or request is None:
+            return member_result
+        member_root = ctx.target_path / "packages" / member
+        register_protocol_profile(member_root, request.domain)
+        member_data = dict(member_result.data or {})
+        member_data.update(
+            {
+                "profile": request.profile,
+                "mode": "member",
+                "distribution": member,
+                "root": str(member_root),
+            }
+        )
+        return ToolResult(success=True, data=member_data, text=member_result.text)
 
-            from axm_init.adapters.copier import CopierAdapter, CopierConfig
-            from axm_init.core.templates import TemplateType, get_template_path
+    def _scaffold_root(self, ctx: _ScaffoldContext) -> ToolResult:
+        """Render the workspace or standalone template at the target root."""
+        from axm_init.adapters.copier import CopierAdapter, CopierConfig
+        from axm_init.core.templates import TemplateType, get_template_path
 
-            template_type = (
-                TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
-            )
-            data = self._build_template_data(
-                project_name=project_name,
-                workspace=workspace,
-                description=description,
-                meta=meta,
-                license_holder=license_holder,
-            )
-
-            copier_adapter = CopierAdapter()
-            copier_config = CopierConfig(
-                template_path=get_template_path(template_type, framework),
-                destination=target_path,
-                data=data,
+        template_type = (
+            TemplateType.WORKSPACE if ctx.workspace else TemplateType.STANDALONE
+        )
+        result = CopierAdapter().copy(
+            CopierConfig(
+                template_path=get_template_path(template_type, ctx.framework),
+                destination=ctx.target_path,
+                data=self._build_template_data(
+                    project_name=ctx.project_name,
+                    workspace=ctx.workspace,
+                    description=ctx.description,
+                    meta=ctx.meta,
+                    license_holder=ctx.license_holder,
+                ),
                 trust_template=True,
             )
-            result = copier_adapter.copy(copier_config)
+        )
 
-            files = [str(f) for f in result.files_created]
-            result_data: dict[str, object] = {
-                "project_name": project_name,
-                "template": template_type.value,
-                "files": files,
-            }
-            if result.success and isinstance(protocol_request, ProtocolScaffoldRequest):
-                register_protocol_profile(target_path, protocol_request.domain)
-                result_data.update(
-                    {
-                        "profile": protocol_request.profile,
-                        "mode": "standalone",
-                        "distribution": project_name,
-                        "root": str(target_path),
-                    }
+        files = [str(f) for f in result.files_created]
+        result_data: dict[str, object] = {
+            "project_name": ctx.project_name,
+            "template": template_type.value,
+            "files": files,
+        }
+        request = ctx.protocol_request
+        if result.success and request is not None:
+            register_protocol_profile(ctx.target_path, request.domain)
+            result_data.update(
+                {
+                    "profile": request.profile,
+                    "mode": "standalone",
+                    "distribution": ctx.project_name,
+                    "root": str(ctx.target_path),
+                }
+            )
+        return ToolResult(
+            success=result.success,
+            data=result_data,
+            text=(
+                _render_scaffold_text(
+                    label=ctx.project_name,
+                    kind=template_type.value,
+                    files=files,
                 )
-            return _apply_json_output(
-                ToolResult(
-                    success=result.success,
-                    data=result_data,
-                    text=(
-                        _render_scaffold_text(
-                            label=project_name,
-                            kind=template_type.value,
-                            files=files,
-                        )
-                        if result.success
-                        else None
-                    ),
-                    error=None if result.success else result.message,
-                ),
-                json_output,
-            )
-        except Exception as exc:
-            return _apply_json_output(
-                ToolResult(success=False, error=str(exc)), json_output
-            )
+                if result.success
+                else None
+            ),
+            error=None if result.success else result.message,
+        )
 
     def _dispatch_kind(
         self,
