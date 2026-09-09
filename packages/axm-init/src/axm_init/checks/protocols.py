@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import re
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -433,7 +434,11 @@ def _validate_wheel_inclusion(
         )
 
 
-def _workspace_protocol_result(project: Path) -> CheckResult | None:
+def _workspace_member_failures(
+    project: Path,
+    check: Callable[[Path], CheckResult],
+) -> list[tuple[str, str]] | None:
+    """Collect per-member findings, or None when the check does not apply."""
     from axm_ingot.uv import resolve_workspace
 
     workspace = resolve_workspace(project)
@@ -442,31 +447,52 @@ def _workspace_protocol_result(project: Path) -> CheckResult | None:
 
     applicable: list[tuple[str, CheckResult]] = []
     for member in workspace.members:
-        result = check_protocols_profile(member.path)
+        result = check(member.path)
         if result.weight:
             applicable.append((member.name, result))
     if not applicable:
         return None
 
-    failures = [
+    return [
         (member_name, detail)
         for member_name, result in applicable
         if not result.passed
         for detail in result.details
     ]
+
+
+def _workspace_result(
+    name: str,
+    weight: int,
+    passed_message: str,
+    failed_prefix: str,
+    failures: list[tuple[str, str]],
+) -> CheckResult:
+    """Assemble the aggregated workspace-level result from member findings."""
     passed = not failures
     return CheckResult(
-        name="protocols.profile",
+        name=name,
         category=_CATEGORY,
         passed=passed,
-        weight=4,
+        weight=weight,
         message=(
-            "Workspace protocol profiles are statically coherent"
-            if passed
-            else f"Workspace protocol profiles have {len(failures)} finding(s)"
+            passed_message if passed else f"{failed_prefix} {len(failures)} finding(s)"
         ),
         details=[f"member {member_name}: {detail}" for member_name, detail in failures],
         fix="" if passed else "Apply each correction in the named workspace member.",
+    )
+
+
+def _workspace_protocol_result(project: Path) -> CheckResult | None:
+    failures = _workspace_member_failures(project, check_protocols_profile)
+    if failures is None:
+        return None
+    return _workspace_result(
+        "protocols.profile",
+        4,
+        "Workspace protocol profiles are statically coherent",
+        "Workspace protocol profiles have",
+        failures,
     )
 
 
@@ -520,39 +546,15 @@ def _protocol_resources_included(
 
 
 def _workspace_protocol_resources_result(project: Path) -> CheckResult | None:
-    from axm_ingot.uv import resolve_workspace
-
-    workspace = resolve_workspace(project)
-    if workspace is None:
+    failures = _workspace_member_failures(project, check_protocols_resources)
+    if failures is None:
         return None
-
-    applicable: list[tuple[str, CheckResult]] = []
-    for member in workspace.members:
-        result = check_protocols_resources(member.path)
-        if result.weight:
-            applicable.append((member.name, result))
-    if not applicable:
-        return None
-
-    failures = [
-        (member_name, detail)
-        for member_name, result in applicable
-        if not result.passed
-        for detail in result.details
-    ]
-    passed = not failures
-    return CheckResult(
-        name="protocols.protocols_resources",
-        category=_CATEGORY,
-        passed=passed,
-        weight=2,
-        message=(
-            "Workspace protocol prompt resources are distributable"
-            if passed
-            else f"Workspace protocol resources have {len(failures)} finding(s)"
-        ),
-        details=[f"member {member_name}: {detail}" for member_name, detail in failures],
-        fix="" if passed else "Apply each correction in the named workspace member.",
+    return _workspace_result(
+        "protocols.protocols_resources",
+        2,
+        "Workspace protocol prompt resources are distributable",
+        "Workspace protocol resources have",
+        failures,
     )
 
 
@@ -922,6 +924,57 @@ def check_author_grammar(project: Path) -> CheckResult:
     return _content_result("author_grammar", details, applicable=context is not None)
 
 
+def _missing_prompt_findings(
+    project: Path,
+    text: str,
+    prompt_paths: list[Path],
+) -> list[str]:
+    """Report declared prompt resources absent from disk."""
+    details: list[str] = []
+    for prompt_path in prompt_paths:
+        if prompt_path.is_file():
+            continue
+        relative = prompt_path.relative_to(project).as_posix()
+        details.append(
+            _finding(
+                text,
+                "prompts =",
+                f"declared prompt resource is missing on disk at {relative}",
+                f"create {relative} or remove it from the prompts inventory",
+            )
+        )
+    return details
+
+
+def _excluded_prompt_findings(
+    project: Path,
+    text: str,
+    data: dict[str, object],
+    profile: dict[str, object],
+    prompt_paths: list[Path],
+) -> list[str]:
+    """Report prompt resources left out of the wheel distribution."""
+    domain = profile.get("domain")
+    if not prompt_paths or not isinstance(domain, str):
+        return []
+    if _protocol_resources_included(data, domain):
+        return []
+    source = f"src/protocols_{domain}"
+    target = f"protocols_{domain}"
+    relative_prompts = ", ".join(
+        path.relative_to(project).as_posix() for path in prompt_paths
+    )
+    return [
+        _finding(
+            text,
+            "[tool.hatch.build.targets.wheel]",
+            f"prompt resources {relative_prompts} are excluded from the distribution",
+            "declare [tool.hatch.build.targets.wheel.force-include] and add "
+            f'"{source}" = "{target}"',
+        )
+    ]
+
+
 def check_protocols_resources(project: Path) -> CheckResult:
     """Validate declared prompt files and their distribution configuration."""
     metadata = project / "pyproject.toml"
@@ -955,41 +1008,10 @@ def check_protocols_resources(project: Path) -> CheckResult:
         )
 
     prompt_paths = _declared_prompt_paths(project, profile)
-    details: list[str] = []
-    for prompt_path in prompt_paths:
-        if prompt_path.is_file():
-            continue
-        relative = prompt_path.relative_to(project).as_posix()
-        details.append(
-            _finding(
-                text,
-                "prompts =",
-                f"declared prompt resource is missing on disk at {relative}",
-                f"create {relative} or remove it from the prompts inventory",
-            )
-        )
-
-    domain = profile.get("domain")
-    if (
-        prompt_paths
-        and isinstance(domain, str)
-        and not _protocol_resources_included(data, domain)
-    ):
-        source = f"src/protocols_{domain}"
-        target = f"protocols_{domain}"
-        relative_prompts = ", ".join(
-            path.relative_to(project).as_posix() for path in prompt_paths
-        )
-        details.append(
-            _finding(
-                text,
-                "[tool.hatch.build.targets.wheel]",
-                f"prompt resources {relative_prompts} are excluded from "
-                "the distribution",
-                "declare [tool.hatch.build.targets.wheel.force-include] and add "
-                f'"{source}" = "{target}"',
-            )
-        )
+    details = _missing_prompt_findings(project, text, prompt_paths)
+    details.extend(
+        _excluded_prompt_findings(project, text, data, profile, prompt_paths)
+    )
 
     passed = not details
     return CheckResult(

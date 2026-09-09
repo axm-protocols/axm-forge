@@ -51,6 +51,43 @@ def _validate_identity(author: str, email: str) -> ToolResult | None:
     return None
 
 
+def _validate_reserve_inputs(
+    name: str,
+    author: str,
+    email: str,
+    dry_run: bool,
+) -> ToolResult | tuple[str, str]:
+    """Validate reservation inputs, returning the resolved identity or an error."""
+    if not name:
+        return ToolResult(success=False, error="'name' is required")
+    if not isinstance(dry_run, bool):
+        return ToolResult(
+            success=False,
+            error=f"'dry_run' must be a boolean, got {type(dry_run).__name__}",
+        )
+    if not author and not email:
+        author = _git_config_get("user.name")
+        email = _git_config_get("user.email")
+    error = _validate_identity(author, email)
+    if error:
+        return error
+    return author, email
+
+
+def _resolve_pypi_token(dry_run: bool) -> ToolResult | str:
+    """Resolve the PyPI token, requiring one outside of a dry run."""
+    from axm_init.adapters.credentials import CredentialManager
+
+    creds = CredentialManager()
+    token = creds.get_pypi_token()
+    if not dry_run and not token:
+        return ToolResult(
+            success=False,
+            error="No PyPI token found. Set PYPI_TOKEN or configure keyring.",
+        )
+    return token or ""
+
+
 def _apply_json_output(result: ToolResult, enabled: bool) -> ToolResult:
     """Select structured CLI rendering for a reservation result."""
     if not enabled:
@@ -93,54 +130,24 @@ class InitReserveTool:
         Returns:
             ToolResult with reservation status.
         """
-        if not name:
-            return _apply_json_output(
-                ToolResult(success=False, error="'name' is required"), json_output
-            )
-        if not isinstance(dry_run, bool):
-            return _apply_json_output(
-                ToolResult(
-                    success=False,
-                    error=f"'dry_run' must be a boolean, got {type(dry_run).__name__}",
-                ),
-                json_output,
-            )
-        if not author and not email:
-            author = _git_config_get("user.name")
-            email = _git_config_get("user.email")
-
-        error = _validate_identity(author, email)
-        if error:
-            return _apply_json_output(error, json_output)
+        validated = _validate_reserve_inputs(name, author, email, dry_run)
+        if isinstance(validated, ToolResult):
+            return _apply_json_output(validated, json_output)
+        author, email = validated
 
         try:
-            from axm_init.adapters.credentials import CredentialManager
             from axm_init.adapters.pypi import PyPIAdapter
             from axm_init.core.reserver import reserve_pypi
 
-            creds = CredentialManager()
-
-            if not dry_run:
-                token = creds.get_pypi_token()
-                if not token:
-                    return _apply_json_output(
-                        ToolResult(
-                            success=False,
-                            error=(
-                                "No PyPI token found. Set PYPI_TOKEN or configure "
-                                "keyring."
-                            ),
-                        ),
-                        json_output,
-                    )
-            else:
-                token = creds.get_pypi_token() or ""
+            token = _resolve_pypi_token(dry_run)
+            if isinstance(token, ToolResult):
+                return _apply_json_output(token, json_output)
 
             result = reserve_pypi(
                 name=name,
                 author=author,
                 email=email,
-                token=token or "",
+                token=token,
                 dry_run=dry_run,
                 checker=PyPIAdapter(),
             )

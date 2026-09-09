@@ -210,6 +210,26 @@ def _planned_destination(root: Path, operation: PlanOperation) -> Path:
     return destination
 
 
+def _occupancy_incompatible(operation: PlanOperation, destination: Path) -> bool:
+    """Report whether an operation's status contradicts its destination state."""
+    occupied = destination.exists() or destination.is_symlink()
+    if operation.status is PlanStatus.CONFLICT:
+        return True
+    if operation.status is PlanStatus.CREATE:
+        return occupied
+    if operation.status in {PlanStatus.UPDATE, PlanStatus.UNCHANGED}:
+        return not occupied or not destination.is_file()
+    return False
+
+
+def _content_incompatible(operation: PlanOperation) -> bool:
+    """Report whether a mutating operation is missing its content payload."""
+    return (
+        operation.status in {PlanStatus.CREATE, PlanStatus.UPDATE}
+        and operation.content is None
+    )
+
+
 def _preflight_protocol_plan(
     root: Path,
     plan: ProtocolScaffoldPlan,
@@ -218,20 +238,8 @@ def _preflight_protocol_plan(
     resolved: list[tuple[PlanOperation, Path]] = []
     for operation in plan.operations:
         destination = _planned_destination(root, operation)
-        occupied = destination.exists() or destination.is_symlink()
-        incompatible = (
-            operation.status is PlanStatus.CONFLICT
-            or (operation.status is PlanStatus.CREATE and occupied)
-            or (
-                operation.status in {PlanStatus.UPDATE, PlanStatus.UNCHANGED}
-                and (not occupied or not destination.is_file())
-            )
-        )
-        if incompatible:
-            raise ValueError(f"occupied-incompatible: {operation.path}")
-        if (
-            operation.status in {PlanStatus.CREATE, PlanStatus.UPDATE}
-            and operation.content is None
+        if _occupancy_incompatible(operation, destination) or _content_incompatible(
+            operation
         ):
             raise ValueError(f"occupied-incompatible: {operation.path}")
         resolved.append((operation, destination))
