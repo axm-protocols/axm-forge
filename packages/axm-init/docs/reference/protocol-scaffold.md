@@ -49,10 +49,13 @@ tool records `[tool.axm-init.protocols]` in that package's
 `pyproject.toml`. The structured result includes the derived distribution
 name, package root, and creation mode.
 
-For a unit preview, also provide `unit`, one or more complete declarations in
-`protocols`, and `preview=true`. Each declaration is validated as a
-`ProtocolScaffoldDecl`; callers cannot override derived graph names or module
-paths. `plan_protocol_scaffold` remains the source of the relative operations.
+For a unit preview, select `kind="protocol_unit"`; use `kind="protocol"`
+when targeting an existing unit. In both cases, also provide `unit`, one or
+more action-only payloads in `protocols`, and `preview=true`. The shared
+`domain` and `unit` belong to the request and are injected into every
+payload before validation as a strict `ProtocolScaffoldDecl`. The action then
+completes each qualified graph name; `plan_protocol_scaffold` remains the
+source of the relative operations.
 
 The preview result has the same structured shape through direct AXMTool, MCP,
 and CLI calls:

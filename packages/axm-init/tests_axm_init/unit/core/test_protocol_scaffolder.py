@@ -45,3 +45,31 @@ def test_project_plan_preserves_typed_protocol_preview_fields() -> None:
     assert result.unchanged == ["same.py"]
     assert result.conflicts == ["blocked.py"]
     assert result.protocols == ["dev.work.create"]
+
+
+def test_request_identity_is_injected_into_each_action_only_declaration() -> None:
+    """AC3: request domain and unit own both action-only logical names."""
+    from axm_init.core.framework import Framework
+    from axm_init.core.protocol_scaffolder import prepare_protocol_request
+
+    component = {
+        "contracts": [{"name": "brief"}],
+        "nodes": [{"name": "author", "contract": "brief"}],
+    }
+    request = prepare_protocol_request(
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[
+            {"action": "create", **component},
+            {"action": "exec", **component},
+        ],
+        preview=True,
+        framework=Framework.PYTHON,
+    )
+
+    assert not isinstance(request, (str, type(None)))
+    assert [declaration.graph_name for declaration in request.protocols] == [
+        "dev.work.create",
+        "dev.work.exec",
+    ]

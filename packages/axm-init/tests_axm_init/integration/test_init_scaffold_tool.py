@@ -384,3 +384,66 @@ def test_invalid_protocol_requests_fail_before_any_effect(tmp_path: Path) -> Non
         assert result.success is False
         assert reason in (result.error or "").lower()
         assert _tree_snapshot(target) == before
+
+
+ACTION_ONLY_PROTOCOL: dict[str, object] = {
+    "action": "create",
+    "contracts": [{"name": "brief"}],
+    "prompts": [{"name": "author", "text": "Author the work."}],
+    "nodes": [{"name": "author", "contract": "brief", "prompt": "author"}],
+    "phases": [{"name": "draft", "nodes": ["author"]}],
+    "ticket": {"ticket_type": "dev.work", "input_contract": "brief"},
+}
+
+
+def _write_protocol_project(root: Path) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.integration
+def test_protocol_unit_mode_previews_action_only_protocol(tmp_path: Path) -> None:
+    """AC1: protocol_unit reaches structured preview with request identity."""
+    _write_protocol_project(tmp_path)
+
+    result = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        kind="protocol_unit",
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[ACTION_ONLY_PROTOCOL],
+        preview=True,
+        **EXPERIMENT_IDENTITY,
+    )
+
+    assert result.success is True, result.error
+    assert result.data is not None
+    assert result.data["preview"] is True
+
+
+@pytest.mark.integration
+def test_protocol_mode_previews_action_only_protocol_in_existing_unit(
+    tmp_path: Path,
+) -> None:
+    """AC2: protocol reaches structured preview for an existing unit."""
+    _write_protocol_project(tmp_path)
+    (tmp_path / "src" / "protocols_dev" / "work").mkdir(parents=True)
+
+    result = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        kind="protocol",
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[ACTION_ONLY_PROTOCOL],
+        preview=True,
+        **EXPERIMENT_IDENTITY,
+    )
+
+    assert result.success is True, result.error
+    assert result.data is not None
+    assert result.data["preview"] is True

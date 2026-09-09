@@ -341,4 +341,25 @@ class TestScaffoldDeclaredKinds:
             "member",
             "paper",
             "experiment",
+            "protocol_unit",
+            "protocol",
         }
+
+
+def test_unknown_kind_reports_the_exact_complete_seven_mode_set() -> None:
+    """AC4: rejection retains five modes and names both protocol modes."""
+    from axm_init.tools.scaffold import _read_kind
+
+    unknown = _read_kind({"kind": "unknown"})
+    result = InitScaffoldTool().execute(
+        kind=unknown,
+        org="org",
+        author="Author",
+        email="author@example.com",
+    )
+
+    assert result.success is False
+    assert result.error == (
+        "Unknown kind 'unknown' — expected one of standalone, workspace, member, "
+        "paper, experiment, protocol_unit, protocol"
+    )

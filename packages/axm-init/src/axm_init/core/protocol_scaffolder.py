@@ -110,7 +110,10 @@ def prepare_protocol_request(  # noqa: PLR0913
         payloads = _payloads(protocols)
         _validate_payloads(payloads, preview=preview, unit=unit)
         declarations = tuple(
-            ProtocolScaffoldDecl.model_validate(payload) for payload in payloads
+            ProtocolScaffoldDecl.model_validate(
+                {**payload, "domain": valid_domain, "unit": unit}
+            )
+            for payload in payloads
         )
         _validate_declarations(
             declarations,

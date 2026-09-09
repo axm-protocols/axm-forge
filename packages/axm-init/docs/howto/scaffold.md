@@ -43,11 +43,11 @@ This scaffolds a production-grade Python project with:
 | `--description` | `-d` | | One-line description |
 | `--workspace` | `-w` | `False` | Scaffold a UV workspace instead |
 | `--member` | `-m` | | Scaffold a member sub-package with this name |
-| `--kind` | `-k` | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment` |
+| `--kind` | `-k` | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `protocol_unit`, `protocol` |
 | `--profile` | | | Optional package profile; `protocols` is supported for Python |
 | `--domain` | | | Protocol domain, required with `--profile protocols` |
 | `--unit` | | | Protocol unit, required when declarations are supplied |
-| `--protocols` | | | JSON list of `ProtocolScaffoldDecl` declarations |
+| `--protocols` | | | JSON list of action-only protocol payloads; `--domain` and `--unit` supply their shared identity |
 | `--preview` | | `False` | Plan protocol files without changing the target |
 
 ### 4. Scaffold a workspace
@@ -159,14 +159,15 @@ This writes `[tool.axm-init.protocols]` into the generated package metadata.
 The structured result reports `profile`, the derived `distribution`, the
 creation `mode` (`standalone` or `member`), and the package `root`.
 
-To inspect a protocol unit without writing files or metadata, pass complete
-declarations as JSON and enable preview:
+To inspect a protocol unit without writing files or metadata, select
+`protocol_unit`, pass action-only payloads as JSON, and enable preview. Use
+`protocol` for the same preview path when targeting an existing unit:
 
 ```bash
-axm init_scaffold protocols-dev \
+axm init_scaffold protocols-dev --kind protocol_unit \
   --profile protocols --domain dev --unit work --preview \
-  --protocols '[{"domain":"dev","unit":"work","action":"create",
-    "contracts":[{"name":"brief"}],"nodes":[{"name":"author","contract":"brief"}]}]' \
+  --protocols '[{"action":"create","contracts":[{"name":"brief"}],
+    "nodes":[{"name":"author","contract":"brief"}]}]' \
   --org myorg --author "Your Name" --email "you@example.com" \
   --json-output
 ```
@@ -174,7 +175,9 @@ axm init_scaffold protocols-dev \
 Preview uses the same planner as a future application. Its structured payload
 sets `preview=true`, reports qualified graph names such as
 `dev.work.create`, and partitions relative paths into `created`, `updated`,
-`unchanged`, and `conflicts`. Validation happens before filesystem access:
+`unchanged`, and `conflicts`. The request-level domain and unit are injected
+into every payload before the strict internal declaration is validated.
+Validation happens before filesystem access:
 a protocol request without a profile, an empty declaration list for a unit, a
 non-Python protocol profile, or declarations without `--unit` fails without
 changing the target.
@@ -206,5 +209,5 @@ Outputs structured JSON for CI/automation use.
 | `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
 | `Target directory already exists` | Non-empty destination directory | Use an empty directory or remove existing files first |
 | `... is not a paper` | `--kind experiment` outside a detected paper | Scaffold the paper first (`--kind paper`), or point the path at the paper root |
-| `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment` |
+| `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment`, `protocol_unit`, `protocol` |
 | `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |

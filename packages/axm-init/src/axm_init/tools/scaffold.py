@@ -35,6 +35,8 @@ SCAFFOLD_KINDS: tuple[str, ...] = (
     "member",
     "paper",
     "experiment",
+    "protocol_unit",
+    "protocol",
 )
 
 _SLUG_ALPHA = "abcdefghijklmnopqrstuvwxyz"
@@ -193,7 +195,7 @@ class InitScaffoldTool:
 
         The declared set is the tool's contract: every value is selectable
         through the ``kind`` input (MCP) and ``--kind`` (CLI), and each one
-        maps to a bundled Copier template.
+        routes either to a bundled template or the protocol scaffolder.
         """
         return SCAFFOLD_KINDS
 
@@ -346,7 +348,8 @@ class InitScaffoldTool:
                 member: Member package name to scaffold inside a workspace.
                 framework: Target framework (python, node, svelte).
                 kind: Explicit scaffold kind — one of ``SCAFFOLD_KINDS``
-                    (standalone, workspace, member, paper, experiment).
+                    (standalone, workspace, member, paper, experiment,
+                    protocol_unit, protocol).
 
         Returns:
             ToolResult with created files list.
