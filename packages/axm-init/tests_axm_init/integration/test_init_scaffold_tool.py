@@ -205,3 +205,182 @@ class TestExperimentManifestContract:
         assert list(tmp_path.rglob("experiment.yaml")) == []
         reported = {str(f) for f in experiment.data["files"]}
         assert reported == _rendered_files(experiment_dir)
+
+
+PROTOCOL_DECLARATION: dict[str, object] = {
+    "domain": "dev",
+    "unit": "work",
+    "action": "create",
+    "contracts": [{"name": "brief"}],
+    "prompts": [{"name": "author", "text": "Author the work."}],
+    "nodes": [{"name": "author", "contract": "brief", "prompt": "author"}],
+    "phases": [{"name": "draft", "nodes": ["author"]}],
+    "ticket": {"ticket_type": "dev.work", "input_contract": "brief"},
+}
+
+
+def _tree_snapshot(root: Path) -> dict[str, tuple[bytes, int, int]]:
+    return {
+        path.relative_to(root).as_posix(): (
+            path.read_bytes(),
+            path.stat().st_mode,
+            path.stat().st_mtime_ns,
+        )
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+@pytest.mark.integration
+def test_python_package_and_member_register_protocol_profile(tmp_path: Path) -> None:
+    """AC1: both Python modes expose their derived distribution and location."""
+    tool = InitScaffoldTool()
+    package_root = tmp_path / "protocols-dev"
+    package = tool.execute(
+        path=str(package_root),
+        name="protocols-dev",
+        profile="protocols",
+        domain="dev",
+        protocols=[],
+        **EXPERIMENT_IDENTITY,
+    )
+    assert package.success, package.error
+    assert package.data is not None
+    assert package.data["profile"] == "protocols"
+    assert package.data["mode"] == "standalone"
+    assert package.data["distribution"] == "protocols-dev"
+    assert package.data["root"] == str(package_root)
+    assert "[tool.axm-init.protocols]" in (package_root / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+
+    workspace_root = tmp_path / "workspace"
+    workspace = tool.execute(
+        path=str(workspace_root),
+        name="protocol-workspace",
+        workspace=True,
+        **EXPERIMENT_IDENTITY,
+    )
+    assert workspace.success, workspace.error
+    member = tool.execute(
+        path=str(workspace_root),
+        member="protocols-research",
+        profile="protocols",
+        domain="research",
+        protocols=[],
+        **EXPERIMENT_IDENTITY,
+    )
+    assert member.success, member.error
+    assert member.data is not None
+    assert member.data["profile"] == "protocols"
+    assert member.data["mode"] == "member"
+    assert member.data["distribution"] == "protocols-research"
+    expected_root = workspace_root / "packages" / "protocols-research"
+    assert member.data["root"] == str(expected_root)
+    assert "[tool.axm-init.protocols]" in (expected_root / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+
+
+@pytest.mark.integration
+def test_protocol_unit_preview_is_exact_and_has_no_side_effect(
+    tmp_path: Path,
+) -> None:
+    """AC2: preview reports the planner paths and leaves bytes/metadata intact."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    before = _tree_snapshot(tmp_path)
+
+    result = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[PROTOCOL_DECLARATION],
+        preview=True,
+        **EXPERIMENT_IDENTITY,
+    )
+
+    assert result.success, result.error
+    assert result.data is not None
+    assert result.data["preview"] is True
+    assert result.data["profile"] == "protocols"
+    assert result.data["mode"] == "unit"
+    assert result.data["root"] == str(tmp_path)
+    assert result.data["protocols"] == ["dev.work.create"]
+    expected = {
+        "src/protocols_dev/__init__.py",
+        "src/protocols_dev/work/__init__.py",
+        "src/protocols_dev/work/create/__init__.py",
+        "src/protocols_dev/work/create/contracts/__init__.py",
+        "src/protocols_dev/work/create/contracts/brief.py",
+        "src/protocols_dev/work/create/nodes/__init__.py",
+        "src/protocols_dev/work/create/nodes/author.py",
+        "src/protocols_dev/work/create/phases/__init__.py",
+        "src/protocols_dev/work/create/phases/draft.py",
+        "src/protocols_dev/work/create/prompts/__init__.py",
+        "src/protocols_dev/work/create/prompts/author.md",
+        "src/protocols_dev/work/create/protocol.py",
+        "src/protocols_dev/work/create/ticket.py",
+    }
+    planned = set().union(
+        result.data["created"],
+        result.data["updated"],
+        result.data["unchanged"],
+        result.data["conflicts"],
+    )
+    assert planned == expected
+    assert _tree_snapshot(tmp_path) == before
+
+
+@pytest.mark.integration
+def test_invalid_protocol_requests_fail_before_any_effect(tmp_path: Path) -> None:
+    """AC4: every invalid combination names its reason and is atomic."""
+    cases = (
+        (
+            {"domain": "dev", "protocols": [PROTOCOL_DECLARATION]},
+            "profile",
+        ),
+        (
+            {"profile": "protocols", "domain": "dev", "unit": "work", "protocols": []},
+            "protocols",
+        ),
+        (
+            {
+                "profile": "protocols",
+                "framework": "node",
+                "domain": "dev",
+                "unit": "work",
+                "protocols": [PROTOCOL_DECLARATION],
+            },
+            "python",
+        ),
+        (
+            {
+                "profile": "protocols",
+                "domain": "dev",
+                "protocols": [PROTOCOL_DECLARATION],
+                "preview": True,
+            },
+            "unit",
+        ),
+    )
+    for index, (request, reason) in enumerate(cases):
+        target = tmp_path / str(index)
+        target.mkdir()
+        marker = target / "marker.bin"
+        marker.write_bytes(b"unchanged")
+        before = _tree_snapshot(target)
+
+        result = InitScaffoldTool().execute(
+            path=str(target),
+            **EXPERIMENT_IDENTITY,
+            **request,
+        )
+
+        assert result.success is False
+        assert reason in (result.error or "").lower()
+        assert _tree_snapshot(target) == before

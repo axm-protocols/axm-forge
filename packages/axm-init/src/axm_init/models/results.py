@@ -35,6 +35,16 @@ class ScaffoldResult(BaseModel):  # type: ignore[explicit-any]
     path: str
     message: str
     files_created: list[str] = Field(default_factory=list)
+    profile: str | None = None
+    mode: str | None = None
+    root: str | None = None
+    distribution: str | None = None
+    preview: bool = False
+    created: list[str] = Field(default_factory=list)
+    updated: list[str] = Field(default_factory=list)
+    unchanged: list[str] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
+    protocols: list[str] = Field(default_factory=list)
 
 
 class ReserveResult(BaseModel):  # type: ignore[explicit-any]

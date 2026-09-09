@@ -40,6 +40,37 @@ collide.
 All name segments must be safe lowercase Python identifiers. Path separators,
 parent traversal, absolute paths, reserved words, and extra fields are rejected.
 
+## Scaffold and preview surface
+
+`init_scaffold` accepts protocol declarations through the same AXMTool
+signature used by MCP and the generated CLI. Set `profile="protocols"` and a
+`domain` when creating a standalone Python package or workspace member; the
+tool records `[tool.axm-init.protocols]` in that package's
+`pyproject.toml`. The structured result includes the derived distribution
+name, package root, and creation mode.
+
+For a unit preview, also provide `unit`, one or more complete declarations in
+`protocols`, and `preview=true`. Each declaration is validated as a
+`ProtocolScaffoldDecl`; callers cannot override derived graph names or module
+paths. `plan_protocol_scaffold` remains the source of the relative operations.
+
+The preview result has the same structured shape through direct AXMTool, MCP,
+and CLI calls:
+
+| Field | Meaning |
+| --- | --- |
+| `profile` | Selected profile (`protocols`) |
+| `mode` | `unit` for preview; `standalone` or `member` for package creation |
+| `root` | Absolute target package root |
+| `preview` | `true` for a non-mutating plan |
+| `created`, `updated`, `unchanged`, `conflicts` | Relative paths grouped by planner status |
+| `protocols` | Qualified logical graph names |
+
+Preview never applies planned file contents or merged metadata. Invalid
+combinations are rejected before any write: protocol options without a profile,
+a unit with an empty protocol list, the profile on a non-Python framework, or
+protocol declarations without a unit.
+
 ## Example
 
 ```python

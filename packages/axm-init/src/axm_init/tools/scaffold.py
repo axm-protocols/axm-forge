@@ -10,6 +10,12 @@ from typing import TYPE_CHECKING
 from axm.tools.base import ToolResult
 
 from axm_init.core.framework import Framework
+from axm_init.core.protocol_scaffolder import (
+    ProtocolScaffoldRequest,
+    prepare_protocol_request,
+    preview_protocol_scaffold,
+    register_protocol_profile,
+)
 
 if TYPE_CHECKING:
     from axm_init.adapters.workspace_patcher import PatchReport
@@ -155,6 +161,21 @@ class _ProjectMeta:
     author_email: str
 
 
+def _protocol_preview_result(
+    request: ProtocolScaffoldRequest | None,
+    target_path: Path,
+) -> ToolResult | None:
+    """Return a structured preview, or None for an applying request."""
+    if request is None or not request.preview:
+        return None
+    preview_result = preview_protocol_scaffold(target_path, request)
+    return ToolResult(
+        success=True,
+        data=preview_result.model_dump(),
+        text=preview_result.message,
+    )
+
+
 class InitScaffoldTool:
     """Initialize a new Python project with best practices.
 
@@ -286,7 +307,7 @@ class InitScaffoldTool:
             "author_email": meta.author_email,
         }
 
-    def execute(
+    def execute(  # noqa: C901
         self,
         path: str = ".",
         *,
@@ -303,6 +324,11 @@ class InitScaffoldTool:
         kind: str | None = None,
         check_pypi: bool = False,
         json_output: bool = False,
+        profile: str | None = None,
+        domain: str | None = None,
+        unit: str | None = None,
+        protocols: list[dict[str, object]] | str | None = None,
+        preview: bool = False,
     ) -> ToolResult:
         """Initialize a new Python project.
 
@@ -372,10 +398,32 @@ class InitScaffoldTool:
         workspace, member = _apply_kind_flags(
             kind, workspace=workspace, member=member, name=name
         )
+        protocol_request = prepare_protocol_request(
+            profile=profile,
+            domain=domain,
+            unit=unit,
+            protocols=protocols,
+            preview=preview,
+            framework=framework,
+        )
+        if isinstance(protocol_request, str):
+            return _apply_json_output(
+                ToolResult(success=False, error=protocol_request), json_output
+            )
 
         try:
             target_path = Path(path).resolve()
             project_name = name or target_path.name
+            preview_result = _protocol_preview_result(
+                (
+                    protocol_request
+                    if isinstance(protocol_request, ProtocolScaffoldRequest)
+                    else None
+                ),
+                target_path,
+            )
+            if preview_result is not None:
+                return _apply_json_output(preview_result, json_output)
             if check_pypi and (
                 availability_error := _check_pypi_availability(project_name)
             ):
@@ -398,21 +446,38 @@ class InitScaffoldTool:
                 return _apply_json_output(dispatched, json_output)
 
             if member:
-                return _apply_json_output(
-                    self._scaffold_member(
-                        target_path,
-                        member,
-                        scaffold_data={
-                            "org": org,
-                            "author_name": author,
-                            "author_email": email,
-                            "license": license_type,
-                            "description": description,
-                        },
-                        license_holder=license_holder,
-                    ),
-                    json_output,
+                member_result = self._scaffold_member(
+                    target_path,
+                    member,
+                    scaffold_data={
+                        "org": org,
+                        "author_name": author,
+                        "author_email": email,
+                        "license": license_type,
+                        "description": description,
+                    },
+                    license_holder=license_holder,
                 )
+                if member_result.success and isinstance(
+                    protocol_request, ProtocolScaffoldRequest
+                ):
+                    member_root = target_path / "packages" / member
+                    register_protocol_profile(member_root, protocol_request.domain)
+                    member_data = dict(member_result.data or {})
+                    member_data.update(
+                        {
+                            "profile": protocol_request.profile,
+                            "mode": "member",
+                            "distribution": member,
+                            "root": str(member_root),
+                        }
+                    )
+                    member_result = ToolResult(
+                        success=True,
+                        data=member_data,
+                        text=member_result.text,
+                    )
+                return _apply_json_output(member_result, json_output)
 
             from axm_init.adapters.copier import CopierAdapter, CopierConfig
             from axm_init.core.templates import TemplateType, get_template_path
@@ -438,14 +503,25 @@ class InitScaffoldTool:
             result = copier_adapter.copy(copier_config)
 
             files = [str(f) for f in result.files_created]
+            result_data: dict[str, object] = {
+                "project_name": project_name,
+                "template": template_type.value,
+                "files": files,
+            }
+            if result.success and isinstance(protocol_request, ProtocolScaffoldRequest):
+                register_protocol_profile(target_path, protocol_request.domain)
+                result_data.update(
+                    {
+                        "profile": protocol_request.profile,
+                        "mode": "standalone",
+                        "distribution": project_name,
+                        "root": str(target_path),
+                    }
+                )
             return _apply_json_output(
                 ToolResult(
                     success=result.success,
-                    data={
-                        "project_name": project_name,
-                        "template": template_type.value,
-                        "files": files,
-                    },
+                    data=result_data,
                     text=(
                         _render_scaffold_text(
                             label=project_name,

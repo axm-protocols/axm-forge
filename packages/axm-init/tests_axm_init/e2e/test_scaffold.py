@@ -145,3 +145,70 @@ class TestScaffoldExperimentCli:
         files = check_experiment_files(experiment_dir)
         assert structure.passed, structure.message
         assert files.passed, files.message
+
+
+@pytest.mark.e2e
+def test_protocol_preview_cli_matches_axmtool_structured_payload(
+    tmp_path: Path,
+) -> None:
+    """AC3: CLI and direct AXMTool return the same structured preview payload."""
+    from axm_init.tools.scaffold import InitScaffoldTool
+
+    declaration: dict[str, object] = {
+        "domain": "dev",
+        "unit": "work",
+        "action": "create",
+        "contracts": [{"name": "brief"}],
+        "nodes": [{"name": "author", "contract": "brief"}],
+    }
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    direct = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        profile="protocols",
+        domain="dev",
+        unit="work",
+        protocols=[declaration],
+        preview=True,
+        org="test-org",
+        author="Test Author",
+        email="test@example.com",
+    )
+    assert direct.success, direct.error
+    assert direct.data is not None
+
+    proc = _run(
+        [
+            str(tmp_path),
+            "--profile",
+            "protocols",
+            "--domain",
+            "dev",
+            "--unit",
+            "work",
+            "--protocols",
+            json.dumps([declaration]),
+            "--preview",
+            "--json",
+            *IDENTITY,
+        ]
+    )
+    assert proc.returncode == 0, proc.stderr
+    cli_payload = json.loads(proc.stdout)
+    keys = {
+        "profile",
+        "mode",
+        "root",
+        "preview",
+        "created",
+        "updated",
+        "unchanged",
+        "conflicts",
+        "protocols",
+    }
+    assert {key: cli_payload[key] for key in keys} == {
+        key: direct.data[key] for key in keys
+    }

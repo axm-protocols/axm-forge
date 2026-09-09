@@ -44,6 +44,11 @@ This scaffolds a production-grade Python project with:
 | `--workspace` | `-w` | `False` | Scaffold a UV workspace instead |
 | `--member` | `-m` | | Scaffold a member sub-package with this name |
 | `--kind` | `-k` | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment` |
+| `--profile` | | | Optional package profile; `protocols` is supported for Python |
+| `--domain` | | | Protocol domain, required with `--profile protocols` |
+| `--unit` | | | Protocol unit, required when declarations are supplied |
+| `--protocols` | | | JSON list of `ProtocolScaffoldDecl` declarations |
+| `--preview` | | `False` | Plan protocol files without changing the target |
 
 ### 4. Scaffold a workspace
 
@@ -138,7 +143,43 @@ The `experiment` kind:
 > **Note:** the index belongs to the tool, never to the template — re-running
 > the command always allocates the next free slot.
 
-### 8. Check PyPI availability
+### 8. Add or preview a protocol profile
+
+A standalone package or workspace member can declare the Python protocol
+profile while it is created:
+
+```bash
+axm init_scaffold protocols-dev \
+  --profile protocols --domain dev \
+  --protocols '[]' \
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+This writes `[tool.axm-init.protocols]` into the generated package metadata.
+The structured result reports `profile`, the derived `distribution`, the
+creation `mode` (`standalone` or `member`), and the package `root`.
+
+To inspect a protocol unit without writing files or metadata, pass complete
+declarations as JSON and enable preview:
+
+```bash
+axm init_scaffold protocols-dev \
+  --profile protocols --domain dev --unit work --preview \
+  --protocols '[{"domain":"dev","unit":"work","action":"create",
+    "contracts":[{"name":"brief"}],"nodes":[{"name":"author","contract":"brief"}]}]' \
+  --org myorg --author "Your Name" --email "you@example.com" \
+  --json-output
+```
+
+Preview uses the same planner as a future application. Its structured payload
+sets `preview=true`, reports qualified graph names such as
+`dev.work.create`, and partitions relative paths into `created`, `updated`,
+`unchanged`, and `conflicts`. Validation happens before filesystem access:
+a protocol request without a profile, an empty declaration list for a unit, a
+non-Python protocol profile, or declarations without `--unit` fails without
+changing the target.
+
+### 9. Check PyPI availability
 
 ```bash
 axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
@@ -146,7 +187,7 @@ axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
 
-### 9. JSON output
+### 10. JSON output
 
 ```bash
 axm init_scaffold my-project --org myorg --author A --email e@e.com --json-output
