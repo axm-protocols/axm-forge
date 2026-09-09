@@ -1,25 +1,19 @@
 # Getting Started
 
-The canonical setup lives in the **[Quick Start](quickstart.md)** — connect the
-server to your MCP client in one command, verify the connection, and run your
-first `verify`.
+Start with the [Quick Start](quickstart.md): select a tool set, connect over
+stdio, inspect the catalog and call a read-only tool against a local package.
+That tutorial is the canonical first-run walkthrough.
 
-## Prerequisites
+## Choose your next path
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (provides `uvx`)
+| Your goal | Guide |
+|---|---|
+| Connect an MCP client for the first time | [Quick Start](quickstart.md) |
+| Keep a server running between client sessions | [HTTP setup](../howto/migration-http.md) |
+| Expose an existing Python operation | [Add a tool](../howto/add-tool.md) |
+| Understand a project's quality findings | [Verify](../howto/verify.md) |
+| Diagnose a missing tool or unexpected output | [Facade reference](../reference/facade.md) |
 
-## Connect in one command
-
-```bash
-claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
-```
-
-→ Full walkthrough, the `.mcp.json` form, and the advanced HTTP transport are in
-the [Quick Start](quickstart.md).
-
-## Next Steps
-
-- [Quick Start](quickstart.md) — The canonical setup guide
-- [CLI Reference](../reference/cli.md) — Full command documentation
-- [Architecture](../explanation/architecture.md) — How the project is structured
+The server package supplies the transport and discovery. Installed optional
+packages determine the business tools available. Start with stdio unless you
+need a persistent process and can manage its configuration and lifetime.

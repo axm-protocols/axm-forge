@@ -1,68 +1,37 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.png" alt="AXM Logo" width="140" />
-</p>
+# axm-mcp
 
-<h1 align="center">axm-mcp</h1>
-<p align="center"><strong>MCP server for the AXM ecosystem — runtime tool discovery and execution.</strong></p>
+MCP transport and runtime discovery for installed AXM tools.
 
-<p align="center">
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-mcp/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-mcp/coverage.json" alt="Coverage"></a>
-  <a href="https://pypi.org/project/axm-mcp/"><img src="https://img.shields.io/pypi/v/axm-mcp" alt="PyPI"></a>
-</p>
+Start with the [Quick Start](tutorials/quickstart.md) to connect a client,
+inspect the catalog and call a read-only code-analysis tool.
 
----
+## What is included?
 
-## Features
+The server discovers `axm.tools` entry points from its own Python environment.
+A compact facade (`axm_search`, `axm_describe`, `axm_call`,
+`axm_capabilities`) keeps the direct MCP list small; the full catalog
+remains reachable. Discovered tools may opt into direct exposure.
 
-- 🔌 **Auto-discovery** — Finds all `axm.tools` entry points from installed packages
-- 🛠️ **MCP bridge** — Exposes discovered tools as Model Context Protocol callables
-- ✅ **Verify** — One-shot project quality check: audit + init check + AST enrichment
-- 🚀 **HTTP transport** — Optional persistent Streamable HTTP server (`axm-mcp serve`) for a single shared process across conversations
-- ⚙️ **Supervisor discovery** — Publishes an `axm.daemons` descriptor so an AXM supervisor can launch and probe the profile-scoped HTTP service
+Built-ins are `verify`, `web_fetch` and `list_tools`. Their registration
+does not mean their optional backends are installed. Choose the `forge`
+extra for developer tools; `all` adds bibliography and tickets, but not
+Scrapling. See [built-in contracts](reference/builtins.md).
 
-## Installation
+## Choose a guide
 
-Connect the server to your MCP client in one command — `uvx` fetches it on
-demand, no manual install:
+| You want to… | Read |
+|---|---|
+| Connect for the first time | [Quick Start](tutorials/quickstart.md) |
+| Add an operation | [Add a tool](howto/add-tool.md) |
+| Keep one process available | [HTTP setup](howto/migration-http.md) |
+| Understand quality findings | [Use verify](howto/verify.md) |
+| Look up flags and paths | [CLI](reference/cli.md) / [configuration](reference/configuration.md) |
+| Understand output or a missing tool | [Facade contracts](reference/facade.md) |
+| Set per-session scopes | [Shared write contracts](reference/shared-contracts.md) |
+| Understand implementation choices | [Architecture](explanation/architecture.md) |
+| Embed or inspect the package | [Python API](reference/api/index.md) |
 
-```bash
-claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
-```
-
-The `[all]` extra pulls in the actual tools (`audit`, `ast_*`, …); the bare
-package is only the server shell. See the [Quick Start](tutorials/quickstart.md)
-for the `.mcp.json` form and the full walkthrough.
-
-Once connected, all discovered AXM tools are immediately available to your MCP
-client.
-
-## MCP Tools
-
-By default the server exposes a compact facade — `axm_search` / `axm_describe` /
-`axm_call` / `axm_capabilities` — over the full catalog (`AXM_MCP_FACADE=1`),
-plus the built-ins below. Set `AXM_MCP_FACADE=0` to register every discovered
-tool directly.
-
-| Tool | Package | Description |
-|---|---|---|
-| `verify` | built-in | One-shot audit + init check + AST enrichment |
-| `web_fetch` | built-in | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
-| `list_tools` | built-in | List all available tools |
-| `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
-| `init_check` | `axm-init` | 49 governance checks against AXM gold standard |
-| `init_scaffold` | `axm-init` | Scaffold a new Python project |
-| `bib_search` | `axm-bib` | Search academic papers by title |
-| `bib_resolve` | `axm-bib` | Resolve a DOI/arXiv ref → BibTeX |
-| `bib_pdf` | `axm-bib` | Download paper PDF |
-| `bib_extract` | `axm-bib` | Extract text from PDF |
-
-## Learn More
-
-- [Quick Start Tutorial](tutorials/quickstart.md)
-- [How to Add a Tool](howto/add-tool.md)
-- [How to Verify Setup](howto/verify.md)
-- [Migrate to HTTP Transport](howto/migration-http.md)
-- [Architecture](explanation/architecture.md)
-- [CLI Reference](reference/cli.md)
+Stdio is the default transport. HTTP does not itself require per-session
+authorization; shared policy is a separate configuration with documented
+limits. Always pass explicit absolute project paths to tools on a persistent
+server.

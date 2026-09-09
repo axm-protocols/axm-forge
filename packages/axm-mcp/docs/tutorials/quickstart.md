@@ -1,94 +1,101 @@
 # Quick Start
 
-This is the **canonical setup guide** for connecting the AXM MCP server to an
-MCP client (Claude Code, IDE extensions, etc.). Every other "Use via MCP" page
-links here — you don't need to repeat these steps anywhere else.
+Connect one server, inspect its catalog, and make a read-only call.
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (provides `uvx`)
+Use Python 3.12 or later, uv, and an MCP client supporting stdio.
+The server and the packages providing your tools must be installed in the
+**same Python environment**.
 
-No manual install step is required: `uvx` downloads and runs the server on
-demand, always resolving the latest published version.
+## Step 1: Choose the tool set
 
-## Step 1: Connect the server
-
-The fastest path — one command, no JSON to edit:
-
-```bash
-claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
-```
-
-!!! note "What does `--scope user` do?"
-    `--scope user` installs it globally (available in every session). Drop it to
-    enable AXM per-project instead — the server then loads only in the directory
-    where you run the command.
-
-Prefer editing config by hand? Add this to your `.mcp.json` instead:
+For the Forge developer tools, use this command and argument vector in your
+MCP client's stdio-server configuration:
 
 ```json
 {
-  "mcpServers": {
-    "axm-mcp": {
-      "command": "uvx",
-      "args": ["--python", "3.12", "--from", "axm-mcp[all]@latest", "axm-mcp"]
-    }
-  }
+  "command": "uvx",
+  "args": ["--python", "3.12", "--from", "axm-mcp[forge]", "axm-mcp"]
 }
 ```
 
-The file lives at `~/.claude.json` (global, all projects) or `.mcp.json` at a
-project root (project-scoped — takes precedence when present). Restart your MCP
-client after editing it.
+This is a server process definition; the enclosing configuration keys and
+scope depend on your client. Save it through that client's supported
+configuration flow and reconnect. Keep stdout reserved for MCP traffic.
 
-!!! warning "Why `--from \"axm-mcp[all]\"` and not just `axm-mcp`?"
-    The bare `axm-mcp` package is only the server shell. The actual tools
-    (`audit`, `ast_*`, `git_commit`, `batch_edit`, …) ship in sibling packages
-    that the server discovers through `axm.tools` entry points. The `[all]`
-    extra pulls them in — without it you get a working server with almost no
-    tools. `--python 3.12` pins the interpreter so resolution never falls back
-    to an older Python that can't satisfy the dependency set.
+The base package registers `verify`, `web_fetch`, `list_tools` and the
+facade, but does not install the optional implementations they may need.
 
-## Step 2: Verify the connection
+| Extra | Adds |
+|---|---|
+| `forge` | axm-ast, axm-audit, axm-init, axm-git, axm-anvil, axm-edit, axm-smelt |
+| `all` | forge plus axm-bib and axm-ticket |
+| `ast`, `audit`, `init`, `git`, `anvil`, `edit`, `smelt`, `bib`, `ticket` | The corresponding individual package |
+| `web` | Scrapling dependency; see [web fetching](../reference/builtins.md#web_fetch) for fetcher requirements |
 
-From your MCP client, call the built-in `list_tools` meta-tool:
+`all` does not include `web`, every AXM package, or every possible tool.
+Use a pinned package version when you need a repeatable server environment.
+The unpinned example follows dependency resolution, not the code in a local
+checkout.
 
-```json
-{"name": "list_tools"}
-```
+## Step 2: Inspect the connection
 
-You should see `verify`, `audit`, `ast_*`, `init_*`, `bib_*`, and the rest of
-the discovered tools. If the list is nearly empty, you almost certainly dropped
-the `[all]` extra — revisit Step 1.
-
-By default the server exposes a **compact facade** (`AXM_MCP_FACADE=1`): the
-client's `tools/list` shows the four meta-tools (`axm_search`, `axm_describe`,
-`axm_call`, `axm_capabilities`), a small hot path, and the built-ins — while
-`list_tools` always enumerates the *full* catalog. To run a tool that isn't on
-the hot path, call it through `axm_call` (use `axm_describe` first to see its
-parameters). Set `AXM_MCP_FACADE=0` to register every discovered tool directly.
-
-## Step 3: Run verify
-
-The `verify` tool checks any project in one shot:
+Send this MCP `tools/call` parameter object through your client:
 
 ```json
-{"name": "verify", "arguments": {"path": "/path/to/project"}}
+{"name": "list_tools", "arguments": {"kwargs": {}}}
 ```
 
-Returns audit score, governance score, and AST-enriched failure context.
+The empty `kwargs` field accommodates the schema emitted for this tool by
+MCP 1.30: omitting it yields a missing-field error. The text lists the
+installed, successfully loaded tool entries and the
+server's meta-tools. It differs from the protocol's direct `tools/list`:
+a small direct list is normal with the facade enabled.
 
-## Going further: persistent HTTP server (advanced)
+Find a code-analysis tool:
 
-The setup above uses **stdio** — the client launches one server process per
-conversation. That's the simplest mode and works everywhere. If you run many
-conversations and want a single shared process (warm AST cache, persistent
-sessions, no per-conversation startup), migrate to the persistent HTTP
-transport — see [Migrate to HTTP Transport](../howto/migration-http.md).
+```json
+{"name": "axm_search", "arguments": {"query": "ast_context"}}
+```
 
-## Next Steps
+Then request its contract:
 
-- [Add a new tool](../howto/add-tool.md) — Expose your own tool via MCP
-- [Verify a project](../howto/verify.md) — Details on verify output
-- [Architecture](../explanation/architecture.md) — How discovery works
+```json
+{"name": "axm_describe", "arguments": {"name": "ast_context"}}
+```
+
+If it is absent, check the server environment, `AXM_DISABLE_TOOLS` and
+startup logs. Reinstalling an unrelated project environment will not fix a
+uvx server's catalog.
+
+## Step 3: Make a read-only call
+
+Replace the path with an existing local package:
+
+```json
+{"name": "axm_call", "arguments": {"name": "ast_context", "arguments": {"path": "/absolute/path/to/package", "depth": 1}}}
+```
+
+You should receive a module/package overview. This proves dispatch as well as
+connection and discovery. Use absolute paths: the server process has one
+working directory, which may differ from the client project's directory.
+
+## Step 4: Interpret a quality check
+
+If you installed the `forge` extra:
+
+```json
+{"name": "verify", "arguments": {"path": "/absolute/path/to/package"}}
+```
+
+Read the audit and governance sections; skipped dependencies, failing rules
+and tool errors must be considered separately. The outer ToolResult success
+does not certify a quality pass. [Verify a project](../howto/verify.md)
+explains that distinction and the command's side effects.
+
+## Next steps
+
+- [Add your own tool](../howto/add-tool.md).
+- [Run a persistent HTTP server](../howto/migration-http.md).
+- [Inspect facade and error contracts](../reference/facade.md).

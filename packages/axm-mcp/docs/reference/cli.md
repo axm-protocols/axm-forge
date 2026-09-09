@@ -1,141 +1,96 @@
-# CLI Reference
+# CLI reference
 
-## `axm-mcp` — Start the MCP Server
+The installed binary is `axm-mcp`. It manages the server process; MCP tools
+are called by an MCP client. The package declares no `axm.tools` entry points:
+its built-ins are registered inside the server, so installing it alone does
+not add `axm verify` or `axm web_fetch` to the generic AXM CLI.
 
-```
-axm-mcp
-```
+## Commands
 
-Starts the FastMCP server, auto-discovers all installed `axm.tools` entry points, and exposes them as MCP-callable tools.
-
-### Transport Modes
-
-| Mode | How to start | Default port |
+| Command | Parameters | Behavior |
 |---|---|---|
-| **stdio** (default) | `axm-mcp` | — |
-| **Streamable HTTP** | `axm-mcp serve` | `9427` (override via `AXM_MCP_PORT`) |
+| `axm-mcp` | none | Run MCP over stdio until the client closes the connection |
+| `axm-mcp serve` | `--host` (`127.0.0.1`), `--port` (`9427`), `--shared / --no-shared` | Run Streamable HTTP at `/mcp`, with `/health` |
+| `axm-mcp status` | `--host` (`127.0.0.1`), `--port` (`9427`) | HTTP GET to `/health`, timeout 3 seconds |
+| `axm-mcp stop` | none | Send SIGTERM to the active profile's recorded process |
+| `axm-mcp install` | `--port` (`9427`), `--binary PATH` | Write and load the macOS launchd service |
+| `axm-mcp uninstall` | none | Unload the launchd service and remove its plist |
 
-The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "tools_count": N}`.
+Every subcommand accepts `--help`. There is no `--version` flag.
 
-### Subcommands
+### serve
 
-| Command | Flags | Description |
-|---|---|---|
-| `axm-mcp` (no subcommand) | — | Run in **stdio** mode (backward-compatible default) |
-| `axm-mcp serve` | `--host` (default `127.0.0.1`), `--port` (default `9427`), `--shared` | Start the **Streamable HTTP** server; `[mcp] serve_mode = "shared"` arms strict per-session contracts, while the explicit `--shared` stdio compatibility path remains refused |
-| `axm-mcp status` | `--host`, `--port` | Query the running server's `/health` endpoint |
-| `axm-mcp stop` | — | Send `SIGTERM` to the running server (identity-verified) |
-| `axm-mcp install` | `--port`, `--binary <path>` | Install as a launchd service (macOS) |
-| `axm-mcp uninstall` | — | Remove the launchd service |
+`--port` must be between 1 and 65535. **Pass the port explicitly**:
+the CLI passes its default `9427` to the server even when `AXM_MCP_PORT`
+is set. `status` and `install` also default to `9427`. The environment
+variable is used by the lower-level server API when no port is provided and
+by the AXM daemon descriptor; these are different entry points.
 
-#### `serve`
+The serving policy resolves explicit `--no-shared` → `AXM_MCP_SERVE_MODE`
+→ `[mcp] serve_mode` in AXM configuration → `dedicated`.
+Only `shared` and `dedicated` are valid. **The explicit `--shared` flag
+currently exits 1**, even on `serve`, with a message referring to stdio.
+Use `AXM_MCP_SERVE_MODE=shared axm-mcp serve --port 9427` to start the
+shared policy. Keep the facade enabled; see [shared contracts](shared-contracts.md).
 
-Writes a **transactional**, profile-scoped PID file. The default `production`
-profile keeps the historical path (`~/.axm/mcp-server.pid`); other
-`AXM_PROFILE` values use their own PID file. The command therefore refuses a
-second live server in the same profile while allowing servers from different
-profiles to coexist. On exit, it only removes the active profile's file when it
-still holds this process's PID, so a failed start (e.g. a bind conflict) never
-deletes a healthy server's PID file.
+Before starting, the command checks the profile's PID file and refuses if it
+identifies a live axm-mcp process. It writes its own PID, and on exit removes
+the file only if it still contains that PID. This protects an established
+server against an ordinary second start; the check/write sequence has no
+interprocess lock and does **not** guarantee exclusion for simultaneous starts.
+Cleanup requires normal stack unwinding: in the tested MCP 1.30/Uvicorn 0.52
+combination, SIGTERM shutdown can leave a stale PID file.
 
-The serving policy is resolved in this order: an explicit `--shared`/negative
-flag value, `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode` in
-`~/.axm/config.toml`, then the `dedicated` default. Resolution happens for every
-`serve` invocation; changing the file therefore affects the next start without
-changing the installed service command or regenerating its plist. Only `shared`
-and `dedicated` are valid values.
+### status
 
-A `shared` value supplied by `AXM_MCP_SERVE_MODE` or `[mcp] serve_mode`
-arms the Streamable HTTP server with the registry-backed per-session resolver.
-The server then starts normally and can be checked with `axm-mcp status`; it
-never falls back to a process-wide default perimeter. The explicit `--shared`
-flag remains the stdio compatibility path and is refused with exit code 1
-because stdio cannot supply a session identity.
+HTTP errors and non-200 replies exit 1. A 200 JSON object prints
+`Server running on HOST:PORT (N tools)`, where `N` comes from
+`tools_count` or is `?` when absent. A 200 non-JSON body also prints a
+running server with `?` and exits 0. A JSON array or scalar can raise an
+uncaught attribute error. This is a reachability probe, not a verified
+identity, authorization or tool-execution check.
 
-#### `status`
+The real server's health object is:
 
-Prints `Server running on HOST:PORT (N tools)` on a healthy `/health`, or
-`Server not running` on any transport error (connect refused, read timeout,
-malformed body). Exits non-zero when the server is unreachable or replies with
-a non-200.
-
-#### `stop`
-
-Reads the active `AXM_PROFILE` PID file, verifies the target process's command
-line carries the `axm-mcp` marker (guarding against OS PID reuse), then sends
-`SIGTERM`. If the PID is stale or has been reused by an unrelated process, no
-signal is sent and only that profile's stale PID file is cleaned up.
-
-### Exit Codes
-
-| Code | Meaning |
-|---|---|
-| `0` | Success |
-| `1` | Failure — server unreachable (`status`), no/stale/foreign PID (`stop`), refused double `serve`, invalid serve mode, explicit `--shared` on the stdio compatibility path, missing binary or `launchctl` failure (`install`), service not installed (`uninstall`) |
-
-### Environment Variables
-
-| Variable | Default | Effect |
-|---|---|---|
-| `AXM_MCP_FACADE` | `1` | `1` (or unset) exposes the compact facade; `0`/`false`/`no` registers every discovered tool directly (legacy) |
-| `AXM_MCP_PORT` | `9427` | HTTP bind port when `--port` is not passed to `serve` |
-| `AXM_MCP_SERVE_MODE` | `[mcp] serve_mode` or `dedicated` | Serving policy (`shared` or `dedicated`); outranks the AXM config file |
-| `AXM_PROFILE` | `production` | Selects the profile-scoped PID file used by `serve` and `stop`; distinct profiles can run concurrently |
-| `AXM_DISABLE_TOOLS` | *(empty)* | Comma-separated list of tool **names or glob patterns** excluded at discovery time — e.g. `bib_*,ticket_*,ast_dead_code`. Useful to trim a shared server's surface. Applied in `discover_tools()`; a disabled tool is neither registered nor indexed by the facade |
-
-Persistent serving policy uses the common AXM configuration file:
-
-```toml
-[mcp]
-serve_mode = "shared"
+```json
+{"status": "ok", "tools_count": 7}
 ```
 
-Use `dedicated` (the default) to retain the standard HTTP serving policy.
+The count is illustrative: it counts **directly registered MCP tools**,
+including meta-tools, rather than all facade-dispatchable entries.
 
-### Service Management
+### stop
 
-| Command | Description |
+The command reads the active profile's PID file, checks process existence
+and looks for the `axm-mcp` substring in its command line (`/proc` when
+available, otherwise `ps`). Missing, stale or unrecognized PIDs exit 1;
+stale/unrecognized PID files are removed without signalling the process.
+This is a command-line marker check, not cryptographic process identity.
+
+On success it sends SIGTERM and removes the PID file immediately; it does
+not wait for process exit. A launchd service with KeepAlive may restart:
+use `uninstall` to remove that service.
+
+### Exit codes
+
+`0` means the command completed its own action, not that all tools are
+healthy. Explicit lifecycle errors generally exit `1`; CLI parsing errors
+and uncaught exceptions can have other diagnostics. Tool failures are carried
+by MCP results and are not a server CLI exit code.
+
+## Environment variables
+
+| Variable | Consumer / effect |
 |---|---|
-| `axm-mcp install` | Install axm-mcp as a launchd service (macOS) |
-| `axm-mcp uninstall` | Remove the launchd service |
+| `AXM_MCP_FACADE` | Default enabled. Trimmed, case-insensitive `0`, `false`, `no` disable the facade; other values enable it |
+| `AXM_DISABLE_TOOLS` | Comma-separated, whitespace-trimmed names/globs excluded **before loading** installed `axm.tools` entry points |
+| `AXM_MCP_SERVE_MODE` | `shared` or `dedicated`; outranks the configuration file |
+| `AXM_PROFILE` | Selects the profile-scoped PID path; unset means `production` |
+| `AXM_MCP_PORT` | Used by the daemon descriptor and lower-level port resolution; does not override the CLI's `--port` default |
+| `AXM_MCP_SHARED` | Internal registration switch set by `serve`; do not set it independently of the serving policy |
 
-`install` locates the `axm-mcp` binary via `find_binary()`, generates a launchd plist from `PLIST_TEMPLATE`, and loads it with `launchctl`. `uninstall` unloads the service and deletes the plist file.
-
-### Built-in Tools
-
-| Tool | Description |
-|---|---|
-| `verify` | One-shot quality check: audit + init check + AST enrichment |
-| `web_fetch` | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
-| `list_tools` | List all available tools (always enumerates the full surface) |
-
-These built-ins are always registered directly alongside the discovered tools (see `mcp_app.py`).
-
-### Facade Meta-Tools
-
-By default (`AXM_MCP_FACADE=1`) the discovered tools are surfaced through a compact facade instead of being registered one-by-one, keeping the `tools/list` payload small:
-
-| Tool | Description |
-|---|---|
-| `axm_search` | Search the tool catalog by keyword/tag |
-| `axm_describe` | Full invocation contract (typed params + docstring) for one tool |
-| `axm_call` | Execute any tool by name and return its text output |
-| `axm_capabilities` | List tools grouped by domain |
-
-Set `AXM_MCP_FACADE=0` to register every discovered tool directly instead.
-
-### Discovered Tools
-
-All tools registered via `axm.tools` entry points are discovered automatically and reachable through the facade (`axm_call`) — or registered directly in legacy mode / when they opt into the hot path via `expose_directly`. Common tools include:
-
-| Tool | Package | Description |
-|---|---|---|
-| `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
-| `init_check` | `axm-init` | 49 governance checks against AXM gold standard |
-| `init_scaffold` | `axm-init` | Scaffold a new Python project |
-| `bib_search` | `axm-bib` | Search academic papers by title |
-| `bib_resolve` | `axm-bib` | Resolve a DOI/arXiv ref → BibTeX |
-| `bib_pdf` | `axm-bib` | Download paper PDF |
-| `bib_extract` | `axm-bib` | Extract text from PDF |
-
-The exact list depends on which packages are installed. Use `list_tools` to see what's available.
+Disabling discovered entries does not disable the server's built-in
+`verify`, `web_fetch` or `list_tools`. Discovery and facade registration
+happen at import/startup; restart after changing installed packages or these
+switches. [Configuration and service paths](configuration.md) details the
+separate CLI, supervisor and launchd behavior.

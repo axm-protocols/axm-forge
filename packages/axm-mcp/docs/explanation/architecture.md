@@ -2,179 +2,104 @@
 
 ## Overview
 
-`axm-mcp` is a thin MCP shell whose imports from AXM core are limited to shared tool infrastructure (`axm.tools.base` and `axm.tools.write_scope`) — no business-tool implementations. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (the simple default, one process per conversation) and **Streamable HTTP** (an advanced option, single shared server).
-
-By default (`AXM_MCP_FACADE=1`) the discovered tools are surfaced through a **compact facade**: four meta-tools (`axm_search` / `axm_describe` / `axm_call` / `axm_capabilities`) index the catalog and keep the `tools/list` payload small, while a *hot path* of tools opting in via `expose_directly` plus the built-ins (`verify`, `web_fetch`, `list_tools`) are registered individually. Setting `AXM_MCP_FACADE=0` falls back to the legacy behaviour — every discovered tool registered directly.
-
-```mermaid
-graph TD
-    subgraph "MCP Layer"
-        Server["FastMCP Server"]
-        Verify["verify (VerifyTool)"]
-    end
-
-    subgraph "Discovery"
-        Discover["discover_tools()"]
-        Register["register_tools()"]
-        EP["axm.tools entry points"]
-    end
-
-    subgraph "Installed Packages"
-        Audit["axm-audit (audit)"]
-        Init["axm-init (init_check, init_scaffold)"]
-        Bib["axm-bib (bib_search, bib_resolve, bib_pdf)"]
-    end
-
-    Server --> Verify
-    Server --> Discover
-    Discover --> EP
-    EP --> Audit
-    EP --> Init
-    EP --> Bib
-    Register --> Server
-```
-
-## Transport Modes
-
-### stdio (default)
-
-The MCP client forks a new `axm-mcp` process per conversation. Each process has its own memory and state.
+`axm-mcp` supplies an MCP server, entry-point discovery, a compact tool
+catalog, execution wrappers and lifecycle commands. Business operations live
+in installed tool packages. The server itself registers `verify` and
+`web_fetch`; it publishes no `axm.tools` entry point for those built-ins.
 
 ```mermaid
-graph LR
-    C1[Conversation 1] -->|fork| P1[axm-mcp process]
-    C2[Conversation 2] -->|fork| P2[axm-mcp process]
-    C3[Conversation 3] -->|fork| P3[axm-mcp process]
-    P1 --> T[axm.tools entry points]
-    P2 --> T
-    P3 --> T
+flowchart LR
+    Packages["Installed axm.tools entry points"] --> Discovery["Discovery"]
+    Discovery --> Catalog["Tool catalog"]
+    Catalog --> Facade["Facade meta-tools"]
+    Discovery --> Direct["Direct hot path"]
+    Facade --> Wrappers["Shared wrapper factory"]
+    Direct --> Wrappers
+    Wrappers --> Tools["AXMTool.execute"]
 ```
 
-### Streamable HTTP (advanced)
+A class entry point is instantiated without arguments. A plain callable is
+retained as-is. Failed loads are logged and skipped. The registry is a
+startup snapshot; installing a new package requires restarting the server.
 
-A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared, while write contracts remain isolated by the `mcp-session-id` carried by each request. In shared mode, the served ASGI application runs a middleware on every HTTP request: when both `mcp-session-id` and `X-AXM-Write-Contract` are present, it binds the decoded scope to that identity before FastMCP dispatches the tool. A session without a declared scope remains unbound.
+## Transport and policy
 
-```mermaid
-graph LR
-    C1[Conversation 1] -->|HTTP| S[axm-mcp server :9427]
-    C2[Conversation 2] -->|HTTP| S
-    C3[Conversation 3] -->|HTTP| S
-    S --> T[axm.tools entry points]
-    S --> Cache[AST cache]
-    S --> Sessions[Protocol sessions]
-```
+Stdio runs inside the process launched by the client. The client decides
+whether to share or restart that process; the server does not enforce one
+process per conversation.
 
-### Request flow (HTTP)
+HTTP keeps one process available to multiple clients. Imported module state,
+tool instances and any provider caches can be reused. This does not provide
+durable sessions or cache persistence across process restarts.
 
-```mermaid
-sequenceDiagram
-    participant Client as MCP Client
-    participant Server as axm-mcp ASGI server
-    participant Middleware as Session-contract middleware
-    participant FastMCP as FastMCP
-    participant Tool as AXM Tool
+Serving policy is independent of transport: dedicated HTTP uses an
+environment-backed write contract when present; shared HTTP resolves a
+contract by MCP session identity. The header-binding mechanism and its
+limitations are described in [shared contracts](../reference/shared-contracts.md).
 
-    Client->>Server: POST /mcp + mcp-session-id + optional X-AXM-Write-Contract
-    Server->>Middleware: Forward request headers
-    Middleware->>Middleware: Bind declared scope to mcp-session-id
-    Middleware->>FastMCP: Dispatch request
-    FastMCP->>Tool: execute(**kwargs)
-    Tool-->>FastMCP: ToolResult
-    FastMCP-->>Server: MCP response
-    Server-->>Client: JSON response
+## Execution and data
 
-    Note over Client,Server: GET /health → {"status": "ok", "tools_count": N}
-```
+Direct tools and catalog calls are constructed using `build_wrappers`.
+In facade mode both receive the same registration policy. The facade uses
+the asynchronous catalog route so HTTP offloading and locks also apply to
+tools absent from the direct list.
 
-## Modules
+The wrapper resolves access, unwraps nested kwargs, warns about certain
+implicit paths, runs the tool, records an external trace when available and
+renders the result. Trace integration is best-effort; scope refusals occur
+before normal execution tracing. It is not a durable audit log for every
+rejected request.
 
-| Module | Key Symbols | Purpose |
-|---|---|---|
-| `mcp_app.py` | `mcp`, `build_http_app()`, `session_id_from_headers()`, `bind_session_from_headers()`, `contract_for_session_id()` | FastMCP server instance and served ASGI application — discovers tools, wraps Streamable HTTP with the session-contract middleware in shared mode, binds declarations from ordinary request headers before dispatch, and resolves that same identity at write time. The process entry points live in `cli.py` |
-| `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
-| `daemon.py` | `daemon_descriptor()` | Publishes the `axm.daemons` launch descriptor. Production keeps the bare service id `io.axm.mcp`; non-production profiles receive a deterministic profile-derived suffix, so their registry entries coexist while their PID files and explicit ports remain isolated |
-| `settings.py` | `NonProductionPortError`, `resolve_http_port()`, `resolve_pid_file()`, `resolve_serve_mode()` | Central configuration seam. Serving mode follows explicit CLI value → `AXM_MCP_SERVE_MODE` → `[mcp] serve_mode` in `~/.axm/config.toml` → `dedicated`. The profile-aware resource resolvers preserve `~/.axm/mcp-server.pid` and port `9427` in production; another `AXM_PROFILE` places its PID file below the axm-config profile directory and requires an explicit `AXM_MCP_PORT`, otherwise `NonProductionPortError` is raised |
-| `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT`, `SharedModeNotArmedError` | Streamable HTTP transport — rejects unarmed shared mode before binding, then sets `wrapping._HTTP_MODE = True` and runs FastMCP on port 9427 (or `AXM_MCP_PORT`) |
-| `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution against the same session, git repository, or file target |
-| `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `register_list_tools()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
-| `facade/catalog.py` | `ToolCatalog`, `UnknownToolError` | Searchable index over discovered tools — backs the four facade meta-tools (`search`/`describe`/`call`/`capabilities`, `hot_path()`) and builds their wrappers with the server's shared-mode flag and per-session contract resolver |
-| `facade/tools.py` | `register_facade()`, `FACADE_TOOLS` | Registers `axm_search` / `axm_describe` / `axm_call` / `axm_capabilities` against a `ToolCatalog` |
-| `web_fetch.py` | `fetch_page()`, `WebFetchTool` | Built-in `web_fetch` tool — anti-bot page fetching via Scrapling (modes: auto / basic / dynamic / stealth) |
-| `session_contracts.py` | `SessionContractRegistry`, `UnboundSessionError`, `WriteContract` | Thread-safe session-id → write-contract bindings, with explicit release and expiry |
-| `wrapping.py` | `build_wrappers()`, `log_external_step()`, `_session_lock`, `_git_lock`, `_write_lock` | Wraps each tool as a sync callable, resolves its write perimeter at call time, and serializes protocol, git, and file-mutation tools with async keyed locks |
-| `schema.py` | `signature_params()`, `apply_signature()`, `extract_docstring_params()` | Derives a tool's typed `__signature__` from its `execute()` (falling back to docstring params) so FastMCP and `ToolCatalog.describe` build the right schema |
-| `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
-| `verify_format.py` | `format_verify_text()` | Compact text rendering of a `verify_project` result |
-| `lifecycle.py` | `find_binary()`, `generate_plist()`, `install()`, `uninstall()` | launchd service management — install/uninstall axm-mcp as a macOS background service |
-| `plist_template.py` | `PLIST_TEMPLATE` | launchd plist XML template used by `lifecycle.generate_plist()` |
+String results and ToolResult text are intended for the model. They do not
+preserve structured data as an additional MCP channel. Failures with nonempty
+text keep their diagnostics; data-only results use an envelope. See the
+[exact result behavior](../reference/facade.md#toolresult-at-the-mcp-boundary).
 
-## Design Decisions
+## Concurrency
 
-| Decision | Rationale |
+In HTTP mode synchronous tool bodies run through `asyncio.to_thread`.
+A slow synchronous call therefore does not directly occupy the event loop.
+This is not a bound on provider resource use or a guarantee that every
+provider is thread-safe.
+
+The async wrapper additionally selects in-process keyed locks:
+
+| Calls | Key |
 |---|---|
-| Imports from `axm` core limited to shared tool infrastructure | `axm.tools.base` supplies shared types and metadata; `axm.tools.write_scope` supplies the generic write-contract model and decision function. Neither is a business-tool implementation, so `axm-mcp` stays decoupled from specific tool packages |
-| `ToolLike` Protocol | Duck typing via `Protocol` — no class inheritance needed |
-| Entry points for discovery | Standard Python mechanism, no config files needed |
-| `verify` as meta-tool | Single call replaces 3 separate tool invocations |
-| AST enrichment of failures | Adds blast-radius context to help agents prioritize fixes |
-| Compact facade (default) | Four meta-tools keep the `tools/list` payload small; the full catalog stays reachable via `axm_call`. Reversible with `AXM_MCP_FACADE=0` |
-| Serving policy resolved at startup | The CLI flag has highest precedence, followed by `AXM_MCP_SERVE_MODE`, `[mcp] serve_mode`, then `dedicated`. A configured `shared` value arms registration and the registry-backed resolver, and makes `build_http_app()` install the per-request session-contract middleware before Streamable HTTP starts. Dedicated mode serves the unwrapped FastMCP application. No value is cached, so the unchanged service command observes a configuration edit on its next start |
+| Git-prefixed tools | Explicit `path` |
+| Session-prefixed dispatcher family | Explicit `session_id` |
+| `write_file`, `edit_file` | Explicit target `path` |
+| `batch_edit` | Normalized root plus each `operations[].file`, deduplicated and acquired in sorted order |
 
-## Tool Lifecycle
+The session-prefixed dispatcher family is matched by the literal
+`protocol_` name prefix. This is a wrapper routing rule; it does not
+declare any such tools in this package.
 
-1. **Startup**: `discover_tools()` scans `axm.tools` entry points
-2. **Registration** (facade, default): the `expose_directly` hot path is registered individually via `register_one()`, the built-ins (`verify`, `web_fetch`) are registered directly, and `register_facade()` registers the four facade meta-tools over a `ToolCatalog`. In legacy mode (`AXM_MCP_FACADE=0`), `register_tools()` registers **every** discovered tool individually instead. When strict shared mode is armed, both direct registration and `ToolCatalog` pass `shared_mode=True` plus the same registry-backed per-session resolver to `build_wrappers()`.
-3. **Listing**: `register_list_tools()` registers `list_tools`, which always enumerates the **full** surface (so facade-only tools remain discoverable)
-4. **Execution**: MCP client calls a tool **directly or via `axm_call`** → both paths use wrapper pairs built by the single `wrapping.build_wrappers()` factory with identical mode and resolver parameters. At each call, the wrapper resolves the current session identity and its write contract before delegating to `tool.execute(**kwargs)`, so one long-lived wrapper set does not freeze a session's perimeter. An out-of-scope facade call is refused as `success=False` with the contract error before the target tool runs, exactly like a direct call. On a **successful** `ToolResult` with `text` set, the wrapper returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting. Write-scope enforcement, tracing (1 call = 1 trace), exception flattening and the per-key lock are therefore invariant across both routes.
-5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
+Without the expected key, the tool still runs in a worker thread but lacks
+that keyed serialization. These locks coordinate calls within one process,
+not external writers or other server processes. They do not cover every
+mutation tool (for example `batch_rollback`) and cannot substitute for a
+tool's own atomicity/rollback behavior. `ToolCatalog.call()` is synchronous
+and does not take HTTP async locks; `acall()` is the lock-aware route.
 
-## Concurrency Model (HTTP mode)
+Lock acquisition timeout becomes a resource-busy error. Idle entries are
+reaped on release. Stdio calls execute inline with the HTTP locking/offload
+mode disabled.
 
-Multiple conversations run concurrently on the same server. To prevent conflicts:
+## Implementation map
 
-- **Mode gate** — `server.serve()` sets `wrapping._HTTP_MODE = True` before
-  `mcp.run(transport="streamable-http")`. This single flag gates the
-  `asyncio.to_thread` offload + `KeyedLock` acquisition in `_wrap_with_lock`
-  and the implicit-path warning in `_warn_implicit_path`. The stdio default
-  path (`cli._stdio`) leaves it `False` — one process per conversation means
-  no cross-session contention, and the tool runs inline
-- **Shared-mode startup guard** — the requested mode is resolved afresh for each `serve` invocation (explicit flag, environment, config file, then `dedicated`). A configured `shared` value sets up shared registration before importing the app, then calls `server.serve(shared=True, ...)` with the registry-backed per-session resolver. The server still raises `SharedModeNotArmedError` before binding the transport when that resolver is absent. The explicit `axm-mcp serve --shared` stdio compatibility path remains refused because stdio cannot provide a session identity
-- **Per-request binding, per-call enforcement** — in shared mode, `build_http_app()` installs an ASGI middleware that examines every HTTP request before FastMCP dispatch. A request carrying both `mcp-session-id` and an explicit `X-AXM-Write-Contract` refreshes that identity's registry binding; missing or malformed declarations grant nothing and do not turn into transport errors. Direct tools and facade-dispatched tools both receive `build_wrappers(shared_mode=True, write_contract_resolver=_resolve_session_contract)`, which resolves `current_session_id()` then `contract_for_session_id()` at call time. Distinct identities therefore retain distinct scopes even when requests interleave, and session A cannot use either the direct route or `axm_call` to write under session B's prefixes. An undeclared, unknown, or closed identity raises `UnboundSessionError` naming that identity and is refused before the tool runs. Dedicated mode serves the unwrapped application and keeps its existing permissive fallback when no write contract exists
-- **Never block the event loop** — in HTTP mode **every** tool's synchronous
-  body is offloaded to a worker thread via `asyncio.to_thread`, so one slow
-  call (a multi-minute `verify`) cannot freeze `/health`, keep-alives, or the
-  other conversations. Per-key serialization is layered on top of this offload
-- **Protocol sessions** are serialized per `session_id` via `KeyedLock`
-- **Git operations** are serialized per normalized `repo_path` via `KeyedLock`
-  (`/repo` and `/repo/` resolve to the same key)
-- **File mutations** through `write_file` and `edit_file` are serialized per
-  normalized target path. `batch_edit` locks every `path` + `operations[].file`
-  target in sorted order, after normalization and deduplication, so overlapping
-  batches cannot deadlock while mutations of distinct files remain concurrent
-- **Lock timeout** — a `KeyedLock` acquire that exceeds its timeout is
-  flattened into the AXM error envelope (`success=False`, "resource busy,
-  retry") rather than propagating a raw `TimeoutError` to the MCP client
-- **Bounded memory** — `KeyedLock` reaps idle (unheld, unawaited) entries
-  opportunistically on release via per-key refcounting, so its map does not
-  grow unbounded with session ids, repo paths, or file paths over the server's lifetime
-
-## Service Lifecycle (macOS)
-
-```mermaid
-graph TD
-    Install["axm-mcp install"] --> Plist["Generate plist"]
-    Plist --> Load["launchctl bootstrap"]
-    Load --> Running["Server running on :9427"]
-    Running -->|crash| Restart["Auto-restart (KeepAlive)"]
-    Restart --> Running
-    Running --> Stop["axm-mcp uninstall"]
-    Stop --> Bootout["launchctl bootout"]
-    Bootout --> Removed["Plist removed"]
-```
-
-| Item | Path |
+| Module | Responsibility |
 |---|---|
-| Plist | `~/Library/LaunchAgents/io.axm.mcp-server.plist` |
-| PID file | `~/.axm/mcp-server.pid` |
-| stdout log | `~/Library/Logs/axm-mcp/stdout.log` |
-| stderr log | `~/Library/Logs/axm-mcp/stderr.log` |
+| `cli`, `server` | Process lifecycle, PID handling, HTTP serve and health |
+| `settings`, `daemon`, `lifecycle` | Policy/port/PID resolution, supervisor descriptor, launchd install |
+| `mcp_app` | Startup registration and HTTP contract middleware |
+| `discovery`, `schema` | Entry points and callable signatures |
+| `facade` | Search, describe, execute and capability text |
+| `wrapping`, `concurrency` | Result/exception handling, access checks, thread offload and keyed locks |
+| `session_contracts` | In-memory identity-to-contract bindings |
+| `verify`, `verify_format` | Aggregation and human-readable quality output |
+| `web_fetch` | Optional Scrapling adapter |
+
+These implementation modules are not all a root-exported SDK.
+[Python API](../reference/api/index.md) distinguishes the package contract
+from implementation seams.

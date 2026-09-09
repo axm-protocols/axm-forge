@@ -1,267 +1,93 @@
-# Migrating from stdio to Streamable HTTP
+# Migrate to HTTP Transport
 
-This guide walks through migrating your axm-mcp setup from the default stdio transport to the persistent Streamable HTTP server.
+Use Streamable HTTP when several clients need a persistent server process.
+The default bind address is loopback. The package does not configure
+authentication or TLS; choose a trusted deployment boundary before changing
+the host.
 
-## Why migrate?
+## 1. Install the server environment
 
-| | stdio | HTTP |
-|---|---|---|
-| Processes | One per conversation | Single shared server |
-| Startup time | One `uvx` resolve per conversation (cached, fast) | Instant (already running) |
-| AST cache | Lost between conversations | Shared across all calls |
-| Protocol sessions | Per-conversation only | Persistent |
-| CPU usage | Risk of zombie processes | Single managed process |
-
-## Concurrency model (what "shared" really means)
-
-The HTTP server serves **many conversations from one process**, so it is
-explicitly designed not to let one slow call stall the others:
-
-- **Sync tools run off the event loop.** In HTTP mode every tool's synchronous
-  body is offloaded to a worker thread (`asyncio.to_thread`), so a multi-minute
-  `verify` cannot freeze `/health`, keep-alives, or other conversations.
-- **Per-key serialization.** Calls that mutate the same resource *are*
-  serialized on purpose: `git_*` tools by (normalized) repo path, `protocol_*`
-  tools by `session_id`. Two conversations committing to the same repo take
-  turns; unrelated repos run in parallel.
-- **Lock timeout is graceful.** If a lock cannot be acquired within its timeout
-  (30 s), the call returns a structured `{success: false, error: "… busy, retry"}`
-  rather than a raw protocol error.
-
-This holds whether a tool is called directly or through `axm_call` — both go
-through the same execution path.
-
-Here, “shared” describes one HTTP process serving several clients. Strict shared
-authorization additionally requires a per-session identity and write-contract
-binding. Configure that policy with `[mcp] serve_mode = "shared"`: the CLI then
-arms the registry-backed resolver before starting Streamable HTTP. The explicit
-`serve --shared` flag remains a refused stdio compatibility path and never grants
-an undeclared default perimeter.
-
-## Prerequisites
-
-- A recent `axm-mcp` with the `serve`/`status`/`stop` subcommands (run
-  `axm-mcp --help` to confirm they are present)
-- macOS (launchd integration) or any OS (manual `serve`)
-
-## Step 1 — Start the server
-
-### Option A: launchd service (recommended on macOS)
+Install the tool set into an environment whose lifetime outlasts the client:
 
 ```bash
-axm-mcp install
+uv tool install "axm-mcp[forge]"
 ```
 
-This generates a launchd plist at `~/Library/LaunchAgents/io.axm.mcp-server.plist`, loads it via `launchctl`, and starts the server automatically. The service restarts on crash and starts on login.
+For a project venv, use its exact `axm-mcp` binary instead. Packages installed
+in other environments are not discovered.
 
-### Option B: manual
+## 2. Start in the foreground
 
 ```bash
-axm-mcp serve
+axm-mcp serve --host 127.0.0.1 --port 9427 --no-shared
 ```
 
-Starts the server in the foreground on `127.0.0.1:9427`.
+This selects the dedicated policy explicitly. **Use `--port`**, including
+when your shell has `AXM_MCP_PORT`: the CLI's default is fixed at 9427.
+For multiple profiles/processes, choose distinct ports and PID profiles;
+see [configuration](../reference/configuration.md).
 
-To use a different port:
+Dedicated HTTP can serve multiple clients, but it does not require a separate
+write contract from each. For cooperative per-session scopes, use the
+[shared-policy setup](../reference/shared-contracts.md), including its
+current limitations.
+
+## 3. Check the endpoint
+
+From a second terminal:
 
 ```bash
-axm-mcp serve --port 8080
-# or
-AXM_MCP_PORT=8080 axm-mcp serve
+axm-mcp status --host 127.0.0.1 --port 9427
+curl --fail http://127.0.0.1:9427/health
 ```
 
-### Select the serving policy without changing the service command
+A real server returns a JSON object with `status: "ok"` and
+`tools_count`. That number measures direct registration, not the full
+catalog. `status` alone only tests reachability; it can accept a 200
+non-JSON page.
 
-The default policy is `dedicated`. To enable strict shared authorization
-persistently, edit `~/.axm/config.toml`:
+## 4. Connect your client
 
-```toml
-[mcp]
-serve_mode = "shared"
-```
+Configure your MCP client's **Streamable HTTP** transport with the URL
+`http://127.0.0.1:9427/mcp`. Client-specific configuration schemas differ;
+a stdio command definition cannot simply be reused as an HTTP definition.
 
-Resolution order is an explicit CLI value, `AXM_MCP_SERVE_MODE`, the
-`[mcp] serve_mode` value, then the `dedicated` default. Only `shared` and
-`dedicated` are accepted. The file is read for every `serve` invocation, so an
-installed launchd service adopts the configured policy on its next start; its
-command line and plist do not need to be regenerated. With `shared`, startup
-installs the per-session resolver and proceeds over Streamable HTTP. Verify it
-with `axm-mcp status` before switching clients.
+Reconnect and call `list_tools`, then make the read-only call from the
+[Quick Start](../tutorials/quickstart.md#step-3-make-a-read-only-call).
+Always pass explicit absolute paths. The server does not adopt a different
+working directory for each conversation; implicit paths may only produce a
+warning, rather than being rejected.
 
-## Step 2 — Verify the server is running
+## Optional: launchd on macOS
+
+After the foreground setup works:
 
 ```bash
-axm-mcp status
+axm-mcp install --port 9427 --binary /absolute/path/to/axm-mcp
 ```
 
-Expected output:
+This replaces/loads a persistent user service with KeepAlive. Review
+[its fixed paths and environment behavior](../reference/configuration.md#macos-launchd-installation)
+before using it: shell environment variables are not copied into the plist.
 
-```
-Server running on 127.0.0.1:9427 (42 tools)
-```
+## Roll back to stdio
 
-You can also hit the health endpoint directly:
-
-```bash
-curl http://localhost:9427/health
-# {"status": "ok", "tools_count": 42}
-```
-
-## Step 3 — Update `.mcp.json`
-
-Replace the stdio config with the HTTP config.
-
-**Before** (stdio — the default setup from the [Quick Start](../tutorials/quickstart.md)):
-
-```json
-{
-  "mcpServers": {
-    "axm-mcp": {
-      "command": "uvx",
-      "args": ["--python", "3.12", "--from", "axm-mcp[all]@latest", "axm-mcp"]
-    }
-  }
-}
-```
-
-**After** (HTTP):
-
-```json
-{
-  "mcpServers": {
-    "axm-mcp": {
-      "type": "url",
-      "url": "http://localhost:9427/mcp"
-    }
-  }
-}
-```
-
-This file lives at `~/.claude.json` (global, applies to all projects) or
-`.mcp.json` at a project root (project-scoped — takes precedence over the global
-file when present).
-
-## Step 4 — Restart Claude Code
-
-Restart your Claude Code session so it picks up the new `.mcp.json` config. The MCP client will now connect to the HTTP server instead of forking a stdio process.
-
-## Returning to the dedicated serving policy
-
-To leave strict shared authorization, restore the default policy by editing only
-`~/.axm/config.toml`:
-
-```toml
-[mcp]
-serve_mode = "dedicated"
-```
-
-The next launchd restart or manual `axm-mcp serve` call reads the new value with
-the same command line. An `AXM_MCP_SERVE_MODE` environment value still outranks
-the file and must be removed or changed if one is set.
-
-## Rolling back to stdio
-
-If you need to revert:
-
-1. Restore the stdio `.mcp.json` config (the "Before" block above)
-2. Stop the HTTP server:
-
-```bash
-axm-mcp stop
-```
-
-3. If you installed the launchd service:
-
-```bash
-axm-mcp uninstall
-```
-
-4. Restart Claude Code
+Restore the client's stdio definition from the Quick Start and reconnect.
+Stop the foreground server with Ctrl-C or use `axm-mcp stop` for the
+matching profile. If you installed launchd, use `axm-mcp uninstall`;
+`stop` alone can trigger its automatic restart.
 
 ## Troubleshooting
 
-### Server not running
+| Symptom | Check |
+|---|---|
+| Connection refused | Foreground server logs, bind host, explicit port and the client's URL |
+| Address already in use | Select another port and use it consistently in serve/status/client configuration |
+| Missing tools | Installed environment, disabled patterns and entry-point loading logs |
+| Unbound session in shared mode | MCP session ID and valid contract header; discovery alone does not bind a contract |
+| PermissionError on macOS | Filesystem permissions and system privacy settings for the actual service process |
+| High CPU or stalled tool | Identify the responsible process/call first; stopping HTTP does not stop unrelated stdio children |
 
-```
-$ axm-mcp status
-Server not running
-```
-
-**Fix**: Start the server with `axm-mcp serve` or reinstall the service with `axm-mcp install`.
-
-If using launchd, check the logs:
-
-```bash
-cat ~/Library/Logs/axm-mcp/stderr.log
-```
-
-### Port conflict
-
-```
-Error: [Errno 48] Address already in use
-```
-
-**Fix**: Another process is using port 9427. Either stop that process or use a different port:
-
-```bash
-axm-mcp serve --port 9428
-```
-
-Update your `.mcp.json` URL to match the new port.
-
-You can also set the port via environment variable:
-
-```bash
-export AXM_MCP_PORT=9428
-```
-
-### Zombie processes (100% CPU)
-
-This typically happens with leftover stdio processes from before the migration.
-
-**Fix**: Stop the HTTP server and restart it cleanly:
-
-```bash
-axm-mcp stop
-axm-mcp serve
-```
-
-If using launchd:
-
-```bash
-axm-mcp uninstall
-axm-mcp install
-```
-
-### Tools not responding after migration
-
-All path-dependent tools require explicit `path` arguments in HTTP mode (the server has no per-conversation working directory). If a tool returns an error about missing paths, ensure you are passing absolute paths.
-
-### PermissionError — Full Disk Access (macOS)
-
-```
-PermissionError: [Errno 1] Operation not permitted
-```
-
-Found in `~/Library/Logs/axm-mcp/stderr.log`.
-
-**Cause**: macOS blocks launchd background services from accessing `~/Documents`, `~/Desktop`, and `~/Downloads` without Full Disk Access granted to the binary. Because the launchd plist points to a binary inside a `uv` cache or project virtualenv, the OS sandbox denies access to protected directories.
-
-**Fix options** (in order of preference):
-
-1. **Install the binary in `~/.local/bin/`** (recommended) — this path is outside the protected locations and is not subject to the same FDA restrictions:
-
-   ```bash
-   uv tool install axm-mcp
-   axm-mcp install
-   ```
-
-   `uv tool install` places the binary at `~/.local/bin/axm-mcp`, which `axm-mcp install` will detect and use automatically.
-
-2. **Specify the binary path explicitly** — if the binary already lives at an FDA-exempt path, pass it directly:
-
-   ```bash
-   axm-mcp install --binary ~/.local/bin/axm-mcp
-   ```
-
-3. **Grant Full Disk Access** — if you need to keep the current binary location, grant Full Disk Access to your terminal application or directly to the `axm-mcp` binary in **System Settings > Privacy & Security > Full Disk Access**.
+launchd stderr is written to `~/Library/Logs/axm-mcp/stderr.log`.
+A different binary location may make environment management easier but does
+not itself grant access to protected directories.
