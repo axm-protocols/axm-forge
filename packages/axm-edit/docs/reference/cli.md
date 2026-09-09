@@ -1,51 +1,51 @@
-# MCP Tools Reference
+# CLI and tool registry
 
-`axm-edit` ships no command-line binary. It exposes its functionality as **MCP
-tools** registered under the `axm.tools` entry-point group, discovered by the
-AXM MCP server. Each tool is an `AXMTool` whose `execute(**kwargs) -> ToolResult`
-method is the single entry point.
+`axm-edit` declares tools under `axm.tools`; it has no dedicated executable.
+The dependency `axm` discovers the same tools for `axm <tool>`.
+The MCP server discovers installed entry points in its own environment.
 
-## Tools
+## Registered tools
 
-| Tool | Class | Purpose |
+| Tool | Class (under `axm_edit.tools`) | Contract |
 |---|---|---|
-| `batch_edit` | `BatchEditTool` | Replace / rewrite / create / delete files in one atomic, validated batch (with `ruff --fix`). A blocking preflight refuses the batch before any write; the diagnostics come back under `data["preflight"]`. |
-| `batch_rollback` | `BatchRollbackTool` | Restore the exact paths a batch touched from its `batch_edit` snapshot. |
-| `read_file` | `ReadFileTool` | Read file content, optional line range, line-numbered output. |
-| `write_file` | `WriteFileTool` | Write (create or overwrite) a single file. |
-| `edit_file` | `EditFileTool` | Apply old/new edits to a single file. |
-| `search_files` | `SearchFilesTool` | Grep-like search across project files (literal or regex). |
-| `run_command` | `RunCommandTool` | Execute an **arbitrary** shell command with timeout (denylist is a best-effort guardrail, **not** a sandbox). |
-| `list_dir` | `ListDirTool` | List files and directories with metadata. |
-| `file_bytes` | `FileBytesTool` | Byte-level report on a file already on disk: sha256, size, literal non-ASCII vs textual escapes, divergence from an expected content. **Read-only** — it never writes. |
+| `batch_edit` | `batch_edit.BatchEditTool` | [Apply a batch](batch.md) |
+| `batch_edit_check` | `batch_edit_check.BatchEditCheckTool` | [Read-only preflight](batch.md#preflight-result) |
+| `batch_rollback` | `batch_rollback.BatchRollbackTool` | [Restore a snapshot](../howto/rollback.md) |
+| `read_file` | `read_file.ReadFileTool` | [Read text](filesystem.md#read_file) |
+| `write_file` | `write_file.WriteFileTool` | [Write text](filesystem.md#write_file) |
+| `edit_file` | `edit_file.EditFileTool` | [Replace substrings](filesystem.md#edit_file) |
+| `search_files` | `search_files.SearchFilesTool` | [Search text](filesystem.md#search_files) |
+| `list_dir` | `list_dir.ListDirTool` | [List paths](filesystem.md#list_dir) |
+| `file_bytes` | `file_bytes.FileBytesTool` | [Inspect bytes](filesystem.md#file_bytes) |
+| `run_command` | `run_command.RunCommandTool` | [Execute a process](filesystem.md#run_command) |
 
-### `batch_edit` operations
+These are tool entry points, not root Python exports. Import a class from its
+listed module when writing an integration. The complete signatures and root
+library exports are in [Python API](api/index.md).
 
-`operations` accepts four `op` discriminators, in a single list:
+## Command conventions
 
-| `op` | Required keys | Notes |
-|---|---|---|
-| `replace` | `file`, `edits` (each `old` / `new`, optional `line`) | Anchor-based; line numbers reference the **original** file |
-| `create` | `file`, `content` | Fail-closed when the target already exists — there is **no** `overwrite` flag |
-| `delete` | `file` | — |
-| `rewrite` | `file`, `content`, `expected_checksum` | Whole-file replacement carrying the **exact** bytes (no anchor resolution, no quote normalisation, no re-indentation) — the safe path for a triple-quote-heavy module `replace` cannot address |
+```bash
+axm batch_edit --help
+axm read_file --path /project --file notes.txt --json-output
+```
 
-The `replace` anchor contract (no triple quotes inside an anchor, no trailing
-newline on `old` / `new`, whole lines for a multi-line anchor, indentation kept)
-is published verbatim from a single constant, `ANCHOR_RULES_HINT`
-([`axm_edit.core.anchor_rules`](api/axm_edit/core/anchor_rules.md)): the
-`batch_edit` and `batch_edit_check` agent hints and the `axm batch_edit --help`
-output all compose it, so the published contract can never drift from the rules
-the preflight actually enforces.
+Python underscores in option names become hyphens, for example
+`start_line` → `--start-line`, `lint_diff` → `--lint-diff`.
+Use `--no-lint` to disable the batch tool's post-edit Ruff phase.
+The generic wrapper adds `--json-output` to print the ToolResult's `data`
+object, rather than its compact text. It omits the `success` envelope field;
+failures are reported through stderr and a nonzero CLI exit. Examples with `/project` require your own existing
+directory; the [tutorial](../tutorials/getting-started.md) creates a fixture.
 
-The rewrite digest is **mandatory**: it is the sha256 hex digest of the file
-bytes as currently on disk. A stale digest is a hard refusal — a concurrent
-modification is never silently clobbered — and there is no `overwrite` escape
-hatch. `batch_edit_check` names that same key `checksum`; `batch_edit` accepts
-either spelling and normalises it before the preflight runs. A rewritten `.py`
-file joins the post-apply `ruff --fix` pass like any other touched file, and
-the rendered summary lists it as `» {file} (rewrite)`.
+## Success is not always the domain verdict
 
-## Python API
+| Tool | Fields to inspect after execution succeeds |
+|---|---|
+| `batch_edit_check` | `blocking`, `error_count`, `warning_count`; `ok` is false for any diagnostic |
+| `batch_edit` | `lint_errors`, `warnings`, and final files; lint is not a success gate |
+| `file_bytes` | `verdict` and `encoding_ok` |
+| `run_command` | `exit_code` and `timed_out` |
 
-Auto-generated API reference is available under [Python API](api/axm_edit/index.md).
+For these tools, the CLI process can exit zero even when the domain outcome
+requires action. A nonzero command launched by `run_command` is one example.

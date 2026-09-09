@@ -1,73 +1,77 @@
-# Use via MCP
+# Use the tools through MCP or CLI
 
-`axm-edit` exposes its functionality as MCP (Model Context Protocol) tools via `axm-mcp`. It ships no command-line binary — every tool is an `AXMTool` AI agents call directly without spawning subprocesses.
+Install `axm-edit` in the environment that runs `axm-mcp`, then restart
+discovery as required by the server. A package installed in another virtual
+environment is not automatically visible.
+See [axm-mcp setup](https://forge.axm-protocols.io/mcp/).
 
-!!! info "Setup"
-    These tools are served by `axm-mcp`. If you haven't connected the server yet,
-    see the **[axm-mcp Quick Start](https://forge.axm-protocols.io/mcp/tutorials/quickstart/)** —
-    one command connects the whole toolchain. No per-package install needed.
+## MCP façade
 
-## Available Tools
-
-| MCP Tool | Purpose |
-|---|---|
-| `batch_edit` | Replace / rewrite / create / delete files in one atomic, validated batch (with `ruff --fix`) — the flagship tool |
-| `batch_rollback` | Restore the exact paths a batch touched from its `batch_edit` snapshot |
-| `read_file` | Read file content, optional line range, line-numbered output |
-| `write_file` | Write (create or overwrite) a single file |
-| `edit_file` | Apply old/new edits to a single file |
-| `search_files` | Grep-like search across project files (literal or regex) |
-| `run_command` | Execute an arbitrary shell command with timeout (denylist is best-effort, **not** a sandbox) |
-| `list_dir` | List files and directories with metadata |
-| `file_bytes` | Byte-level report on a file already on disk (sha256, size, verdict) — read-only, it never writes |
-
-## Usage
-
-!!! note "MCP dispatch"
-    The examples below show the **logical API** — the parameters each tool takes.
-    In practice, AI agents call these via MCP tool dispatch (e.g. `mcp_axm-mcp_batch_edit`),
-    not direct Python imports.
-
-`batch_edit` is the primary entry point: a single atomic call replaces what would otherwise be several sequential edits across files.
+In façade mode, off-surface tools are still callable through `axm_call`.
+The following is a JSON argument object for `axm_call`, not Python syntax:
 
 ```json
-batch_edit(path="/project", operations=[
-    {"op": "replace", "file": "src/core.py", "edits": [{"old": "class OldName:", "new": "class NewName:"}]},
-    {"op": "create",  "file": "src/utils.py", "content": "def helper():\n    return 42\n"},
-    {"op": "delete",  "file": "src/obsolete.py"}
-])
+{
+  "name": "batch_edit_check",
+  "arguments": {
+    "path": "/project",
+    "operations": [
+      {
+        "op": "replace",
+        "file": "settings.txt",
+        "edits": [{"old": "mode = draft", "new": "mode = ready"}]
+      }
+    ]
+  }
+}
 ```
 
-Every `batch_edit` returns a `checkpoint` snapshot payload — the full JSON
-snapshot string from `data["checkpoint"]`, not a short hash. Pass that exact
-value back to undo the whole batch:
+This assumes `/project/settings.txt` exists with the indicated line.
+After checking the diagnostics, call `batch_edit` with those operations and
+`lint: false` if you do not want Ruff to mutate Python files.
+Only `batch_edit` declares `expose_directly=True` in this package; the server
+controls which tools actually appear in a client's direct listing.
 
-```
-batch_rollback(path="/project", checkpoint="<checkpoint payload from batch_edit>")
-```
+Read a file using a root and a relative target:
 
-Read-only inspection mirrors the editing tools:
-
-```
-search_files(path="/project", pattern="deprecated_func", include=["*.py"])
-read_file(path="/project/src/core.py")
-```
-
-After a write routed through MCP, `file_bytes` reports what the file *really*
-contains — the JSON transport decodes the payload once, so an escape sequence
-sent as an argument can land on disk as the literal character it denotes:
-
-```
-file_bytes(path="/project/src/core.py", expected="<what you believe you wrote>", expect_escaped=False)
+```json
+{
+  "name": "read_file",
+  "arguments": {"path": "/project", "file": "settings.txt"}
+}
 ```
 
-It returns `data["verdict"]` (`ok`, `mismatch`, `literal_where_escaped_expected`,
-`escaped_where_literal_expected`, `decode_error`), `data["sha256"]`,
-`data["size_bytes"]` and an actionable `data["hint"]`. The call is strictly
-read-only: the file is opened once in binary mode and never modified.
+`axm_call` returns compact text, so it omits the batch snapshot even though
+the underlying tool produces it in `ToolResult.data`. To retain undo data,
+use an interface that exposes structured results; see [rollback](rollback.md).
 
-## Entry Points
+## Generic CLI
 
-All tools are auto-discovered via the `axm.tools` entry-point group — see the
-[MCP Tools Reference](../reference/cli.md) for the full tool / class mapping.
-`axm-mcp` discovers these automatically at startup.
+`axm` supplies the CLI wrapper for the same registered tools.
+These commands inspect help and do not modify files:
+
+```bash
+axm batch_edit --help
+axm batch_edit_check --help
+axm write_file --help
+axm run_command --help
+```
+
+For an existing project, a read returns either compact text or the structured
+`data` object with `--json-output`:
+
+```bash
+axm read_file --path /project --file settings.txt --json-output
+```
+
+Batch operations use a JSON list:
+
+```bash
+axm batch_edit --path /project --no-lint --json-output \
+  --operations '[{"op":"replace","file":"settings.txt","edits":[{"old":"mode = draft","new":"mode = ready"}]}]'
+```
+
+Retain that JSON output privately if you need the checkpoint; it contains
+the original target-file bytes. A CLI exit code of zero reflects tool
+execution success. For `batch_edit_check`, `file_bytes` and
+`run_command`, inspect their own verdict fields too.
