@@ -26,7 +26,10 @@ from axm_echo.tools import EchoCheckTool
 
 result = EchoCheckTool().execute(
     intention="resilient HTTP call with retry on transient 5xx errors",
+    backend="tfidf",
 )
+if not result.success:
+    raise RuntimeError(result.error)
 candidates = result.data["candidates"]
 ```
 
@@ -40,17 +43,19 @@ Each candidate carries its `qualname`, `package`, `score`, full docstring
 |---|---|
 | `verdict = "reuse_canonical"` | The hit lives in the canonical commons (`axm-ingot`) — reuse the canonical symbol directly. |
 | `verdict = "reuse_in_place"` | A real helper exists in some package but has not been canonicalised — reuse it **in place** from `<package>`; do not mint a duplicate just because it is not in the ingot yet. |
-| `promotable = True` | A well-documented non-ingot candidate worth canonicalising later. |
+| `promotable = True` | Non-ingot candidate whose stripped docstring has at least 40 characters; a heuristic to review. |
 
-An **empty** candidate list means nothing scored above the retrieval
-threshold — the intention is genuinely novel.
+An **empty** candidate list means no included symbol crossed the threshold.
+Check the roots, docstrings and wording before treating it as evidence for
+new development. Undocumented implementations are excluded.
 
 ## 2. Decide reuse / extend / develop — read the docstrings, not the score
 
 `echo_check` *retrieves and ranks*; it deliberately does **not** decide.
 A `PARTIAL` match (similar docstring, different contract) can outrank a
 perfect one, so never branch on the score or the verdict tag alone. Read
-each candidate's `doc_full` and signature, compare its real contract
+each candidate's `doc_full`, then inspect its signature and implementation at
+the returned `path` and `line` (the payload has no signature). Compare its real contract
 against the intention, and pick one branch:
 
 | Decision | When | Ticket effect |
@@ -59,20 +64,23 @@ against the intention, and pick one branch:
 | **extend** | A candidate is the right *canonical* home but misses a parameter / mode / edge case. | Emit an **extension ticket** on `<qualname>` in `<package>`, and make the consumer ticket `blocks`-depend on it (extension lands first). |
 | **develop** | No candidate covers the intention (empty list, or all near-misses with a different contract). | Write the "develop a helper" ticket as normal. |
 
-## 3. Worked example
+## 3. Worked example (hypothetical)
 
 Spec line: *"the screener needs a resilient HTTP call (retry on 5xx)."*
 
 ```python
 EchoCheckTool().execute(
     intention="resilient HTTP call with retry on transient errors",
+    backend="tfidf",
 )
 ```
 
-If a candidate like `request_with_retry [axm-commons]` comes back with a
+If a candidate like `request_with_retry [sample-client]` comes back with a
 docstring matching the contract, **do not** emit "develop a retry helper".
-Emit a **reuse** ticket — *"reuse `request_with_retry` from `axm-commons`
+Emit a **reuse** ticket — *"reuse `request_with_retry` from `sample-client`
 in the screener fetch path"* — with its implementation tasks dropped.
 
-If nothing matches (empty candidate list), the helper genuinely does not
-exist yet: emit the develop ticket.
+If nothing matches, inspect the relevant code before choosing development.
+A location verdict does not check package-root exports or dependency direction.
+Promotion to axm-ingot also requires respecting its stdlib-only contract;
+docstring length alone cannot establish that.

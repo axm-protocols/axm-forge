@@ -1,93 +1,97 @@
 # Getting Started
 
-This tutorial walks you through installing `axm-echo` and verifying your setup.
+Build a small Python corpus, retrieve similar descriptions, then run the
+same search through the CLI. The tutorial uses TF-IDF so it does not load
+PyTorch or download model weights.
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+Use Python 3.12+ and install the package in a project environment:
 
 ```bash
 uv add axm-echo
 ```
 
-Or with pip:
-
-```bash
-pip install axm-echo
-```
-
-The neural `st` backend (`torch` + `sentence-transformers`, MiniLM) ships in
-the base install and is the default — there is no extra to enable. The `tfidf`
-backend stays pure-CPU for callers that want to skip loading torch.
+The installation includes the neural dependencies even though this tutorial
+uses TF-IDF. The tools default to `st`; `embed()` defaults to `tfidf`.
 
 ## Step 1: Embed a Few Texts
-
-The neural `st` backend (MiniLM) is the default. The `tfidf` backend is
-pure-CPU (numpy + scikit-learn) and never imports torch, used here so the
-snippet stays fast and deterministic:
 
 ```python
 from axm_echo import embed, neighbors
 
 texts = [
-    "raise an error when the API rate limit is exceeded",
-    "raise an error when the request quota is exceeded",
-    "read rows from a CSV file into a list of dicts",
+    "retry an HTTP request after a transient error",
+    "retry an HTTP request with exponential backoff",
+    "parse a CSV document into rows",
 ]
 matrix = embed(texts, backend="tfidf")
-
-# Nearest neighbours of the first text (exact cosine top-k).
-for idx, score in neighbors(matrix[0], matrix, k=2):
-    print(f"{score:.3f}  {texts[idx]}")
+for index, score in neighbors(matrix[0], matrix[1:], k=2):
+    print(f"{score:.3f}  {texts[index + 1]}")
 ```
+
+Rows correspond to input texts. We leave the first row out of the search
+matrix to avoid returning the query itself. Returned indices refer to
+`matrix[1:]`, hence the `+ 1` when looking up the original text.
+Scores depend on the corpus and backend; they are not confidence probabilities.
 
 ## Step 2: Extract a Corpus From Code
 
-`extract_package` walks a package via [axm-ast](https://pypi.org/project/axm-ast/)
-and returns one record per public function/class:
+Run this complete script in the installed environment. It creates and removes
+its own temporary files, and never consults your configured workspace scope.
 
 ```python
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from axm_echo import extract_package
+from axm_echo import embed, extract_package, neighbors
 
-for sym in extract_package(Path("packages/axm-echo")):
-    print(sym["qualname"], "->", sym["doc_first_line"])
+with TemporaryDirectory(prefix="echo-tutorial-") as directory:
+    package = Path(directory) / "sample"
+    source = package / "src" / "sample"
+    source.mkdir(parents=True)
+    (source / "helpers.py").write_text(
+        'def retry_request():\n'
+        '    """Retry an HTTP request after a transient error."""\n'
+        '    return None\n\n'
+        'def parse_rows():\n'
+        '    """Parse a CSV document into rows."""\n'
+        '    return []\n',
+        encoding="utf-8",
+    )
+    symbols = extract_package(package)
+    assert len(symbols) == 2
+    intention = "retry an HTTP request"
+    matrix = embed([intention, *[s["embed_text"] for s in symbols]])
+    hits = neighbors(matrix[0], matrix[1:], k=2, threshold=0.1)
+    for index, score in hits:
+        print(symbols[index]["qualname"], round(score, 3))
+    assert symbols[hits[0][0]]["name"] == "retry_request"
 ```
 
-Only first-party source is extracted: the walk skips test trees and any
-vendored or generated subtree (a committed `.venv`, `site-packages`,
-`__pycache__`, `node_modules`, `.tox`, `build`, `dist`, `.git`), so
-third-party libraries installed inside a checked-in virtualenv never leak
-into the corpus.
+These functions are deliberately small fixtures, not implementations to
+reuse. Extraction returns dictionaries with signatures, docstrings and source
+locations. Function bodies are not extracted: the `body_norm` fallback holds
+the signature. Extraction can include undocumented symbols, while the tools
+filter them out.
 
-`extract_monorepo()` does the same across every package declared in
-the shared `~/.axm/config.toml` `[echo]` section (`workspace_roots`, read
-via axm-config), degrading gracefully to the
-current directory when no config is present. Each listed root is treated
-as a workspace, so packages are discovered at `<root>/packages/<pkg>` (the
-monorepo convention) as well as in the flat `other/<pkg>` layout. A
-directory only counts as a package when it carries a real marker — a
-`src/` directory or a `pyproject.toml` — so doc folders such as
-`docs/gen_ref_pages.py` are never mistaken for packages.
+## Step 3: Search Your Workspace
 
-## Step 3: Run the Tests
+From a workspace you want to scan:
 
 ```bash
-# Run this package's tests (from anywhere in the workspace).
-uv run --package axm-echo pytest
-
-# Or, from the workspace root, the full lint + type-check + tests gate:
-make check
+AXM_ECHO_WORKSPACE_ROOTS="$PWD" axm echo_check \
+  --intention "retry an HTTP request" --backend tfidf --k 3
+AXM_ECHO_WORKSPACE_ROOTS="$PWD" axm echo_code --backend tfidf --top-n 10
 ```
 
-`uv run --package axm-echo pytest` runs the package test suite; `make check`
-(a workspace-root target — there is no per-package Makefile) runs `lint`
-(ruff + mypy) plus the whole workspace test run.
+The assignment scopes these commands without editing configuration. Review
+`corpus_size` and the candidate source before taking action. A zero result
+can reflect missing docstrings, the selected roots or filtering.
 
 ## Next Steps
 
-- [Architecture](../explanation/architecture.md) — How the project is structured
+- [Configure the scope](../howto/configure-scope.md).
+- [Make a reuse decision](../howto/reuse-check-in-planning.md).
+- [Review and acknowledge clusters](../howto/review-clusters.md).
+- [Read exact output fields](../reference/results.md).

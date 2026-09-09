@@ -1,58 +1,101 @@
 # Architecture
 
-`axm-echo` is a flat set of single-responsibility modules — no `core/` /
-`adapters/` split, no hexagonal layering. The two `axm.tools` entry points
-(`echo_code`, `echo_check`) orchestrate a shared
-**corpus → embed → compare** pipeline; everything else is a leaf the tools
-compose.
+Echo has two AXMTools over a shared extraction and embedding pipeline.
+Structural statement comparison is a separate library capability; it does
+not verify the candidates returned by either tool.
 
 ```mermaid
 graph TD
-    subgraph "Tools (axm.tools entry points)"
-        EchoCode["EchoCodeTool · echo_code"]
-        EchoCheck["EchoCheckTool · echo_check"]
-    end
-
-    subgraph "Pipeline"
-        Corpus["corpus · extract_package / extract_monorepo"]
-        Embedding["embedding · embed / neighbors (tfidf | st)"]
-        Cluster["cluster · cross_pairs / split_pairs / cluster_pairs"]
-        Waiver["waiver · cluster_hash / acknowledged"]
-    end
-
-    subgraph "Leaves"
-        Scope["scope · load_scope (~/.axm/config.toml [echo])"]
-        Structural["structural · jaccard_similarity (stdlib, no torch)"]
-    end
-
-    EchoCode --> Corpus
-    EchoCode --> Embedding
-    EchoCode --> Cluster
-    EchoCode --> Waiver
-    EchoCheck --> Corpus
-    EchoCheck --> Embedding
-    EchoCheck --> Waiver
-    Corpus -->|axm-ast| Scope
+    Scope["scope · configuration → workspace roots"] --> Corpus["corpus · axm-ast Python extraction"]
+    Corpus --> Code["echo_code · documented non-accessors"]
+    Corpus --> Check["echo_check · all documented symbols"]
+    Code --> Embedding["embedding · TF-IDF or MiniLM"]
+    Check --> Embedding
+    Embedding --> Clusters["cross-package pairs → heuristics → components"]
+    Embedding --> Ranking["intention → exact cosine top-k"]
+    Clusters --> Waivers["first-root acknowledgements → bounded report"]
+    Ranking --> Candidates["location tags → ranked candidates"]
+    Structural["structural · normalized Python statement sets"]
 ```
 
 ## Modules
 
-| Module | Role |
+| Module | Responsibility |
 |---|---|
-| `tools` | The `echo_code` / `echo_check` `AXMTool`s (MCP + CLI + DAG node). They run the pipeline and shape the `ToolResult`. |
-| `corpus` | Extract public symbols from a package (`extract_package`) or the whole scope (`extract_monorepo`) via `axm-ast`; each `Symbol` carries an `embed_text`. |
-| `embedding` | The two backends behind `embed()` — `tfidf` (scikit-learn, pure CPU) and `st` (MiniLM, neural). `neighbors()` does exact cosine top-k. |
-| `cluster` | Cross-package candidate pairs (`cross_pairs`), the v7 anti-signal split (`split_pairs`: dupes / parallel-API / boilerplate), and union-find clustering. |
-| `waiver` | The acknowledged-cluster mechanism: a stable `cluster_hash` and the `[[tool.axm-echo.acknowledged]]` waiver lifecycle (mark / stale). |
-| `scope` | Resolve the workspace roots to scan from the shared `~/.axm/config.toml` `[echo]` section (via axm-config, `env > file > default`), degrading to the current directory when absent. |
-| `structural` | 100%-structural similarity over `ast.FunctionDef` bodies (`statement_set` + `jaccard_similarity`); pure stdlib, never loads torch. The primitive `duplicate_tests` reuses. |
+| `tools` | Orchestration, validation and ToolResult/text rendering. |
+| `corpus` | Discover packages and extract functions/classes via axm-ast. |
+| `scope` | Read `echo.workspace_roots` through axm-config. |
+| `embedding` | TF-IDF or MiniLM embeddings and exact neighbour search. |
+| `cluster` | Cross-package pairs, heuristic demotion and union-find components. |
+| `waiver` | Hash identities, mark acknowledgements and report stale entries. |
+| `structural` | Normalized statement shapes and Jaccard similarity. |
 
-## Design decisions
+## What similarity measures
 
-| Decision | Rationale |
+Both tools embed signatures plus docstrings. They exclude undocumented
+symbols, even though the library corpus extractor returns them with a
+signature fallback. No function bodies are embedded by the corpus pipeline.
+Extraction is Python-only; axm-ast's broader language support does not make
+echo a multi-language scanner. It prefers `src/` when present. Its excluded
+path segments include literal `tests`, `.venv`, `venv`, `site-packages`,
+`__pycache__`, `node_modules`, `.tox`, `build`, `dist` and `.git`. A flat
+package's `tests_axm_*` directory is not covered by that literal `tests`
+exclusion, so test helpers can enter the corpus.
+
+`echo_code` drops accessor-shaped promises, then finds pairs with distinct
+package names. Pairs whose two sides have boilerplate promises are demoted;
+package-prefixed names can be demoted as parallel APIs. First-line frequency
+and short docstrings are heuristics, not proof of boilerplate. A real
+duplicate can be filtered out.
+
+Surviving edges form connected components. The tool ranks components by
+their maximum edge score and discards components above `max_cluster_size`.
+This does not prove that every pair within a component is similar. Same-package
+duplication is outside this tool's search.
+
+`echo_check` retains documented accessors and embeds the intention together
+with the corpus. Its location verdict and docstring-length promotion flag
+help triage; they do not establish a valid import contract. An empty search
+does not demonstrate that the behaviour is absent.
+
+## Backend tradeoffs and effects
+
+| Surface | Default |
 |---|---|
-| Neural by default (`st`/MiniLM) | Docstring similarity wants semantics; `torch` + `sentence-transformers` ship in the base install. |
-| `tfidf` backend kept | A pure-CPU opt-out for callers that must avoid loading torch — `embed(texts, backend="tfidf")` and `--backend tfidf`. |
-| Lazy torch import | `torch` is imported only inside the `st` backend, so the `tfidf` path stays light at runtime even though torch is installed. |
-| Flat modules, no hexagonal split | Each module is one concern with a small public surface; the tools compose them. No abstract ports to swap. |
-| Exact cosine (no ANN) | Corpora are monorepo-sized; brute-force matmul is exact and fast enough, with no index to maintain. |
+| `EchoCodeTool`, `EchoCheckTool` / CLI / MCP | `st` |
+| `embed(texts)` | `tfidf` |
+
+TF-IDF fits a new vocabulary on each call and returns a dense NumPy matrix.
+Embed query and corpus in the **same call**: separately fitted matrices do
+not share a feature space. It never loads torch. Empty text input or an
+empty vocabulary can raise a vectorizer error.
+
+MiniLM uses `all-MiniLM-L6-v2` through sentence-transformers in-process.
+Loading may fetch model files over the network and write its cache. The
+model is memoized for subsequent calls within a process; it attempts MPS
+placement when available. Its loader sets `TOKENIZERS_PARALLELISM=false`
+only if unset. Backend failures do not automatically switch to TF-IDF;
+the caller must retry explicitly.
+
+Reading the corpus does not execute scanned Python code or modify it.
+Configuration resolution reads axm-config's store, and neural initialization
+has the cache/environment effects above. Use [explicit scope](../howto/configure-scope.md)
+and TF-IDF for a local scan without a model download.
+
+## Scale and interpretation
+
+Exact cosine search has no ANN index. `echo_code` computes pair blocks
+against the full matrix, so pair generation remains quadratic in corpus
+size. Dense TF-IDF storage can also be large. Output caps do not cap that
+work. Narrow the scope before a large scan.
+
+Package identity comes from the directory name, not project metadata.
+Two checkouts with the same package directory name are treated as the same
+package for pair exclusion; waiver identities also omit paths and workspace
+names. Avoid overlapping versions of a package in a scope when interpreting
+cross-package results.
+
+Module-level public symbols are not necessarily exported from their package
+root. Unreadable/unparseable files can be skipped, filters may suppress valid
+reuse candidates, and textual similarity may reward inaccurate docstrings.
+Read the implementation before changing dependencies or removing code.

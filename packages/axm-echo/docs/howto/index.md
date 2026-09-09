@@ -1,12 +1,15 @@
 # How-To Guides
 
-Task-oriented guides for common workflows.
+Choose a guide for the decision you need to make:
 
-## Available Guides
+- [Configure the scope](configure-scope.md): select workspace roots and
+  diagnose unexpectedly small corpora.
+- [Reuse check during planning](reuse-check-in-planning.md): retrieve helpers
+  and inspect their contracts before reuse, extension or development.
+- [Review and acknowledge clusters](review-clusters.md): inspect duplicate
+  candidates, record an intentional exception and maintain stale waivers.
+- [Compare structural similarity](structural-similarity.md): compare normalized
+  Python statement sets without a neural backend.
 
-- [Configure the echo scope](configure-scope.md) — point both tools at the
-  workspaces they should scan via `~/.axm/config.toml` or the
-  `AXM_ECHO_WORKSPACE_ROOTS` environment variable.
-- [Reuse check during planning with `echo_check`](reuse-check-in-planning.md) —
-  retrieve existing monorepo symbols for a ticket's intention and decide
-  reuse / extend / develop before drafting it.
+For exact options and fields, see [CLI](../reference/cli.md) and
+[result contracts](../reference/results.md).
