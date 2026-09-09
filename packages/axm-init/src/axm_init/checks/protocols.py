@@ -243,6 +243,64 @@ def _validate_component_inventory(
             )
 
 
+def _module_mismatch_finding(project: Path, text: str, domain: str) -> str:
+    """Render the finding for an absent expected protocol module root."""
+    module_name = f"protocols_{domain}"
+    candidates = sorted(
+        path.name for path in (project / "src").glob("protocols_*") if path.is_dir()
+    )
+    found = ", ".join(candidates) or "none"
+    return _finding(
+        text,
+        f'domain = "{domain}"',
+        f"protocol module mismatch: expected {module_name}, found {found}",
+        f"rename the protocol module root to src/{module_name}",
+    )
+
+
+def _declared_actions(
+    units: list[dict[str, object]],
+) -> list[tuple[str, str, dict[str, object]]]:
+    """Flatten declared units into their (unit, action, protocol) triples."""
+    triples: list[tuple[str, str, dict[str, object]]] = []
+    for unit in units:
+        unit_name = unit.get("name")
+        protocols = _tables(unit.get("protocols"))
+        if not isinstance(unit_name, str) or protocols is None:
+            continue
+        triples.extend(
+            (unit_name, action, protocol)
+            for protocol in protocols
+            if isinstance((action := protocol.get("action")), str)
+        )
+    return triples
+
+
+def _orphan_module_findings(
+    text: str,
+    modules: set[str],
+    declared: set[tuple[str, str]],
+) -> list[str]:
+    """Report protocol modules present on disk but absent from the inventory."""
+    details: list[str] = []
+    for module in sorted(modules):
+        if not module.endswith(".protocol"):
+            continue
+        parts = module.split(".")
+        if len(parts) < 4 or (parts[-3], parts[-2]) in declared:
+            continue
+        graph_name = ".".join(parts[-3:-1])
+        details.append(
+            _finding(
+                text,
+                "[[tool.axm-init.protocols.units",
+                f"orphan protocol module {graph_name}",
+                f"declare unit {parts[-3]!r} and action {parts[-2]!r} in metadata",
+            )
+        )
+    return details
+
+
 def _validate_protocol_tree(
     project: Path,
     text: str,
@@ -250,65 +308,25 @@ def _validate_protocol_tree(
     units: list[dict[str, object]],
     details: list[str],
 ) -> None:
-    module_name = f"protocols_{domain}"
-    module_root = project / "src" / module_name
+    module_root = project / "src" / f"protocols_{domain}"
     if not module_root.is_dir():
-        candidates = sorted(
-            path.name for path in (project / "src").glob("protocols_*") if path.is_dir()
-        )
-        found = ", ".join(candidates) or "none"
-        details.append(
-            _finding(
-                text,
-                f'domain = "{domain}"',
-                f"protocol module mismatch: expected {module_name}, found {found}",
-                f"rename the protocol module root to src/{module_name}",
-            )
-        )
+        details.append(_module_mismatch_finding(project, text, domain))
         return
 
-    pkg = analyze_package(module_root)
-    modules, _symbols = _protocol_inventory(pkg)
+    modules, _symbols = _protocol_inventory(analyze_package(module_root))
     declared: set[tuple[str, str]] = set()
-    for unit in units:
-        unit_name = unit.get("name")
-        protocols = _tables(unit.get("protocols"))
-        if not isinstance(unit_name, str) or protocols is None:
-            continue
-        for protocol in protocols:
-            action = protocol.get("action")
-            if not isinstance(action, str):
-                continue
-            declared.add((unit_name, action))
-            action_root = module_root / unit_name / action
-            _validate_required_paths(
-                project,
-                text,
-                _required_action_paths(module_root, action_root),
-                details,
-            )
-            _validate_component_inventory(
-                project,
-                text,
-                action_root,
-                protocol,
-                details,
-            )
+    for unit_name, action, protocol in _declared_actions(units):
+        declared.add((unit_name, action))
+        action_root = module_root / unit_name / action
+        _validate_required_paths(
+            project,
+            text,
+            _required_action_paths(module_root, action_root),
+            details,
+        )
+        _validate_component_inventory(project, text, action_root, protocol, details)
 
-    for module in sorted(modules):
-        if not module.endswith(".protocol"):
-            continue
-        parts = module.split(".")
-        if len(parts) >= 4 and (parts[-3], parts[-2]) not in declared:
-            graph_name = ".".join(parts[-3:-1])
-            details.append(
-                _finding(
-                    text,
-                    "[[tool.axm-init.protocols.units",
-                    f"orphan protocol module {graph_name}",
-                    f"declare unit {parts[-3]!r} and action {parts[-2]!r} in metadata",
-                )
-            )
+    details.extend(_orphan_module_findings(text, modules, declared))
 
 
 def _validate_unit_protocols(
