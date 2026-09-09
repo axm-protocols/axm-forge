@@ -1,6 +1,7 @@
 # axm-config
 
-Non-sensitive runtime config under ~/.axm (env>file>default)
+Non-sensitive runtime configuration for AXM: environment overrides, TOML persistence,
+typed settings and named profiles. Python 3.12+.
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -10,72 +11,60 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
 </p>
 
----
-
-## Overview
-
-Non-sensitive runtime config under ~/.axm (env>file>default)
-
-## Features
-
-- 🏠 **`~/.axm` home** — `axm_home()` resolves and creates the per-user config
-  directory `0700` (idempotent, tightens looser perms)
-- 🧪 **Isolated profiles** — `AXM_PROFILE=dev` routes reads, writes, deletes,
-  model loading, legacy files, and enumeration to
-  `~/.axm/profiles/dev/config.toml`. A missing profile store falls through to
-  defaults, never production; the directory is created on first write
-- 🧭 **Layered resolution** — `get` / `set_` / `delete` resolve a
-  `(namespace, key)` with `env > file > default` precedence; the env name is
-  derived deterministically as `AXM_<NS>_<KEY>` (upper-cased, each namespace dot
-  → a *double* underscore). The mapping is provably injective and POSIX-valid
-- ⚙️ **Typed execution policies** — per-ticket-type backend/model and analysis
-  overrides use the same atomic store. For `dev.work`, the environment keys are
-  exactly `AXM_EXECUTION__DEV__WORK_BACKEND`,
-  `AXM_EXECUTION__DEV__WORK_MODEL`, and
-  `AXM_EXECUTION__DEV__WORK_ANALYSIS_ENABLED`
-- 🗄️ **Single-file store per profile** — production uses the atomic
-  `~/.axm/config.toml` (`0600`); named profiles use
-  `~/.axm/profiles/<name>/config.toml`. Each has a `[namespace]` table per
-  namespace; a read-modify-write preserves every other section, an
-  absent/corrupt file degrades to `{}`, and profile-local legacy files are
-  folded in on the next write
-- 🛡️ **Path-traversal safe** — `namespace`/`key` are validated at every public
-  boundary (lowercase-only patterns; traversal/empty/NUL raise `ConfigError`),
-  and a `HOME` resolving inside a git checkout is refused as `UnsafeHomeError`
-- 🧬 **Model binding** — `load(namespace, model)` populates a pydantic model,
-  resolving each field by name; a missing required field raises `ConfigError`
-- 🩺 **Provenance doctor** — the `config_doctor` AXMTool reports which layer
-  (`env` / `file` / `default`) wins per visible key, read-only; over MCP, the
-  `axm` CLI, and `axm-config doctor`
-- 🖥️ **`axm-config` CLI** — `get` / `set` / `delete` / `path` / `doctor`
-  wrap the same central resolution layer for shell use
-
-## Installation
+## Install
 
 ```bash
 uv add axm-config
+axm-config --help
 ```
 
-Or as a workspace dependency in `pyproject.toml`:
+## Start with a non-sensitive setting
 
-```toml
-[project]
-dependencies = ["axm-config"]
-
-[tool.uv.sources]
-axm-config = { workspace = true }
+```bash
+AXM_PROFILE=docs-demo axm-config set research.demo timeout 30
+AXM_PROFILE=docs-demo axm-config get research.demo timeout
+AXM_PROFILE=docs-demo AXM_RESEARCH__DEMO_TIMEOUT=10 axm-config get research.demo timeout
+AXM_PROFILE=docs-demo axm-config delete research.demo timeout
 ```
+
+These commands write to `~/.axm/profiles/docs-demo/config.toml`. The CLI stores
+strings; use the Python API for TOML integers and booleans. Choose an unused
+profile name for experiments. An unset or empty `AXM_PROFILE` selects production
+at `~/.axm/config.toml`.
+
+- `get`, `get_file`, `set_`, `delete` and `load` provide resolution and model binding.
+- Typed accessors share runtime paths, warden settings and inference defaults.
+- Execution-policy helpers persist complete backend/model pairs and analysis overrides.
+- `config_doctor` reports provenance; `profile_isolation` computes candidate state paths.
+- Each file replacement is atomic; concurrent read-modify-write operations are
+  **not serialized**. See the documented persistence limits before automating writes.
+
+Passwords, tokens and API keys belong in **axm-vault**, not this plaintext store.
+`AXM_HOME` is **not a general store override**; see the profile guide.
+
+## Documentation
+
+The [documentation home](docs/index.md) is the MkDocs landing page; this README
+is the repository/package introduction.
+
+- [Tutorial](docs/tutorials/getting-started.md)
+- [Typed consumer configuration](docs/howto/load-a-consumer-config.md)
+- [Profiles and isolation limits](docs/howto/profiles.md)
+- [Execution policies](docs/howto/execution-policies.md)
+- [CLI and tools](docs/reference/cli.md)
+- [Python contracts](docs/reference/contracts.md)
+- [Persistence and architecture](docs/explanation/architecture.md)
 
 ## Development
 
-This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
+Part of the [axm-forge workspace](https://github.com/axm-protocols/axm-forge).
+From the workspace root, install the workspace dependencies with `uv sync --all-groups`.
+The package test directory is `packages/axm-config/tests_axm_config`.
 
-```bash
-git clone https://github.com/axm-protocols/axm-forge.git
-cd axm-forge
-uv sync --all-groups
-uv run --package axm-config --directory packages/axm-config pytest -x -q
-```
+Build this package's documentation from its directory with
+`mkdocs build --strict`, using an environment containing its local installation,
+MkDocs Material and mkdocstrings with the Python handler. The package configuration
+also works when included by the workspace site.
 
 ## License
 

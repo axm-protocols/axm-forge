@@ -1,99 +1,89 @@
-# CLI Reference
+# CLI and AXMTools
 
-## `axm-config` command
+## Console script
 
-The `axm-config` console script (registered under `[project.scripts]`) is the
-shell front end to the resolution layer. It owns the process lifecycle only —
-every command body delegates to the same central function used programmatically
-and over MCP, so the behavior is identical across surfaces.
+The distributed `axm-config` Cyclopts command wraps the central functions.
+These are request/response commands, not daemon lifecycle commands.
+Only the diagnostic tools below are registered as AXMTools.
 
-| Command | Delegates to | Effect |
-| -- | -- | -- |
-| `axm-config get <ns> <key>` | `get` | Prints the resolved value (`env > file > default`). |
-| `axm-config set <ns> <key> <value>` | `set_` | Persists `key = value` in the `[ns]` section of `~/.axm/config.toml` (atomic, `0600`, other sections preserved). |
-| `axm-config delete <ns> <key>` | `delete` | Removes `key` from the `[ns]` section of `~/.axm/config.toml` (silent no-op if absent). |
-| `axm-config path` | `axm_home` | Prints the resolved `~/.axm` home (created `0700` if absent). |
-| `axm-config doctor [<ns>]` | `config_doctor_data` | Prints per-key provenance (`<ns>.<key>: <layer>`); all known namespaces if `<ns>` is omitted. |
+| Invocation | Behavior |
+|---|---|
+| `axm-config get <namespace> <key>` | Prints the resolved value with Python `str`; absent values print `None`, exit 0. |
+| `axm-config set <namespace> <key> <value>` | Persists a **string**; no TOML/JSON parsing and no success output. |
+| `axm-config delete <namespace> <key>` | Removes the key; absent key is normally a no-op; pending legacy migration can still occur. |
+| `axm-config path` | Creates/tightens and prints `~/.axm`, regardless of the selected profile. |
+| `axm-config doctor [<namespace>]` | Prints `namespace.key: layer` lines for visible keys. |
+| `axm-config --help` | Lists commands and usage. |
 
-```bash
-axm-config set research.fred api_key abc123
-axm-config get research.fred api_key   # -> abc123
-axm-config delete research.fred api_key  # remove the key (no-op if absent)
-axm-config path                        # -> /Users/you/.axm
-axm-config doctor research.fred        # -> research.fred.api_key: file
-```
-
-## Tools
-
-### `config_doctor`
-
-Report config-key provenance for a namespace, read-only. For every visible
-key (the union of the namespace's `[ns]` section in `~/.axm/config.toml` and
-any `AXM_<NS>_*` environment variables) it reports which layer would win under
-the `env > file > default` precedence — it never reads a value into a
-consumer and never mutates any layer.
+All store operations use `AXM_PROFILE`. Namespace/key validation failures,
+`ConfigError` and caught filesystem errors print `error: ...` to stderr and
+exit 1. Cyclopts handles argument parsing errors separately. There is no
+`--config-path`, `--profile` or `--default` store option.
 
 ```bash
-axm config_doctor --namespace research.fred
+AXM_PROFILE=docs-cli axm-config set research.demo timeout 30
+AXM_PROFILE=docs-cli axm-config get research.demo timeout
+AXM_PROFILE=docs-cli axm-config doctor research.demo
+AXM_PROFILE=docs-cli axm-config delete research.demo timeout
 ```
 
-The result is a mapping `{"<ns>.<key>": {"layer": env|file|default, "present": bool}}`.
-Omit `--namespace` to report every namespace present as a section of
-`~/.axm/config.toml` (plus any not-yet-folded legacy per-namespace file).
-
-Programmatic access shares the exact same central function:
-
-```python
-from axm_config.doctor import config_doctor_data
-
-report = config_doctor_data("research.fred")
-# {"research.fred.api_key": {"layer": "env", "present": True}, ...}
-```
-
-### `profile_isolation`
-
-Resolve the six state paths and isolation verdict for an explicit profile without
-changing `AXM_PROFILE`, creating directories, or mutating configuration:
+## config_doctor
 
 ```bash
-axm profile_isolation --profile scratch
+axm config_doctor --namespace research.demo
 ```
 
-The structured result contains `profile`, `isolated`, `tickets_db`,
-`warden_socket`, `warden_log`, `sessions_root`, `quality_dir`, and
-`protocols_dir`. Omit `--profile` to use the current `AXM_PROFILE` (or
-`production` when it is unset). Explicit and active profile names share the
-same `^[a-z][a-z0-9-]{0,31}$` contract: dashed names such as `ci-2` and
-`dev-audit` are accepted, while names such as `1dev` return a failed tool
-result naming the rejected value instead of propagating an exception.
+MCP façade invocation: `axm_call(name="config_doctor", arguments={"namespace": "research.demo"})`.
+The `namespace` argument is optional. The tool returns
+`ToolResult(success=True, data=report, text=rendered_report)`; failures return
+`success=False` and `error`.
 
-## Validation
+Example data (values are deliberately absent):
 
-Every public surface (`get` / `set_` / `delete` / `load`, and their CLI
-counterparts) validates the `namespace` and `key` against safe-segment
-patterns before touching disk. Both are **lowercase-only**: a **namespace**
-is lowercase-alphanumeric segments joined by dots
-(`^[a-z0-9]+(\.[a-z0-9]+)*$`) — uppercase, `_`, and `-` in a namespace are
-rejected; a **key** is lowercase-alphanumeric segments joined by *single* `_`
-(`^[a-z0-9]+(_[a-z0-9]+)*$`) — uppercase, dots/dashes, and leading/trailing
-or doubled `_` in a key are rejected. A path separator, `..` traversal, the
-empty string, or a NUL byte raises `ConfigError` — so a config file can never
-escape the resolved `~/.axm` home. A `HOME` that itself resolves inside a git
-checkout is refused as well.
+```json
+{"research.demo.timeout": {"layer": "env", "present": true}}
+```
 
-The per-key env name is derived as `AXM_<NS>_<KEY>` upper-cased, with each
-namespace dot folded to a *double* underscore (`a.b` → `AXM_A__B_*`). The
-mapping is **provably injective** and always POSIX-valid: lowercase-only
-segments make the upper-casing a bijection (so `Demo` cannot collide with
-`demo`), a namespace carries no `_` of its own and no `-`, and a key can
-never forge a `__` (single-`_`-joined, no edge/doubled `_`) — so a `__` only
-ever comes from a namespace dot and the lone single `_` marks the
-namespace/key boundary. `doctor`'s reverse enumeration recovers a namespace's
-keys from the environment by the same rule; because the `AXM_A_` prefix is also
-a prefix of a **child** namespace's variables (`AXM_A__B_C` belongs to `a.b`),
-each recovered suffix is validated against the key pattern so a child's
-variable is never surfaced as a phantom key of the parent.
+Keys are the union of the requested namespace's file keys and matching
+environment keys. Without a namespace, only namespaces found in the selected
+store or its legacy files are enumerated: an environment-only namespace is
+omitted. No model schema is registered, so ordinary absent model defaults are
+not enumerated. `default/present=false` is a possible provenance result,
+not a catalogue of all built-in defaults.
+
+The diagnostic parses the file internally. It does not return setting values
+or modify configuration contents, but store access can create/chmod the AXM home.
+It does not account for the typed accessors' additional `AXM_HOME` fallback.
+
+Python tool class: `from axm_config.tools import ConfigDoctorTool`;
+`execute(*, namespace=None)`. The root does not export this class.
+The underlying `axm_config.doctor.config_doctor_data(namespace=None)` and
+`render_doctor_report(report)` are internal module-level helpers.
+
+## profile_isolation
+
+```bash
+AXM_HOME=/tmp/axm-profile-example axm profile_isolation --profile scratch
+```
+
+MCP façade: `axm_call(name="profile_isolation", arguments={"profile": "scratch"})`.
+Python: root-exported `ProfileIsolationTool().execute(*, profile=None)`.
+Omitting the profile uses `current_profile()`; invalid names produce a failed
+ToolResult.
+
+The data contains string paths under `tickets_db`, `warden_socket`,
+`warden_log`, `sessions_root`, `quality_dir` and `protocols_dir`, plus
+`profile` and boolean `isolated`. Text contains only the path lines.
+Unlike the Python `ProfileIsolation` model, tool data omits `profile_root`
+and `escapes`.
+
+This is a side-effect-free calculation of candidate paths, not an audit of
+actual configured consumers. Read the [profile limits](../howto/profiles.md).
+
+The generic `axm` CLI discovers installed `axm.tools` entry points; command
+availability depends on the environment. Neither `axm.commands` nor the
+removed YAML hooks are required.
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+See [public contracts](contracts.md) and the [rendered Python API](api.md).

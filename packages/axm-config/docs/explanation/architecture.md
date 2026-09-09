@@ -1,137 +1,97 @@
-# Architecture
+# Architecture and persistence
 
-`axm-config` is a small, flat package: eight source modules layered by
-responsibility, no hexagonal `core/`/`adapters/` split. The dependency arrow
-points one way — the CLI and the AXMTool sit at the edge, the resolver is the
-brain, the profile module carries state selection, and the store/home modules
-own the on-disk contact.
+## Responsibilities
 
-```mermaid
-graph TD
-    CLI["cli.py — axm-config console script"]
-    Tool["tools.py — config doctor + profile isolation AXMTools"]
-    Doctor["doctor.py — provenance reporting"]
-    Resolver["resolver.py — get / set_ / delete / load + validate_segment"]
-    Store["store.py — NamespaceStore (atomic active-profile config.toml I/O)"]
-    Home["home.py — axm_home() + resolve_safe (leaf, stdlib only)"]
-    Profile["profile.py — AXM_PROFILE transport + state paths"]
-    Isolation["isolation.py — side-effect-free profile path verdict"]
+| Module | Responsibility |
+|---|---|
+| `home` | Home creation/permissions and repository-path guard. |
+| `profile` | Active profile selection and transport overlay. |
+| `store` | TOML namespace reads, migration and file replacement. |
+| `resolver` | Validated keys, precedence, model loading and execution policies. |
+| `paths` | Typed runtime values, defaults and configured path guards. |
+| `doctor` | Provenance report without returning values. |
+| `isolation` | Candidate profile paths and lexical containment. |
+| `tools` | AXMTool diagnostic boundaries. |
+| `cli` | Cyclopts request/response commands calling the central functions. |
 
-    CLI --> Resolver
-    CLI --> Doctor
-    CLI --> Home
-    Tool --> Doctor
-    Tool --> Isolation
-    Isolation --> Profile
-    Doctor --> Resolver
-    Resolver --> Store
-    Store --> Profile
-    Store --> Home
-    Profile --> Home
-    Profile --> Resolver
+The SDK registry is `axm.tools`. No `axm.commands` registry or YAML hook
+integration is required. The legacy YAML engine is decommissioned; the remaining
+`protocols_dir` accessor is compatibility surface.
+
+## One TOML file per profile
+
+The store uses `~/.axm/config.toml` in production and
+`~/.axm/profiles/<name>/config.toml` for a named profile. A dotted namespace
+maps to nested TOML tables:
+
+```toml
+[research.demo]
+dataset = "sample"
+timeout = 30
 ```
 
-## The modules
+Each namespace's own scalar/array keys are separate from child namespace tables.
+`write` and `replace_section` preserve child tables. The generic resolver
+validates names before passing them to the store.
 
-| Module | Role |
-|---|---|
-| `home.py` | The leaf. Resolves `~/.axm` (`axm_home()`, created `0700`) and hosts `resolve_safe`, the guard that refuses any path resolving inside a git checkout. Pure stdlib. |
-| `profile.py` | Validates `AXM_PROFILE`, derives optional profile state/config paths, and returns the environment overlay used to propagate the active profile. |
-| `store.py` | `NamespaceStore` — reads/writes the active profile's single `config.toml`, atomically, `0600`. Production uses `~/.axm/config.toml`; another profile uses `~/.axm/profiles/<name>/config.toml`. Degrades to `{}` on an absent/corrupt file; re-types an unsafe HOME as `UnsafeHomeError`. |
-| `resolver.py` | The public key–value surface: `get` / `set_` / `delete` / `load`, plus `validate_segment` and the `AXM_<NS>_<KEY>` env-name derivation. Owns the `env > file > default` precedence. |
-| `doctor.py` | Read-only provenance: for each visible key, which layer would win. Never reads a value into a consumer, never mutates. |
-| `isolation.py` | Side-effect-free resolution of the six state paths for an explicit or active profile, plus their containment verdict. |
-| `tools.py` | AXMTool boundaries over `doctor.py` and `isolation.py`: `ConfigDoctorTool` and `ProfileIsolationTool` expose MCP and the `axm config_doctor` / `axm profile_isolation` commands without duplicating business logic. |
-| `cli.py` | The `axm-config` console script. Process-lifecycle only; every command delegates to the central function. |
+## Lazy migration
 
-## State-profile transport boundary
+The former `<store-directory>/<namespace>.toml` format remains readable.
+If the current section has any own keys, a read returns that section as a whole;
+it does **not** fill missing keys from the legacy file on each read.
+Only when the section is empty/missing does the read fall back to legacy.
 
-`profile.py` selects both the state transport and the configuration store.
-`validate_profile_name()` owns the single profile-name contract:
-`^[a-z][a-z0-9-]{0,31}$`. Both `current_profile()` and an explicit
-`profile_isolation(name)` consume that validator, so active and queried profiles
-have identical verdicts. Names such as `ci-2` and `dev-audit` are valid; names
-such as `Dev`, `1dev`, `dev_x`, and `-dev` raise `ConfigError` naming the
-rejected value. An unset or empty `AXM_PROFILE` still means `production`.
+On a write or delete to that namespace, legacy keys are merged first and current
+section keys win. The updated file is replaced, then the legacy file is removed.
+A delete of an absent key can still perform this migration. Only the selected
+profile's legacy files are considered. Unrelated namespaces are not all migrated
+at once; policy canonicalization has its own [compatibility contract](../howto/execution-policies.md).
 
-Production has no separate profile root and keeps `~/.axm/config.toml`.
-A profile such as `dev` resolves to `~/.axm/profiles/dev`, with
-`profile_config_path()` returning the nested `config.toml` path.
-`NamespaceStore` and the generic resolver use that path automatically for
-reads, writes, deletes, model loading, and namespace enumeration. An absent
-profile store resolves to the caller's default; it never falls back to
-production. The profile directory is created on its first write, while
-production behaviour remains byte-identical. `profile_env()` returns the
-one-key overlay a child process needs to inherit the same selection.
+## Atomicity, durability and concurrency
 
-## Why a single `config.toml` (and how migration works)
+A normal write loads the whole mapping, serializes it to a same-directory
+temporary file and calls `os.replace`. The resulting file is chmod `0600` on
+POSIX. The swap helper removes its staged temporary path even if replace/chmod
+fails. The base home is tightened to `0700`; profile directories use the
+process's normal mkdir permissions under that home.
 
-An earlier layout kept one file per namespace (`<profile-root>/<ns>.toml`).
-The current layout is a **single** `config.toml` per active profile whose
-top-level tables are the namespaces (a dotted namespace such as
-`storage.portfolio` maps to the nested table `[storage.portfolio]`).
-Production's file is `~/.axm/config.toml`; `dev` uses
-`~/.axm/profiles/dev/config.toml`. One file per profile means one atomic swap
-per write and prevents configuration from leaking across profiles.
+This prevents readers observing a partly replaced file, but it is **not a
+transaction across writers**. There is no lock or version check: two overlapping
+read-modify-write operations can lose each other's updates, even when changing
+different namespaces. Serialize all writers to the same profile file in the
+owning application. There is no explicit file/directory `fsync`, so atomic
+replacement is not a promise of persistence through power loss.
 
-Migration is read-through and lazy within the active profile: a legacy
-`<profile-root>/<ns>.toml` is still visible via `NamespaceStore.read`, and on
-the next `write`/`delete` for that namespace its contents are folded into that
-profile's `config.toml` and the legacy file removed — no cross-profile fallback
-and no silent data loss.
+The commit and legacy unlink are separate operations. A failure after replacement
+can leave changed contents despite an exception; chmod or legacy cleanup can
+fail after the new file is visible. Temporary-file creation/write failures
+before the swap helper are not covered by its cleanup guarantee.
 
-Every write is a read-modify-write of the whole file: load the full mapping,
-update the one section, serialise to a same-directory temp file, and
-`os.replace` it into place (the temp file is unlinked even if the swap fails).
-Because a namespace section holds only its own scalar/array keys, a nested
-sub-table is treated as a **child namespace**, not a key of the parent — a node
-can be both a leaf (it carries keys) and a prefix (it nests further namespaces).
-Since a section is read back without its child sub-tables, a write that updates
-only the parent's own keys **re-attaches** those children before the atomic
-swap, so setting a key on `[git]` never erases a sibling `[git.default]`.
+## Current limits that affect data
 
-## Env-name derivation and its injectivity
+- A missing, malformed or unreadable TOML file generally degrades to an empty
+  mapping. A later write may replace that file with only the new known data.
+  There is no automatic backup, recovery or corruption report.
+- **Deleting an own key from a parent namespace can erase its child tables.**
+  Unlike `write`/`replace_section`, `delete` does not reattach children.
+  This also affects `set_(namespace, key, None)` and the CLI delete command.
+  Avoid parent-key deletion in stores with descendants until the product defect
+  is corrected; the dedicated policy deletion uses `replace_section`.
+- The process environment selects the profile at each call; global environment
+  changes are not safe per-thread profile contexts.
+- `AXM_HOME`, typed accessor fallback and the isolation diagnostic do not share
+  the store's home semantics. The [profile guide](../howto/profiles.md) details
+  these boundaries rather than promising blanket isolation.
 
-The env layer maps `(namespace, key)` to a single deterministic variable name,
-`AXM_<NS>_<KEY>`, upper-cased, with each namespace dot folded to a **double**
-underscore (`research.fred` + `api_key` → `AXM_RESEARCH__FRED_API_KEY`).
+## Security and secrets boundary
 
-This map is **provably injective** and always POSIX-valid, and the property is
-enforced entirely by `validate_segment`:
+This is plaintext **non-sensitive** configuration. Keep passwords, API keys and
+tokens in axm-vault. Restrictive permissions do not turn TOML into a secret store.
+The provenance doctor does not return values but does parse file contents.
 
-- **Lowercase-only segments.** Both a namespace and a key are lowercase; the
-  upper-casing is therefore a bijection on the input charset. `"Demo"` is
-  rejected upstream, so it can never share `AXM_DEMO_*` with `"demo"`.
-- **Only dots fold to `__`.** A namespace (`^[a-z0-9]+(\.[a-z0-9]+)*$`) carries
-  no `_` and no `-`; a key (`^[a-z0-9]+(_[a-z0-9]+)*$`) joins runs with a
-  *single* `_` and forbids leading/trailing/doubled `_`. So a `__` in the
-  output can only come from a namespace dot, never from a key, and the lone
-  single `_` marks the namespace/key boundary.
-
-The reverse direction (`doctor.py`'s `_env_keys`, which recovers a namespace's
-keys from the environment) shares the same guarantee, with one subtlety: the
-prefix `AXM_A_` is *also* a prefix of a **child** namespace's variables
-(`AXM_A__B_C` belongs to `a.b`, key `c`). The reverse map therefore validates
-each recovered suffix against the key pattern and drops a suffix that is not a
-legal key — otherwise a child's variable would surface as a phantom
-leading-underscore key of the parent.
-
-## Threat model
-
-`axm-config` stores non-sensitive config, but it still shares `~/.axm` with the
-secrets manager (`axm-vault`), so its on-disk discipline matters:
-
-- **Containment.** `validate_segment` runs at every public boundary before any
-  path is built, rejecting path separators, `..` traversal, the empty string
-  and NUL. A namespace/key can never widen the active profile's store path.
-- **In-repo refusal.** `resolve_safe` refuses a `~/.axm` that resolves inside a
-  git checkout (a misconfigured `HOME`, e.g. dotfiles under a `~/.git`). The
-  store re-types that refusal as `UnsafeHomeError` (a `ConfigError`) so the CLI
-  exits cleanly and `load` propagates a typed error rather than a raw
-  `ValueError`.
-- **Permissions.** The `~/.axm` directory is `0700` (tightened on every call)
-  and `config.toml` is written `0600`, so a config value never lands
-  world-readable.
-
-`resolve_safe` is also the primitive `axm-vault` builds on: a `0600` secrets
-file can never be written into a repo.
+The store resolves its home, refuses git-repository ancestry and enforces that
+its resolved file paths stay below that home. This is containment under the base
+home, not a symlink-proof boundary between sibling profiles; avoid treating
+profile directory symlinks as isolation. `axm_home()` can create/chmod the
+directory before the store rejects it. `resolve_safe` is a path check, not a
+lock against filesystem changes between check and use.
