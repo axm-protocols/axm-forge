@@ -18,166 +18,55 @@
 
 ---
 
-## Features
+# axm-git
 
-- 🔍 **Preflight** — Structured working tree status with diff summary
-- 🌿 **Branch** — Create or checkout branches with one call
-- 📦 **Commit** — Batched atomic commits with auto-retry on commit-hook fixes and optional author identity injection
-- 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
-- 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
-- 🌲 **Worktree** — Add, remove, or list git worktrees
-- 🔀 **PR** — Create GitHub pull requests with optional auto-merge
-- 🔐 **GitHub authentication declaration** — Publishes the `gh auth status` probe and `gh auth login` recovery command through the `axm.credentials` registry, with distinct `logged_in`, `logged_out`, and `not_installed` states
-- 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
-- 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection. Schedule rules apply only under user-configured `workspace_paths`; comparison is timezone-aware via the optional `timezone` field (default `Europe/Paris`). The whole schedule can be switched off with `schedule.enabled = false` (defaults to `true`), in which case resolution falls through to the default identity
-- 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
+Git workflow automation for AXM agents: inspect changes, stage explicit files,
+commit, manage branches and worktrees, and publish through Git and GitHub.
 
-## Installation
+Python 3.12+ and Git are required. GitHub operations also need the `gh` CLI
+and an authenticated session.
 
 ```bash
 uv add axm-git
+axm git_preflight --path . --diff-lines 0
 ```
 
-## Quick Start
+This first command inspects the current repository. A package subdirectory
+limits preflight's status and diff scope; use the repository root for a
+repository-wide check.
 
-```python
-# Check what changed
-git_preflight(path="/path/to/repo")
-# → {files: [{path: "foo.py", status: "M"}, ...], clean: false, text: "git_preflight | 1 files · dirty\n..."}
+The `axm` CLI and MCP use the same tools registered under `axm.tools`.
+There is no separate `axm-git` executable. See the
+[CLI and MCP guide](docs/howto/mcp.md) and
+[complete tool contracts](docs/reference/cli.md).
 
-# Create or switch branch
-git_branch(name="feat/new-feature", path="/path/to/repo")
-# → {branch: "feat/new-feature"}
-
-# Commit in batches
-git_commit(path="/path/to/repo", commits=[
-    {"files": ["src/foo.py"], "message": "feat: add foo"},
-    {"files": ["tests/test_foo.py"], "message": "test: add foo tests"},
-])
-# → {results: [{sha: "abc1234", precommit_passed: true}, ...]}
-
-# Tag a release
-git_tag(path="/path/to/repo")
-# → {tag: "v0.2.0", bump: "minor", pushed: true}
-
-# Push to remote
-git_push(path="/path/to/repo")
-# → {branch: "main", remote: "origin", pushed: true}
-```
-
-## MCP Tools
-
-### `git_preflight`
-
-Report working tree changes so the agent can plan commits.
-
-| Parameter | Default | Description |
+| Operation | Tools | Effects |
 |---|---|---|
-| `path` | `.` | Project root directory |
-| `diff_lines` | `200` | Max diff lines to include (0 to disable) |
+| Inspect locally | `git_preflight`, `git_release_diff`, `git_worktree(action="list")` | Read repository state |
+| Change locally | `git_branch`, `git_commit`, `git_merge`, worktree add/remove | Change branches, index, files or commits |
+| Obtain remote content | `git_clone`, `git_pull` | Read remote; write local checkout |
+| Publish | `git_push`, `git_pr`, `git_tag` | Change remote state |
+| Observe GitHub | `git_await_merge` | Poll a PR; does not merge it |
 
-Returns: file list with status (`M`, `A`, `D`, `??`), diff stat, clean flag, and a compact `text` summary for agent display.
+`git_commit` processes a batch sequentially: earlier successful commits remain
+if a later item fails. It stages declared paths, refuses unrelated staged
+paths, and retries once on the commit-hook “files were modified” marker.
+[Commit recovery](docs/howto/commits.md) explains partial results and hook
+observations.
 
-### `git_branch`
+**`git_tag` creates an annotated local tag and pushes it to origin.** It has
+no list, preview, dry-run or local-only mode. Use `git_release_diff` for
+read-only release analysis. The tag CI guard blocks only `red`, not
+`pending`, `error` or `skipped`.
+[Release guide](docs/howto/releases.md) describes the current limitations.
 
-Create or checkout a git branch.
+Start with the [read-only tutorial](docs/tutorials/getting-started.md).
+Then use the [task guides](docs/howto/index.md), [architecture](docs/explanation/architecture.md)
+and [documentation site](https://forge.axm-protocols.io/git/).
+The site homepage is `docs/index.md`; this README is the repository entry point.
 
-| Parameter | Default | Description |
-|---|---|---|
-| `name` | *required* | Branch name |
-| `from_ref` | `None` | Ref to branch from (tag, commit, branch) |
-| `checkout_only` | `False` | If `True`, checkout existing branch without creating |
-| `delete` | `False` | If `True`, delete the branch (`git branch -D`) instead of creating/checking out |
-| `path` | `.` | Project root directory |
+Development takes place in the [axm-forge workspace](https://github.com/axm-protocols/axm-forge).
+Documentation is generated from this checkout's source, including the internal
+modules; generation does not make every Python symbol a public root export.
 
-Returns: `{branch: "<current branch>"}` on success.
-
-### `git_commit`
-
-Execute one or more atomic commits with commit-hook handling.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `path` | `.` | Project root directory |
-| `commits` | *required* | List of commit specs (see below) |
-| `profile` | `None` | Identity profile name — overrides schedule-based resolution from `git-profiles.toml` |
-| `strict` | `False` | When `True`, a non-Conventional-Commit message is a hard failure instead of a warning |
-
-Each commit spec:
-
-| Field | Required | Description |
-|---|---|---|
-| `files` | ✅ | Files to stage |
-| `message` | ✅ | Commit summary (Conventional Commits) |
-| `body` | | Extended commit body |
-
-When a commit hook auto-fixes files (e.g. ruff `--fix`), the tool re-stages and retries once automatically.
-
-Identity is resolved once per call (not per commit). When resolved, each commit includes `--author="Name <email>"`. The result includes an `author` key (`{name, email}` or `null`).
-
-### `git_tag`
-
-Compute the next semver version from Conventional Commits, create and push the tag.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `path` | `.` | Project root directory |
-| `version` | *auto* | Override the computed version (e.g. `"v1.0.0"`) |
-
-Pipeline: clean tree check → CI status check → semver bump → annotate tag → hatch-vcs verify → push.
-
-### `git_push`
-
-Push the current branch to a remote after verifying a clean working tree.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `path` | `.` | Project root directory |
-| `remote` | `origin` | Remote name |
-| `set_upstream` | `True` | Auto-set upstream for new branches |
-| `force` | `False` | Force-push using `--force-with-lease` (safe: only overwrites if the remote has not advanced past our tracking ref) |
-| `force_unconditional` | `False` | When `True` (and `force` set), use a bare `--force` instead — unconditional overwrite (data-loss risk) |
-
-Pipeline: repo check → dirty check → detect branch → detect upstream → push.
-
-### `git_worktree`
-
-Add, remove, or list git worktrees.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `action` | *required* | `add`, `remove`, or `list` |
-| `path` | `.` | Repository path (git-root resolution runs here, so a fresh sibling worktree works) |
-| `worktree_path` | `None` | Worktree location for `add`/`remove` (may not exist yet). When omitted, `path` doubles as the worktree location (legacy form) |
-| `branch` | `None` | Branch name for `add` |
-| `base` | `None` | Base ref for `add` (defaults to repo default) |
-| `force` | `False` | Force removal for the `remove` action |
-
-### `git_pr`
-
-Create a GitHub pull request with optional auto-merge.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `path` | `.` | Project root directory |
-| `title` | *required* | Pull request title |
-| `body` | `None` | Pull request description |
-| `base` | `None` | Base branch (defaults to repo default) |
-| `auto_merge` | `False` | Enable auto-merge when checks pass |
-
-## Development
-
-This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
-
-```bash
-git clone https://github.com/axm-protocols/axm-forge.git
-cd axm-forge
-uv sync --all-groups
-uv run --package axm-git --directory packages/axm-git pytest -x -q
-```
-
-📖 **[Full documentation](https://forge.axm-protocols.io/git/)**
-
-## License
-
-Apache-2.0 — © 2026 axm-protocols
+Apache-2.0.

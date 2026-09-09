@@ -1,82 +1,58 @@
-# Architecture
+# Architecture and guarantees
 
-## Overview
+## One tool implementation, several interfaces
 
-`axm-git` provides deterministic MCP tools that wrap Git and GitHub CLI operations. Each tool satisfies the `AXMTool` protocol (from `axm`) and is auto-discovered via Python entry points. The package also owns the GitHub CLI authentication declaration: `axm_git.credentials:GH_AUTH_CREDENTIAL` is registered under `axm.credentials`, so consumers can observe the local `gh` session without reading authentication material.
+The classes in `axm_git.tools` inherit `AXMTool` and expose keyword-only
+`execute` methods returning `ToolResult`. The `axm.tools` entry points
+register them for the generic CLI, MCP and tool-node consumers.
+The tools spawn Git and gh subprocesses through shared runner helpers.
 
-```mermaid
-graph TD
-    subgraph "MCP Layer"
-        MCP["axm-mcp server"]
-    end
+Git operations are not all transactional or idempotent. A failed batch can
+leave earlier commits; a failed tag push leaves the local tag; a failed
+squash commit can leave staged changes. The caller must inspect partial
+results and repository state. See [commit recovery](../howto/commits.md),
+[merges](../howto/collaboration.md) and [releases](../howto/releases.md).
 
-    subgraph "Tools"
-        Tag["GitTagTool"]
-        Commit["GitCommitTool"]
-        Preflight["GitPreflightTool"]
-        Branch["GitBranchTool"]
-        Push["GitPushTool"]
-    end
+## Package boundaries
 
+`axm_git.__init__` exports only `__version__` and `__version_tuple__`.
+The supported tool entry points are listed in the
+[tool reference](../reference/cli.md); direct Python calls import the concrete
+tool module. Generated reference pages also describe internal helpers and
+models, which are not a promise of root-level public exports.
 
-    subgraph "Core"
-        Runner["runner.py"]
-        Semver["semver.py"]
-        PhaseCommit["phase_commit.py"]
-    end
+Core modules provide staging/path resolution, identity selection,
+Conventional Commit parsing, SemVer calculation and PR recovery.
+`get_phase_commit` is an internal log-search helper; it does not supply a
+protocol runtime. The package registers no lifecycle hook actions.
+Git's own commit hooks are distinct and still execute during commits.
 
-    subgraph "External"
-        Git["git CLI"]
-        GH["gh CLI"]
-    end
+## Authentication declaration
 
+The `axm.credentials` entry point `gh` points to
+`axm_git.credentials:gh_credentials`. This callable produces a credential
+group with a `GhAuthDependency`, declaring `gh auth status` as its probe and
+`gh auth login` as recovery. It does not read tokens or session files.
 
-    MCP --> Tag
-    MCP --> Commit
-    MCP --> Preflight
-    MCP --> Branch
-    MCP --> Push
-    Tag --> Runner
-    Tag --> Semver
-    Commit --> Runner
-    Preflight --> Runner
-    Branch --> Runner
-    Push --> Runner
-    Runner --> Git
-    Runner --> GH
-```
+Observable states `logged_in`, `logged_out` and `not_installed` map to the
+vault states connected, disconnected and tool absent.
+`GH_AUTH_CREDENTIAL` is an alias of the provider. The declaration does not
+automatically authenticate or prove permission to mutate a particular repo.
 
-## Layers
+## Guarantees and their limits
 
-### 1. Tools (`tools/`)
-
-Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method with explicit typed parameters:
-
-- **`GitTagTool`** — Full tag workflow: check clean tree, check CI, compute semver bump, create tag, verify hatch-vcs, push. The CI check (`check_ci`) correlates the gh run's `headSha` with the current HEAD — a stale green on an older commit or a red on an unrelated commit never decides the verdict; when no run matches HEAD it returns `pending`. An explicit `version` override is **validated** before tagging: it must be a well-formed semver (parsed through `parse_tag`) **and** strictly greater than the current tag — otherwise the tool returns `ToolResult(success=False)` (it rejects e.g. `version="banana"`). Without an override, the version is derived from the commits since the last tag via `compute_bump`.
-- **`GitCommitTool`** — Stage files, commit with the repo's commit hooks, auto-retry on linter fixes. Supports batched commits. Each commit spec is processed by `_process_single_commit()` (validate → stage → commit → record). Staging resolves the repository root from the supplied `path` via `find_git_root()` and delegates to the shared `stage_spec_files()` resolver (see `core/runner.py`), so a commit invoked with `path` pointing at a package sub-directory of the git root stages files using git-root-relative paths (and the autofix-retry re-stage does the same).
-    - **Verdict-Carrying Patch invariant** — when a commit hook mutates staged content during the autofix-retry, the paths captured *before* re-staging (`AutofixRetry.auto_fixed`, `git diff --name-only`) are aggregated across the batch and surfaced at the top level as `data["hook_autofixed_files"]: list[str]` (repo-root relative, deduplicated, sorted). The field is **always present** — an empty list on the clean path (no hooks, or no mutation), never `None` — so a consumer can always tell whether the patch that landed is byte-for-byte the patch it staged. When non-empty, the compact `text` rendering appends a `⚠ hooks auto-fixed N file(s): …` line.
-- **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data. Uses `find_git_root()` to scope status and diff to the target subdirectory via pathspec.
-- **`GitBranchTool`** — Create or checkout a branch. Supports `from_ref` (branch from tag/commit) and `checkout_only` (switch without creating).
-- **`GitPushTool`** — Push with dirty-check guard, auto-upstream detection, custom remote, and safe force-push support. `force=True` uses `--force-with-lease` (the remote is overwritten only if it has not advanced past our remote-tracking ref); the opt-in `force_unconditional=True` falls back to a bare `--force` for a deliberate unconditional overwrite (data-loss risk).
-
-### 2. Core (`core/`)
-
-Shared logic used by multiple tools:
-
-- **`runner.py`** — `find_git_root()` locates the repository root via `rev-parse --show-toplevel`; `run_git()` and `run_gh()` wrap subprocesses with explicit timeouts. `stage_spec_files()` resolves git-root-relative and package-relative paths, supports tracked deletions, and skips gitignored files with a warning. The module also provides repository suggestions, structured not-a-repository errors, and NUL-aware porcelain parsing for the tools.
-- **`gh_auth.py` and `credentials.py`** — `gh_auth_state()` classifies only observable process state from `gh auth status` as `logged_in`, `logged_out`, or `not_installed`. The callable provider `gh_credentials()` (also exposed as the entry-point-compatible alias `GH_AUTH_CREDENTIAL`) contributes a `CredentialGroup` containing one `GhAuthDependency` named `gh`. This validated `AuthDependencySpec` subclass serializes the owning package plus the `gh auth status` and `gh auth login` commands; its auth source remains the sole observation channel and maps process state to the vault tri-state contract without reading a token or session file.
-- **`semver.py`** — `parse_tag()` for version parsing (its regex is **anchored** with `^…$`, so prerelease suffixes like `v1.2.3-rc1`, trailing segments like `v1.2.3.4`, and any non-semver input raises `ValueError`), `compute_bump()` for Conventional Commits analysis (returns `VersionBump` with next version + reason). `compute_bump()` tolerates both `git log --oneline` lines (`<short-hash> <message>`) and raw conventional-commit messages: the leading token is stripped only when it matches a short-hash shape (hex), so a bare `feat:` message is read as-is. `classify_commit()` is the internal-public per-commit labeller (importable, absent from `__all__`) consumed by `GitReleaseDiffTool` for **display**: it returns the *true* conventional type (`feat`, `fix`, `docs`, `refactor`, `chore`, `build`, `ci`, `perf`, `style`, `revert`, …) by reusing the shared regexes, falling back to `other` only for an unprefixed subject — so the release-diff summary tallies every type rather than collapsing them. This type tally is display-only and does not affect the bump decision.
-- **`phase_commit.py`** — `get_phase_commit()` looks up the commit hash for a given protocol phase name by searching git log.
-- **`identity.py`** — `resolve_identity()` selects the git author for a working dir (schedule/profile aware), `load_config()` resolves the `GitProfileConfig`. On the default (`config_path=None`) path, config is delegated to the shared **`axm-config`** single store. Because `axm-config` persists a dict-valued key as its **own child namespace** (not a scalar key of `[git]`), the resolver reads each dict-shaped value through `NamespaceStore.read()` on the dotted namespace — `[git.default]`, the enumerated `[git.profiles.<name>]` tables, and `[git.schedule]` — rather than `axm_config.get("git", <key>)` (which only sees `[git]`'s own scalar/array keys and would silently return `None` for every real config); `workspace_paths` stays the flat `[echo].workspace_roots` array so the followed-roots list has a single source (no duplicate `[git].workspace_paths`). A transitional fallback still reads the legacy `~/axm/git-profiles.toml` (with a migration `WARNING`) while the store has no `[git.default]`. An **unusable** `~/.axm` home (e.g. a `HOME` resolving inside a git checkout, surfaced as `axm-config`'s `UnsafeHomeError`) is deliberately **not** swallowed: it propagates so resolution fails loud instead of masking a broken store as an indistinguishable "no config". The explicit-path form `load_config(config_path=<file>)` is unchanged and still parses that exact TOML file.
-- **`commit_spec.py`** — shared validation and autofix-retry plumbing used by `GitCommitTool`. `validate_commit_spec()` requires a non-empty message and file list; `attempt_commit_with_autofix_retry()` captures modified paths, re-stages once, and reconciles the result against the repository HEAD.
-
-
-## Design Decisions
-
-| Decision | Rationale |
+| Mechanism | Present behavior |
 |---|---|
-| `AXMTool` protocol | Consistent interface, auto-discovery via entry points |
-| `subprocess` over `gitpython` | Zero dependency, deterministic, same behavior as manual CLI |
-| Auto-retry on commit-hook fix | Avoids a wasted tool call on hook autofix |
-| Per-file staging (`stage_spec_files`) | Stages each spec file with `git add -- <file>` (subdir-aware path resolution); a `git ls-files -d` probe covers tracked-but-deleted files and gitignored paths are skipped with a warning — handles additions, modifications, AND deletions without an indiscriminate `git add -A` |
-| Soft CI check | `gh` is optional — tagging still works without GitHub CLI |
+| Explicit staging | Declared paths, with unrelated-index rejection; no full index snapshot transaction |
+| Hook retry | One retry for the recognized marker; repository-wide unstaged paths are observational evidence |
+| Identity | Author argument per call, with schedule/profile resolution; no persistent Git config change |
+| Push guard | Clean tree, attached branch; optional lease based on local tracking state |
+| Release guard | Clean tree and non-empty history; only a red CI verdict blocks tagging |
+| Subprocess timeout | Most commands bounded by runner defaults; clone explicitly disables its timeout |
+| Output | Structured data for Python callers; compact display text is a separate envelope field |
+
+The [API reference](../reference/axm_git/index.md) is rendered from source by
+mkdocstrings during builds. Explicit Markdown entry pages keep these links
+stable in both package and monorepo builds. The root monorepo additionally
+generates a workspace-wide module reference. API bodies remain generated,
+not copied signatures; verify the rendered HTML when changing configuration.

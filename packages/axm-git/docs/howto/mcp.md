@@ -1,54 +1,53 @@
-# Use via MCP
+# Use CLI and MCP
 
-`axm-git` exposes its CLI commands as MCP (Model Context Protocol) tools via `axm-mcp`. AI agents can call them directly without spawning subprocesses.
+`axm-git` supplies tools, not a standalone package executable.
+Its `axm.tools` entry points are consumed by the generic `axm` CLI and
+by `axm-mcp`. Install the package in the environment running the CLI/server.
 
-!!! info "Setup"
-    These tools are served by `axm-mcp`. If you haven't connected the server yet,
-    see the **[axm-mcp Quick Start](https://forge.axm-protocols.io/mcp/tutorials/quickstart/)** —
-    one command connects the whole toolchain. No per-package install needed.
+## CLI
 
-## Available Tools
-
-| MCP Tool | Purpose |
-|---|---|
-| `git_preflight` | Working tree status and diff summary before a phase |
-| `git_branch` | Create or checkout a branch |
-| `git_commit` | Batched atomic commits with commit-hook handling; warns on non-Conventional-Commit messages (`strict=True` blocks them), retries on commit-hook auto-fixes, and reports any hook-mutated files in `data["hook_autofixed_files"]` |
-| `git_clone` | Clone a repository into a local directory |
-| `git_tag` | One-shot semver tagging (skips CI checks when `gh` is unavailable) |
-| `git_push` | Push with dirty-check and auto-upstream; `force` uses `--force-with-lease` by default |
-| `git_pull` | Pull `origin main` (override via `remote` / `branch`) into the local repo |
-| `git_worktree` | Add, remove, or list git worktrees |
-| `git_pr` | Create GitHub pull requests with optional auto-merge; idempotent — recovers an existing open PR |
-| `git_merge` | Squash-merge a branch back into its target; refuses to run on a dirty working tree, and rolls back via `git reset --hard` if the squash conflicts so the repo is left clean |
-| `git_await_merge` | Poll a PR (`pr`: number or URL) until merged or timeout |
-| `git_release_diff` | Read-only SemVer bump decision: summarise commits/diff since the last tag for a package subdir |
-
-## Usage
-
-!!! note "MCP dispatch"
-    The examples below show the **logical API** — the parameters each tool takes.
-    In practice, AI agents call these via MCP tool dispatch (e.g. `mcp_axm-mcp_git_commit`),
-    not direct Python imports.
-
-```
-git_preflight(path="/path/to/repo")
-git_branch(name="feat/new-thing", path="/path/to/repo")
-git_commit(path="/path/to/repo", commits=[{"files": ["src/foo.py"], "message": "feat: add foo"}])
+```bash
+axm git_preflight --help
+axm git_preflight --path . --diff-lines 0
+axm git_commit --help
 ```
 
-`git_commit` handles staging internally — it stages each spec file individually (`git add -- <file>`, with a `git ls-files -d` probe so tracked-but-deleted paths are staged as deletions, and gitignored paths skipped with a warning), so you never run `git add` separately.
+Help is safe to inspect; invoking a mutating command is not a preview.
+Use each command's help for CLI serialization of lists and booleans.
+The [reference](../reference/cli.md) gives the shared Python/MCP arguments.
 
-### Verdict-Carrying Patch — `hook_autofixed_files`
+## MCP
 
-When a commit hook auto-fixes staged content (e.g. ruff `--fix`, a trailing-whitespace stripper) `git_commit` re-stages and retries the commit once, then reports **which** files the hook mutated in `data["hook_autofixed_files"]` — a repo-root-relative `list[str]`. The field is always present: it is `[]` on the clean path (no hooks, or no mutation) and never `null`. This is the *Verdict-Carrying Patch* invariant — the committed patch tells you truthfully whether it differs from the patch you staged. When non-empty, the compact `text` rendering appends a line such as:
+The server may expose a small direct tool set. Tools outside that set remain
+reachable through `axm_call`. Example arguments to the façade:
 
+```json
+{
+  "name": "git_preflight",
+  "arguments": {"path": "/absolute/repository", "diff_lines": 0}
+}
 ```
-⚠ hooks auto-fixed 1 file: tests/fixtures/snapshots/old/knowledge_ingest.txt
-```
 
-## Entry Points
+This JSON is a façade request, not Python source. The façade returns the tool's
+compact text; direct Python callers receive the `ToolResult` envelope.
+Do not parse display text as a stable structured schema.
 
-All tools are auto-discovered via the `axm.tools` entry-point group — see the
-[CLI Reference](../reference/cli.md) for the full tool / class mapping.
-`axm-mcp` discovers these automatically at startup.
+MCP is an interface to the same implementation: these operations still spawn
+Git/gh subprocesses on the server host. A remote server's `path` refers to
+its filesystem.
+
+## Results and failures
+
+Python callers should check `result.success` before using success-only keys.
+`result.data` can be absent on early failures; `result.error` explains the
+failure. Some failures carry partial state, especially commits and tagging.
+Follow the relevant recovery guide instead of blindly replaying a batch.
+
+Never invent keyword options. The tool implementations accept `**kwargs`
+and can ignore unknown names. In particular,
+`git_tag(action="list")` is **not** a listing operation: it can publish a tag.
+Use `git_release_diff` for read-only analysis.
+
+The registry contains the tools listed in the [reference](../reference/cli.md).
+GitHub authentication metadata comes from `axm.credentials`, independently
+of tool dispatch.

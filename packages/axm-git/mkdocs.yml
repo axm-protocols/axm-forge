@@ -1,29 +1,49 @@
-site_name: git
+site_name: axm-git
 docs_dir: docs
+theme:
+  name: material
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
 
 plugins:
   - search
-  - gen-files:
-      scripts:
-        - docs/gen_ref_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
   - mkdocstrings:
       handlers:
         python:
+          paths:
+            - src
           options:
+            docstring_style: google
             show_source: true
             show_root_heading: true
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.superfences
 
 nav:
   - Overview: index.md
   - Tutorials:
-    - Getting Started: tutorials/getting-started.md
+    - Inspect a repository: tutorials/getting-started.md
   - How-To Guides:
     - index: howto/index.md
-    - Use via MCP: howto/mcp.md
+    - CLI and MCP: howto/mcp.md
+    - Commits and hooks: howto/commits.md
+    - Branches and collaboration: howto/collaboration.md
+    - Releases: howto/releases.md
+    - Author identity: howto/identity.md
   - Reference:
-    - CLI: reference/cli.md
-    - Python API: reference/
+    - Tool contracts: reference/cli.md
+    - Python tools: reference/axm_git/index.md
+    - Internal helpers: reference/axm_git/core/index.md
+    - Identity models: reference/axm_git/core/identity.md
   - Explanation:
     - Architecture: explanation/architecture.md

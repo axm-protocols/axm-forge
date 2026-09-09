@@ -1,66 +1,13 @@
-# How-To Guides
+# How-to guides
 
-Task-oriented guides for common workflows.
+- [Use CLI and MCP](mcp.md): dispatch the registered tools and read results.
+- [Commit explicit files](commits.md): stage additions/deletions, handle hooks
+  and recover a partially completed batch.
+- [Manage branches and collaboration](collaboration.md): local worktrees,
+  squash merges, pulls, pushes and GitHub PRs.
+- [Inspect and publish a release](releases.md): analyze changes first, then
+  understand the tag-and-push contract.
+- [Select the author identity](identity.md): default identity, profiles and schedules.
 
-## Commit deleted files
-
-When a file has been removed from disk, `git_commit` stages the deletion automatically — `stage_spec_files()` probes `git ls-files -d` per spec file, so a tracked-but-deleted path is staged as a deletion without any extra step:
-
-```python
-from axm_git.tools.commit import GitCommitTool
-
-# File was already deleted from disk
-result = GitCommitTool().execute(
-    path="/path/to/repo",
-    commits=[{"files": ["old_module.py"], "message": "fix: remove dead module"}],
-)
-# success=True — deletion is committed
-```
-
-## Handle commit-hook auto-fixes
-
-When ruff or another tool auto-fixes files during `git commit`, the tool retries automatically:
-
-```python
-result = GitCommitTool().execute(
-    path="/path/to/repo",
-    commits=[{"files": ["src/foo.py"], "message": "feat: add foo"}],
-)
-# If ruff auto-fixed, result.data["results"][0]["retried"] == True
-```
-
-If the retry also fails (e.g. mypy error), the result includes:
-
-```python
-result.data["failed_commit"]["auto_fixed_files"]  # ["src/foo.py"]
-result.data["failed_commit"]["retried"]  # True
-result.data["failed_commit"]["precommit_output"]  # full hook output
-```
-
-## Tag without GitHub CLI
-
-The `git_tag` tool works without `gh` installed — CI checks are simply skipped:
-
-```python
-result = GitTagTool().execute(path="/path/to/repo")
-# result.data["ci_check"] == "skipped" if gh not available
-```
-
-## Handle non-git directory errors
-
-When a tool is called on a directory that isn't a git repository but contains git subdirectories (e.g. a monorepo parent), the error includes suggestions:
-
-```python
-result = GitPreflightTool().execute(path="/path/to/monorepo")
-# result.success == False
-# result.error == "fatal: not a git repository. This directory contains
-#   git repos: axm-ast, axm-core, axm-git. Pass one of these as the path instead."
-# result.data["suggestions"] == ["axm-ast", "axm-core", "axm-git"]
-```
-
-This works for all tools (`git_preflight`, `git_branch`, `git_commit`, `git_tag`, `git_push`).
-
-## Use with MCP
-
-All tools are auto-discovered via `axm.tools` entry points and served through the
-AXM MCP server. See [Use via MCP](mcp.md) for the full tool list and call examples.
+For exact defaults and returned keys, see the [tool reference](../reference/cli.md).
+For a read-only first run, see the [tutorial](../tutorials/getting-started.md).
