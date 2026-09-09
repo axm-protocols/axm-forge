@@ -15,6 +15,10 @@ import pytest
 
 from axm_init.tools.check import InitCheckTool
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init.conftest import (
+    materialize_post_copy_artifacts,
+    scaffold_without_tasks,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -22,16 +26,21 @@ pytestmark = pytest.mark.integration
 def test_scaffold_then_check_passes_structure_tests_dir(tmp_path: Path) -> None:
     project = tmp_path / "demo-pkg"
     project.mkdir()
-    result = InitScaffoldTool().execute(
-        path=str(project),
-        name=project.name,
-        org="DemoOrg",
-        author="Demo Author",
-        email="demo@example.com",
-        license="MIT",
-        description="demo package",
-    )
+    # Files only, then synthesize the deterministic artifacts the skipped tasks
+    # would have produced: `structure.tests_dir` is a rendered-layout contract,
+    # so it stays real without resolving 72 packages.
+    with scaffold_without_tasks():
+        result = InitScaffoldTool().execute(
+            path=str(project),
+            name=project.name,
+            org="DemoOrg",
+            author="Demo Author",
+            email="demo@example.com",
+            license="MIT",
+            description="demo package",
+        )
     assert result.success, result.error
+    materialize_post_copy_artifacts(project)
 
     check = InitCheckTool().execute(path=str(project))
     assert check.success, check.error

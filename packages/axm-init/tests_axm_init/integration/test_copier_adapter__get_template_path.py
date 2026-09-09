@@ -13,10 +13,16 @@ from axm_init.adapters.copier import CopierAdapter, CopierConfig
 from axm_init.core.templates import TemplateType, get_template_path
 
 
-@pytest.fixture
-def generated_project(tmp_path: Path) -> Path:
-    """Render the standalone Python template with its minimal project metadata."""
-    destination = tmp_path / "generated-project"
+@pytest.fixture(scope="module")
+def generated_project(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Render the standalone Python template with its minimal project metadata.
+
+    Files only (``skip_tasks=True``): these contracts read the rendered
+    ``pyproject.toml`` and the seed unit test, never an artifact the post-copy
+    tasks produce, so running them would resolve and install 72 packages per
+    test for nothing. Module-scoped because the render is read-only here.
+    """
+    destination = tmp_path_factory.mktemp("generated") / "generated-project"
     result = CopierAdapter().copy(
         CopierConfig(
             template_path=get_template_path(TemplateType.STANDALONE),
@@ -31,6 +37,7 @@ def generated_project(tmp_path: Path) -> Path:
                 "author_email": "author@example.com",
             },
             trust_template=True,
+            skip_tasks=True,
         )
     )
     assert result.success, result.message

@@ -32,8 +32,17 @@ RESEARCH_FILENAME = "RESEARCH.md"
 RESEARCH_CHECK_ID = "paper.research_present"
 
 
+@pytest.mark.slow
 def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
-    """AC3: a fresh scaffold scores exactly 100 and exits 0."""
+    """AC3: a fresh scaffold scores exactly 100 and exits 0.
+
+    Marked ``slow``: this is the one end-to-end proof that the shipped CLI
+    produces a gold-standard project *with* its post-copy tasks — a real
+    ``git init`` and two real ``uv add`` invocations, 239 MB and ~5s. Every
+    other scaffold contract renders files only (``skip_tasks=True``), so this
+    test is the sole place where the full chain is exercised; it runs under
+    ``-m slow`` rather than on every suite run.
+    """
     project = tmp_path / "demo-pkg"
     project.mkdir()
 

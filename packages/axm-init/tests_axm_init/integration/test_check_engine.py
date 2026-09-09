@@ -13,6 +13,7 @@ import pytest
 from axm_init.adapters.copier import CopierAdapter, CopierConfig
 from axm_init.core.checker import CheckEngine
 from axm_init.core.templates import TemplateType, get_template_path
+from tests_axm_init.conftest import materialize_post_copy_artifacts
 
 pytestmark = pytest.mark.integration
 
@@ -369,15 +370,24 @@ _SCAFFOLD_DATA = {
 
 @pytest.fixture(scope="module")
 def scaffolded_standalone(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Scaffold the standalone (python-project) template once via real Copier."""
+    """Scaffold the standalone (python-project) template once via real Copier.
+
+    Renders files only (``skip_tasks=True``) and synthesizes the four
+    deterministic artifacts the skipped tasks would have produced, so
+    ``score == 100`` stays a real gold-standard contract instead of penalising
+    the test for not resolving 72 packages. Only the network-bound ``uv add``
+    resolution is genuinely skipped.
+    """
     target = tmp_path_factory.mktemp("scaffold_check") / "demo-pkg"
     config = CopierConfig(
         template_path=get_template_path(TemplateType.STANDALONE),
         destination=target,
         data=_SCAFFOLD_DATA,
         trust_template=True,
+        skip_tasks=True,
     )
     CopierAdapter().copy(config)
+    materialize_post_copy_artifacts(target)
     return target
 
 

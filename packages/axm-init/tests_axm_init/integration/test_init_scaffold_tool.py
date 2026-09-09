@@ -5,8 +5,13 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from axm.tools.base import ToolResult
 
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init.conftest import (
+    materialize_post_copy_artifacts,
+    scaffold_without_tasks,
+)
 
 
 class TestScaffoldExecuteException:
@@ -231,18 +236,43 @@ def _tree_snapshot(root: Path) -> dict[str, tuple[bytes, int, int]]:
     }
 
 
+def _scaffold_without_tasks(path: Path, **kwargs: object) -> ToolResult:
+    """Run the scaffold tool with the templates' post-copy tasks disabled.
+
+    Thin wrapper over the shared :func:`scaffold_without_tasks` block: it adds
+    this module's identity defaults and synthesizes the post-copy artifacts at
+    whichever root the tool reports (a member lands under ``packages/<name>``,
+    not at the requested path).
+    """
+    with scaffold_without_tasks():
+        result = InitScaffoldTool().execute(
+            path=str(path),
+            **{**EXPERIMENT_IDENTITY, **kwargs},
+        )
+
+    reported = (result.data or {}).get("root") or (result.data or {}).get("path")
+    rendered = Path(str(reported)) if reported else path
+    if (rendered / "pyproject.toml").is_file():
+        materialize_post_copy_artifacts(rendered)
+    return result
+
+
 @pytest.mark.integration
 def test_python_package_and_member_register_protocol_profile(tmp_path: Path) -> None:
-    """AC1: both Python modes expose their derived distribution and location."""
-    tool = InitScaffoldTool()
+    """AC1: both Python modes expose their derived distribution and location.
+
+    Renders with ``skip_tasks=True``: this contract reads only the structured
+    result and the merged ``pyproject.toml``, never an artifact the post-copy
+    tasks produce, so running them would resolve and install 72 packages three
+    times over for nothing (measured: 5.5s and 366 MB against 0.3s here).
+    """
     package_root = tmp_path / "protocols-dev"
-    package = tool.execute(
-        path=str(package_root),
+    package = _scaffold_without_tasks(
+        package_root,
         name="protocols-dev",
         profile="protocols",
         domain="dev",
         protocols=[],
-        **EXPERIMENT_IDENTITY,
     )
     assert package.success, package.error
     assert package.data is not None
@@ -255,20 +285,18 @@ def test_python_package_and_member_register_protocol_profile(tmp_path: Path) -> 
     )
 
     workspace_root = tmp_path / "workspace"
-    workspace = tool.execute(
-        path=str(workspace_root),
+    workspace = _scaffold_without_tasks(
+        workspace_root,
         name="protocol-workspace",
         workspace=True,
-        **EXPERIMENT_IDENTITY,
     )
     assert workspace.success, workspace.error
-    member = tool.execute(
-        path=str(workspace_root),
+    member = _scaffold_without_tasks(
+        workspace_root,
         member="protocols-research",
         profile="protocols",
         domain="research",
         protocols=[],
-        **EXPERIMENT_IDENTITY,
     )
     assert member.success, member.error
     assert member.data is not None

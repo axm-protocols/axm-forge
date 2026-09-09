@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init.conftest import scaffold_without_tasks
 
 pytestmark = pytest.mark.integration
 
@@ -81,14 +82,17 @@ def _scaffold_standalone(tmp_path: Path) -> Path:
     """Render the python-project template into tmp_path; return its pyproject."""
     dest = tmp_path / "demo-pkg"
     dest.mkdir()
-    result = InitScaffoldTool().execute(
-        path=str(dest),
-        org="DemoOrg",
-        author="Demo Author",
-        email="demo@example.com",
-        license="MIT",
-        description="demo package",
-    )
+    # Files only: these contracts read the rendered mypy config, never an
+    # artifact the post-copy tasks produce.
+    with scaffold_without_tasks():
+        result = InitScaffoldTool().execute(
+            path=str(dest),
+            org="DemoOrg",
+            author="Demo Author",
+            email="demo@example.com",
+            license="MIT",
+            description="demo package",
+        )
     assert result.success, result.error
     return dest / "pyproject.toml"
 
@@ -98,25 +102,26 @@ def _scaffold_member(tmp_path: Path) -> Path:
     tool = InitScaffoldTool()
     ws = tmp_path / "demo-ws"
     ws.mkdir()
-    ws_result = tool.execute(
-        path=str(ws),
-        org="DemoOrg",
-        author="Demo Author",
-        email="demo@example.com",
-        license="MIT",
-        description="demo workspace",
-        workspace=True,
-    )
-    assert ws_result.success, ws_result.error
-    member_result = tool.execute(
-        path=str(ws),
-        member="demo-member",
-        org="DemoOrg",
-        author="Demo Author",
-        email="demo@example.com",
-        license="MIT",
-        description="demo member",
-    )
+    with scaffold_without_tasks():
+        ws_result = tool.execute(
+            path=str(ws),
+            org="DemoOrg",
+            author="Demo Author",
+            email="demo@example.com",
+            license="MIT",
+            description="demo workspace",
+            workspace=True,
+        )
+        assert ws_result.success, ws_result.error
+        member_result = tool.execute(
+            path=str(ws),
+            member="demo-member",
+            org="DemoOrg",
+            author="Demo Author",
+            email="demo@example.com",
+            license="MIT",
+            description="demo member",
+        )
     assert member_result.success, member_result.error
     return ws / "packages" / "demo-member" / "pyproject.toml"
 

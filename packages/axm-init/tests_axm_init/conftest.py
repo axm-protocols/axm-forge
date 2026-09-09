@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,6 +19,60 @@ SAMPLE_PROJECT_NAME = "test-project"
 SAMPLE_AUTHOR = "Test Author"
 SAMPLE_EMAIL = "test@example.com"
 SAMPLE_DESCRIPTION = "A test project"
+
+
+# ── Post-copy artifacts ──────────────────────────────────────────────────
+
+
+def materialize_post_copy_artifacts(root: Path) -> None:
+    """Recreate the deterministic side-effects of the skipped post-copy tasks.
+
+    The bundled templates declare ``_tasks`` that shell out to ``cp licences/``,
+    ``git init``, ``uv python pin`` and two ``uv add`` invocations. Rendering
+    with ``skip_tasks=True`` therefore leaves four deterministic artifacts
+    absent: ``LICENSE``, ``.python-version``, ``uv.lock`` and the installed
+    pre-commit hook. Those four are network-free and cheap, so they are
+    synthesized here; only the genuinely network-bound package resolution is
+    skipped.
+
+    The point is cost, measured on the ``python-project`` template: running the
+    tasks costs 2.23s and 239 MB (72 packages resolved, 72 installed) against
+    0.60s and 0.1 MB with them skipped, and a full suite run created 13 virtual
+    environments and 110 git repositories for 2.7 GB of temporary state. The
+    rendered tree is identical either way, so a test asserting template
+    structure or gold-standard compliance keeps a real contract while paying for
+    the render alone — never for an installation it does not inspect.
+    """
+    (root / "LICENSE").write_text("Apache License 2.0\n", encoding="utf-8")
+    (root / ".python-version").write_text("3.12\n", encoding="utf-8")
+    (root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    hooks = root / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "pre-commit").write_text("#!/bin/sh\n", encoding="utf-8")
+
+
+@contextmanager
+def scaffold_without_tasks() -> Generator[None]:
+    """Make every scaffold inside this block render files only.
+
+    ``InitScaffoldTool`` deliberately exposes no ``skip_tasks`` argument — that
+    is a test concern, not part of its contract — so the flag is injected by
+    swapping the adapter's config factory for the duration of the block. Every
+    ``CopierConfig`` the tool builds then carries ``skip_tasks=True``.
+
+    Callers that assert on gold-standard compliance must follow up with
+    :func:`materialize_post_copy_artifacts`; callers that only read rendered
+    template files need nothing more.
+    """
+    from axm_init.adapters import copier as copier_module
+
+    real_config = copier_module.CopierConfig
+
+    def _no_tasks(**kwargs: object) -> CopierConfig:
+        return real_config(**{**kwargs, "skip_tasks": True})
+
+    with patch.object(copier_module, "CopierConfig", _no_tasks):
+        yield
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
