@@ -1,78 +1,55 @@
 # Use Presets
 
-Presets are named collections of strategies ordered for best results.
+Choose a preset by what the consumer can tolerate, then inspect the output.
+A preset is an ordered list, not a guarantee of losslessness or maximum savings.
 
-## Available Presets
+## Available presets
 
-| Preset | Strategies | Use when |
-|---|---|---|
-| `safe` | `minify`, `collapse_whitespace` | Keeps the parsed value identical (not byte/whitespace-lossless) |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Structural transforms are acceptable |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Maximum savings, float precision may change |
+| Preset | Ordered strategies |
+|---|---|
+| `safe` | `minify`, `collapse_whitespace` |
+| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
+| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
 
-## AXMTool
+The order differs between moderate and aggressive. Earlier accepted strategies
+can change what later ones can process. More strategies need not save more tokens.
 
-Pass the preset name to the registered `smelt` tool through MCP or a DAG node. The same entry point also provides generated AXM CLI help:
-
-```bash
-axm smelt --help
-```
-
-The removed standalone CLI and its `--file` option have no compatibility shim. Use the registered tool's `--input-path` option for a UTF-8 file, or redirect text to its standard input.
-
-## Python API
+## Choose and inspect
 
 ```python
 from axm_smelt import smelt
 
-# Safe
-report = smelt(data, preset="safe")
-
-# Moderate
-report = smelt(data, preset="moderate")
-
-# Aggressive
-report = smelt(data, preset="aggressive")
+data = '{"name": "Alice", "notes": null, "score": 3.14159265}'
+for preset in ("safe", "moderate", "aggressive"):
+    report = smelt(data, preset=preset)
+    print(preset, report.compacted, report.savings_pct, report.strategies_applied)
 ```
 
-## Choosing a Preset
+- `safe` is the default starting point for whitespace compaction. Ordinary JSON
+  values are retained after parsing, but representation, key order and duplicate
+  object keys are not preserved. It is **not generally lossless**: XML whitespace,
+  YAML inline comments and Markdown rendering can change.
+- `moderate` additionally drops empty values, changes nesting, introduces
+  aliases/tables, removes quotes and comments. Use only when those losses and
+  representations are acceptable to the reader.
+- `aggressive` also rounds floats to two decimal places when that candidate is
+  accepted. Do not use for exact numeric computations.
 
-**Use `safe`** when:
-- The downstream consumer needs the parsed value preserved (structure and
-  scalars identical), while whitespace may change
-- The data contains floats that must not be rounded
-- You only want whitespace removed
+For Markdown where hard line breaks or fence boundaries matter, retain the
+original or choose and review narrower transformations. Details and known
+limitations are in the [strategy catalog](../explanation/strategies.md).
 
-> `safe` keeps the *parsed value* identical, not the bytes. For YAML it will
-> not compact a document carrying `#` comments (comments are content a
-> parse+dump would silently drop), so commented YAML is returned unchanged
-> rather than stripped.
-
-**Use `moderate`** when:
-- Null/empty values are not meaningful and can be dropped
-- Repeated nested structures can be flattened
-- Repeated long strings benefit from aliasing
-- You want significant savings without altering numeric precision
-
-**Use `aggressive`** when:
-- You want the maximum token reduction
-- Float precision beyond 2 decimal places is not needed
-- The data is large and savings matter more than exact fidelity
-
-## Inspecting what a preset would do
-
-Use `check` to see estimates for each strategy before committing:
-
-Through the tool registry, call `smelt_check` with the payload as its `data` input. The generated CLI surface can be inspected with:
+## From the CLI
 
 ```bash
-axm smelt_check --help
+axm smelt --input-path ./payload.json --preset moderate --json-output
 ```
 
-```python
-from axm_smelt import check
+A nonempty explicit `--strategies` list overrides `--preset`. Python's
+`strategies=[]` falls back to the preset/default rather than selecting none.
 
-report = check(data)
-for strat, pct in report.strategy_estimates.items():
-    print(f"  {strat}: {pct:.1f}%")
-```
+## Measure the selected pipeline
+
+`check` reports positive **isolated** strategy estimates and Python's projected
+**safe** gain. To compare presets, use the loop above; `check` does not simulate
+each preset. Compaction returns new text and does not overwrite your input.

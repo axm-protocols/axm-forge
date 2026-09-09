@@ -1,19 +1,16 @@
 # AXM CLI Reference
 
-`axm-smelt` no longer installs a standalone executable and the package is not
-runnable with `python -m axm_smelt`. The command surface is generated from the
-three `axm.tools` entry points, so CLI, MCP, and DAG execution share one
-interface declaration.
+Install `axm-smelt` in the environment running `axm`. With `uv add axm-smelt`,
+prefix the commands below with `uv run` unless that environment is activated.
+The package registers three commands through the AXM tool registry.
 
-## Tool commands
+| Command | Purpose | Additional inputs |
+|---|---|---|
+| `axm smelt` | Compact input | `--strategies`, `--preset` |
+| `axm smelt_check` | Estimate savings | None |
+| `axm smelt_count` | Count input tokens | `--model` |
 
-| Command | Purpose |
-|---|---|
-| `axm smelt` | Compact text or structured data |
-| `axm smelt_check` | Analyze potential savings without transforming the input |
-| `axm smelt_count` | Count input tokens |
-
-Use the generated help for the exact arguments exposed by the installed version:
+All accept `--data`, `--input-path`, and the shared `--json-output` switch.
 
 ```bash
 axm smelt --help
@@ -21,20 +18,39 @@ axm smelt_check --help
 axm smelt_count --help
 ```
 
-The former `compact`, `check`, `count`, and `version` subcommands, along
-with their `--file` and `--output` plumbing, are not compatibility aliases.
-Provide explicit data, use `--input-path` for a UTF-8 file, or redirect text to
-standard input; that is also their precedence order. Output persistence remains
-the caller's responsibility.
+## Input and strategies
 
-If the designated path does not exist or its contents are not valid UTF-8, the
-command exits with a non-zero status and a diagnostic that names that path.
+```bash
+printf '{"name": "Alice", "notes": null}\n' | axm smelt
+axm smelt --input-path ./payload.json --preset moderate
+axm smelt --data '{"a": 1, "b": null}' --strategies '["minify", "drop_nulls"]'
+axm smelt_count --data 'hello world' --model o200k_base
+```
 
-For structured programmatic calls and result fields, see
-[Use via MCP](../howto/mcp.md).
+`--strategies` takes **one JSON array argument**, not a comma-separated string
+or repeated flag. The generic CLI JSON-decodes `--data` when possible: a JSON
+object becomes parsed data with a compact baseline. For the exact whitespace
+and token count of a JSON file, use `--input-path` or stdin, which stay text.
+To pass JSON-looking content as a string through `--data`, JSON-encode the
+string itself.
 
-## Python API
+Input precedence is nonempty data, explicit file, then non-interactive stdin.
+See [input edge cases](contracts.md#axmtool-inputs).
 
-The package-level `smelt`, `check`, and `count` functions are unchanged.
-Auto-generated API reference is available under
-[Python API](../reference/axm_smelt/index.md).
+## Output and exit status
+
+The default output is a metrics header followed by compacted text for `smelt`;
+it is **not a raw compacted file**. Use structured output to extract the payload:
+
+```bash
+axm smelt --input-path ./payload.json --json-output
+```
+
+`--json-output` prints the tool's `data` mapping, without a `ToolResult`
+envelope. Key sets are listed in the [tool contract](contracts.md#toolresult-data).
+On a tool failure, the diagnostic goes to stderr and exit status is 1;
+malformed JSON for `--strategies` exits 2. CLI parsing errors are also nonzero.
+Always check status before consuming stdout (JSON mode can print `{}` on failure).
+
+Commands read inputs and write stdout/stderr; they do not overwrite input files.
+See [saving compacted text from Python](../howto/compact.md#save-only-the-compacted-text).

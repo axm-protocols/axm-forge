@@ -1,66 +1,61 @@
 # Format Detection
 
-`axm-smelt` auto-detects the input format before applying strategies.
+Detection chooses which transformations can apply; it is not a format validator
+and does not certify output syntax.
 
-## Supported Formats
+## Probe order
 
-| Format | `Format` enum value | Detection |
+The first matching probe wins, in this exact order:
+
+| Order | Result | Test |
 |---|---|---|
-| JSON | `Format.JSON` | Starts with `{` or `[` after stripping whitespace |
-| YAML | `Format.YAML` | Contains `---` separator or YAML-like `key: value` patterns |
-| XML | `Format.XML` | Starts with `<` (excludes known HTML root tags) |
-| TOML | `Format.TOML` | Parses cleanly with `tomllib.loads` |
-| CSV | `Format.CSV` | `csv.Sniffer` finds a delimiter and ≥2 rows share a consistent column count |
-| Markdown | `Format.MARKDOWN` | ≥2 distinct indicators: multi-level headings, pipe tables, fenced code blocks, inline links |
-| Plain text | `Format.TEXT` | Fallback |
+| 1 | JSON | Starts with `{` or `[` after trimming, and `json.loads` succeeds |
+| 2 | XML | XML declaration or an XML-looking root outside the known HTML-tag set; no XML parse |
+| 3 | YAML | YAML indicator pattern, and `yaml.safe_load` returns a dict/list |
+| 4 | Markdown | Indicator score reaches two |
+| 5 | TOML | `tomllib.loads` returns a nonempty mapping |
+| 6 | CSV | Sniffed delimiter and at least two nonempty rows with equal width of at least two columns |
+| 7 | Text | Fallback, including empty/whitespace-only input |
 
-## Detection heuristics
+Markdown scores two for multiple heading levels, two for a pipe table with
+separator, one for a heading level, one for a pair of recognized backtick-fence
+lines, and one for a Markdown link. A single heading or fenced block alone may
+therefore be labelled text.
 
-Detection is heuristic and fast — no full parsing is required. The detector inspects:
+CSV sniffing considers comma, semicolon, tab, and pipe. XML excludes strings
+starting with `<!`, including a leading DOCTYPE; the heuristic does not check
+balanced tags. Malformed JSON falls through to later probes, rather than
+automatically receiving the JSON label. JSON scalars are not classified by the
+initial object/array probe.
 
-1. The first non-whitespace character (for JSON, XML)
-2. Line patterns (for YAML, TOML, CSV, Markdown)
-3. Falls back to `TEXT` when no pattern matches
+## Format and transformations
 
-For JSON, the detector only checks the first character (`{` or `[`). If `json.loads()` subsequently fails inside a strategy, the strategy returns the input unchanged.
+| Input | Relevant transformations |
+|---|---|
+| JSON objects/arrays | `minify`, `drop_nulls`, `flatten`, `tabular`, `dedup_values_with_refs`, `round_numbers`, `strip_quotes` |
+| YAML | `minify` |
+| XML | `minify` |
+| Markdown | `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
+| Text | `collapse_whitespace`, `strip_html_comments` |
+| TOML / CSV | No dedicated compactor; detected to avoid prose whitespace transformations |
 
-## Strategy behavior by format
+This table covers ordinary object/array and prose inputs. Some JSON-aware
+strategies also attempt to parse their text or reuse an available parsed value;
+they are not all gated solely by the format enum. Detection does not mean a
+strategy will save tokens. Every candidate still passes the
+[acceptance guard](architecture.md#acceptance-is-local-and-greedy).
 
-Each strategy targets specific formats and returns the input unchanged on any
-other format (a no-op that the keep-if-reduced guard treats as skipped):
-
-| Strategy | Category | Works on | Behavior on other formats |
-|---|---|---|---|
-| `minify` | whitespace | JSON, YAML, XML | Returns input unchanged |
-| `drop_nulls` | structural | JSON | Returns input unchanged |
-| `flatten` | structural | JSON | Returns input unchanged |
-| `tabular` | structural | JSON | Returns input unchanged |
-| `dedup_values_with_refs` | structural | JSON | Returns input unchanged |
-| `round_numbers` | cosmetic | JSON | Returns input unchanged |
-| `strip_quotes` | cosmetic | JSON | Returns input unchanged |
-| `collapse_whitespace` | whitespace | prose / Markdown (skips structured formats) | Returns input unchanged |
-| `compact_tables` | whitespace | Markdown | Returns input unchanged |
-| `strip_html_comments` | cosmetic | prose / Markdown | Returns input unchanged |
-
-`minify` handles YAML and XML in addition to JSON; the three prose strategies
-(`collapse_whitespace`, `compact_tables`, `strip_html_comments`) target
-Markdown / plain text. Running a JSON-only strategy on YAML, XML, or plain text
-is safe — the input is returned unmodified.
-
-`strip_quotes` is JSON-only by construction: its ``"word":`` pattern would also
-match quoted words in prose, so it is guarded to `Format.JSON` and never mutates
-non-JSON text.
-
-## Accessing detected format
+## Inspect the input label
 
 ```python
-from axm_smelt import smelt
-from axm_smelt.core.models import Format
+from axm_smelt import Format, smelt
 
-report = smelt(data)
-print(report.format)          # Format.JSON
-print(report.format.value)    # "json"
-
-if report.format == Format.JSON:
-    print("JSON detected")
+report = smelt('{"a": 1}')
+assert report.format is Format.JSON
+print(report.format.value)  # json
 ```
+
+The label is retained across transformations. In particular, `tabular` and
+`strip_quotes` can make output invalid JSON without changing `report.format`.
+Read the [strategy contracts and fidelity limits](strategies.md) before deciding
+whether the result can be passed to another parser.

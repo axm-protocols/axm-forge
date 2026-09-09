@@ -1,71 +1,73 @@
-# Use via MCP
+# Use via MCP and DAG Nodes
 
-`axm-smelt` exposes a `SmeltTool` via the `axm.tools` entry point group. AI agents can call it through [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp).
+Install `axm-smelt` in the environment used by the MCP server. Its
+`axm.tools` entry points register `smelt`, `smelt_check`, and `smelt_count`.
+A separate project environment does not automatically install tools into an
+already running server.
 
-## Tool signature
+## Call through the façade
 
-```python
-SmeltTool.execute(
-    *,
-    data: str | dict | list = "",         # Text or pre-parsed data to compact
-    input_path: str | None = None,         # UTF-8 file used when data is empty
-    strategies: list[str] | None = None,  # Explicit strategy list
-    preset: str | None = None,            # Named preset (safe/moderate/aggressive)
-) -> ToolResult
-```
-
-Three tools are registered in the `axm.tools` entry point group: `smelt`
-(compaction), `smelt_check` (analysis — what *would* be compacted and the
-projected savings), and `smelt_count` (token count of an input, no compaction).
-All arguments are keyword-only.
-
-All three tools share the same input precedence: explicit non-empty `data` wins over `input_path`; otherwise `input_path` is read explicitly as UTF-8; without either, non-interactive stdin is read; and an unavailable interactive stdin preserves the empty default. A missing path, directory, or invalid UTF-8 returns `ToolResult(success=False)` with the designated path in `error`.
-
-When `data` is a dict or list, it is passed directly to the pipeline via `parsed=`, avoiding a `json.dumps` → `json.loads` round-trip. Structured data therefore never consults the file or stdin paths.
-
-If neither `strategies` nor `preset` is given, the `safe` preset is used.
-
-`SmeltCheckTool` follows the same pattern: when `data` is already structured, it is passed as `parsed=` to `check()`.
-
-## Example agent call
+With an existing asynchronous MCP client session named `session`, call the
+AXM server's façade. This fragment assumes the session is already connected:
 
 ```python
-# Via axm-mcp
-result = await mcp.call_tool("smelt", {
-    "input_path": "/data/payload.json",
-    "preset": "moderate",
-})
+result = await session.call_tool(
+    "axm_call",
+    arguments={
+        "name": "smelt",
+        "arguments": {
+            "data": '{"name": "Alice", "notes": null}',
+            "preset": "moderate",
+        },
+    },
+)
 ```
 
-## ToolResult fields
+In façade mode the individual tool need not appear as a directly exposed MCP
+method. Search the catalog with `axm_search` and call it through `axm_call`.
+The façade renders text; an MCP client's response is not itself a Python
+`ToolResult`. The [underlying contracts](../reference/contracts.md#toolresult-data)
+describe the fields available to Python/DAG integrations.
 
-On success, `result.data` contains a JSON-serializable dict:
+Prefer explicit `data` for remote calls. `input_path` is resolved on the
+**server's filesystem**, not the client's machine; omitted/empty data can read
+the server process's non-interactive stdin. Do not use stdin as a remote input
+channel.
 
-```json
-{
-  "compacted": "{\"name\":\"Alice\"}",
-  "format": "json",
-  "original_tokens": 14,
-  "compacted_tokens": 9,
-  "savings_pct": 35.7,
-  "strategies_applied": ["minify"],
-  "counter_backend": "tiktoken"
-}
+## Choose the tool
+
+| Need | Tool |
+|---|---|
+| Compacted text plus actual pipeline metrics | `smelt` |
+| Positive isolated strategy estimates | `smelt_check` |
+| Count using a requested tiktoken model/encoding | `smelt_count` |
+
+A successful call with zero savings is valid. Tools convert exceptions to
+failure results. The Python `check` report has cumulative safe savings, but
+the `smelt_check` tool exposes only format, count and isolated estimates.
+
+## Wrap as a DAG node
+
+```python
+from axm import tool_node
+
+compact = tool_node(
+    "smelt",
+    args={"data": "payload"},
+    returns={"compact_text": "compacted", "saved_pct": "savings_pct"},
+)
+output = compact({"payload": '{"name": "Alice", "notes": null}'})
+print(output["compact_text"])
 ```
 
-`counter_backend` reports which token counter produced the numbers. Today it is
-always `tiktoken`: a Claude or otherwise unknown model name routes to the
-`o200k_base` proxy encoding (an approximation, no `len // 4` heuristic and no
-network call) rather than failing. It also appears in the text header so the
-source of the counts is never silent. `smelt_count` exposes the same
-`counter_backend` key in its `data` and text. The field is kept as the seam for
-a future tokenizer backend (e.g. HuggingFace/SentencePiece). For an *exact*
-Claude count, read `usage.input_tokens` from the run rather than this proxy.
+Explicit `returns` chooses fields from the tool's data. A source value
+`"text"` selects the human-readable rendering instead, including its header.
+The node fails on a failed tool result; this prevents a file or tokenizer error
+from being mistaken for an empty successful compaction.
 
-On error, `result.success` is `False` and `result.error` contains the message.
+## Keep sensitive content under caller control
 
-## When to use which preset from an agent
-
-- Use `safe` when passing data to tools that parse it back (e.g., API calls with JSON bodies)
-- Use `moderate` for context injection where nulls and empty fields add no value
-- Use `aggressive` for large retrieved documents where maximum context savings matter
+Compaction is not redaction: the returned payload can still contain all
+original secrets. `safe` makes no sensitive-data guarantee. Choose inputs and
+destinations according to the application, and review
+[preset trade-offs](presets.md) before injecting transformed context.

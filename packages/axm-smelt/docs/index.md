@@ -18,55 +18,42 @@
 
 ## What it does
 
-`axm-smelt` reduces token consumption for LLM inputs by applying deterministic compaction strategies. It detects the input format, runs the selected strategies in pipeline order, and reports exact token savings via tiktoken.
+`axm-smelt` reduces token consumption through deterministic transformations.
+It detects formats, tries selected strategies and keeps only candidates with
+fewer tokens, or equal tokens and fewer characters. No LLM summarization is used.
 
-| Strategy | Category | Effect |
-|---|---|---|
-| `minify` | whitespace | Remove whitespace from JSON, YAML, and XML |
-| `drop_nulls` | structural | Remove `None`, `""`, `[]`, `{}` values |
-| `flatten` | structural | Collapse single-child wrapper dicts |
-| `tabular` | structural | Convert `list[dict]` to pipe-separated tables |
-| `dedup_values_with_refs` | structural | Replace repeated long strings with aliases |
-| `round_numbers` | cosmetic | Round floats to N decimal places |
-| `strip_quotes` | cosmetic | Remove quotes on simple JSON keys (JSON only) |
-| `collapse_whitespace` | whitespace | Collapse blank lines / trailing spaces in prose (skips code fences) |
-| `compact_tables` | whitespace | Strip padding from Markdown table cells |
-| `strip_html_comments` | cosmetic | Remove `<!-- ... -->` from prose / Markdown |
+Use the Python API or the three registered AXMTools: `smelt`, `smelt_check`,
+and `smelt_count`. The registry provides AXM CLI, MCP and DAG access.
 
-## Quick Example
-
-```bash
-# AXMTool-derived CLI surfaces
-axm smelt --help
-axm smelt_check --help
-axm smelt_count --help
-```
+## Quick example
 
 ```python
-# Python API
-from axm_smelt import smelt, check, count
+import json
+from axm_smelt import smelt
 
 report = smelt('{\n  "name": "Alice",\n  "age": 30\n}')
-print(f"{report.savings_pct:.1f}% saved")
-# 35.7% saved
+assert json.loads(report.compacted) == {"name": "Alice", "age": 30}
+print(report.compacted, report.savings_pct)
 ```
 
-## Features
+A token reduction does not prove that meaning is preserved. The default
+`safe` preset can alter XML whitespace, YAML inline comments and Markdown
+layout. Structural presets can change schema or produce text that is not JSON.
+Read [strategy behavior](explanation/strategies.md) before choosing a preset.
 
-- **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
-- **Token counting** — always via tiktoken; Claude and unknown models route to the `o200k_base` proxy (approximate, no network)
-- **Composable pipeline** — chain strategies or use presets (`safe`, `moderate`, `aggressive`)
-- **AXMTools** — `smelt`, `smelt_check`, and `smelt_count` through MCP, AXM CLI, or DAG nodes
-- **Single registry** — no separate `axm-smelt` executable or `python -m axm_smelt` façade
-- **Modern Python** — 3.12+ with strict typing
+## Find your way
 
-## Learn More
+| Your question | Start here |
+|---|---|
+| How do I make my first verified compaction? | [Getting Started](tutorials/getting-started.md) |
+| How do I compact, save or analyze a payload? | [How-to guides](howto/index.md) |
+| What do functions, reports and tools accept/return? | [Contracts](reference/contracts.md) |
+| How do I encode command-line arguments? | [CLI reference](reference/cli.md) |
+| Where is the supported Python API? | [Public API](reference/api/index.md) |
+| Why was a candidate accepted or skipped? | [Architecture](explanation/architecture.md) |
+| How are inputs classified? | [Format detection](explanation/formats.md) |
 
-- [Getting Started Tutorial](tutorials/getting-started.md)
-- [Compact Data](howto/compact.md)
-- [Use Strategies](howto/strategies.md)
-- [Use Presets](howto/presets.md)
-- [Analyze Token Waste](howto/check.md)
-- [Use via MCP](howto/mcp.md)
-- [Strategy Catalog](explanation/strategies.md)
-- [Format Detection](explanation/formats.md)
+JSON, YAML, XML, TOML, CSV, Markdown and text are detected. Detection is broader
+than compaction support: TOML/CSV have no dedicated compactor.
+Token counts use tiktoken; Claude/unknown names resolve to an approximate
+`o200k_base` proxy in the counting API.

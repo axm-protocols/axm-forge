@@ -19,133 +19,90 @@
 
 ---
 
-`axm-smelt` reduces token consumption for LLM inputs by applying deterministic compaction strategies — whitespace collapsing, structural transforms, and optional lossy simplifications. It works through the **Python API** and three registered **AXMTools**, which provide MCP, AXM CLI, and DAG-node access from one declaration.
+`axm-smelt` reduces token consumption for LLM inputs with deterministic
+transformations. It detects input formats, tries ordered strategies, and keeps
+candidates that reduce tokens or shorten text at equal token count.
 
-📖 **[Full documentation](https://forge.axm-protocols.io/smelt/)**
-
-## Features
-
-- **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
-- **Token counting** — always via tiktoken; Claude and unknown models route to the `o200k_base` proxy (approximate, no network)
-- **10 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `strip_quotes`, `dedup_values_with_refs`, `collapse_whitespace`, `compact_tables`, `strip_html_comments`
-- **Composable pipeline** — chain strategies explicitly or use presets (`safe`, `moderate`, `aggressive`)
-- **AXMTools** — `smelt`, `smelt_check`, and `smelt_count`, available through MCP, `axm`, and DAG nodes
-- **MCP tool** — `SmeltTool` for use by AI agents via `axm-mcp`
-- **Modern Python** — 3.12+ with strict typing
+**[Full documentation](https://forge.axm-protocols.io/smelt/)** ·
+[Getting started](docs/tutorials/getting-started.md) ·
+[Python/tool contracts](docs/reference/contracts.md)
 
 ## Installation
+
+Requires Python 3.12+. In a uv project:
 
 ```bash
 uv add axm-smelt
 ```
 
-## Quick Start
-
-### AXM CLI
-
-The CLI surface is derived from the registered AXMTools. Each command accepts redirected text or a UTF-8 file.
-
-Compact data with `smelt`:
-
-```bash
-printf '{"name": "Alice", "notes": null}\n' | axm smelt
-# smelt | json | 11->9 tok (-18.18%) | minify | tiktoken
-# {"name":"Alice","notes":null}
-axm smelt --input-path ./payload.json
-```
-
-Analyze possible savings with `smelt_check`:
-
-```bash
-printf '{"name": "Alice", "notes": null}\n' | axm smelt_check
-# smelt_check | json | 11 tok
-#   drop_nulls: -54.55%
-#   minify: -18.18%
-#   flatten: -18.18%
-#   round_numbers: -18.18%
-#   strip_quotes: -18.18%
-axm smelt_check --input-path ./payload.json
-```
-
-Count tokens with `smelt_count`:
-
-```bash
-printf 'alpha beta gamma delta epsilon\n' | axm smelt_count
-# smelt_count | 6 tokens | 31 chars | o200k_base | tiktoken
-axm smelt_count --input-path ./payload.txt
-```
-
-Explicit data takes precedence over `--input-path`, which takes precedence over non-interactive stdin. If the designated path does not exist or its contents are not valid UTF-8, the command exits with a non-zero status and a diagnostic that names that path.
-
-There is no standalone `axm-smelt` executable and `python -m axm_smelt` is intentionally unsupported.
-
-### Python API
+## Quick start
 
 ```python
-from axm_smelt import smelt, check, count
+import json
+from axm_smelt import check, count, smelt
 
-# Compact using the safe preset (default)
-report = smelt('{\n  "name": "Alice",\n  "age": 30\n}')
-print(f"{report.savings_pct:.1f}% saved")
-# Tokens: 14 -> 9
+data = '{\n  "name": "Alice",\n  "age": 30\n}'
+report = smelt(data)
+assert json.loads(report.compacted) == json.loads(data)
+print(report.compacted, report.savings_pct)
 
-# Compact with explicit strategies
-report = smelt(data, strategies=["minify", "drop_nulls"])
-
-# Compact with a preset
-report = smelt(data, preset="aggressive")
-
-# Analyze without transforming
-report = check('{"data": [1, 2, 3]}')
-for strat, pct in report.strategy_estimates.items():
-    print(f"  {strat}: {pct:.1f}%")
-
-# Count tokens
-tokens = count("hello world")
+analysis = check(data)
+print(analysis.strategy_estimates)  # Independent estimates; do not add them
+assert analysis.savings_pct == report.savings_pct
+print(count("hello world"))
 ```
 
-### MCP (AI Agent)
+The Python surface also exports `SmeltReport`, `Format`, `CounterBackend`
+and `__version__`. Compaction returns new text; it does not overwrite a file.
 
-`axm-smelt` is available through [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp). AI agents can call `smelt(data, preset="moderate")`, `smelt_check(...)`, or `smelt_count(...)` directly.
+## AXM tools and CLI
 
-See the [MCP how-to guide](https://forge.axm-protocols.io/smelt/howto/mcp/) for details.
+Three `axm.tools` registrations supply CLI, MCP and DAG access:
 
-## AXMTool Commands
-
-| Command | Description |
+| Command | Result |
 |---|---|
-| `axm smelt` | Compact text or structured data |
-| `axm smelt_check` | Analyze token waste without transforming the input |
-| `axm smelt_count` | Count input tokens from explicit data, a UTF-8 file, or redirected stdin |
+| `axm smelt` | Compacted text and pipeline metrics |
+| `axm smelt_check` | Input format/count and isolated strategy estimates |
+| `axm smelt_count` | Token count with a requested model/encoding |
 
-These commands come from the `axm.tools` registry; the same definitions power MCP and DAG nodes. Use `--help` for their generated CLI signatures. The removed standalone façade has no compatibility alias.
+```bash
+printf '{"name": "Alice", "notes": null}\n' | uv run axm smelt --json-output
+uv run axm smelt --data '{"a": 1, "b": null}' --strategies '["minify", "drop_nulls"]'
+uv run axm smelt_count --data 'hello world' --model o200k_base
+```
 
-## Strategies
+Use `--input-path ./payload.json` to read a UTF-8 file. Nonempty data takes
+precedence over the file, then non-interactive stdin. JSON-looking `--data`
+is decoded by the CLI; use a file/stdin to preserve its original whitespace
+baseline. Plain stdout includes a header; `--json-output` prints the data
+mapping. See [CLI reference](docs/reference/cli.md) for errors and encoding.
 
-| Name | Category | Description |
-|---|---|---|
-| `minify` | whitespace | Compact JSON/YAML/XML whitespace (parse + re-serialize; preserves data) |
-| `drop_nulls` | structural | Recursively remove `None`, `""`, `[]`, `{}` values |
-| `flatten` | structural | Collapse single-child wrapper dicts (`{"a":{"b":1}}` → `{"a.b":1}`) |
-| `tabular` | structural | Convert `list[dict]` JSON to pipe-separated tables |
-| `round_numbers` | cosmetic | Round floats to N decimal places (default: 2) |
-| `strip_quotes` | cosmetic | Remove quotes on simple alphanumeric JSON keys |
-| `dedup_values_with_refs` | structural | Replace repeated long strings (≥20 chars, ≥2 occurrences) with aliases. **Output is wrapped in a `{_refs, _data}` envelope — not format-preserving.** |
-| `collapse_whitespace` | whitespace | Collapse consecutive blank lines and strip trailing whitespace on prose/Markdown (skips structured formats and fenced code blocks) |
-| `compact_tables` | whitespace | Remove padding whitespace from Markdown table cells (skips fenced code blocks) |
-| `strip_html_comments` | cosmetic | Remove `<!-- … -->` HTML comments from Markdown/plain text (skips fenced code blocks) |
+For MCP, install the package into the server environment and call
+`axm_call(name="smelt", arguments={...})` in façade mode.
+[Integration guide](docs/howto/mcp.md).
 
-## Presets
+## Strategies and fidelity
 
-| Preset | Strategies | Use when |
-|---|---|---|
-| `safe` | `minify`, `collapse_whitespace` | Data-preserving — keeps the parsed value identical for structured formats (JSON/YAML/…) and never touches fenced code. **Not byte/whitespace-lossless on prose/Markdown**: `collapse_whitespace` collapses blank-line runs and strips trailing whitespace. |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Structural transforms are acceptable |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Maximum savings, may alter float precision |
+| Preset | Intent |
+|---|---|
+| `safe` (default) | `minify` and `collapse_whitespace` |
+| `moderate` | Also drop empties, flatten, alias repeated strings, tabularize, remove quotes/comments |
+| `aggressive` | Also round floats; order differs from moderate |
+
+The name `safe` is **not a general losslessness guarantee**. XML significant
+whitespace, YAML inline comments and Markdown layout can change. Structural
+transforms can lose values/types and produce output that is not valid JSON.
+Inspect [strategy behavior and limits](docs/explanation/strategies.md) before
+choosing a preset. More strategies do not guarantee greater savings.
+
+Detected formats: JSON, YAML, XML, TOML, CSV, Markdown and text. TOML/CSV have
+no dedicated compactor. Counts use tiktoken; Claude and unknown model names
+use an `o200k_base` proxy, not the target model's exact tokenizer or billing.
+The `smelt`/`check` pipelines always use `o200k_base`.
 
 ## Development
 
-This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
+This package belongs to the [axm-forge workspace](https://github.com/axm-protocols/axm-forge).
 
 ```bash
 git clone https://github.com/axm-protocols/axm-forge.git

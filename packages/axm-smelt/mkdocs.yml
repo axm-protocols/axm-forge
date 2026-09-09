@@ -1,6 +1,9 @@
 site_name: smelt
 docs_dir: docs
 
+theme:
+  name: material
+
 plugins:
   - search
   - gen-files:
@@ -11,9 +14,29 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          paths:
+            - src
           options:
             show_source: true
             show_root_heading: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
   - Overview: index.md
@@ -25,11 +48,13 @@ nav:
     - Use Strategies: howto/strategies.md
     - Use Presets: howto/presets.md
     - Analyze Token Waste: howto/check.md
-    - Use via MCP: howto/mcp.md
+    - MCP and DAG Nodes: howto/mcp.md
   - Reference:
+    - Contracts: reference/contracts.md
     - CLI: reference/cli.md
-    - Python API: reference/
+    - Public Python API: reference/api/index.md
+    - Internal Module Reference: reference/
   - Explanation:
     - Architecture: explanation/architecture.md
-    - Strategy Catalog: explanation/strategies.md
+    - Strategy Behavior and Fidelity: explanation/strategies.md
     - Format Detection: explanation/formats.md

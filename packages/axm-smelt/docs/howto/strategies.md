@@ -1,101 +1,92 @@
 # Use Strategies
 
-Apply individual strategies by name via `--strategies` (CLI) or the `strategies` parameter (Python API).
+Pass registered names as a Python list, or as one JSON-encoded CLI argument.
+Read the [catalog](../explanation/strategies.md) for fidelity and format limits.
 
-For a full description of each strategy, see the [Strategy Catalog](../explanation/strategies.md).
-
-## minify
-
-Lossless JSON whitespace removal.
+## Select a small pipeline
 
 ```bash
-echo '{"a": 1, "b": 2}' | axm-smelt compact --strategies minify
-# {"a":1,"b":2}
+printf '{"a": 1, "b": null, "c": ""}\n' | axm smelt --strategies '["minify", "drop_nulls"]'
 ```
 
 ```python
 from axm_smelt import smelt
-report = smelt('{"a": 1, "b": 2}', strategies=["minify"])
-print(report.compacted)  # {"a":1,"b":2}
+
+report = smelt(
+    '{"a": 1, "b": null, "c": ""}',
+    strategies=["minify", "drop_nulls"],
+)
+assert report.compacted == '{"a":1}'
+print(report.strategies_applied)
 ```
 
-## drop_nulls
+The list's order matters. The report lists only candidates accepted by the
+token/length guard, so selecting `minify` does not guarantee it appears.
 
-Remove `None`, `""`, `[]`, `{}` values from dicts and lists.
+## JSON transformations
 
-```bash
-echo '{"a": 1, "b": null, "c": ""}' | axm-smelt compact --strategies minify,drop_nulls
-# {"a":1}
-```
+The examples below are independent inputs in one script:
 
 ```python
-report = smelt('{"a": 1, "b": null, "c": ""}', strategies=["minify", "drop_nulls"])
-print(report.compacted)  # {"a":1}
+from axm_smelt import smelt
+
+cases = [
+    ('{"a": 1, "b": 2}', ["minify"]),
+    ('{"a": {"b": 1}}', ["flatten"]),
+    ('[{"name":"Alice","age":30},{"name":"Bob","age":25}]', ["tabular"]),
+    ('{"name": "Alice"}', ["strip_quotes"]),
+    ('{"x": 3.14159265}', ["round_numbers"]),
+]
+for data, strategies in cases:
+    report = smelt(data, strategies=strategies)
+    print(strategies, report.compacted, report.strategies_applied)
 ```
 
-## flatten
+Flattening can collide with existing dotted keys; tabular output loses cell
+types; stripped keys are not standard JSON. Float precision defaults to two
+decimal places. The public `smelt` function accepts names, not strategy
+instances or per-strategy configuration.
 
-Collapse single-child wrapper dicts.
+## Repeated strings
 
-```bash
-echo '{"a": {"b": 1}}' | axm-smelt compact --strategies minify,flatten
-# {"a.b":1}
-```
+Give aliasing enough repetition to compensate for its envelope overhead:
 
 ```python
-report = smelt('{"a": {"b": 1}}', strategies=["minify", "flatten"])
-print(report.compacted)  # {"a.b":1}
-```
+from axm_smelt import smelt
 
-## tabular
-
-Convert `list[dict]` JSON to a compact pipe-separated table.
-
-```bash
-echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' | axm-smelt compact --strategies minify,tabular
-```
-
-```python
-data = '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]'
-report = smelt(data, strategies=["minify", "tabular"])
+value = "A long repeated description of this record and its context. " * 3
+payload = {f"item_{i}": value for i in range(8)}
+report = smelt(parsed=payload, strategies=["dedup_values_with_refs"])
 print(report.compacted)
-# name|age
-# Alice|30
-# Bob|25
+assert "dedup_values_with_refs" in report.strategies_applied
 ```
 
-## dedup_values_with_refs
+The output contains `_refs` and `_data`, changing its schema. An existing
+top-level `_refs` or `_data` causes aliasing to be skipped. The
+[alias contract](../explanation/strategies.md#dedup_values_with_refs) explains
+literal collisions and reconstruction.
 
-Replace frequently repeated long string values (>=20 chars, >=2 occurrences) with short aliases.
+## Prose and Markdown
 
 ```python
-data = '{"a": "a-very-long-repeated-value", "b": "a-very-long-repeated-value"}'
-report = smelt(data, strategies=["minify", "dedup_values_with_refs"])
-# {"_refs":{"$R0":"a-very-long-repeated-value"},"_data":{"a":"$R0","b":"$R0"}}
+from axm_smelt import smelt
+
+text = "# Report\n\n| Name | Value |\n| --- | --- |\n| A | 1 |\n\n<!-- draft note -->\n"
+report = smelt(text, strategies=["compact_tables", "strip_html_comments"])
+print(report.compacted)
 ```
 
-## strip_quotes
+`compact_tables` requires a Markdown classification. Comment removal also
+applies to plain text. Review the
+[backtick-fence limitations](../explanation/strategies.md#collapse_whitespace)
+before processing code examples.
 
-Remove quotes on simple alphanumeric JSON keys.
-
-```python
-report = smelt('{"name": "Alice"}', strategies=["minify", "strip_quotes"])
-print(report.compacted)  # {name:"Alice"}
-```
-
-## round_numbers
-
-Round float values to N decimal places (default: 2).
-
-```python
-report = smelt('{"x": 3.14159265}', strategies=["minify", "round_numbers"])
-print(report.compacted)  # {"x":3.14}
-```
-
-## Combining strategies
-
-Strategies are applied in the order provided. Apply `minify` first to normalize JSON before other strategies process it:
+## Combine with a file input
 
 ```bash
-axm-smelt compact --file data.json --strategies minify,drop_nulls,flatten,tabular
+axm smelt --input-path ./payload.json --strategies '["minify", "drop_nulls", "flatten", "tabular"]' --json-output
 ```
+
+Once a transform emits a table or relaxed syntax, later JSON transforms may
+become ineffective. The pipeline preserves the input's format label rather
+than re-detecting each intermediate result.
