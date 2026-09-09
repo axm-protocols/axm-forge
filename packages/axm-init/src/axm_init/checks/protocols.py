@@ -756,18 +756,22 @@ def _parse(module: ModuleInfo) -> ast.Module:
     return ast.parse(source, filename=str(module.path))
 
 
-def _assembly_findings(
-    project: Path, domain: str, root: Path, package: PackageInfo
-) -> list[str]:
-    """Validate the ready assembly factory and its literal graph identity."""
+def _assembly_module(package: PackageInfo) -> ModuleInfo | None:
+    """Return the assembly module to inspect, or None when there is nothing to judge."""
     module = next(
         (item for item in package.modules if item.path.name == "protocol.py"), None
     )
     if module is None:
-        return []
+        return None
     if "# axm-init: incomplete-skeleton" in module.path.read_text(encoding="utf-8"):
-        return []
-    tree = _parse(module)
+        return None
+    return module
+
+
+def _assembly_factory(
+    module: ModuleInfo, tree: ast.Module
+) -> tuple[FunctionInfo, ast.FunctionDef | ast.AsyncFunctionDef] | None:
+    """Pair the exported factory declaration with its syntactic definition."""
     info = next(
         (
             item
@@ -786,11 +790,15 @@ def _assembly_findings(
         None,
     )
     if info is None or factory is None:
-        return [
-            f"{_location(project, module, 1)}: non-conforming assembly: "
-            "expected public factory 'build_protocol' is missing"
-        ]
-    bindings = _import_bindings(module)
+        return None
+    return info, factory
+
+
+def _composition_identity(
+    factory: ast.FunctionDef | ast.AsyncFunctionDef,
+    bindings: dict[str, tuple[str, str]],
+) -> ast.expr | None:
+    """Return the first argument of the resolved composition call, when present."""
     call = next(
         (
             node
@@ -801,26 +809,55 @@ def _assembly_findings(
         None,
     )
     if call is None or not call.args:
-        return [
-            f"{_location(project, module, info.line_start)}: non-verifiable "
-            "assembly: protocol composition call is not statically resolvable"
-        ]
-    identity = call.args[0]
+        return None
+    return call.args[0]
+
+
+def _literal_identity_findings(
+    project: Path,
+    module: ModuleInfo,
+    identity: ast.expr,
+    expected: str,
+) -> list[str]:
+    """Judge a resolved graph identity against its path-derived name."""
     if not isinstance(identity, ast.Constant) or not isinstance(identity.value, str):
         return [
             f"{_location(project, module, identity.lineno)}: non-verifiable "
             "assembly: graph name is not a string literal"
         ]
+    if identity.value == expected:
+        return []
+    return [
+        f"{_location(project, module, identity.lineno)}: non-conforming "
+        f"assembly: literal graph name {identity.value!r} differs from "
+        f"path-derived name {expected!r}"
+    ]
+
+
+def _assembly_findings(
+    project: Path, domain: str, root: Path, package: PackageInfo
+) -> list[str]:
+    """Validate the ready assembly factory and its literal graph identity."""
+    module = _assembly_module(package)
+    if module is None:
+        return []
+    resolved = _assembly_factory(module, _parse(module))
+    if resolved is None:
+        return [
+            f"{_location(project, module, 1)}: non-conforming assembly: "
+            "expected public factory 'build_protocol' is missing"
+        ]
+    info, factory = resolved
+    identity = _composition_identity(factory, _import_bindings(module))
+    if identity is None:
+        return [
+            f"{_location(project, module, info.line_start)}: non-verifiable "
+            "assembly: protocol composition call is not statically resolvable"
+        ]
     relative = module.path.relative_to(root)
-    expected = ".".join((domain, *relative.parts[:-1]))
-    details: list[str] = []
-    if identity.value != expected:
-        details.append(
-            f"{_location(project, module, identity.lineno)}: non-conforming "
-            f"assembly: literal graph name {identity.value!r} differs from "
-            f"path-derived name {expected!r}"
-        )
-    return details
+    return _literal_identity_findings(
+        project, module, identity, ".".join((domain, *relative.parts[:-1]))
+    )
 
 
 def check_protocol_assembly(project: Path) -> CheckResult:
