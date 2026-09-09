@@ -1,4 +1,32 @@
 site_name: ast
+site_description: Read-only source analysis for Python and optional TypeScript.
+theme:
+  name: material
+  features: [content.code.copy, navigation.indexes]
+
+validation:
+  nav:
+    not_found: warn
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+
+markdown_extensions:
+  - admonition
+  - tables
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
 docs_dir: docs
 
 plugins:
@@ -27,9 +55,12 @@ nav:
     - Analyze Change Impact: howto/impact.md
     - Trace Execution Flows: howto/flows.md
     - Use via MCP: howto/mcp.md
+    - Scope and Languages: howto/scope-and-languages.md
   - Reference:
     - CLI: reference/cli.md
+    - Diff, Flows and Docs CLI: reference/cli-tracing.md
     - API Guide: reference/api.md
+    - AXM Tools: reference/tools.md
     - Python API: reference/api/
     - Describe Text: reference/describe-text.md
     - Inspect Detail: reference/inspect-detail.md

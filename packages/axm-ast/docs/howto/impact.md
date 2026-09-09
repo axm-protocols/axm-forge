@@ -22,11 +22,10 @@ Output:
 
 ## Understanding the Score
 
-| Score | Criteria |
-|---|---|
-| **LOW** | 0-1 callers, no re-exports, no coupled files |
-| **MEDIUM** | 2-4 callers or 1+ affected modules or coupled files |
-| **HIGH** | 5+ callers, re-exported, many affected modules, or many coupled files |
+The score is a weighted sum of callers, re-exports, affected modules,
+git-coupled files and type references, compared with configurable thresholds.
+It is not a fixed caller-count classification. Package overrides live under
+`[tool.axm-ast.impact]`; see [score_impact](../reference/api.md#score_impact).
 
 ## Find Callers First
 
@@ -54,6 +53,19 @@ axm-ast callers src/mylib --symbol my_function
     carries a syntactic `confidence` score (`1.0` for direct or `self`/`cls`
     calls, lower for an attribute call on another receiver) so you can triage
     likely false positives — it never changes which callers are listed.
+
+## Resolve homonyms before triage
+
+Use module-qualified targets when names are ambiguous. `ast_impact` expands
+an ambiguous bare name into multiple reports; `ast_inspect` instead asks for
+disambiguation. `--precise-callers` (tool `precise_callers=True`) drops callers
+whose imports prove a distinct homonym, while unresolved imports stay included.
+Receiver types are still not inferred.
+
+The tool-only `include_module_importers=True` adds modules importing only the
+defining module or its re-export shim. It currently has no effect in workspace
+mode. For Protocol/ABC and contract-value relationships, use
+`ast_coupling_gaps`; its report is a lower bound, not complete coupling.
 
 ## Exclude Test Modules
 
@@ -192,7 +204,7 @@ axm-ast impact /path/to/workspace --symbol ToolResult
     axm-ast impact src/mylib --symbol old_function
     ```
 
-2. **Run only affected tests** after your change:
+2. **Start with affected tests**, then run the checks appropriate to the change; static mapping is not exhaustive:
 
     ```bash
     pytest tests/test_utils.py tests/test_engine.py

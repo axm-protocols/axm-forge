@@ -18,7 +18,7 @@ axm-ast flows src/mylib --trace handle_request
 
 ## Cross-Module Tracing
 
-Follow calls across package boundaries:
+Record directly imported external callees as single-hop leaves (their own calls are not expanded):
 
 ```bash
 axm-ast flows src/mylib --trace handle_request --cross-module
@@ -91,6 +91,10 @@ Limit BFS depth (default 5):
 ```bash
 axm-ast flows src/mylib --trace main --max-depth 3
 ```
+
+A depth-limited trace includes `truncated=True` when unexpanded children remain.
+Missing entry symbols fail; framework detection is a syntactic heuristic, not
+an observed execution trace.
 
 ## JSON Output
 

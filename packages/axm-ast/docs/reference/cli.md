@@ -1,15 +1,29 @@
 # CLI Reference
 
+This page describes the dedicated `axm-ast` binary, registered in `[project.scripts]`.
+The generic SDK CLI `axm <tool>` uses the [AXM tool contracts](tools.md).
+Their defaults, workspace coverage and JSON envelopes can differ. `--json` is
+an analysis option, not a global option; text-only compression/compact modes
+take precedence when combined with it.
+
+## Additional tools
+
+`ast_coupling_gaps`, `ast_doc_impact` and `ast_file_header` are available via
+AXM tools rather than separate dedicated subcommands. See [tool reference](tools.md).
+
 ## Global Options
 
 ```
 axm-ast --help       Show help
-axm-ast --version    Show version
+axm-ast version      Show version
 ```
 
 ---
 
 ## `describe` — Introspect a Package
+
+TOC text output includes a docstring summary when available and still lists
+modules without one. In JSON mode, the `docstring` key is omitted when absent.
 
 ```
 axm-ast describe [OPTIONS] [PATH]
@@ -18,7 +32,7 @@ axm-ast describe [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package directory |
-| `--detail` | `-d` | string | `detailed` | Detail level: `toc`, `summary`, `detailed` |
+| `--detail` | `-d` | string | `detailed` | Detail level: `toc`, `names`, `summary`, `detailed` |
 | `--compress` | | bool | `False` | AI-optimized compressed output. Allowed with `--detail summary` or `detailed` (default `detailed`); rejected with `--detail toc` |
 | `--modules` | `-m` | string | *none* | Comma-separated module name filters (substring, case-insensitive) |
 | `--json` | | bool | `False` | Output as JSON |
@@ -269,6 +283,7 @@ axm-ast impact [OPTIONS] [PATH]
 | `--test-filter` | | string | `None` | Test caller filter mode: `none`, `all`, or `related` |
 | `--json` | | bool | `False` | Output as JSON |
 | `--compact` | | bool | `False` | Output a compact markdown table summary |
+| `--precise-callers` | | bool | `False` | Exclude callers proven to import a distinct homonym; unresolved imports remain |
 
 !!! note "Workspace mode"
     When `PATH` is a `uv` workspace root, performs cross-package impact analysis — callers, re-exports, and test files from all member packages.
@@ -338,135 +353,15 @@ axm-ast dead-code src/mylib
 
 ## `diff` — Structural Branch Diff
 
-```
-axm-ast diff REFS [PATH] [OPTIONS]
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `REFS` | | string | *required* | Git refs in `base..head` format |
-| `PATH` | | string | `.` | Path to package directory |
-| `--json` | | bool | `False` | Output as JSON |
-
-Compares two git branches at symbol level. Uses git worktrees to checkout both refs and `analyze_package()` on each version, then diffs the symbol sets.
-
-**Example:**
-
-```bash
-axm-ast diff main..feature src/mylib
-```
-
-```
-🔀 Structural diff main..feature — 3 change(s)
-
-  Symbols added (1):
-    + new_func (function) — core.py
-
-  Symbols modified (1):
-    ~ process (function) — engine.py
-
-  Symbols removed (1):
-    - old_helper (function) — utils.py
-```
-
----
+See [diff options and limitations](cli-tracing.md#diff-structural-branch-diff).
 
 ## `flows` — Entry Points & Execution Flow Tracing
 
-```
-axm-ast flows [OPTIONS] [PATH]
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `PATH` | | string | `.` | Path to package directory |
-| `--trace` | `-t` | string | *none* | Entry point name to trace BFS flow from |
-| `--max-depth` | | int | `5` | Maximum BFS depth for flow tracing |
-| `--cross-module` | | bool | `False` | Resolve imports and trace into external modules |
-| `--detail` | `-d` | string | `trace` | Detail level: `trace` (names only), `source` (include function source code), or `compact` (tree with box-drawing chars) |
-| `--no-exclude-stdlib` | | bool | `False` | Include stdlib/builtin callees in the BFS trace (excluded by default) |
-| `--json` | | bool | `False` | Output as JSON |
-
-Without `--trace`, detects entry points (cyclopts, click, Flask, FastAPI, pytest, `__main__`, `__all__` exports). With `--trace`, performs BFS call-graph traversal from the named symbol.
-
-!!! warning "Detail validation"
-    Invalid `--detail` values are rejected before tracing begins. The CLI exits with status 1, the MCP tool returns `success=False`, and the hook returns `HookResult.fail()`.
-
-!!! note "Cross-module resolution"
-    With `--cross-module`, the tracer resolves `from X import Y` statements and traces into the target module. When the target is a **sibling package** (e.g. `tests/` importing from `django/`), the tracer walks up to the **project root** (detected via `.git`, `pyproject.toml`, `setup.py`) as a fallback search path.
-
-**Examples:**
-
-```bash
-# Detect all entry points
-axm-ast flows src/mylib
-
-# Trace BFS flow from an entry point
-axm-ast flows src/mylib --trace main
-
-# Cross-module trace with source code
-axm-ast flows tests/ --trace test_response --cross-module --detail source
-
-# JSON output for CI/agents
-axm-ast flows src/mylib --trace main --json
-```
-
-```
-🔀 Flow from 'analyze_package' (4 step(s)):
-
-analyze_package  (core.analyzer:71)
-├── _discover_py_files  (core.analyzer:123)
-├── extract_module_info  (core.analyzer:126)
-└── _build_edges  (core.analyzer:129)
-```
-
-The tree is rendered by `format_flow_compact` (box-drawing glyphs
-`├──`/`└──`, indentation per depth). Cross-module callees resolved with
-`--cross-module` are recorded as leaves annotated with their resolved
-module, but are not themselves expanded further (single-hop, see the
-[cross-module resolution](../explanation/cross_module_resolution.md) page).
-
----
+See [flow options and tracing](cli-tracing.md#flows-entry-points-execution-flow-tracing).
 
 ## `docs` — Documentation Tree Dump
 
-```
-axm-ast docs [OPTIONS] [PATH]
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `PATH` | | string | `.` | Project root directory |
-| `--detail` | `-d` | string | `full` | Detail level: `toc`, `summary`, `full` |
-| `--pages` | `-p` | string | *none* | Comma-separated page name substrings to filter |
-| `--json` | | bool | `False` | Output as JSON |
-| `--tree` | | bool | `False` | Only show directory tree |
-
-### Detail levels
-
-| Level | Returns | Use case |
-|---|---|---|
-| `toc` | Heading tree + line count per page (~500 tokens) | Quick scan, decide which pages to read |
-| `summary` | Headings + first sentence per section | Budget-friendly overview with context |
-| `full` | Complete page content (default) | Full doc sync, initial exploration |
-
-**Examples:**
-
-```bash
-# Full content (default)
-axm-ast docs .
-
-# Heading scan only
-axm-ast docs . --detail toc
-
-# Summary with page filter
-axm-ast docs . --detail summary --pages architecture,howto
-
-# Tree-only mode
-axm-ast docs . --tree
-```
-
----
+See [documentation dump options](cli-tracing.md#docs-documentation-tree-dump).
 
 ## `version` — Show Version
 

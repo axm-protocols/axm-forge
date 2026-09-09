@@ -6,11 +6,11 @@ Text renderers that produce compact output for `ast_describe` results. Lives in 
 
 ## `render_describe_text`
 
-```python
-from axm_ast.tools.describe_text import render_describe_text
-
-render_describe_text(data: dict[str, Any], detail: str) -> str
+```text
+render_describe_text(data: dict[str, object], detail: str) -> str
 ```
+
+Import this internal helper from `axm_ast.tools.describe_text`.
 
 Dispatcher — selects the correct renderer based on the `detail` parameter.
 
@@ -19,7 +19,7 @@ Dispatcher — selects the correct renderer based on the `detail` parameter.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `data` | `dict[str, Any]` | *required* | Result data dict from `DescribeTool` (must contain `modules` key) |
-| `detail` | `str` | *required* | Detail level: `"toc"`, `"summary"`, or `"detailed"` |
+| `detail` | `str` | *required* | Detail level: `"toc"`, `"names"`, `"summary"`, or `"detailed"` |
 
 ### Detail levels
 
@@ -31,4 +31,4 @@ Dispatcher — selects the correct renderer based on the `detail` parameter.
 
 ### Return value
 
-A compact multi-line string suitable for `ToolResult.text`. For `summary` mode, output is ≤50% of the equivalent JSON token count on representative packages.
+A compact multi-line string suitable for `ToolResult.text`. Output size varies with symbols and metadata; no fixed compression ratio is guaranteed.

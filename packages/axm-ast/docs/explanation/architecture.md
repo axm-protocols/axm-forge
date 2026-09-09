@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-ast` follows a layered architecture: CLI → core engines → models. The core layer is entirely I/O-free — it operates on Pydantic models produced by tree-sitter parsing.
+`axm-ast` follows a layered architecture: CLI → core engines → models. The core includes filesystem discovery, parsing, cache invalidation and git subprocesses; model transformations and renderers are the pure parts. Analysis preserves the target source, while structural diff creates temporary git worktrees.
 
 ```mermaid
 graph TD
@@ -90,7 +90,7 @@ Independent, composable analysis engines:
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
 | `callers.py` | Call-site detection and non-call reference extraction (dynamic dispatch patterns: dict values, list/tuple/set elements, keyword arguments, default parameters, positional arguments, return values (`return some_func` / `return self.method` — a function returned as a value, not called), and forward references inside string-typed annotations — `x: "Foo"`, `def f() -> "Bar"`, `list["Baz"]`, `cast("Qux", v)` — restricted to real type positions, so `Annotated[T, *meta]` metadata, `Literal[...]` args, log strings, and docstrings do not pollute the ref set). Shares tree-sitter walker primitives (`is_call_node`, `update_context`, `extract_call_site`, `node_text_safe`) with `flows.py` via the internal `_call_helpers` module — exposed without underscore prefix so cross-module imports remain compliant with the no-private-cross-module-import rule | `find_callers()`, `find_callers_workspace()`, `extract_references()` |
 | `context.py` | One-shot project dump | `build_context()` |
-| `impact.py` | Change blast radius (callers + reexports + tests + git coupling + cross-package). Workspace analysis delegates to extracted helpers (`_find_workspace_definition`, `_resolve_effective_test_filter`, `_apply_caller_test_filter`). Scoring weights and LOW/MEDIUM/HIGH thresholds are overridable per-package via `[tool.axm-ast.impact]` in `pyproject.toml` (`ImpactWeights`). Plain-name resolution in `find_definition()` raises `ValueError("Multiple symbols match '...': ...")` when a non-dotted name maps to several top-level definitions — surfacing the ambiguity instead of silently picking the first homonym, mirroring `inspect`'s disambiguation error (dotted `Class.method` paths are unaffected) | `analyze_impact()`, `find_definition()`, `analyze_impact_workspace()`, `score_impact()` |
+| `impact.py` | Change blast radius (callers + reexports + tests + git coupling + cross-package). Workspace analysis delegates to extracted helpers (`_find_workspace_definition`, `_resolve_effective_test_filter`, `_apply_caller_test_filter`). Scoring weights and LOW/MEDIUM/HIGH thresholds are overridable per-package via `[tool.axm-ast.impact]` in `pyproject.toml` (`ImpactWeights`). At the core level, plain-name resolution in `find_definition()` raises `ValueError("Multiple symbols match '...': ...")` when a non-dotted name maps to several top-level definitions — surfacing the ambiguity instead of silently picking the first homonym, mirroring `inspect`'s disambiguation error; the `ast_impact` tool expands ambiguous bare names into per-definition reports | `analyze_impact()`, `find_definition()`, `analyze_impact_workspace()`, `score_impact()` |
 | `git_coupling.py` | Git co-change coupling analysis (6-month history) | `git_coupled_files()` |
 | `structural_diff.py` | Symbol-level branch diff via git worktrees | `structural_diff()` |
 | `workspace.py` | Multi-package workspace detection and analysis. `detect_workspace()` delegates uv-workspace resolution to the canonical leaf resolver `axm_ingot.uv.resolve_workspace` and *projects* the resulting `ResolvedWorkspace` (root + name) onto a Pydantic `WorkspaceInfo` (the model stays defined in axm-ast; ingot never sees Pydantic). `analyze_workspace()` then expands glob patterns in `[tool.uv.workspace]` members and resolves project names for inter-package dependency edges (AST-level analysis, kept in axm-ast) | `detect_workspace()`, `analyze_workspace()` |
@@ -105,7 +105,7 @@ Output formatting with multiple detail levels:
 | Function | Purpose |
 |---|---|
 | `format_text()` | Human-readable text (summary / detailed) |
-| `format_compressed()` | AI-friendly compressed view (excludes test modules). `compress` and explicit `detail` are mutually exclusive in `DescribeTool` |
+| `format_compressed()` | AI-friendly compressed view (excludes test modules). `DescribeTool` permits compression only with its default `summary` detail |
 | `format_json()` | Machine-readable JSON |
 | `format_toc()` | Table-of-contents: module names + counts only |
 | `filter_modules()` | Case-insensitive substring filter on module names |
@@ -176,6 +176,8 @@ For inner helpers that return a `dict` instead of `ToolResult`
 those sites instead call `log_and_fallback(logger, exc, fallback)`, which
 applies the same logging policy and returns the supplied fallback.
 
-The single residual `except Exception` lives inside `safe_execute` itself
-and is annotated `# noqa: BLE001 — final boundary` to document that it is
-the intentional last line of defense.
+Some tool implementations also catch exceptions locally before the shared boundary. A structured failure reports an analysis error; it is not proof that extraction was exhaustive.
+
+## Language backends
+
+The backend registry dispatches by suffix. Python is built in; optional TypeScript extraction uses shared models with less complete metadata. Node project selection, supported suffixes and cache limitations are documented in [scope and languages](../howto/scope-and-languages.md).

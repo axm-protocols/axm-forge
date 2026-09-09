@@ -79,7 +79,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 | `depth` | BFS depth from entry |
 | `chain` | Full ancestor path from entry to this step |
 | `resolved_module` | Set when resolved cross-module |
-| `source` | Function source text (only when `detail="source"` or `detail="compact"`) |
+| `source` | Optional source text; the final whole-package enrichment runs only for `detail="source"` |
 
 ## BFS Traversal (`trace_flow`)
 
@@ -125,6 +125,6 @@ The `CalleesTool` (`ast_callees`) automatically attempts workspace-level analysi
 
 ## Parse Caching
 
-The `parse_cache` dict in `_CrossModuleContext` is threaded through `find_callees` to avoid redundant tree-sitter parsing. During BFS, `find_callees` is called once per depth level per symbol — without caching, this would be quadratic in the worst case.
+The `parse_cache` dict in `_CrossModuleContext` is threaded through `find_callees` to avoid redundant tree-sitter parsing. During BFS, callee extraction may be requested for many symbols; reusing parsed files avoids repeated parsing. This is a session optimization, not a complexity guarantee.
 
 The cache key is the file path; the value is the parsed tree and source text.

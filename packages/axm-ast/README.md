@@ -1,6 +1,6 @@
 # axm-ast
 
-**Python AST introspection CLI for AI agents, powered by tree-sitter.**
+**Read-only source analysis for agents: Python, plus optional TypeScript/TSX extraction.**
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -19,7 +19,7 @@
 - 🔬 **Describe** — Full package introspection: functions, classes, imports, variables
 - 🗜 **Compress** — AI-friendly compressed view: signatures + docstrings + `__all__`
 - 📊 **Graph** — Import dependency graph with Mermaid output
-- 🔍 **Search** — Semantic symbol lookup by name, return type, kind, or base class
+- 🔍 **Search** — Lexical symbol lookup by name, return type, kind, or base class
 - 📞 **Callers** — "Who calls this function?" via tree-sitter call-site detection
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
@@ -47,11 +47,11 @@ axm-ast context src/mylib --depth 1     # sub-packages with aggregate counts
 
 # Describe a package at different detail levels
 axm-ast describe src/mylib
-axm-ast describe src/mylib --detail full
+axm-ast describe src/mylib --detail detailed
 axm-ast describe src/mylib --compress
-axm-ast describe src/mylib --detail toc               # table-of-contents
+axm-ast describe src/mylib --detail toc --json               # table-of-contents
 axm-ast describe src/mylib --modules core,tools        # filter by module
-axm-ast describe src/mylib --detail toc --modules core # combined
+axm-ast describe src/mylib --detail toc --json --modules core # combined
 
 # Visualize import graph as Mermaid
 axm-ast graph src/mylib --format mermaid
@@ -141,17 +141,19 @@ axm-ast flows src/mylib --trace main --json
 | `axm-ast docs` | One-shot documentation tree dump (README + mkdocs + docs/) |
 | `axm-ast version` | Show version |
 
-All commands support `--json` for machine-readable output.
+Analysis commands support `--json`; `version` does not. Avoid combining it with text-only `--compress` or `impact --compact`. CLI and AXM tools have distinct defaults and response envelopes; see [MCP usage](docs/howto/mcp.md).
 
 ## Python API
 
 ```python
-from axm_ast import analyze_package, search_symbols
+from pathlib import Path
+from axm_ast import FunctionInfo, analyze_package, search_symbols
 
-pkg = analyze_package("src/mylib")
+pkg = analyze_package(Path("src/mylib"))
 results = search_symbols(pkg, returns="str")
-for fn in results:
-    print(f"{fn.name}: {fn.signature}")
+for module, symbol in results:
+    if isinstance(symbol, FunctionInfo):
+        print(f"{module}.{symbol.name}: {symbol.signature}")
 ```
 
 `analyze_package` auto-detects src-layout projects (i.e. `src/<pkg>/__init__.py`)
@@ -163,12 +165,21 @@ Use `get_package` instead of `analyze_package` to avoid re-parsing the same
 package multiple times in a session:
 
 ```python
-from axm_ast.core import get_package, clear_cache
+from pathlib import Path
+from axm_ast.core.cache import get_package, clear_cache
 
-pkg = get_package("src/mylib")  # parses on first call
-pkg = get_package("src/mylib")  # cache hit — instant
+pkg = get_package(Path("src/mylib"))  # parses on first call
+pkg = get_package(Path("src/mylib"))  # validates the Python file fingerprint
 clear_cache()                    # force re-parse on next call
 ```
+
+## Scope and limitations
+
+The tools do not edit analyzed source. Structural diff creates and cleans temporary git worktrees. Workspace aggregation is explicit per tool, not a property of every `path` argument. Python call matching is syntactic; impact and dead-code findings require review.
+
+Install `uv add 'axm-ast[typescript]'` for `.ts`/`.tsx` extraction in a Node project root containing `package.json`. This checkout does not discover `.js`, `.jsx`, or `.svelte` files. The session cache watches Python files only; use fresh CLI processes for changed TypeScript sources. See [scope and languages](docs/howto/scope-and-languages.md).
+
+Start with the [runnable tutorial](docs/tutorials/quickstart.md), [Python API guide](docs/reference/api.md), or [AXM tool contracts](docs/reference/tools.md). The README is the repository entry point; `docs/index.md` is the MkDocs home page.
 
 ## Development
 
