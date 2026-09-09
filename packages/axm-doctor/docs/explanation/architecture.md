@@ -1,99 +1,75 @@
 # Architecture
 
-`axm-doctor` is a small, flat package: six modules under `src/axm_doctor/`,
-no `core/` or `adapters/` layering. Its shape follows one pipeline —
-**detect → propose → orchestrate** — wrapped by two thin interface surfaces
-(a CLI and two AXM tools).
+Doctor follows **detect → propose → orchestrate**, wrapped by the CLI and two
+request–response AXM tools.
 
-## The three stages
+## Ownership
 
-```mermaid
-graph LR
-    subgraph detect ["detect (stdlib only)"]
-        D["detect_tool · detect_auth<br/>detect_git_identity · detect_gh_config"]
-    end
-    subgraph propose ["propose (install)"]
-        P["install_command · run_install"]
-    end
-    subgraph orchestrate ["orchestrate (over axm-vault)"]
-        O["missing_secrets · provision_missing"]
-    end
-    D --> P
-    D --> O
-    CLI["cli: check / bootstrap"] --> D
-    CLI --> P
-    CLI --> O
-    Tools["tools: env_doctor / auth_status"] --> D
-    Tools --> O
-```
+| Module | Responsibility |
+| --- | --- |
+| detect | PATH/version, declared auth probes, config signals |
+| install | Describe plans, execute only with confirmation |
+| credentials | Convert vault provenance into typed rows |
+| orchestrate | Identify missing credentials and delegate setup |
+| cli | Human reports and bootstrap confirmation |
+| tools | env_doctor and auth_status ToolResult responses |
 
-- **detect** (`detect.py`) — answers "is `uv` installed?", "is `gh` logged in?",
-  "is a git committer identity resolvable?". Read-only: it inspects an exit
-  code or the *existence* of a credential/store entry, never a value.
-- **propose** (`install.py`) — turns "`uv` is absent" into the **official**
-  install command as an `InstallPlan`. Building a plan runs nothing.
-- **credentials** (`credentials.py`) — translates **axm-vault**'s live,
-  value-free catalog/provenance into immutable rows containing the coordinate,
-  declared kind, winning layer/state and presence flag. Credential declarations
-  and auth dependencies share the report without sharing vocabulary; an error
-  in one declaration becomes an `unknown` / absent row and does not abort peers.
-- **orchestrate** (`orchestrate.py`) — reads the **axm-vault** catalog and its
-  value-free provenance to list credential secrets that resolve to `missing`.
-  Auth dependencies are excluded: no session/OAuth state is turned into a
-  `MissingSecret` or sent to the setup driver. Credential entries can carry an
-  account identity (`instance`) or mark a multi-instance group awaiting its
-  first account (`awaiting_instance`). Served-state checks use the exact
-  canonical credential/account coordinate, so one served account cannot mask a
-  missing sibling. On confirmation, orchestration delegates only credential
-  groups to vault's setup driver.
+Providers own authentication knowledge; vault owns resolution and credential
+setup; axm-config owns non-sensitive configuration. Doctor owns no credential
+store. Auth dependencies are not provisionable secrets.
 
-`cli.py` and `tools.py` are interface shells only: they parse input / shape a
-`ToolResult` and print, but hold no detection logic — the same central
-functions back both the CLI and the MCP tools.
+## Imports and I/O
 
-## The three invariants
+Root exports resolve lazily through PEP 562. Importing the root or detection
+module does not eagerly import AXM dependencies; pydantic is still required.
+Auth discovery and git config checks load deferred dependencies when called.
+Full environment reports use axm-config and axm-vault.
 
-1. **Value-free.** No detection ever reads a token, identity or config value.
-   Auth is an exit code or a *stat* of a credential file (a 0-byte file is
-   `logged_out`); the git/gh config checks read only presence and exit codes.
-   `CredentialProvenance` serializes `coordinate`, declared `kind`, `layer` and
-   `present`; no source value is copied. `auth_status` deliberately preserves
-   its public `{layer, present}` data shape while using the richer rows for its
-   kind-grouped text. No `ToolResult` ever serializes a secret.
-2. **Dry-run by default.** `run_install` and `provision_missing` are
-   `confirm=False` by default — they *describe* what they would do and change
-   nothing. A system change happens only on an explicit `confirm=True` (the CLI
-   gates it behind a `y` prompt, honouring no-system-install-without-consent).
-   A confirmed run reports success from a **re-check**, never from the mere fact
-   that a command ran: `run_install` re-detects the tool, and `provision_missing`
-   re-scans `missing_secrets()` and lists any spec still unresolved.
-3. **Orchestrates, never possesses.** doctor never *stores* a secret itself —
-   every write goes through vault's API (`run_setup`). It reads the vault
-   catalog and provenance but owns no credential store. This is the SRP seam
-   with axm-vault.
+Reports contain metadata rather than credential values. This does not imply
+no reads or subprocesses: the git check retrieves a non-sensitive config
+value; git/gh stdout is captured and discarded. Providers and vault resolution
+can perform their own I/O. Doctor does not impose a universal credential-file
+size rule or keychain authentication rule.
 
-## The dependency boundary (why the split)
+## Observation, policy and application
 
-`detect` is **bootstrap-sensitive**: it must import on a machine where only
-stdlib + pydantic are present, because it is the probe that runs *before* the
-rest of AXM is installable. So `detect.py` imports no AXM package at module
-load (its `axm-config` use for git-identity is deferred into the function
-body), and the package's top-level re-exports are resolved lazily via
-PEP 562 `__getattr__` — importing `axm_doctor` does **not** eager-load
-`credentials` / `orchestrate` (which import `axm-vault`) or `tools` (which imports
-`axm.tools.base`).
+ToolResult.success=True means report construction succeeded, not that a machine
+is ready. The caller chooses a policy; CLI --strict has a fixed policy documented
+in [the reference](../reference/cli.md). DAG callers must map tool_node outputs
+explicitly and evaluate observations.
 
-`credentials` and `orchestrate` sit on the other side of that line: they are the
-read-only reporting and orchestration seams
-with **axm-vault** (catalog + provenance + setup driver) and **axm-config**
-(the `[git].default` identity store). doctor reads both; it writes neither
-directly.
+Building a plan runs nothing. Dry-run installation neither installs nor probes.
+Dry-run provisioning reads the live catalog/provenance without writing.
+Confirmed calls can install or delegate credential writes. Post-checks improve
+reporting but do not provide rollback or transactional isolation.
 
-## Interface posture: AXMTool vs CLI
+The read-only tools return values through MCP, generic CLI and DAG nodes.
+The dedicated cyclopts CLI provides a human check command and interactive
+bootstrap. Doctor implements no daemon or background service.
 
-The read-only report is exposed as two `axm.tools` AXMTools — `env_doctor` and
-`auth_status` — so it is reachable over MCP, the `axm` CLI and as a DAG node
-from a single declaration. A request→response that *returns a value* is an
-AXMTool. The `axm-doctor bootstrap` **process** (an interactive install/prompt
-loop that mutates the machine) stays a cyclopts CLI: it is a lifecycle, not a
-value-returning call.
+## Current limits
+
+- Declared probe failures/timeouts become logged_out; a timed-out daemon thread
+  is not cancelled. This state does not prove observed logout.
+- detect_auth leaves login_cmd=None.
+- detect_git_identity can propagate axm-config import/get errors; env_doctor
+  constructs auth/config outside its try block and can propagate them directly.
+- Strict includes optional missing secrets and ignores config and undetermined
+  auth. Its success is not a complete session-readiness guarantee.
+- Non-TTY bootstrap skips installs but can still print/read a secrets prompt;
+  confirmed provisioning then refuses without TTY.
+- Bootstrap can exit 0 after printed install/provision failures. It does not
+  log in, repair git configuration or roll back changes.
+- Structured missing rows preserve accounts; setup hints, CLI secret labels
+  and still_missing strings omit them.
+- Custom install plans are not limited to registry commands or URLs.
+  HTTPS/status/size checks are not signature verification.
+
+These boundaries describe current behavior rather than future intentions.
+
+## Documentation topology
+
+The package's [explicit API page](../reference/api.md) is built independently.
+The workspace generator also emits module pages under reference/axm_doctor/;
+it never generated the old package-local reference/api/ directory.
+The README is the repository entry; docs/index.md is the site homepage.

@@ -1,14 +1,42 @@
-site_name: "axm-doctor"
+site_name: axm-doctor
+site_description: Environment detection, install planning and credential setup orchestration
 docs_dir: docs
-
+theme:
+  name: material
 nav:
   - Home: index.md
   - Tutorials:
-    - Getting Started: tutorials/getting-started.md
-  - How-To Guides:
-    - howto/index.md
+      - Getting started: tutorials/getting-started.md
+  - How-to guides:
+      - howto/index.md
+      - Preflight an agent or DAG: howto/preflight.md
+      - Bootstrap a machine: howto/bootstrap.md
   - Reference:
-    - CLI: reference/cli.md
-    - Python API: reference/api/
+      - CLI and MCP: reference/cli.md
+      - Python contracts: reference/python.md
+      - Python API: reference/api.md
   - Explanation:
-    - Architecture: explanation/architecture.md
+      - Architecture and limits: explanation/architecture.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: false
+            members_order: source
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn

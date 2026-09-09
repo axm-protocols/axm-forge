@@ -1,110 +1,94 @@
-# CLI Reference
+# CLI reference
 
-The `axm-doctor` console script exposes two commands. The split is deliberate:
-`check` is **read-only** (it never installs and never prompts), while
-`bootstrap` is the **interactive** path where any system change is gated behind
-an explicit `y`.
+The package distributes `axm-doctor = axm_doctor.cli:main` and two
+`axm.tools` entry points. No legacy YAML hooks or `axm.commands` are needed.
 
-## `axm-doctor check`
+## Check
 
-Print the full environment report and exit `0`. For every probed tool it prints
-presence + version; for every third-party binary it prints an auth marker, the
-auth state, and the recovery `login_cmd`; then it prints catalog provenance under
-each declared kind (for example `token` and `auth_dependency`). The markers are
-`✓` for `logged_in`, `✗` for `logged_out`, and `?` when authentication is
-`undetermined`. Only missing credential kinds receive a `secret` row and an
-`axm-vault` setup hint.
-
-```console
-$ axm-doctor check
-tool	uv	present	0.9.18
-tool	gh	present	2.87.3
-tool	codex	present	0.99.0
-tool	docker	absent	-
-auth	gh	✓	logged_in	-
-auth	claude	✗	logged_out	claude login
-auth	codex	?	undetermined	-
-token	research.fred.api_key	missing
-auth_dependency	github.session	disconnected
-secret	research.fred.api_key	axm-vault set research.fred api_key
+```bash
+axm-doctor check
+axm-doctor check --strict
 ```
 
-`check` **installs nothing and prompts for nothing** — it is safe to run in CI
-or a hook. By default it always exits `0` (a report, not a gate) and it prints
-the `tools`, `auth`, kind-specific provenance, and missing-credential `secret`
-rows; auth dependencies never receive a provisioning command. The git-identity
-and `gh` config states are **not** in the CLI report — they are exposed by the
-`env_doctor` MCP tool under its `config` key.
+The current tool set is `uv`, `git`, `gh`, `node`, `npm`, `claude`,
+`codex`; the auth set is `gh`, `claude`, `codex`.
+The CLI prints tab-separated rows in this order:
 
-### `--strict` (CI gate)
+| Row | Columns after row type |
+| --- | --- |
+| `tool` | name, present/absent, parsed version or `-` |
+| `auth` | tool, marker, state, login command or `-` |
+| Declared kind (e.g. `token`, `auth_dependency`) | decoded coordinate, layer/state |
+| `secret` | group.name, setup hint |
 
-Pass `--strict` to turn the report into a gate: `check --strict` exits `1` when
-any probed tool is **absent**, any third-party auth is **`logged_out`**, or any
-secret is **missing**. An `undetermined` auth remains informational: doctor has
-not observed a closed session and therefore does not classify it as logged out.
-The verdict is derived from the printed report — no extra probing — so the same
-rows are printed either way. The default (no flag) is unchanged and always exits
-`0`.
+Auth markers are ✓ for `logged_in`, ? for `undetermined`, and ✗ otherwise.
+`login_cmd` is currently always absent in detector results.
+Config states are only in `env_doctor`, not this CLI report.
+Credential rows depend on installed providers; an empty catalog is valid.
+The CLI decodes provenance coordinates for display and omits account identity
+from `secret` labels. Prefer structured results for machine consumption.
 
-```console
-$ axm-doctor check --strict   # docker absent above -> non-zero exit
-$ echo $?
-1
+| Outcome | Exit code |
+| --- | --- |
+| Normal report without strict | 0, even with missing components |
+| Strict: absent tool, logged_out auth, or any missing credential | 1 |
+| Strict: none of those conditions | 0 |
+| Exception caught while building a report | 1; error on stderr |
+
+Strict mode derives its verdict from the same scan. Optional missing secrets
+also fail it; `required` is not used. `undetermined` auth does not fail it.
+Provenance rows and git/gh config states are not additional strict checks.
+
+## Bootstrap
+
+```bash
+axm-doctor bootstrap
 ```
 
-## `axm-doctor bootstrap`
+Interactive confirmation delegates installs to `run_install` and credential
+setup to `provision_missing`. See [the bootstrap guide](../howto/bootstrap.md)
+for TTY behavior, mutation boundaries and partial failures.
 
-The interactive repair path. For each **absent** tool it shows the official
-install command and installs it only on an explicit `y` (default *No*); for
-missing secrets it offers to run vault setup. Nothing happens without a yes —
-this honours the no-system-install-without-authorization posture.
+A declined install prints `skipped: <command>`. A confirmed install prints
+success only for return code 0 plus a present post-check; otherwise it reports
+failure. Reported install/provision failures do not themselves set exit 1;
+caught exceptions do. No automatic authentication login or config repair exists.
 
-```console
-$ axm-doctor bootstrap
-codex is absent. Install command: npm i -g @openai/codex
-install codex? [y/N] n
-  skipped: npm i -g @openai/codex
+## MCP and generic AXM CLI
+
+```bash
+axm env_doctor
+axm auth_status
 ```
 
-The install outcome is reported from the **post-check**, not merely from the
-fact that the command ran: a confirmed install is only `installed (<tool> now
-present)` when it returns `0` *and* the tool is re-detected as present;
-otherwise it is `install failed (rc=<n>, still absent)`. A declined prompt is
-`skipped: <command>`.
+`EnvDoctorTool.execute()` and `AuthStatusTool.execute()` take no arguments
+and return `ToolResult`. The generic CLI also exposes `--json-output`
+(and `--no-json-output`); use its help to inspect transport options. The following
+describes `data`, not the default rendered CLI text. MCP façades may expose
+rendered text only.
 
-```console
-$ axm-doctor bootstrap
-codex is absent. Install command: npm i -g @openai/codex
-install codex? [y/N] y
-  install failed (rc=1, still absent)
+| Tool | Data fields |
+| --- | --- |
+| `env_doctor` | `tools`: name → {state, version}; `auth`: tool → {state, login_cmd, declaration_consulted}; `secrets`: complete MissingSecret rows; `config`: {git: {state}, gh: {state}} |
+| `auth_status` | `auth`: same map; `undetermined` and `logged_out`: tool-name lists; `credentials`: coordinate → {layer, present} |
+
+Illustrative auth entry (JSON fragment):
+
+```json
+{"state": "undetermined", "login_cmd": null, "declaration_consulted": false}
 ```
 
-In a **non-interactive** shell (no TTY, e.g. a closed or piped stdin) `bootstrap`
-cannot prompt, so both halves skip cleanly rather than crashing on the first
-prompt. The tool-install loop prints `non-interactive shell: skipping tool
-installs` and installs nothing; secret provisioning is likewise skipped —
-`provision_missing` returns `provisioned=False` with a `reason` rather than
-letting vault's setup driver abort the process.
+`auth_status` text groups provenance by kind and appends `[no declaration]`
+for tools lacking one. `kind` is present in `CredentialProvenance`, but is
+not a field of its public `credentials` map.
 
-```console
-$ axm-doctor bootstrap < /dev/null
-non-interactive shell: skipping tool installs
-```
+Successful report construction yields `success=True` even for unhealthy
+observations. `auth_status` wraps collection exceptions into
+`ToolResult(success=False, error=...)`. `env_doctor` wraps its tool/secret
+collection, but currently builds auth/config outside that try block; a config
+lookup exception can propagate from direct Python execution. See
+[limits](../explanation/architecture.md#current-limits).
 
-Under the hood `bootstrap` delegates to the central functions — `run_install`
-for tools and `provision_missing` for secrets — so the confirm gate is the only
-logic the CLI adds.
+## Python
 
-## MCP tools
-
-The same read-only surface is available as two `axm.tools` entry points (MCP +
-`axm <tool>` CLI + DAG node):
-
-| Tool | Returns |
-| -- | -- |
-| `env_doctor` | `{tools, auth, secrets, config}` — tool presence/version, third-party auth state, value-free missing secrets, and the git-identity / `gh` config states (`config = {git: {state}, gh: {state}}`). Read-only. |
-| `auth_status` | `{auth: {tool: {state, login_cmd}}, undetermined: [tool], logged_out: [tool], credentials: {coordinate: {layer, present}}}`. The value-free `auth` map remains available, while the two lists let consumers distinguish an unverifiable session from an observed disconnection. Internally, provenance also carries each declaration's `kind`, so the text groups credential kinds and `auth_dependency` rows separately. A declaration error yields an `unknown` / absent row without suppressing its peers. |
-
-## Python API
-
-Auto-generated API reference is available under [Python API](api/).
+[Contracts and models](python.md) · [Generated API](api.md)

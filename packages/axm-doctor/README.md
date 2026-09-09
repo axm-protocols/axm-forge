@@ -1,106 +1,74 @@
 # axm-doctor
 
-Env bootstrap + auth-status doctor (detect, propose, orchestrate)
+Environment detection, install planning and credential setup orchestration for
+AXM. Python 3.12+; part of the [axm-forge workspace](https://github.com/axm-protocols/axm-forge).
 
-<p align="center">
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm-forge-workspace/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge-workspace/gh-pages/badges/axm-doctor/coverage.json" alt="Coverage"></a>
-  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
-</p>
+## Install and inspect
 
----
-
-## Overview
-
-Env bootstrap + auth-status doctor (detect, propose, orchestrate)
-
-## Features
-
-- ✅ **Bootstrap-safe detection** — importing `axm_doctor` (or `axm_doctor.detect`) pulls **no** AXM package: `detect.py` defers its AXM imports and the package re-exports lazily (PEP 562). `detect_tool` remains a stdlib + pydantic probe. On each `detect_auth` call, the credential catalog is discovered lazily; if it is unavailable, detection safely degrades to binary presence.
-- ✅ **Config-resolvability checks** — `detect_git_identity` reports whether a git committer identity is resolvable (a truthy `[git].default` in the **axm-config** store, else the exit code of `git config --get user.email`) and `detect_gh_config` reports whether `gh` carries a base config (`gh config get git_protocol` exit code; `not_installed` when `gh` is absent). Value-free like auth: only the store presence and exit codes are inspected, never the identity/config value. Both degrade to `unconfigured` on any error instead of raising. The `env_doctor` tool surfaces them under a `config` key (`{git: {state}, gh: {state}}`).
-- ✅ **Declaration-driven, read-only auth** — each package that drives a third-party tool declares how to probe it and owns every tool-specific path, service name and recovery command. `detect_auth` only translates the declaration outcomes into `logged_in`, `logged_out` or `not_installed`; it never reads or returns authentication material. `AuthStatus.declaration_consulted` is `True` when such a declaration was found and consulted, including when its probe could not conclude. Without a declaration, the flag is `False`: an installed binary yields `undetermined` because its session cannot be verified, while an absent binary yields `not_installed`.
-- ✅ **Frozen result models** — `ToolStatus`, `AuthStatus`, `GitIdentityStatus` and `GhConfigStatus` are immutable pydantic models; authentication results contain state metadata, never a token.
-- ✅ **Install plans, never silent installs** — `install_command` proposes the *official* install command for a known tool (`uv`, `claude`, `codex`) without running anything; `run_install` is a **dry-run by default** (`confirm=False`) that only echoes the command it would run. It installs strictly when the caller opts in with `confirm=True`, then re-detects the tool via `detect_tool`.
-- ✅ **Kind-aware, value-free provenance** — `collect_credential_provenance` reports each declaration with its coordinate, declared `kind`, serving layer/state, and presence flag. Credential kinds (for example `token`) and `auth_dependency` coexist in one report; a failing declaration is isolated as `unknown` / absent without erasing healthy peer verdicts.
-- ✅ **Orchestrates, never possesses** — `missing_secrets` reads the **axm-vault** catalog and value-free resolver provenance to list credential specs that resolve to `missing`; `auth_dependency` declarations are excluded because an OAuth/session dependency is not a secret to provision. A `MissingSecret` can identify the account concerned with `instance` or signal that a multi-instance group declares no account yet with `awaiting_instance`; account lookups use only axm-vault's exact canonical coordinate, so a served sibling cannot hide a starving account. `provision_missing` is a **dry-run by default** (`confirm=False`) that returns only credential groups it *would* prompt for; on `confirm=True` it delegates to vault's `run_setup(only=…)`. The secret value never transits axm-doctor — every write goes through vault's API.
-
-```python
-from axm_doctor import detect_tool, detect_auth
-from axm_doctor.detect import detect_git_identity, detect_gh_config
-
-detect_tool("uv")      # ToolStatus(name='uv', state='present', version='0.5.1', path=...)
-detect_auth("gh")      # declaration -> AuthStatus(state='logged_in', declaration_consulted=True, ...)
-detect_auth("unknown") # PATH fallback -> AuthStatus(..., declaration_consulted=False)
-detect_git_identity()  # GitIdentityStatus(state='configured')  — store [git].default or `git config user.email`
-detect_gh_config()     # GhConfigStatus(state='configured')     — `gh config get git_protocol`
+```bash
+uv add axm-doctor
+uv run axm-doctor check
+uv run axm-doctor check --strict
 ```
+
+`check` reports tools, third-party authentication, declaration provenance and
+missing credentials. It does not install or prompt. Normal reporting exits 0;
+`--strict` exits 1 for absent tools, `logged_out` auth or any missing credential,
+including optional ones. Operational errors also exit 1 without `--strict`.
 
 ```python
 from axm_doctor import install_command, run_install
 
-plan = install_command("uv")          # InstallPlan(tool='uv', human_command='curl -LsSf https://astral.sh/uv/install.sh | sh', ...)
-install_command("bogus")              # None — never guesses a command
-
-run_install(plan)                     # dry-run (confirm=False): executed=False, nothing installed, command echoed
-run_install(plan, confirm=True)       # installs, then re-detects: InstallResult(executed=True, returncode=0, post_check=ToolStatus(...))
+plan = install_command("uv")
+assert plan is not None
+print(plan.human_command)
+result = run_install(plan)
+assert not result.executed
 ```
 
-```python
-from axm_doctor import missing_secrets, provision_missing
+Planning runs nothing. Installation requires `run_install(plan, confirm=True)`.
+The built-in uv plan currently pins 0.8.4; a plan is not a latest-version lookup.
 
-missing_secrets()                     # MissingSecret rows; instance identifies the account when known
-                                      # awaiting_instance=True means a multi group declares no account yet
-                                      # [] when the vault catalog is empty — never reads a secret value
+## Choose an interface
 
-provision_missing()                   # dry-run (confirm=False): ProvisionResult(provisioned=False, groups=['research.fred']) — the groups it WOULD prompt for
-provision_missing(confirm=True)       # delegates to vault's run_setup(only=...); doctor never stores a secret itself
-                                      # in a non-interactive shell (no TTY) it provisions nothing: ProvisionResult(provisioned=False, reason=...)
-```
+| Need | Interface |
+| --- | --- |
+| Human-readable environment report / CI exit code | `axm-doctor check [--strict]` |
+| Structured request–response preflight | `env_doctor` AXMTool |
+| Authentication and value-free provenance | `auth_status` AXMTool |
+| Inspect one tool or prepare an install | Root Python exports |
+| Interactive install / vault setup | `axm-doctor bootstrap` |
 
-## CLI
+The AXM tools are discovered through `axm.tools`, exposed as `axm env_doctor`
+and `axm auth_status`, through MCP, and through `tool_node`. Successful
+report generation does not mean the machine is healthy; evaluate the returned
+states for your own preflight policy.
 
-The `axm-doctor` console script has two commands:
+## Boundaries
 
-```bash
-axm-doctor check       # read-only report (tools + auth + provenance by kind + missing credentials)
-axm-doctor bootstrap   # interactive repair: installs absent tools / runs vault setup only on an explicit "y"
-```
+- Importing `axm_doctor` resolves exports lazily; `detect_tool` needs only
+  stdlib and pydantic. Full reports also use axm-config and axm-vault.
+- Authentication probes belong to installed credential declarations. Without
+  a declaration, an installed binary is `undetermined`. A declared probe
+  failure or timeout is currently `logged_out`; it is not proof of logout.
+  `detect_auth` currently leaves `login_cmd=None`.
+- Reports contain metadata, not credential values. Detection can launch
+  subprocesses and invoke provider probes; read-only does not mean no I/O.
+- Doctor owns no credential store. `provision_missing()` plans groups;
+  confirmed execution delegates writes and prompts to vault.
 
-The same read-only surface is exposed as the `env_doctor` and `auth_status`
-`axm.tools` (MCP + `axm <tool>` CLI + DAG node). In the per-tool auth map,
-`auth_status` publishes `{state, login_cmd, declaration_consulted}`; its text adds
-`[no declaration]` only when no discovered declaration covered that tool. The
-credential report keeps its value-free `{layer, present}` shape and groups
-provenance by declared kind; no token value is ever serialized.
+## Documentation
 
-## Installation
+[Getting started](docs/tutorials/getting-started.md) ·
+[Task guides](docs/howto/index.md) ·
+[CLI](docs/reference/cli.md) ·
+[Python contracts](docs/reference/python.md) ·
+[Architecture and limits](docs/explanation/architecture.md)
 
-```bash
-uv add axm-doctor
-```
-
-Or as a workspace dependency in `pyproject.toml`:
-
-```toml
-[project]
-dependencies = ["axm-doctor"]
-
-[tool.uv.sources]
-axm-doctor = { workspace = true }
-```
-
-## Development
-
-This package is part of the **axm-forge** uv workspace.
-
-```bash
-# Run this package's tests (from the workspace root)
-uv run --package axm-doctor pytest packages/axm-doctor
-
-# Lint + type-check + tests for the whole workspace
-make check
-```
+The README is the repository entry point; [docs/index.md](docs/index.md) is the
+site homepage. Build this package independently from its directory with
+`mkdocs build --strict` after installing the documentation dependencies
+(MkDocs Material and mkdocstrings with its Python handler).
 
 ## License
 
