@@ -429,3 +429,40 @@ def test_static_inspection_does_not_execute_import_time_write(tmp_path: Path) ->
     assert "file write" in details or "write_text" in details
     assert "nodes/build.py:" in details
     assert not sentinel.exists()
+
+
+def test_declared_prompt_without_its_resource_is_reported(tmp_path: Path) -> None:
+    """A prompt named in the inventory must exist on disk as a Markdown file.
+
+    The shared witness declares ``prompts = []``, so the prompt half of the
+    resources rule was never exercised: removing the branch that reports a
+    missing prompt failed nothing. This witness declares one and then withholds
+    the file, which is the only shape that distinguishes a rule that reads the
+    inventory from one that ignores it.
+    """
+    declared = _PYPROJECT.replace("prompts = []", 'prompts = ["build"]')
+    with_resource = _project(
+        tmp_path / "present",
+        replacements={
+            "src/protocols_demo/work/exec/prompts/build.md": "TODO: skeleton\n"
+        },
+    )
+    (with_resource / "pyproject.toml").write_text(declared, encoding="utf-8")
+
+    without_resource = _project(tmp_path / "absent")
+    (without_resource / "pyproject.toml").write_text(declared, encoding="utf-8")
+
+    present_details = _details(with_resource)
+    absent_details = _details(without_resource)
+
+    # Two rules speak about the same file and must BOTH be exercised: the
+    # layout rule compares the inventory against disk, the resources rule
+    # checks the declared prompt resource itself. A path-only substring
+    # matches either one — and also the wheel-inclusion finding the bare
+    # witness trips — so each motif is asserted on its own.
+    inventory_motif = "declared prompt 'build' is missing on disk"
+    resource_motif = "declared prompt resource is missing on disk"
+    assert inventory_motif not in present_details
+    assert resource_motif not in present_details
+    assert inventory_motif in absent_details
+    assert resource_motif in absent_details
