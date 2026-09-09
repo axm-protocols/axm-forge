@@ -37,6 +37,10 @@ without touching the real Keychain.
     the `keyring` layer gracefully; the [doctor](doctor.md) flags the spec
     `keyring: "unavailable"`.
 
+The following storage calls are illustrative. Install the in-memory backend
+from [Testing without the real Keychain](#testing-without-the-real-keychain)
+first, or use the complete [isolated tutorial](../tutorials/getting-started.md).
+
 ```python
 from axm_vault import KeyringStore
 
@@ -97,7 +101,7 @@ keyring.set_keyring(MemoryKeyring())   # subsequent KeyringStore calls stay in m
 
 ## `rotate_secret`
 
-```python
+```text
 rotate_secret(group: str, name: str, value: str, instance: str | None = None) -> None
 ```
 
@@ -128,7 +132,7 @@ rotate_secret("broker", "api_key", "newer")
 
 ## `atomic_write`
 
-```python
+```text
 atomic_write(path: Path | str, data: str, *, encoding: str = "utf-8") -> None
 ```
 
@@ -173,9 +177,20 @@ actionable error so callers can degrade the keyring layer gracefully.
 !!! danger "Never-leak invariant"
     The error message is fixed and actionable; the original backend exception
     is chained (`raise ... from exc`) but **never interpolated** into the
-    message, so no credential value can leak through an error path.
+    message. Only `NoKeyringError` and `InitError` are translated; chained
+    tracebacks and other backend errors may still expose their original text.
 
 ## `SERVICE`
 
 The fixed keyring service name under which every AXM secret is stored:
 `"axm-vault"`.
+
+## Failure and concurrency boundaries
+
+`KeyringUnavailableError` is imported from `axm_vault.store`, not from the package root. It normalizes `NoKeyringError` and `InitError` only. `delete` suppresses **every** `PasswordDeleteError`, not just a verified absent-item condition; other backend failures can propagate. Backend encryption and access controls depend on the selected keyring implementation; vault does not add encryption.
+
+`rotate_secret` is a sequence of reads, deletes and writes with no transaction or lock. An error can leave a changed backup or unchanged current value, and concurrent rotations are not serialized. It does not rotate a remote provider token, revoke anything, or automatically fall back to `.prev` on resolution. The low-level function does not validate the catalog or sensitivity; the standalone command does.
+
+`atomic_write` writes plaintext with owner-only permissions. It does not encrypt data or make read-modify-write operations transactional. A failure after `os.replace` may mean the new content is already installed even though the function raised. Durability depends on the filesystem honoring fsync and rename semantics.
+
+The store examples above are illustrative calls. Run them only after installing the in-memory backend shown here, in a disposable process; backend selection is process-global. The [isolated tutorial](../tutorials/getting-started.md) demonstrates this setup before any vault read.

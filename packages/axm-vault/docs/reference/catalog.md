@@ -65,11 +65,11 @@ provider object.
 
 A frozen, strict record describing one contribution excluded during discovery.
 It contains the entry-point `entry_point` and a non-empty diagnostic `reason`.
-The rejection never carries credential values.
+The reason can contain the original provider exception message. Providers must keep credentials out of diagnostics; vault does not redact arbitrary exception text.
 
 ## `Catalog`
 
-An in-memory index of credential groups, keyed by group `id`. Frozen
+An in-memory collection of credential groups. Direct construction retains duplicates and `group(gid)` returns the first match; discovery deduplicates by id, retaining the last contribution in entry-point iteration order. Frozen
 (`frozen=True`) and strict (`extra="forbid"`).
 
 | Method | Returns | Notes |
@@ -99,3 +99,9 @@ catalog.for_package("axm-acme")  # -> [CredentialGroup(...)]
 catalog.all_specs()              # -> [("acme", CredentialSpec(...))]
 catalog.auth_dependencies()      # -> [] for this credential-only group
 ```
+
+## Discovery boundaries
+
+Providers may return any iterable of `CredentialGroup`, though a list is the recommended declaration. If any yielded item is invalid, the whole provider contribution is rejected. Identifier validation happens later when the final `Catalog` is built; invalid group ids or storable names can therefore fail the entire discovery instead of producing a rejection. Duplicate ids are not errors: the last discovered group wins, so providers must use distinct ids rather than depend on installation order.
+
+`load_catalog()` is cached; restart a long-lived process after installing or changing providers. Importing/loading/calling a third-party provider executes its code and can perform I/O. Vault does not sandbox providers. `groups_from_provider` is available from `axm_vault.catalog`, but is not exported at the package root.

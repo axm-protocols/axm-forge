@@ -51,17 +51,17 @@ def provide_credentials() -> list[CredentialGroup]:
 
 ## 2. Choose the right `Sensitivity`
 
-`Sensitivity` decides *where the value is stored* and *whether it may leak*:
+`Sensitivity` routes setup/set writes and selects keyring eligibility. It does not prevent plaintext reads or guarantee redaction:
 
 | Sensitivity | Stored in | When to use |
 |---|---|---|
-| `SECRET` | OS keyring | API keys, tokens, passwords — anything that must never touch disk in the clear. Consulted only by the `keyring` layer; masked everywhere. |
+| `SECRET` | OS keyring | API keys, tokens, passwords. Only SECRET specs consult keyring, but env/file/default can also supply their values. |
 | `CONFIG` | axm-config (`~/.axm`) | Non-sensitive but per-install settings (a region, an account id you don't mind on disk). |
-| `NONSENSITIVE` | *nothing* | Environment-only values. They are never prompted nor stored — storing them would create a second, stale source of truth. |
+| `NONSENSITIVE` | *nothing* | Values provisioned through the environment: setup skips them and set rejects them. Resolver file/default/prompt layers remain eligible. |
 
 ## 3. Name specs and groups in the axm-config charset
 
-Because a `SECRET`/`CONFIG` value round-trips through `axm-config`, the
+The catalog applies the axm-config naming convention to `SECRET`/`CONFIG` specs; the
 identifiers must be valid axm-config segments — validated at catalog load time
 by `axm_config.validate_segment`:
 
@@ -127,8 +127,7 @@ group = CredentialGroup(
 ```
 
 Keep credentials and authentication dependencies separate: `all_specs()` feeds
-resolution and provisioning, while `auth_dependencies()` reports external
-session state only. An authentication dependency has no environment variable or
+resolution and provisioning, while `auth_dependencies()` returns descriptors; call their `status()` methods to observe external session state. An authentication dependency has no environment variable or
 value accessor. If the supplied source does not implement `status()`,
 construction raises `UnsupportedAuthDeclarationError`.
 
@@ -140,7 +139,7 @@ Once registered, all the vault surfaces work for your group:
 axm-vault setup                 # interactively prompt + store every credential
 axm-vault get broker api_key    # resolve (masked for SECRET unless --reveal)
 axm-vault doctor                # value-free provenance: {layer, present} per spec
-axm-vault rotate broker api_key <new>   # rotate a SECRET (keeps one .prev cycle)
+axm-vault rotate broker api_key   # hidden input; retains one .prev cycle
 ```
 
 And in code, bind a typed model in one call:
@@ -174,8 +173,7 @@ list_instances(group)              # source order, or [] without a source
 declare_instance(group, "pro")     # declares the name only
 ```
 
-Declaration is deliberately non-interactive: it never calls `input()` or
-`getpass`, and it does not read or write a secret. Provisioning a credential
+The vault wrapper only passes the instance name to the source. The source owns any I/O and must honor the no-secret declaration contract. Provisioning a credential
 value remains a separate operation. Calling `declare_instance` without a source
 raises `UnsupportedInstanceDeclarationError`; listing without one returns `[]`.
 

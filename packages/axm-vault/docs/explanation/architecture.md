@@ -1,137 +1,99 @@
 # Architecture
 
-`axm-vault` answers one question — *where does a credential come from, and is it
-present* — without ever holding, returning, or logging a secret value. Its
-design is built around a single invariant (**never-leak**) and a clean split
-between the two backends that actually store data: the **OS keyring** for
-secrets and **axm-config** for non-sensitive config.
+Vault separates credential declarations, value resolution, storage, and provenance.
+It returns plaintext when applications request values; it omits resolved values
+from provenance reports. These are different contracts.
 
-## The four moving parts
+## Declaration and discovery
 
-```mermaid
-graph TD
-    subgraph "Declaration (value-less)"
-        Catalog["Catalog<br/>axm.credentials entry-points"]
-    end
-    subgraph "Resolution"
-        Resolver["Resolver<br/>env > file > keyring > default > prompt"]
-        Doctor["doctor_data<br/>value-free provenance"]
-    end
-    subgraph "Storage backends"
-        Keyring["KeyringStore<br/>OS keyring (SECRET only)"]
-        Config["axm-config<br/>~/.axm (CONFIG only)"]
-        Env["environment<br/>(NONSENSITIVE + any tier)"]
-    end
+Packages contribute `CredentialGroup` objects through `axm.credentials`.
+Credential specs describe names, environment aliases, sensitivity and defaults.
+Defaults are ordinary strings: keeping secrets out of declarations is a provider
+responsibility, not a model-enforced guarantee.
 
-    Catalog --> Resolver
-    Catalog --> Doctor
-    Resolver --> Env
-    Resolver --> Config
-    Resolver --> Keyring
-    Doctor --> Resolver
-```
+`load_catalog()` loads and calls providers, caches the resulting catalog, and
+records loading/calling/type failures as rejections. Final identifier validation
+can still fail the entire catalog. Duplicate ids use the last contribution in
+discovery order. Providers execute in the process and are not sandboxed.
+See [Catalog](../reference/catalog.md).
 
-### 1. The catalog — schema, never values
+Authentication dependencies follow a separate traversal:
+`Catalog.auth_dependencies()` returns descriptors whose `status()` delegates to
+a source. Vault's credential doctor does not call these methods. The broader
+`axm-doctor` package consumes authentication status for operational diagnostics.
+An instance source similarly owns identity enumeration/declaration and its I/O.
 
-A [`CredentialGroup`](../reference/models.md) can bundle two distinct kinds.
-[`CredentialSpec`](../reference/models.md#credentialspec) entries describe
-resolvable values (name, environment variable, kind, sensitivity), while
-[`AuthDependencySpec`](../reference/models.md#authdependencyspec) entries expose
-only the observed state of an external login session. Packages contribute both
-through the `axm.credentials` entry-point group; [`load_catalog()`](../reference/catalog.md)
-aggregates them (an empty catalog remains the nominal state for vault itself).
+## Resolution and storage
 
-The two kinds never share a traversal. `Catalog.all_specs()` feeds resolution
-and provisioning; `Catalog.auth_dependencies()` yields only authentication
-sessions. Their tri-state result distinguishes connected, disconnected, and
-missing-tool states. The declarer's source is private and there is no route from
-an authentication dependency to a token or other value.
+`Resolver` walks `env > file > keyring > default > prompt`.
+Environment names come from the spec. Empty variables are skipped. The file
+layer calls `axm_config.store.NamespaceStore`, which reads the namespace table
+from the active profile's config file, with legacy per-namespace fallback,
+without mixing config's own environment-value precedence into provenance.
+Config owns home resolution and the TOML layout. It uses `Path.home() / ".axm"`;
+`AXM_HOME` is not supported. Reading can create that directory and tighten its
+permissions. The tutorial patches `Path.home()` explicitly for isolation.
 
-At load time the catalog validates every `group.id` (as an axm-config
-*namespace*) and every SECRET/CONFIG spec name (as an axm-config *key*) by
-delegating to `axm_config.validate_segment` — the single canonical charset
-rule. An identifier that could never round-trip through `axm_config.set_` is
-rejected up front, instead of blowing up later mid-`run_setup`.
-
-Discovery is a fault-isolation boundary: each entry-point is loaded, called,
-and validated independently. A malformed contribution becomes a typed
-`CatalogRejection` and a `WARNING`; it cannot hide conforming groups from the
-resolver or `doctor_data`. This preserves availability without silently
-relaxing the provider contract.
-
-### 2. The resolver — a fixed layer precedence
-
-The [`Resolver`](../reference/resolver.md) resolves a value by walking a fixed
-precedence — `env > file > keyring > default > prompt`. Each layer is consulted
-in turn; the first to yield a value wins, and the winning `layer` is reported
-back alongside the value in `Resolved`. The layers are deliberately kept
-disjoint:
-
-- **env** is the only tier that reads the environment (`spec.env` + aliases); an
-  empty-string env var counts as *absent*, not as an empty value.
-- **file** reads the per-namespace TOML under `~/.axm` **only**, via
-  `axm_config.store.NamespaceStore` — vault never resolves the `~/.axm` path
-  itself (that stays axm-config's responsibility) and never mixes the
-  environment into this layer.
-- **keyring** is consulted **only** for specs classified `Sensitivity.SECRET`,
-  and degrades gracefully to skipped (not crashed) when the OS keyring backend
-  is unavailable on a headless host.
-
-### 3. The two storage backends — a clean frontier
-
-Writes route by sensitivity, and the two backends never overlap:
-
-| Sensitivity | Written to | Read back from |
+| Sensitivity | Writes through setup/set | Eligible resolver layers |
 |---|---|---|
-| `SECRET` | OS keyring (`KeyringStore`) | `keyring` layer |
-| `CONFIG` | axm-config (`~/.axm`) | `file` layer |
-| `NONSENSITIVE` | *nothing* (env-only) | `env` layer |
+| SECRET | Selected keyring backend | env, file, keyring, default, prompt |
+| CONFIG | axm-config TOML | env, file, default, prompt |
+| NONSENSITIVE | Rejected by set; skipped by setup | env, file, default, prompt |
 
-NONSENSITIVE credentials are never stored — persisting them would create a
-second, stale source of truth. Rotation (`rotate_secret`) lives entirely on the
-keyring side, retaining the previous secret for exactly one cycle under a
-reserved `{name}.prev` slot so a caller can fall back during an in-flight roll.
+NONSENSITIVE is described as environment-only for provisioning, but the resolver
+does not restrict it to environment reads. File reads accept strings regardless
+of sensitivity, including SECRET. This means a previously written plaintext file
+can override a keyring credential. Do not interpret write routing as proof that
+secrets can never reach disk.
 
-### 4. The doctor — provenance without values
+`instance` affects keyring identity only. File keys, environment variables,
+defaults and prompts are shared across instances. `group.multi` controls doctor
+enumeration; it does not enforce instance use in the resolver.
 
-[`doctor_data`](../reference/doctor.md) answers *which layer would supply each
-credential, and is it present at all* — **without ever reading the value**. It
-probes each layer for presence only, reducing the result to a boolean the
-instant a layer responds, so a plaintext secret never enters the report. When
-the keyring is unavailable for a SECRET spec, the entry is annotated
-`keyring="unavailable"` so the outage is surfaced rather than mis-reported as a
-plain `missing`.
+## Provenance requires reads
 
-For a multi-instance credential group, the doctor obtains declared identities
-through the group's instance capability and emits one provenance entry per
-`(instance, spec)` pair. An explicit instance takes precedence over discovery.
-Every report key is composed by `KeyringStore.username`, keeping storage and
-diagnostics on the same escaped identity coordinate; non-multi-instance groups
-and multi-instance groups with no declarations retain their unsegmented key.
+`doctor_data` probes backend availability, then walks env/file/keyring/default
+until a value is found for each spec. It reads the value and converts it to a
+boolean. The report contains layer and presence, with a keyring-unavailable
+annotation for SECRET specs when the typed availability probe fails.
 
-## The never-leak invariant
+No prompt-layer input is requested. Filesystem reads, backend interactions and
+provider instance discovery still occur, and their errors can propagate.
+`vault_doctor` catches failures into `ToolResult.error` and includes discovery
+rejections in structured data. Its text summary lists skipped contributions only.
+See [Doctor & Tools](../reference/doctor.md).
 
-Every surface upholds one rule: **no value is ever serialized, returned, or
-logged where it could leak.**
+## Masking and disclosure boundaries
 
-- The doctor and `Resolver.probe` reduce a value to a boolean before it can
-  escape.
-- `vault_doctor` returns value-free provenance; `vault_set` echoes only the
-  storage *target*, never the value.
-- `KeyringUnavailableError` and other error paths are asserted never to embed
-  the secret in their message.
-- `SecretStr` wrapping (via `as_secret`) keeps bound SECRET fields masked in any
-  `repr`.
+- `Resolved.value`, `get()`, and `KeyringStore.get()` return plaintext.
+  `Resolved` representations and dumps are not masked.
+- `bind()` wraps SECRET values with `SecretStr` before validating the consumer
+  model. Default Pydantic displays/JSON mask it; explicit reveal and custom
+  serializers can expose it. This is not encryption.
+- Standalone `get` masks SECRET values unless `--reveal` is supplied.
+  Command arguments and MCP inputs still carry any supplied plaintext.
+- Successful provenance and mutation results omit resolved/stored values.
+  Provider exception messages become rejection reasons and warning logs.
+  Tool failures use `str(exc)`; arbitrary backend errors are not scrubbed.
+- `redact` is an opt-in, exact-substring helper with a minimum length.
+  It is not installed automatically around errors or logging.
 
-## Design decisions
+## Persistence boundaries
 
-| Decision | Rationale |
-|---|---|
-| Separate declaration kinds | Resolvable credentials and external authentication sessions cannot be confused or accidentally provisioned. |
-| Value-less catalog | A schema that cannot hold a secret cannot leak one. |
-| Per-contribution discovery isolation | One malformed package is reported as a typed rejection and cannot collapse the shared catalog. |
-| Canonical charset via `axm_config.validate_segment` | One source of truth for namespace/key charsets — no hand-mirrored regex to drift out of sync. |
-| Keyring/config frontier by `Sensitivity` | Secrets never touch `~/.axm`; config never touches the keyring. |
-| Value-free doctor | Provenance is answerable without ever reading a value. |
-| Pydantic v2, `frozen=True, extra="forbid"` | Immutable, strict models; unknown fields are a construction error. |
-| `src/` layout | PEP 621 best practice, no import conflicts. |
+The selected keyring backend supplies storage protection. Vault does not promise
+that every installed backend is encrypted. Rotation retains one backup slot after
+a successful serial operation; it has no multi-operation transaction, lock or
+remote revocation. Deletion removes a single keyring slot and does not remove
+file/env overrides or the previous backup.
+
+`atomic_write` writes plaintext to an existing directory, replaces the target
+atomically, applies mode 0600 and fsyncs the directory. It does not create a
+credential store or encrypt the payload. A late error can occur after replacement.
+See [Store](../reference/store.md).
+
+## API placement
+
+The [Python API](../reference/api/index.md) distinguishes root exports from
+module-level implementation surfaces. The installed `axm.tools` entry points
+provide generic CLI/MCP/DAG access. This package has no `axm.commands` entry
+point or legacy YAML hook interface.

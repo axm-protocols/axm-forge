@@ -2,7 +2,7 @@
 
 The **doctor** answers a single operational question for every credential in
 the [catalog](catalog.md): *which layer would supply it, and is it present at
-all* — **without ever reading or returning the value itself**. It is the
+all* — **without including the resolved value in provenance**. Probes read environment, file and keyring values, then reduce them to booleans. It is the
 diagnostic, value-free counterpart of the [resolver](resolver.md): the
 resolver hands back the value, the doctor hands back only its provenance.
 
@@ -63,9 +63,9 @@ stdin.
 
 ## MCP tools
 
-Both tools are deterministic `axm.tools.base.AXMTool` implementations, so a
+The three tools are `axm.tools.base.AXMTool` implementations, so a
 single entry-point declaration exposes each over MCP, the `axm` CLI and as a
-DAG node. Neither tool ever serializes a `SECRET` value.
+DAG node. Successful provenance and storage results omit credential values. Errors and rejection reasons can contain unredacted exception text.
 
 ### `vault_doctor`
 
@@ -104,7 +104,19 @@ axm vault_set --group broker --name api_key --value s3cr3t   # -> keyring:broker
 
 | Param | Type | Default | Notes |
 | -- | -- | -- | -- |
-| `group` | `str` | `""` | Credential group id |
-| `name` | `str` | `""` | Spec name within the group |
-| `value` | `str` | `""` | The value to store (never echoed back) |
+| `group` | `str` | required | Credential group id |
+| `name` | `str` | required | Spec name within the group |
+| `value` | `str` | required | The value to store (never echoed back) |
 | `instance` | `str \| None` | `None` | Multi-instance segment (keyring only) |
+
+### `vault_delete`
+
+`execute(*, group="", name="", instance=None)` looks up the catalog spec, then deletes only its keyring entry. Success returns `data={"deleted": "keyring:{group}.{name}"}`. The target text omits the instance even when an instance was selected. Unknown group/spec and backend failures become unsuccessful `ToolResult` objects.
+
+This tool does not check sensitivity: deleting a CONFIG spec does not remove its TOML value. It also leaves environment overrides and rotation backups intact. `VaultDeleteTool` is discovered from `axm_vault.tools` but is not exported from the package root.
+
+## Output and I/O boundaries
+
+`vault_doctor.data` contains the provenance mapping **and** the reserved `rejections` list. Its `text` contains only `skipped contributions: ...`, not the provenance rows. Use `axm vault_doctor --json-output` for structured data; a text-only MCP façade may expose only that summary. The standalone `axm-vault doctor` prints provenance rows but does not print rejection details.
+
+`doctor_data` probes backend availability even for an empty catalog. It does not call external authentication dependency `status()` methods: these are separate catalog capabilities consumed by `axm-doctor`. Instance enumeration delegates to provider code, which can perform I/O. An explicit instance is used only for groups marked `multi=True`; ordinary groups remain unsegmented. The probe never requests the prompt layer, but backend reads can still involve backend-specific interactions or failures.
