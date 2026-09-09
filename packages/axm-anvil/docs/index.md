@@ -1,59 +1,16 @@
----
-hide:
-  - navigation
-  - toc
----
-
 # axm-anvil
 
-<p align="center">
-  <strong>Deterministic CST-based refactoring toolkit for Python — move, rename, and extract symbols atomically across files (split &amp; merge on the roadmap).</strong>
-</p>
+Move, rename and extract top-level Python symbols with libcst transformations. Anvil uses `axm-ast` for code analysis and `axm-edit` for batched writes; it changes files.
 
-<p align="center">
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml">
-    <img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-init.json" alt="axm-init" />
-  </a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-audit.json" alt="axm-audit" />
-  </a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/coverage.json" alt="Coverage" />
-  </a>
-  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
-</p>
+| Your goal | Start here |
+|---|---|
+| Try a complete move on disposable files | [Getting started](tutorials/getting-started.md) |
+| Choose move, rename or extract | [Operation contracts](reference/contracts.md) |
+| Use the tool from an agent | [MCP and generic AXM CLI](howto/mcp.md) |
+| Apply a real refactor | [Review workflow](howto/review.md) |
+| Understand rollback and rewriting limits | [Guarantees and limits](explanation/limits.md) |
+| Integrate from Python | [Python API](reference/api/index.md) |
 
----
+Install with `uv add axm-anvil` (Python 3.12+). The dedicated CLI provides `axm-anvil move`; the generic AXM dispatcher exposes `anvil_move`, `anvil_rename` and `anvil_extract` when installed in its environment.
 
-## Installation
-
-```bash
-uv add axm-anvil
-```
-
-## Quick Start
-
-Move a class and a private helper into another module, previewing first:
-
-```bash
-axm-anvil move src/mylib/models.py src/mylib/services.py \
-    UserService,_validate_input --dry-run
-```
-
-## Features
-
-- 🔨 **Deterministic moves** — Classes, functions, and constants moved with transitive dependency resolution (imports, constants, helpers), formatting preserved exactly via libcst
-- ✏️ **Rename in flight** — `--rename '{"Old": "New"}'` rewrites the definition, every reference, `__all__`, and string forward-references
-- 📍 **Placement control** — `--insert-after` splices moved blocks after a named symbol; `--no-include-helpers` skips copying local helpers
-- 🧭 **Edge-case aware** — `__all__` sync, conditional-import preservation, relative→absolute import conversion on cross-package moves, and warnings for side-effect decorators, string forward-refs, and pytest fixture-scope breaks
-- 🛡️ **Atomic & safe** — All edits computed in memory, validated, then written all-or-nothing; new import cycles are detected via `--check`
-
----
-
-<div style="text-align: center; margin: 2rem 0;">
-  <a href="tutorials/getting-started/" class="md-button md-button--primary">Get Started →</a>
-  <a href="reference/cli/" class="md-button">Reference</a>
-</div>
+Preview first. A successful result can contain warnings, and a parseable transformation is not proof of unchanged behavior. Move/extract run optional Ruff cleanup **after** batched writes; exact formatting and end-to-end transactional rollback are not guaranteed.

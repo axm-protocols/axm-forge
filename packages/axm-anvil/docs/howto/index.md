@@ -1,5 +1,7 @@
 # How-To Guides
 
+See [preview, apply and review](review.md) before applying these recipes.
+
 Task-oriented recipes for common `axm-anvil move` workflows. The dedicated
 `axm-anvil` CLI exposes a single `move` command, which accepts positional
 (`FROM TO SYMBOLS`) or flag (`--from-file/--to-file/--symbols`) form; see the
@@ -23,9 +25,9 @@ axm-anvil move src/mylib/models.py src/mylib/services.py \
     UserService --rename '{"UserService": "AccountService"}'
 ```
 
-The definition, all references, the `__all__` entry, and string forward-references
-(`x: "UserService"`) are all rewritten to the new name. Incompatible with
-`--reexport`.
+The moved definition, supported references, literal exports and supported string
+annotations in moved blocks are rewritten. Review [limits](../explanation/limits.md).
+Incompatible with `--reexport`.
 
 ## Control where the moved code lands
 
@@ -54,7 +56,8 @@ axm-anvil move src/mylib/a.py src/mylib/b.py Widget --reexport
 ```
 
 Callers are left untouched; a `from b import Widget  # re-export for backwards
-compat` line is injected into the source so existing imports keep working.
+compat` line is injected into the source to support explicit imports from the old module. Review literal exports and
+import-time behavior separately; this does not prove full backwards compatibility.
 
 ## Catch import cycles before writing
 

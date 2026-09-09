@@ -2,7 +2,11 @@
 
 ## Overview
 
-`axm-anvil` follows a layered architecture with clear separation of concerns:
+Anvil separates adapters, orchestration and CST primitives. The core does I/O.
+Read [write guarantees and limits](limits.md) alongside this implementation map.
+Rename and extract have separate tool adapters; only move has a dedicated CLI.
+Dependencies flow from Anvil to axm-ast (analysis), axm-edit (batched writes)
+and libcst (transformations):
 
 ```mermaid
 graph TD
@@ -35,7 +39,8 @@ and handle input validation and formatted output.
 
 ### 2. Core Logic (`core/`)
 
-Business logic independent of I/O: move planning (`move.py`), the
+Core orchestration performs filesystem I/O, workspace scans, writes and Ruff
+subprocesses. Its planning primitives include move planning (`move.py`), the
 `MovePlan` dataclass and exceptions (`plan.py`), caller rewriting
 (`callers.py`), import-cycle detection (`cycles.py`), dependency gathering
 (`deps.py`), and shared-helper classification (`shared.py`).
@@ -48,7 +53,7 @@ private.
 ## Internal CST primitives (`_cst/`)
 
 The private `axm_anvil._cst` sub-package groups libcst helpers shared by
-the move/rename/split tooling. It is intentionally internal — consumers
+the move/rename/extract tooling. It is intentionally internal — consumers
 should use the public `axm_anvil` API.
 
 | Module | Responsibility |
@@ -233,8 +238,9 @@ match — so `"FooBar"` never matches a moved `Foo`, while `"list[Foo]"`
 and `"Foo | None"` do. Every hit appends a structured, actionable
 `forward-reference '<name>' in string annotation at <ctx> not rewritten;
 update manually` line to `MovePlan.warnings`, identifying the symbol and
-its function/parameter context. This is **detection-only**: string
-annotations are never rewritten by the move.
+its function/parameter context. For names without in-flight renaming this is detection-only.
+The rename transformer can rewrite supported string annotations in moved blocks;
+it does not rewrite arbitrary strings throughout the workspace.
 
 ## Pytest fixture-scope warnings in `core.move`
 
@@ -261,7 +267,7 @@ that conftest's directory is a parent of — or equal to — `to_file`'s
 directory (`Path.is_relative_to`). When it is not, a structured
 `moved test depends on fixture '<name>' provided by '<conftest>'; the
 target is outside that conftest's scope …` line is appended to
-`MovePlan.warnings`. This is **detection-only**: the move always proceeds.
+`MovePlan.warnings`. This is detection-only: the warning alone does not block the move.
 
 ## Re-export mode in `core.move`
 
@@ -325,7 +331,7 @@ preview contract.
 
 | Decision | Rationale |
 |---|---|
-| Thin CLI/MCP wrappers over a pure `core/` | Testable, I/O-free core; the same `move_symbols` powers both the `axm-anvil move` CLI and the `anvil_move` MCP tool |
+| Thin CLI/MCP wrappers over `core/` | Shared orchestration with I/O; the same `move_symbols` powers both the `axm-anvil move` CLI and the `anvil_move` MCP tool |
 | `MovePlan` dataclass result | Plain `@dataclass` carrying rendered texts, moved names, copied deps, and warnings — no runtime validation overhead on a hot path |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Private `_cst/` sub-package | Share libcst primitives across tools without leaking internals |

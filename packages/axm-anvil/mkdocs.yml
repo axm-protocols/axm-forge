@@ -1,6 +1,6 @@
 site_name: anvil
-site_description: Deterministic CST-based refactoring toolkit for Python — move, rename, and extract symbols atomically across files
-site_url: https://axm-protocols.github.io/axm-anvil
+site_description: CST-based Python refactoring — move, rename and extract with reviewable plans
+site_url: https://forge.axm-protocols.io/anvil/
 repo_url: https://github.com/axm-protocols/axm-forge
 repo_name: axm-protocols/axm-forge
 copyright: Copyright &copy; 2026 Gabriel Jarry
@@ -43,19 +43,17 @@ nav:
   - How-To Guides:
     - howto/index.md
     - Use via MCP: howto/mcp.md
+    - Review a refactor: howto/review.md
   - Reference:
     - CLI: reference/cli.md
-    - Python API: reference/api/
+    - Operation contracts: reference/contracts.md
+    - Python API: reference/api/index.md
   - Explanation:
     - Architecture: explanation/architecture.md
+    - Guarantees and limits: explanation/limits.md
 
 plugins:
   - search
-  - gen-files:
-      scripts:
-        - docs/gen_ref_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
   - mkdocstrings:
       handlers:
         python:
@@ -66,6 +64,15 @@ plugins:
             show_root_heading: true
             show_root_full_path: false
             heading_level: 3
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
 
 markdown_extensions:
   - admonition

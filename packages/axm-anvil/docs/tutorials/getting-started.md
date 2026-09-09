@@ -1,80 +1,76 @@
-# Getting Started
+# Move a class and verify its caller
 
-This tutorial walks you through installing `axm-anvil` and verifying your setup.
+This tutorial uses a disposable directory and a small importable package. It demonstrates a preview, the applied move, copied helper and rewritten caller. Python 3.12+ and an environment with `axm-anvil` are required.
 
-## Prerequisites
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+## Install
 
 ```bash
 uv add axm-anvil
+uv run axm-anvil --help
 ```
 
-Or with pip:
+## Create a disposable project
 
-```bash
-pip install axm-anvil
-```
-
-## Step 1: Verify Installation
+Run the following in the environment where you installed the package. The temporary directory is removed automatically after the scenario.
 
 ```python
-from axm_anvil import __version__
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import subprocess
+import sys
 
-print(f"axm-anvil v{__version__}")
+from axm_anvil import MoveTool
+
+with TemporaryDirectory(prefix="anvil-tutorial-") as directory:
+    root = Path(directory)
+    package = root / "demo"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "models.py").write_text(
+        '__all__ = ["User"]\n\n'
+        'def _slug(name: str) -> str:\n    return name.lower()\n\n'
+        'class User:\n    def __init__(self, name: str) -> None:\n'
+        '        self.id = _slug(name)\n'
+    )
+    (package / "services.py").write_text("__all__ = []\n")
+    (package / "client.py").write_text(
+        'from demo.models import User\n\n'
+        'def user_id():\n    return User("Ada").id\n'
+    )
+    before = {p: p.read_bytes() for p in package.glob("*.py")}
+    request = dict(
+        path=str(root), from_file="demo/models.py",
+        to_file="demo/services.py", symbols="User", strict=True,
+    )
+    tool = MoveTool()
+    preview = tool.execute(**request, check=True)
+    assert preview.success, preview.error
+    assert before == {p: p.read_bytes() for p in before}
+    print(preview.text)
+
+    applied = tool.execute(**request)
+    assert applied.success, applied.error
+    print(applied.data["warnings"])
+    assert "class User" not in (package / "models.py").read_text()
+    assert "class User" in (package / "services.py").read_text()
+    subprocess.run(
+        [sys.executable, "-c",
+         'from demo.client import user_id; assert user_id() == "ada"'],
+        cwd=root, check=True,
+    )
 ```
 
-## Step 2: Run Your First Move
+The caller still returns `ada` after import rewriting. `User` and its `_slug` dependency move to `services.py`; existing literal `__all__` entries are synchronized. Ruff may format the resulting files; if unavailable it is reported as a warning and the move still succeeds.
 
-Create two throwaway modules to see a move in action:
+## Use the dedicated CLI on your project
 
-```python
-# models.py
-__all__ = ["User"]
-
-
-def _slug(name: str) -> str:
-    return name.lower()
-
-
-class User:
-    def __init__(self, name: str) -> None:
-        self.id = _slug(name)
-```
-
-```python
-# services.py
-__all__ = []
-```
-
-Preview the move (nothing is written yet):
+With existing source and destination files, preview with:
 
 ```bash
-axm-anvil move models.py services.py User --dry-run
+uv run axm-anvil move src/mylib/models.py src/mylib/services.py User \
+    --path . --check --strict
 ```
 
-The plan shows `User` moving, the `_slug` helper being copied along, and the
-`__all__` entries being synced. Drop `--dry-run` to apply it atomically. Try
-`--rename '{"User": "Account"}'` to rename in flight, or `--no-include-helpers`
-to leave `_slug` behind.
+The command's paths are illustrative, not files created by the temporary tutorial. `--check` enforces cycle detection without applying edits; `--dry-run` alone is a preview without that enforcement.
 
-## Step 3: Run the Tests
-
-```bash
-# This package's tests, from the workspace root
-make test-anvil
-
-# Or the full workspace quality gate
-make check
-```
-
-`make check` runs lint + type check + tests across the workspace (`check: lint test-all`).
-
-## Next Steps
-
-- [How-To Guides](../howto/index.md) — Task-oriented move recipes
-- [CLI Reference](../reference/cli.md) — Full command documentation
-- [Architecture](../explanation/architecture.md) — How the project is structured
+Continue with [recipes](../howto/index.md), [rename/extract](../howto/mcp.md), or the [review workflow](../howto/review.md).
