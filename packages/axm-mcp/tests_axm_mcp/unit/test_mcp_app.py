@@ -1,4 +1,4 @@
-"""Tests for the decoupled FastMCP server configuration.
+"""Tests for the decoupled MCPServer server configuration.
 
 Merged from aspect-split mirror sources:
 - test_mcp_app.py       (server config)
@@ -19,7 +19,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 from axm.tools.base import ToolResult
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
 
 from axm_mcp import mcp_app
@@ -34,7 +34,7 @@ from axm_mcp.session_contracts import (
 
 
 class TestMCPServer:
-    """Tests for FastMCP server configuration."""
+    """Tests for MCPServer server configuration."""
 
     def test_server_name(self) -> None:
         """Server has correct name."""
@@ -258,9 +258,11 @@ class _WriteFileProbe:
         return ToolResult(success=True, text=f"wrote {path}/{file}: {content}")
 
 
-def _registered_text(server: FastMCP, tool: str, **arguments: object) -> str:
+def _registered_text(server: MCPServer, tool: str, **arguments: object) -> str:
     result = asyncio.run(server.call_tool(tool, arguments))
-    blocks = result[0] if isinstance(result, tuple) else result
+    blocks = getattr(result, "content", None)
+    if blocks is None:
+        blocks = result[0] if isinstance(result, tuple) else result
     return blocks[0].text if isinstance(blocks, list) else str(blocks)
 
 
@@ -328,7 +330,7 @@ def test_direct_and_facade_paths_return_the_same_write_refusal(
             {"execution_root": "/scope_a", "allowed_prefixes": ["/scope_a"]}
         ),
     )
-    server = FastMCP("shared-parity")
+    server = MCPServer("shared-parity")
     probe = _WriteFileProbe()
     tools = {"write_file": cast(ToolEntry, probe)}
     monkeypatch.setattr(mcp_app, "mcp", server)

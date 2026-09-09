@@ -18,11 +18,11 @@ dependencies = [
     "axm-config",
     "cyclopts>=4.21.0",
     "httpx>=0.28",
-    # Plafonne a la 1.x : la 2.0 renomme FastMCP en MCPServer et change les
-    # APIs (mcp_app.py importe encore `mcp.server.fastmcp.FastMCP`). Sans le
-    # plafond, une resolution neuve tire la 2.x et le serveur ne demarre plus
-    # (ModuleNotFoundError au boot). A lever avec la migration vers MCPServer.
-    "mcp[cli]>=1.25.0,<2",
+    # Plancher a la 2.2 : le code utilise MCPServer, run(host=, port=) et
+    # mcp.server.mcpserver.exceptions. La bascule est a SENS UNIQUE -- rejoue
+    # contre 1.29.1, ce paquet ne s'importe plus (11 modules en erreur). Un
+    # `uv sync` doit donc aller de pair avec le redemarrage du serveur.
+    "mcp[cli]>=2.2.0",
     "starlette>=1.2",
 ]
 

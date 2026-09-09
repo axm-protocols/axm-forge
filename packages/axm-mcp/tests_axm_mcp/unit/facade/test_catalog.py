@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from axm.tools.base import ToolResult
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import ValidationError
 
 from axm_mcp.facade import catalog as catalog_module

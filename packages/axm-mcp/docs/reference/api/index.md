@@ -33,7 +33,7 @@ be reviewed against the installed version before integration.
 |---|---|
 | `axm_mcp.discovery.discover_tools` | Instantiate installed entry points; loading can execute plugin initialization |
 | `axm_mcp.facade.ToolCatalog` | Index a supplied entry map; `call` returns text synchronously, `acall` uses the async wrapper |
-| `axm_mcp.mcp_app.build_http_app` | Build the registered FastMCP ASGI application; importing the module already discovers tools |
+| `axm_mcp.mcp_app.build_http_app` | Build the registered MCPServer ASGI application; importing the module already discovers tools |
 | `axm_mcp.server.serve` | Run HTTP; unlike CLI, a missing port can use the environment |
 | `axm_mcp.verify.verify_project` | Aggregate using a supplied provider mapping; no global pass boolean |
 | `axm_mcp.web_fetch.fetch_page` | Async optional-backend fetch; result is a dictionary |

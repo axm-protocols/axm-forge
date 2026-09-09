@@ -13,6 +13,7 @@ import pytest
 
 from axm_mcp import cli, wrapping
 from axm_mcp.cli import (
+    DEFAULT_PORT,
     app,
     is_axm_mcp_process,
     is_process_alive,
@@ -144,7 +145,9 @@ class TestCliServeEnablesHttp:
             patch("axm_mcp.cli.remove_pid_file"),
         ):
             cli.serve()
-        mock_mcp.run.assert_called_once_with(transport="streamable-http")
+        mock_mcp.run.assert_called_once_with(
+            transport="streamable-http", host="127.0.0.1", port=DEFAULT_PORT
+        )
         assert wrapping._HTTP_MODE is True
 
 

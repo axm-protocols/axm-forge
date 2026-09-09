@@ -1,4 +1,4 @@
-"""Integration tests for type parity between ToolCatalog and FastMCP."""
+"""Integration tests for type parity between ToolCatalog and MCPServer."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TypedDict, cast
 
 import pytest
 from axm.tools.base import ToolResult
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from axm_mcp.discovery import ToolEntry, discover_tools, register_one
 from axm_mcp.facade.catalog import ToolCatalog
@@ -55,15 +55,15 @@ class _CoercionTool:
         return ToolResult(success=True, text=str(items))
 
 
-def _dual_harness(name: str, tool: object) -> tuple[FastMCP, ToolCatalog]:
+def _dual_harness(name: str, tool: object) -> tuple[MCPServer, ToolCatalog]:
     entry = cast(ToolEntry, tool)
-    server = FastMCP(f"parity-{name}")
+    server = MCPServer(f"parity-{name}")
     register_one(server, name, entry)
     return server, ToolCatalog({name: entry})
 
 
 async def _direct_error(
-    server: FastMCP, name: str, arguments: dict[str, object]
+    server: MCPServer, name: str, arguments: dict[str, object]
 ) -> Exception:
     with pytest.raises(Exception) as captured:
         await server.call_tool(name, arguments)

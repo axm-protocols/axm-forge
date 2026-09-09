@@ -345,7 +345,7 @@ def apply_signature(
     exec_fn: IntrospectableFn,
     override_module: ModuleType | None,
 ) -> None:
-    """Set the typed ``__signature__`` so FastMCP builds the right schema."""
+    """Set the typed ``__signature__`` so MCPServer builds the right schema."""
     try:
         union_params = collect_dispatcher_params(
             exec_fn, override_module=override_module

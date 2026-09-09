@@ -1,6 +1,6 @@
 """Tool-call wrapping, tracing, and per-key locking runtime.
 
-Builds the synchronous and async wrapper closures handed to FastMCP for
+Builds the synchronous and async wrapper closures handed to MCPServer for
 each discovered tool: kwarg unwrapping, implicit-path warnings, external
 session tracing, ToolResult flattening, and per-key concurrency locking
 (active only in HTTP mode).
@@ -62,7 +62,7 @@ _session_lock = KeyedLock()  # protocol_* tools, keyed by session_id
 _git_lock = KeyedLock()  # git_* tools, keyed by repo path
 
 
-# Wrapper callables registered with FastMCP.
+# Wrapper callables registered with MCPServer.
 type _WrapperResult = dict[str, object] | str
 
 
@@ -370,7 +370,7 @@ def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
     additionally held when the tool opts into per-key serialisation
     (``git_*``/``protocol_*``) *and* the keying argument is present. The lock
     timeout (:data:`concurrency._DEFAULT_TIMEOUT`) is flattened into the AXM
-    error envelope instead of propagating to FastMCP as a raw protocol error.
+    error envelope instead of propagating to MCPServer as a raw protocol error.
     """
 
     async def _async_wrapper(**kwargs: object) -> dict[str, object] | str:

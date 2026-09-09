@@ -12,7 +12,7 @@ operations the facade exposes:
 Discovery metadata (``expose_directly`` / ``domain`` / ``tags``) is read via
 :func:`axm.tools.base.tool_metadata`, so both ``AXMTool`` subclasses and
 structural tools work unchanged.  Typed parameters reuse
-:func:`axm_mcp.schema.signature_params` — the exact introspection FastMCP
+:func:`axm_mcp.schema.signature_params` — the exact introspection MCPServer
 itself uses — so ``axm_describe`` and the per-tool MCP schema agree.
 """
 
@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
 from axm.tools.write_scope import WriteContract
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import TypeAdapter, ValidationError
 
 from axm_mcp.schema import IntrospectableFn, apply_signature, signature_params
@@ -371,7 +371,7 @@ class ToolCatalog:
             else:
                 # Wrap Pydantic's ValidationError in the SAME error type the
                 # direct MCP gate raises. A caller must not have to branch on
-                # which door it came through: FastMCP surfaces an argument
+                # which door it came through: MCPServer surfaces an argument
                 # mistype as ToolError, so the facade does too, keeping
                 # Pydantic's message as the payload rather than inventing one.
                 try:

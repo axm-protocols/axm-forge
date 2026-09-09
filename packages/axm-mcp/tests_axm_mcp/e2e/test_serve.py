@@ -221,10 +221,26 @@ def _tool_decision(result: Any) -> tuple[bool, str]:
 
 @asynccontextmanager
 async def _session_transport(url: str, headers: dict[str, str]):
-    """Own the configured HTTP client for one MCP transport session."""
-    async with httpx.AsyncClient(headers=headers) as http_client:
+    """Own the configured HTTP client for one MCP transport session.
+
+    mcp 2.x yields ``(read, write)`` only -- the third ``get_session_id``
+    element was dropped. The identity still travels as the ``mcp-session-id``
+    response header, so an event hook captures it and this helper keeps
+    yielding a 3-tuple, preserving what the isolation tests assert on.
+    """
+    seen: dict[str, str] = {}
+
+    async def _capture(response: httpx.Response) -> None:
+        sid = response.headers.get("mcp-session-id")
+        if sid is not None:
+            seen["id"] = sid
+
+    async with httpx.AsyncClient(
+        headers=headers, event_hooks={"response": [_capture]}
+    ) as http_client:
         async with streamable_http_client(url, http_client=http_client) as streams:
-            yield streams
+            read_stream, write_stream = streams
+            yield read_stream, write_stream, lambda: seen.get("id")
 
 
 async def _call_shared_tool(

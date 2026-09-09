@@ -325,25 +325,25 @@ def test_wrapper_text_tracing(mock_log: MagicMock) -> None:
 
 @patch("axm_mcp.wrapping.log_external_step")
 def test_text_roundtrip_mcp(mock_log: MagicMock) -> None:
-    """Register tool with text output, call via FastMCP ToolManager.
+    """Register tool with text output, call via MCPServer ToolManager.
 
     Response should contain TextContent with raw text, no JSON wrapping.
     """
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
     from axm_mcp.discovery import register_one
 
-    mcp = FastMCP("test-text")
+    mcp = MCPServer("test-text")
     result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")
     tool = FakeTool(result)
     register_one(mcp, "text_tool", tool)
 
     async def _run() -> Any:
-        content_list, _raw = await mcp.call_tool("text_tool", {})
-        return content_list
+        result = await mcp.call_tool("text_tool", {})
+        return result.content
 
     content_list = asyncio.run(_run())
-    # FastMCP converts str return → TextContent(text=str), no JSON wrapping
+    # MCPServer converts str return → TextContent(text=str), no JSON wrapping
     assert len(content_list) == 1
     content = content_list[0]
     assert content.type == "text"
@@ -739,7 +739,7 @@ class TestHttpLockBehavior:
     @pytest.mark.asyncio
     async def test_lock_timeout_is_flattened(self) -> None:
         """P1-3: a lock-acquire timeout becomes the AXM error envelope, not a
-        raw ``TimeoutError`` propagated to FastMCP.
+        raw ``TimeoutError`` propagated to MCPServer.
         """
         from collections.abc import AsyncIterator
         from contextlib import asynccontextmanager

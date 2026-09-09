@@ -17,7 +17,7 @@ from axm_mcp.session_contracts import WriteContract
 from axm_mcp.wrapping import build_wrappers
 
 if TYPE_CHECKING:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
 __all__ = [
     "discover_tools",
@@ -126,7 +126,7 @@ def discover_tools() -> dict[str, ToolEntry]:
 
 
 def register_tools(  # type: ignore[explicit-any]
-    mcp: FastMCP,
+    mcp: MCPServer,
     tools: dict[str, ToolEntry],
     *,
     shared_mode: bool = False,
@@ -138,7 +138,7 @@ def register_tools(  # type: ignore[explicit-any]
     that delegates to ``tool.execute(**kwargs)``.
 
     Args:
-        mcp: FastMCP server instance.
+        mcp: MCPServer server instance.
         tools: Dict from discover_tools().
     """
     for name, tool in tools.items():
@@ -152,7 +152,7 @@ def register_tools(  # type: ignore[explicit-any]
 
 
 def register_one(  # type: ignore[explicit-any]
-    mcp: FastMCP,
+    mcp: MCPServer,
     name: str,
     tool: ToolEntry,
     *,
@@ -163,7 +163,7 @@ def register_one(  # type: ignore[explicit-any]
 
     Supports both ``AXMTool`` instances (with ``.execute()``) and plain
     dispatcher functions.  Sets the typed signature on the wrapper
-    **before** handing it to ``mcp.tool()``, so FastMCP generates the
+    **before** handing it to ``mcp.tool()``, so MCPServer generates the
     correct JSON-Schema for the tool's parameters.
 
     For *dispatcher* functions (``action`` + ``**kwargs``), introspects
@@ -171,17 +171,17 @@ def register_one(  # type: ignore[explicit-any]
 
     When an ``AXMTool`` returns a **successful** ``ToolResult`` whose
     ``text`` attribute is a string, the wrapper short-circuits and returns
-    the raw string instead of the flattened dict.  FastMCP converts this to
+    the raw string instead of the flattened dict.  MCPServer converts this to
     a ``TextContent`` response, letting the LLM see pre-rendered markdown
     rather than JSON.  A *failing* ``ToolResult`` (``success=False``) never
     short-circuits: it is flattened so the structural failure signal
     (``success=False`` + ``error``) reaches the caller.  Any exception
     raised by ``execute()`` (or by a plain dispatcher) is caught and
     returned as the flattened AXM error shape — it never propagates to
-    FastMCP.
+    MCPServer.
 
     Args:
-        mcp: FastMCP server instance.
+        mcp: MCPServer server instance.
         name: Tool name for MCP registration.
         tool: Tool instance or plain function.
         override_module: For testing — module to search for ``_*_ACTIONS``.
@@ -205,7 +205,7 @@ def register_one(  # type: ignore[explicit-any]
         )
     apply_signature(wrapper, exec_fn, override_module)
 
-    # Register AFTER setting the signature so FastMCP sees it.
+    # Register AFTER setting the signature so MCPServer sees it.
     mcp.tool(name=name)(wrapper)
 
 
@@ -219,7 +219,7 @@ def _get_tool_doc(tool: ToolEntry) -> str:
 
 
 def register_list_tools(  # type: ignore[explicit-any]
-    mcp: FastMCP,
+    mcp: MCPServer,
     tools: dict[str, ToolEntry],
     extra_tools: dict[str, str],
 ) -> None:

@@ -29,7 +29,9 @@ class TestServeCallsMcpRun:
         """serve() delegates to mcp.run(transport='streamable-http')."""
         with patch("axm_mcp.server.mcp") as mock_mcp:
             serve()
-            mock_mcp.run.assert_called_once_with(transport="streamable-http")
+            mock_mcp.run.assert_called_once_with(
+                transport="streamable-http", host="127.0.0.1", port=DEFAULT_PORT
+            )
 
     def test_serve_path_enables_http_mode(self, _restore_http_mode: None) -> None:
         """AC4: the real HTTP serve path sets ``wrapping._HTTP_MODE`` to True.
@@ -41,17 +43,26 @@ class TestServeCallsMcpRun:
         wrapping._HTTP_MODE = False  # start from the stdio default, no patching
         with patch("axm_mcp.server.mcp") as mock_mcp:
             server.serve()
-        mock_mcp.run.assert_called_once_with(transport="streamable-http")
+        mock_mcp.run.assert_called_once_with(
+            transport="streamable-http", host="127.0.0.1", port=DEFAULT_PORT
+        )
         assert wrapping._HTTP_MODE is True
 
     def test_serve_sets_host_and_port(self) -> None:
-        """serve() configures mcp.settings before calling run."""
+        """serve() passes the bind address to run().
+
+        mcp 2.x dropped ``settings.host``/``settings.port``; the transport now
+        takes them as run() keywords. Asserting on the call is also stricter
+        than the old form, which read back attributes the test had itself set
+        on the mock and so could not fail.
+        """
         with patch("axm_mcp.server.mcp") as mock_mcp:
-            mock_mcp.settings.host = "0.0.0.0"  # noqa: S104
-            mock_mcp.settings.port = 9999
             serve(host="0.0.0.0", port=9999)  # noqa: S104
-            assert mock_mcp.settings.host == "0.0.0.0"  # noqa: S104
-            assert mock_mcp.settings.port == 9999
+            mock_mcp.run.assert_called_once_with(
+                transport="streamable-http",
+                host="0.0.0.0",  # noqa: S104
+                port=9999,
+            )
 
 
 def test_shared_mode_requires_armed_session_resolver() -> None:
@@ -70,7 +81,7 @@ class TestServeDefaultPort:
         """Port defaults to 9427 when no args and no env var."""
         with patch("axm_mcp.server.mcp") as mock_mcp:
             serve()
-            assert mock_mcp.settings.port == DEFAULT_PORT
+            assert mock_mcp.run.call_args.kwargs["port"] == DEFAULT_PORT
 
 
 class TestServeEnvPort:
@@ -83,7 +94,7 @@ class TestServeEnvPort:
             patch.dict(os.environ, {"AXM_MCP_PORT": "8000"}),
         ):
             serve()
-            assert mock_mcp.settings.port == 8000
+            assert mock_mcp.run.call_args.kwargs["port"] == 8000
 
     def test_explicit_port_overrides_env(self) -> None:
         """Explicit port arg takes precedence over env var."""
@@ -92,14 +103,14 @@ class TestServeEnvPort:
             patch.dict(os.environ, {"AXM_MCP_PORT": "8000"}),
         ):
             serve(port=7777)
-            assert mock_mcp.settings.port == 7777
+            assert mock_mcp.run.call_args.kwargs["port"] == 7777
 
 
 class _BoomToolManager:
     """Sentinel that fails on any attribute access.
 
     Patched in as ``mcp._tool_manager`` so the test proves health_check
-    never touches the private FastMCP API (AC1).
+    never touches the private MCPServer API (AC1).
     """
 
     def __getattr__(self, name: str) -> object:
@@ -187,4 +198,4 @@ class TestEdgeCases:
             # Ensure AXM_MCP_PORT is not set
             os.environ.pop("AXM_MCP_PORT", None)
             serve()
-            assert mock_mcp.settings.port == DEFAULT_PORT
+            assert mock_mcp.run.call_args.kwargs["port"] == DEFAULT_PORT

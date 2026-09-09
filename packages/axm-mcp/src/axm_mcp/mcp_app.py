@@ -20,10 +20,11 @@ import os
 import time
 from collections.abc import Mapping
 from contextvars import ContextVar
-from typing import cast
+from typing import TypedDict, Unpack, cast
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+from mcp.server.mcpserver import MCPServer
+from mcp.server.streamable_http import MCP_SESSION_ID_HEADER, EventStore
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -56,7 +57,7 @@ def _facade_enabled() -> bool:
     )
 
 
-# FastMCP server instance
+# MCPServer server instance
 _current_session_id = ContextVar[str | None]("axm_mcp_current_session_id", default=None)
 session_contract_registry = SessionContractRegistry(clock=time.monotonic)
 
@@ -95,21 +96,51 @@ class _SessionContractMiddleware:
         receive: Receive,
         send: Send,
     ) -> None:
-        if scope["type"] == "http":
-            headers = Headers(scope=scope)
-            if headers.get(_WRITE_CONTRACT_HEADER) is not None:
-                try:
-                    bind_session_from_headers(headers)
-                except (UnboundSessionError, ValueError):
-                    pass
-        await self._app(scope, receive, send)
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        token = None
+        try:
+            token = _current_session_id.set(session_id_from_headers(headers))
+        except UnboundSessionError:
+            pass
+        if headers.get(_WRITE_CONTRACT_HEADER) is not None:
+            try:
+                bind_session_from_headers(headers)
+            except (UnboundSessionError, ValueError):
+                pass
+        try:
+            await self._app(scope, receive, send)
+        finally:
+            if token is not None:
+                _current_session_id.reset(token)
 
 
-class _SessionAwareFastMCP(FastMCP[object]):
-    """FastMCP variant whose HTTP transport binds shared-session contracts."""
+class _HttpAppOptions(TypedDict, total=False):
+    """The keyword options mcp 2.x's transport passes to streamable_http_app."""
 
-    def streamable_http_app(self) -> Starlette:
-        app = super().streamable_http_app()
+    streamable_http_path: str
+    json_response: bool
+    stateless_http: bool
+    event_store: EventStore | None
+    retry_interval: int | None
+    max_request_body_size: int
+    session_idle_timeout: float | None
+    max_sessions: int | None
+    transport_security: TransportSecuritySettings | None
+    host: str
+
+
+class _SessionAwareMCPServer(MCPServer[object]):
+    """MCPServer variant whose HTTP transport binds shared-session contracts."""
+
+    def streamable_http_app(self, **kwargs: Unpack[_HttpAppOptions]) -> Starlette:
+        # mcp 2.x calls this with transport keywords (streamable_http_path,
+        # json_response, session_idle_timeout...). A no-arg override compiles
+        # and passes every unit test, then fails at boot when the transport
+        # supplies them -- so relay whatever the caller sent.
+        app = super().streamable_http_app(**kwargs)
         if resolve_serve_mode() == "shared":
             app.add_middleware(_SessionContractMiddleware)
         return app
@@ -148,10 +179,10 @@ def contract_for_session_id(session_id: str) -> WriteContract:
 
 def current_session_id() -> str:
     """Return the identity of the in-flight MCP HTTP request."""
-    request = mcp.get_context().request_context.request
-    if request is None:
+    session_id = _current_session_id.get()
+    if session_id is None:
         raise UnboundSessionError("no current MCP session identity")
-    return session_id_from_headers(request.headers)
+    return session_id
 
 
 def _on_session_start(
@@ -166,10 +197,8 @@ def _on_session_start(
         if write_contract_json is not None:
             registry.bind(session_id, WriteContract.from_json(write_contract_json))
         return
-    request = mcp.get_context().request_context.request
-    if request is None:
+    if _current_session_id.get() is None:
         raise UnboundSessionError("no current MCP session identity")
-    bind_session_from_headers(request.headers)
 
 
 def _on_session_end(*, registry: SessionContractRegistry, session_id: str) -> None:
@@ -186,7 +215,7 @@ def _resolve_session_contract() -> WriteContract:
 
 _SHARED_MODE = os.environ.get("AXM_MCP_SHARED") == "1"
 
-mcp = _SessionAwareFastMCP("axm-mcp")
+mcp = _SessionAwareMCPServer("axm-mcp")
 
 # Auto-discover and register tools from installed packages.
 # Internal-public registry (no leading underscore): a legitimate seam that

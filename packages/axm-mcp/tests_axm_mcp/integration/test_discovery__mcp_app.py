@@ -35,7 +35,7 @@ class TestBuiltinToolsWired:
     """Built-in / meta tools must be registered on the live server at runtime.
 
     Guards against the wiring regression where ``register_list_tools`` and
-    ``WebFetchTool`` were defined but never attached to the FastMCP server,
+    ``WebFetchTool`` were defined but never attached to the MCPServer server,
     leaving ``list_tools`` and ``web_fetch`` advertised in the docs but
     absent from the running tool surface.
     """

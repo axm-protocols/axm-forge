@@ -8,7 +8,7 @@ from typing import cast
 
 import pytest
 from axm.tools.base import ToolResult
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from axm_mcp import mcp_app
 from axm_mcp.discovery import ToolEntry
@@ -24,9 +24,11 @@ class _RealWriteFileProbe:
         return ToolResult(success=True, text=str(target))
 
 
-def _call_text(server: FastMCP, tool: str, **arguments: object) -> str:
+def _call_text(server: MCPServer, tool: str, **arguments: object) -> str:
     result = asyncio.run(server.call_tool(tool, arguments))
-    blocks = result[0] if isinstance(result, tuple) else result
+    blocks = getattr(result, "content", None)
+    if blocks is None:
+        blocks = result[0] if isinstance(result, tuple) else result
     return blocks[0].text if isinstance(blocks, list) else str(blocks)
 
 
@@ -67,7 +69,7 @@ def test_facade_session_a_cannot_write_in_session_b_directory(
         shared_mode=True,
         write_contract_resolver=mcp_app._resolve_session_contract,
     )
-    server = FastMCP("shared-facade-integration")
+    server = MCPServer("shared-facade-integration")
     register_facade(server, catalog)
 
     rendered = _call_text(

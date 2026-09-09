@@ -509,7 +509,7 @@ class TestComplexParamSchemaPreserved:
     def test_complex_param_schema_preserved(self) -> None:
         """Register tool with list[ReplaceOp | CreateOp] param.
 
-        The wrapper signature must preserve the annotation so FastMCP
+        The wrapper signature must preserve the annotation so MCPServer
         can generate a JSON-Schema with discriminated union types.
         """
 
@@ -767,13 +767,13 @@ class TestRegistrationCount:
     async def test_registration_increments_count(self) -> None:
         """AC3: register_one updates the public count with no drift.
 
-        Each ``register_one`` call adds a tool to the real FastMCP
+        Each ``register_one`` call adds a tool to the real MCPServer
         instance, so the public ``list_tools()`` enumeration reflects the
         exact number registered — the seam IS the source of truth.
         """
-        from mcp.server.fastmcp import FastMCP
+        from mcp.server.mcpserver import MCPServer
 
-        mcp = FastMCP("test")
+        mcp = MCPServer("test")
         for i in range(3):
             tool = MagicMock()
             tool.execute.return_value = ToolResult(success=True, data={})

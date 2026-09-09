@@ -15,7 +15,7 @@ _DISCOVER = "axm_mcp.discovery.importlib.metadata.entry_points"
 
 
 class FakeMCP:
-    """Minimal FastMCP stand-in that captures registered tools."""
+    """Minimal MCPServer stand-in that captures registered tools."""
 
     def __init__(self) -> None:
         self.tools: dict[str, Any] = {}

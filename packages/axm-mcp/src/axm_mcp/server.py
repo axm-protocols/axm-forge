@@ -1,6 +1,6 @@
 """AXM MCP Server — Streamable HTTP transport.
 
-Reuses the FastMCP instance from mcp_app and runs it over HTTP
+Reuses the MCPServer instance from mcp_app and runs it over HTTP
 instead of stdio, enabling a single persistent process for all
 conversations.
 """
@@ -32,7 +32,7 @@ class SharedModeNotArmedError(RuntimeError):
 async def health_check(request: Request) -> JSONResponse:
     """Return server health with registered tool count.
 
-    Reads the count from FastMCP's public ``list_tools()`` enumeration,
+    Reads the count from MCPServer's public ``list_tools()`` enumeration,
     which reflects exactly what is registered on the instance in BOTH
     facade and legacy modes — no private ``_tool_manager`` access and no
     parallel counter that could drift from the registration seam.
@@ -67,12 +67,10 @@ def serve(
         msg = f"Invalid port {port}: must be between {_MIN_PORT} and {_MAX_PORT}"
         raise ValueError(msg)
 
-    mcp.settings.host = host
-    mcp.settings.port = port
     # HTTP mode is the single long-running shared process: enable per-key
     # concurrency locks (KeyedLock) and implicit-path warnings before the
     # server starts. Stdio mode (cli._stdio) leaves this False — one process
     # per conversation, no cross-session contention. This boundary is the
     # single writer of _HTTP_MODE=True in production.
     _wrapping._HTTP_MODE = True
-    mcp.run(transport="streamable-http")
+    mcp.run(transport="streamable-http", host=host, port=port)

@@ -1,8 +1,8 @@
-"""Register the four facade meta-tools on a FastMCP server.
+"""Register the four facade meta-tools on a MCPServer server.
 
 ``register_facade(mcp, catalog)`` wires ``axm_search`` / ``axm_describe`` /
 ``axm_call`` / ``axm_capabilities`` to a :class:`~axm_mcp.facade.catalog.ToolCatalog`.
-Each returns a plain ``dict`` (or, for ``axm_call``, a ``str``) so FastMCP
+Each returns a plain ``dict`` (or, for ``axm_call``, a ``str``) so MCPServer
 renders it without extra schema work.
 
 ``axm_call`` translates an :class:`UnknownToolError` into a structured error
@@ -25,7 +25,7 @@ from axm_mcp.facade.catalog import (
 )
 
 if TYPE_CHECKING:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
 __all__ = ["FACADE_TOOLS", "register_facade"]
 
@@ -44,13 +44,13 @@ FACADE_TOOLS: dict[str, str] = {
 }
 
 
-def register_facade(  # type: ignore[explicit-any]  # FastMCP tool-schema boundary
-    mcp: FastMCP, catalog: ToolCatalog
+def register_facade(  # type: ignore[explicit-any]  # MCPServer tool-schema boundary
+    mcp: MCPServer, catalog: ToolCatalog
 ) -> None:
     """Register the four facade meta-tools against *catalog*.
 
     Args:
-        mcp: FastMCP server instance.
+        mcp: MCPServer server instance.
         catalog: The tool catalog the meta-tools delegate to.
     """
 
