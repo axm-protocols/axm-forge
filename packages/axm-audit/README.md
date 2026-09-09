@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>axm-audit — Code auditing and quality rules for Python projects</strong>
+  <strong>axm-audit — Code auditing and quality rules for Python and JavaScript projects</strong>
 </p>
 
 
@@ -19,212 +19,80 @@
 
 ---
 
-`axm-audit` audits Python project quality across **9 scored categories** (plus `structure` and `tooling`, which emit findings but are not scored), producing a composite **0–100 score** with an **A–F grade**. It is available through the unified **`axm` CLI**, the **Python API**, and **MCP** for AI agents.
+`axm-audit` audits Python, Node.js/TypeScript, React and Svelte projects.
+It reports individual findings and a weighted 0–100 score when scored
+measurements exist. The score describes the checks that ran; it is not a
+production-readiness certificate.
 
-📖 **[Full documentation](https://forge.axm-protocols.io/audit/)**
+## Install and run
 
-## Features
-
-- 🔍 **Linting** — Ruff analysis (800+ rules)
-- 🔒 **Type Checking** — Strict mypy (per-project `pyproject.toml` config)
-- 📊 **Complexity** — Cyclomatic + cognitive complexity (radon + complexipy)
-- 🛡️ **Security** — Bandit integration + hardcoded secrets detection
-- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, uv workspace support (auto-aggregation across members), and dual-format text output (`• pkg ver→fix CVE-id` with `+N` suffix for multiple CVEs)
-- 🧪 **Testing** — Coverage enforcement via pytest-cov
-- 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
-- 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring (unit 1:1 with src) and scenario naming (integration/e2e)
-- 🔧 **Tooling** — CLI tool availability checks
-- 📈 **Composite Scoring** — Weighted 9-category 0–100 score with A–F grade
-
-## Installation
+Requires Python 3.12+ and the target ecosystem's tooling.
 
 ```bash
 uv add axm-audit
+uv run axm audit . --category lint
+uv run axm audit . --category lint --json-output
+uv run axm audit_test . --include-cases --json-output
+uv run axm audit_fix .
+uv run axm doc_gate .
 ```
 
-## Quick Start
+`audit_fix` previews Python test-tree changes by default. Read its
+[scope and rollback limits](docs/fix_pipeline.md) before using `--apply`.
 
-### CLI
+A successful command means the tool produced a result. In JSON, inspect
+`failed` for an audit, `verdict` for tests, and `count` for documentation
+findings. A grade A can coexist with failed checks.
 
-```bash
-# Full audit
-axm audit .
-
-# Filter by category
-axm audit . --category lint
-
-# Deterministically reorganise the test suite (dry-run by default)
-axm audit_fix .
-axm audit_fix . --apply
-
-# Run tests with structured output
-axm audit_test .
-
-# Validate the documentation build
-axm doc_gate .
-```
-
-### Python API
+## Python API
 
 ```python
 from pathlib import Path
 from axm_audit import audit_project
 
-result = audit_project(Path("."))
-
-print(f"Grade: {result.grade} ({result.quality_score:.1f}/100)")
-print(f"Checks: {result.total - result.failed}/{result.total} passed")
-
+result = audit_project(Path("."), category="structure")
+print("Grade:", result.grade, "Score:", result.quality_score)
 for check in result.checks:
     if not check.passed:
-        print(f"  ❌ {check.rule_id}: {check.message}")
-        if check.fix_hint:
-            print(f"     Fix: {check.fix_hint}")
+        print(check.rule_id, check.message)
 ```
 
-### MCP (AI Agent)
+`quality_score` and `grade` are `None` when no scored measurement exists.
+The public root exports are `audit_project`, `get_rules_for_category`,
+`AuditResult`, `CheckResult`, `Severity` and `__version__`.
 
-`axm-audit` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp). AI agents can call `audit(path)` or `verify(path)` directly:
+## Choose a workflow
 
-```python
-# Agent-optimized output: passed checks as compact strings,
-# failed checks as dicts with rule_id, message, details, fix_hint
-from axm_audit.formatters import format_agent
+- [First audit](docs/tutorials/getting-started.md)
+- [Categories and Python rules](docs/howto/categories.md)
+- [Framework detection and workspace limits](docs/reference/frameworks.md)
+- [CLI and tool result contracts](docs/reference/cli.md)
+- [Configuration, exclusions and inheritance](docs/reference/configuration.md)
+- [Scoring and grades](docs/explanation/scoring.md)
+- [Test quality rules](docs/test_quality.md)
+- [MCP and verify](docs/howto/mcp.md)
+- [Witness quality gate](docs/reference/witness.md)
+- [Python API](docs/reference/python-api.md)
 
-data = format_agent(result)
-# data["score"], data["grade"], data["passed"], data["failed"]
-```
+The package registers `audit`, `audit_test`, `audit_fix` and `doc_gate`
+under `axm.tools`. The generic `axm` CLI and AXM MCP server consume those
+entry points. `verify` belongs to `axm-mcp`, which must be installed separately.
 
-See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for details.
+## Documentation and development
 
-## Scoring Model
-
-9-category weighted composite on a 100-point scale:
-
-| Category | Weight | Tool |
-|---|---|---|
-| Linting | **15%** | Ruff |
-| Type Safety | **15%** | mypy |
-| Complexity | **15%** | radon + complexipy |
-| Security | **10%** | Bandit |
-| Dependencies | **10%** | pip-audit + deptry |
-| Testing | **10%** | pytest-cov |
-| Test Quality | **10%** | AST analysis |
-| Architecture | **10%** | AST analysis |
-| Practices | **5%** | AST analysis |
-
-Categories `structure` and `tooling` emit findings but are not scored.
-
-## Categories
-
-| Category | Rules | Count |
-|---|---|---|
-| `lint` | `LintingRule`, `FormattingRule`, `DiffSizeRule`, `DeadCodeRule` | 4 |
-| `type` | `TypeCheckRule` | 1 |
-| `complexity` | `ComplexityRule` | 1 |
-| `security` | `SecurityRule` (Bandit), `SecurityPatternRule` | 2 |
-| `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
-| `testing` | `TestCoverageRule` | 1 |
-| `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | 6 |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule`, `EnvCredentialsRule`, `ToolSecretLocationRule` | 7 |
-| `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | 2 |
-| `tooling` | `ToolAvailabilityRule` | 1 |
-
-## Configuration
-
-### Coupling Thresholds
-
-The `CouplingMetricRule` reads thresholds from `pyproject.toml`:
-
-```toml
-[tool.axm-audit.coupling]
-fan_out_threshold = 15          # default: 10
-severity_error_multiplier = 2   # default: 2, minimum: 1
-
-[tool.axm-audit.coupling.overrides]
-"my_package.hub" = 20           # allow higher fan-out for hub modules
-"registry" = 25                 # matches any module ending with .registry
-```
-
-- **`fan_out_threshold`** — global fan-out limit (modules above this are flagged)
-- **`overrides`** — per-module thresholds; keys match by exact name or suffix
-- **`severity_error_multiplier`** — tiered severity: modules with fan-out above the effective threshold but within `threshold × multiplier` get a **warning** (−3 pts); beyond that they get an **error** (−5 pts). Only errors cause the check to fail; warnings alone still pass.
-
-When no configuration is present, the default threshold of 10 and multiplier of 2 are used.
-
-### Mirror Exemptions
-
-`MirrorRule` reads optional exemptions for both
-mirror directions from `pyproject.toml`:
-
-```toml
-[tool.axm-audit.mirror]
-exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
-exempt_tests = ["conformance/**", "contracts/*.py"]
-```
-
-`exempt_paths` covers the **forward** direction: globs anchored at
-`src/<top_pkg>/`; exempted modules do not require a matching
-`tests/unit/test_*.py` and surface in `details["exempt"]`.
-
-`exempt_tests` covers the **reverse** direction: globs anchored at
-`tests/unit/`; cross-cutting test files with no source mirror (e.g.
-conformance suites that exercise every dispatcher) are whitelisted out
-of the orphan list and surface in `details["exempt_tests"]`.
-
-For both keys, `*` and `?` never cross `/` and `**` matches zero or more
-path segments. The two keys are independent: `exempt_paths` never clears
-an orphan and `exempt_tests` never clears a missing source module.
-Invalid TOML or a wrong `exempt_paths` / `exempt_tests` type fails the
-rule with a `fix_hint` instead of raising.
-
-### UV Workspace Support
-
-`DependencyHygieneRule` automatically detects uv workspaces via `[tool.uv.workspace].members` in the root `pyproject.toml`. When a workspace is detected, deptry runs on each member package independently and results are aggregated into a single `CheckResult` with per-member attribution in `top_issues`.
-
-## Test Quality
-
-The `test_quality` category ships six rules (private-imports,
-pyramid-level, duplicate-tests, tautology, file-naming, no-package-symbol)
-plus the v6 pyramid stack and the v4 tautology triage ladder. See [docs/test_quality.md](docs/test_quality.md)
-for the full guide, including the 5 pyramid scoping rules, the 3 + 4
-duplicate signals/rescues, and the 22-step triage ladder.
-
-## Witness Rules
-
-`axm-audit` ships a witness rule for use with the `axm.witnesses` entry point group:
-
-| Rule | Entry point key | Default categories |
-|---|---|---|
-| `AuditQualityRule` | `audit_quality` | `lint`, `type` |
-
-`AuditQualityRule` runs `audit_project` for each configured category independently (a lint failure does not prevent type checking) and returns structured agent-friendly feedback via `format_agent`, with a compact `text` summary via `format_agent_text`.
-
-**Params:**
-
-| Param | Type | Purpose |
-|---|---|---|
-| `categories` | `list[str]` | Categories to audit (default `["lint", "type"]`). Must be a subset of the auditor's valid categories — see below. |
-| `working_dir` | `str` | Project root to audit (overridable per-call via a `working_dir` kwarg). |
-| `scope` | `str` | Reserved sub-scope selector. |
-| `exclude_rules` | `list[str]` | Rule-id **prefixes** to drop from the failure list (e.g. `["QUALITY_DIFF_SIZE"]`). |
-| `extra_dirs` | `list[str]` | Extra directories to audit with the same categories (e.g. blast-radius packages). |
-| `guidance` | `str \| None` | Extra instructions appended to the failure `how` message. |
-
-**Valid categories = the auditor's, not a private subset.** The witness accepts exactly the categories `audit_project` knows how to run (`architecture`, `complexity`, `deps`, `lint`, `practices`, `security`, `structure`, `test_quality`, `testing`, `tooling`, `type`). A category outside that set is a **hard config error**: the gate returns `WitnessResult.failure(...)` (RED) rather than silently skipping it. An **empty** `categories` list is likewise RED. This is deliberate: a quality gate must never pass green having audited nothing — a mis-configured gate that swallowed unknown categories used to do exactly that.
-
-
-## Development
-
-This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
+This package belongs to the
+[axm-forge workspace](https://github.com/axm-protocols/axm-forge).
+The [hosted documentation](https://forge.axm-protocols.io/audit/) and
+`docs/index.md` are the site entry point; this README is not copied into MkDocs.
+The standalone site can be built from this package directory after installing
+the workspace's documentation dependencies:
 
 ```bash
-git clone https://github.com/axm-protocols/axm-forge.git
-cd axm-forge
-uv sync --all-groups
-uv run --package axm-audit --directory packages/axm-audit pytest -x -q
+mkdocs build --strict --site-dir /tmp/axm-audit-site
 ```
+
+The root monorepo build also generates module reference pages. The standalone
+site renders its own curated API page.
 
 ## License
 

@@ -24,7 +24,7 @@ pip install axm-audit
 ### CLI
 
 ```bash
-axm audit . --json-output
+uv run axm audit . --json-output
 ```
 
 ### Python API
@@ -34,7 +34,7 @@ from pathlib import Path
 from axm_audit import audit_project
 
 result = audit_project(Path("."))
-print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
+print("Grade:", result.grade, "Score:", result.quality_score)
 ```
 
 The `AuditResult` contains every check result, a composite score, and a letter grade.
@@ -91,3 +91,11 @@ print(json.dumps(format_json(result), indent=2))
 - [Interpret results](../howto/results.md) — reporters, scoring, severity levels
 - [Understand the scoring](../explanation/scoring.md) — how the composite score works
 - [Architecture overview](../explanation/architecture.md) — layers and data flow
+
+A fresh `uv add` environment exposes executables through `uv run`.
+Prepare the target's mypy/stubs before type audits. Full audits can run
+project tests and invoke dependency scanners; start with a category when
+learning the tool. Node projects use [different tooling](../reference/frameworks.md).
+
+A zero command exit means execution succeeded, not all checks passed.
+Inspect JSON `failed`; for CI use the [explicit verdict gate](../howto/ci-badge.md).

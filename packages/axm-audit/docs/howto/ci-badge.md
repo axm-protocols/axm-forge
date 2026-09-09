@@ -1,188 +1,57 @@
-# CI Badge
+# Gate CI and publish a badge
 
-Add an `axm-audit` quality badge to your project.
+Use the machine payload for automation. The human text can change and is not
+a delimiter-based protocol. Do not mask an audit tool error with `|| true`.
 
-## Quick Setup
+## Check the quality verdict
 
-### Don't hand-write it — scaffold instead
+In a checkout with its target environment and the generic `axm` CLI ready:
 
-If you're starting a fresh package, you don't need any of the YAML below.
-`axm-init scaffold` already emits a correct `.github/workflows/axm-quality.yml`
-with the badge generation, AXM-logo inlining, and `gh-pages` push baked in. See
-the [axm-init scaffold how-to](https://forge.axm-protocols.io/init/howto/scaffold/).
-The snippets here are for **retrofitting an existing repo** that wasn't scaffolded.
-
-### 1. Create the workflow
-
-Add `.github/workflows/axm-audit.yml`:
-
-```yaml
-name: axm-audit quality
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
-
-jobs:
-  audit:
-    name: AXM Audit & Badge
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v7
-      - run: uv python install 3.12
-
-# Verify action versions are current before using:
-# - actions/checkout: https://github.com/actions/checkout/releases
-# - astral-sh/setup-uv: https://github.com/astral-sh/setup-uv/releases
-# - peaceiris/actions-gh-pages: https://github.com/peaceiris/actions-gh-pages/releases
-
-      - name: Run AXM Audit
-        id: audit
-        run: |
-          RESULT=$(uvx --from axm-audit axm audit . --json-output) || true
-          GRADE=$(printf '%s\n' "$RESULT" | awk -F'|' 'NR == 1 {print $2}' | awk '{print $1}')
-          SCORE=$(printf '%s\n' "$RESULT" | awk -F'|' 'NR == 1 {print $2}' | awk '{print $2}')
-          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
-          echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
-          echo "📋 AXM Audit: Score $SCORE/100 — Grade $GRADE"
-
-      - name: Choose badge color
-        id: color
-        run: |
-          SCORE=$(echo "${{ steps.audit.outputs.score }}" | cut -d. -f1)
-          if [ "$SCORE" -ge 95 ]; then COLOR="brightgreen"
-          elif [ "$SCORE" -ge 80 ]; then COLOR="green"
-          elif [ "$SCORE" -ge 60 ]; then COLOR="yellow"
-          else COLOR="red"; fi
-          echo "color=$COLOR" >> "$GITHUB_OUTPUT"
-
-      - name: Generate badge JSON
-        run: |
-          mkdir -p badges
-          jq -n \
-            --arg score "${{ steps.audit.outputs.score }}" \
-            --arg color "${{ steps.color.outputs.color }}" \
-            '{
-              schemaVersion: 1,
-              label: "axm-audit",
-              message: "\($score)%",
-              color: $color,
-              style: "flat"
-            }' > badges/axm-audit.json
-
-      - name: Validate docs
-        run: uvx --with mkdocs-material --with mkdocstrings[python] --with mkdocs-gen-files --with mkdocs-literate-nav mkdocs build --strict
-
-      - name: Push badge to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./badges
-          destination_dir: badges
-          keep_files: true
-          commit_message: "badge: update axm-audit score"
+```bash
+axm audit . --json-output > audit.json
+jq -e '(.failed | length) == 0 and (.score | type) == "number"' audit.json
 ```
 
-!!! note "uvx vs uv run"
-    Use `uvx --from axm-audit axm` for external projects (installs from PyPI).
-    Within the axm-audit repo itself, use `uv run axm` (local library).
+This policy requires no failed checks and a calculable score. Adapt the
+minimum score to your policy without dropping the failure check. CI must
+also verify the required categories/tools were available: a number alone
+does not prove complete measurement.
 
-### Add the AXM logo to the badge
+For pytest evidence:
 
-To render the AXM logo inside the badge, shields.io accepts an inlined SVG in the
-`logoSvg` JSON field. The SVG is fetched from the canonical forge URL:
-
-```
-https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg
-```
-
-There is a sharp edge here: if the `curl` 404s or fails, it writes an **empty**
-file, and an empty `logoSvg: ""` makes shields.io reject the **whole** badge with
-"invalid properties" — the badge silently fails to render. The fix is two-fold:
-fetch with `|| true` so a transient network failure doesn't fail the job, then
-only inline the logo when the file is **non-empty** (`[ -s ]`, *not* `[ -f ]` —
-the latter passes for an empty file). When empty, emit the badge JSON without the
-`logoSvg` key (graceful degradation to a logo-less badge).
-
-Replace the "Generate badge JSON" step with:
-
-```yaml
-      - name: Generate badge JSON
-        run: |
-          mkdir -p badges
-          LOGO_FILE=$(mktemp)
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
-            -o "$LOGO_FILE" || true
-
-          if [ -s "$LOGO_FILE" ]; then
-            jq -n \
-              --arg score "${{ steps.audit.outputs.score }}" \
-              --arg color "${{ steps.color.outputs.color }}" \
-              --rawfile logo "$LOGO_FILE" \
-              '{
-                schemaVersion: 1,
-                label: "axm-audit",
-                message: "\($score)%",
-                color: $color,
-                style: "flat",
-                logoSvg: $logo
-              }' > badges/axm-audit.json
-          else
-            jq -n \
-              --arg score "${{ steps.audit.outputs.score }}" \
-              --arg color "${{ steps.color.outputs.color }}" \
-              '{
-                schemaVersion: 1,
-                label: "axm-audit",
-                message: "\($score)%",
-                color: $color,
-                style: "flat"
-              }' > badges/axm-audit.json
-          fi
+```bash
+axm audit_test . --include-cases --json-output > tests.json
+jq -e '.verdict == true' tests.json
 ```
 
-### 2. Add the badge to your README
+Use fail-fast shell execution (`set -e` in a standalone script) so the
+tool command must succeed before jq reads its output.
 
-By AXM convention the badge **links to the canonical docs page**, not to the
-Actions tab:
+## Generate a badge artifact
 
-```markdown
-[![axm-audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/YOUR_ORG/YOUR_REPO/gh-pages/badges/axm-audit.json)](https://forge.axm-protocols.io/audit/)
+After successfully producing `audit.json`, this command creates a
+Shields endpoint JSON artifact. Failed or unavailable quality is red even
+when the numeric grade would be A.
+
+```bash
+mkdir -p badges
+jq '{
+  schemaVersion: 1,
+  label: "axm-audit",
+  message: (if .score == null then "N/A" else (.score | tostring) + "/100" end),
+  color: (if (.failed | length) > 0 or .score == null then "red"
+          elif .score >= 90 then "brightgreen"
+          elif .score >= 80 then "green"
+          elif .score >= 60 then "yellow" else "red" end)
+}' audit.json > badges/axm-audit.json
 ```
 
-The badge JSON lives at `gh-pages/badges/axm-audit.json` for a standalone
-package. In a uv-workspace **monorepo**, per-member badges live under
-`badges/<member-name>/axm-audit.json` (extra subdir), plus a workspace aggregate
-at `badges/axm-audit.json` — point each member's README at its own subdir path.
+Publishing is a separate repository decision. Serve the JSON from a stable
+public URL and use that URL as the Shields endpoint; badge generation itself
+does not require write credentials or a push to a branch.
+The workspace's existing quality workflow may already own publication.
 
-### 3. Push to main
+If adding a logo, omit `logoSvg` when the fetch fails or is empty. An empty
+logo can invalidate an otherwise valid badge.
 
-The badge will appear after the first workflow run pushes to `gh-pages`.
-
-!!! note "Stale badge?"
-    After the first publish (or a fix), the badge can keep showing "package not
-    found" or a stale score because shields.io caches the JSON and GitHub's camo
-    image proxy re-caches on top. This is **not** a bug — it self-heals within
-    ~1h. To check the real current state, hit the raw JSON or the shields
-    endpoint with a cache-buster query param (e.g. append `?v=2`) rather than
-    trusting the rendered image.
-
-## Color Thresholds
-
-| Score | Color |
-|---|---|
-| ≥ 95 | 🟢 `brightgreen` |
-| ≥ 80 | 🟢 `green` |
-| ≥ 60 | 🟡 `yellow` |
-| < 60 | 🔴 `red` |
-
-## Score Components
-
-The badge shows the [composite quality score](../explanation/scoring.md) — a weighted average of linting, type safety, complexity, security, dependencies, and testing (0–100).
+See [scoring](../explanation/scoring.md) and [tool errors](../reference/cli.md#errors-and-transport).

@@ -1,240 +1,122 @@
-# Scoring & Grades
+# Scoring and verdicts
 
-## Composite Quality Score
+## Composite quality score
 
-The quality score is a **weighted average** across 9 categories, on a 100-point scale.
-Computed by `AuditResult.quality_score` — returns `None` when no scored checks
-are present, and normalizes by the sum of present weights so filtered audits
-(e.g. `category="lint"`) are not penalized for missing categories.
+`AuditResult.quality_score` averages numeric check scores within each
+category, then computes a weighted average across the categories present.
+Checks with `score=None` do not enter that average.
 
-### Crashed vs. absent categories
+| Category | Weight |
+|---|---|
+| lint | 15 |
+| type | 15 |
+| complexity | 15 |
+| security | 10 |
+| deps | 10 |
+| testing | 10 |
+| test_quality | 10 |
+| architecture | 10 |
+| practices | 5 |
 
-The renormalization above applies only to categories that were **genuinely not
-executed** (a filtered run such as `category="lint"`): the missing categories
-are dropped and the remaining weights are renormalized, so the audit is not
-penalized for work it never did.
+`structure` and `tooling` emit findings without a composite weight.
 
-A rule that **crashes** (its `check()` raises) is the opposite case and must
-never silently disappear from the composite. A crashed rule contributes
-`score=0` to its category — averaged in alongside any healthy rules in the same
-category, so a single crash can never leave the category falsely at 100. The
-discriminant is *crash vs. absent*, not `None` vs. not-`None`: the crash is
-encoded explicitly (`score=0` plus a crash marker in the `CheckResult`
-metadata), so `quality_score` is penalized rather than inflated.
+```text
+score = round(sum(category_average * weight) / sum(present_weights), 1)
+```
 
-Crashed rules are also surfaced on `AuditResult.crashed_rules` — the list of
-`rule_id`s whose check raised — so a degraded audit is observable and traceable
-instead of silently passing with an optimistic grade.
+A single scored category is therefore a valid score, normalized to 100.
+When no numeric scored category remains, `quality_score` and `grade`
+are `None`. An absent category and a failed check are different:
+a rule exception becomes a failed check with score zero and crash metadata.
+`AuditResult.crashed_rules` exposes those rule IDs.
 
-### Serialization: `.score` is never dropped silently
+A score can still omit a failed check whose rule returned no numeric score.
+Always inspect failures and unavailable measurements alongside the number.
 
-`AuditResult.quality_score` may be `None`, but the machine-facing serialization
-must not leak that into a payload. All score/grade serialization routes through
-a single source of truth, `axm_audit.score.resolve_score_grade`:
+## Grading scale
 
-- when at least one scored category is **measured**, `.score` is that
-  weight-normalized number and its grade — including the mixed case, where a
-  not-applicable category is simply dropped, so the audit scores exactly as if
-  that category were absent (no 0/F penalty for work that was never measurable);
-- when `quality_score` is `None` the score is **not-applicable** (N/A) — this
-  covers *both* an audit with **no scored signal at all** (e.g. `--category
-  structure`, an unscored category) *and* one whose scored categories are
-  **every one not-applicable** (all `score=None`, dropped by
-  `collect_category_scores`). Neither is assumed to 0/F: serialization raises
-  `ScoreIncalculableError`, so the `audit` AXMTool cannot return a successful
-  structured payload missing `.score`; its compact text output likewise omits the
-  score line instead of printing a misleading `Grade F`.
+| Grade | Score |
+|---|---|
+| A | ≥ 90 |
+| B | ≥ 80 |
+| C | ≥ 70 |
+| D | ≥ 60 |
+| F | < 60 |
+| None | No calculable score |
 
-N/A is driven entirely off `AuditResult.quality_score is None`, so the
-project-level serialization and the category-level weight-normalization can
-never drift apart.
+A grade is a summary of measurements, not a deployment or safety verdict.
+`AuditResult.success` is `all(check.passed for check in checks)`;
+it does not test the grade or ignore warning-severity failures.
+With no checks this expression is true, so callers needing evidence must
+also verify that the intended checks ran.
 
-Lax summaries (`format_agent`, `format_test_quality_json`) use the tolerant
-`score_grade_or_none` variant, which returns `None` instead of raising, but
-still derive from the same source so no path computes the pair differently.
+## Rule scores are not universal pass thresholds
 
-| Category | Tool | Weight |
+| Python check | Numeric score | Pass condition |
 |---|---|---|
-| Linting | Ruff | **15%** |
-| Type Safety | mypy | **15%** |
-| Complexity | radon | **15%** |
-| Testing | pytest-cov | **10%** |
-| Test Quality | AST analysis | **10%** |
-| Security | Bandit | **10%** |
-| Dependencies | pip-audit + deptry | **10%** |
-| Architecture | AST analysis | **10%** |
-| Practices | AST analysis | **5%** |
+| Lint | `max(0, 100 - 2 * issues)` | No lint issues (`LINT_PASS_THRESHOLD=100`) |
+| Type | `max(0, 100 - 5 * errors)` | No type errors and a usable environment |
+| Complexity | `max(0, 100 - 10 * offenders)` | Score ≥ 90 |
+| Private imports | `max(0, 100 - 5 * findings)` | No findings |
+| Tautology | `max(0, 100 - 2 * counted_findings)` | No counted findings |
+| Duplicate tests | `max(0, 100 - 5 * clustered_pairs)` | No counted pairs |
+| Formatting | `max(0, 100 - 5 * unformatted_files)` | Score ≥ 90 |
+| Bandit | `max(0, 100 - 15 * high - 5 * medium)` | Score ≥ 90 |
+| Known dependency vulnerabilities | `max(0, 100 - 15 * vulnerable_packages)` | Score ≥ 90 when measured |
+| Coupling | `max(0, 100 - 3 * warnings - 5 * errors)` | No coupling errors |
+| Bare except | `max(0, 100 - 20 * findings)` | No findings |
+| Blocking I/O patterns | `max(0, 100 - 15 * findings)` | No findings |
 
-```mermaid
-pie title Category Weights
-    "Linting" : 15
-    "Type Safety" : 15
-    "Complexity" : 15
-    "Testing" : 10
-    "Test Quality" : 10
-    "Security" : 10
-    "Dependencies" : 10
-    "Architecture" : 10
-    "Practices" : 5
-```
+Thus one type error may yield score 95 and grade A while the check fails.
+Complexity flags radon rank C or higher (CC ≥ 11), or cognitive complexity
+strictly greater than 15. A block exceeding both counts once. This describes
+the implemented thresholds; a project's own policy may be stricter.
 
-Each category produces a score from 0 to 100. The composite score is:
+Category scores average the registered scored rules that actually ran;
+there is no permanent four-rule denominator for practices or test quality.
+Frameworks can share a rule ID with different measurements: Node
+`QUALITY_TESTS` is a Vitest pass ratio, while Python uses suite/coverage
+evidence. See [frameworks](../reference/frameworks.md) and
+[test quality](../test_quality.md).
 
-```
-score = lint × 0.15 + type × 0.15 + complexity × 0.15
-      + testing × 0.10 + test_quality × 0.10
-      + security × 0.10 + deps × 0.10
-      + architecture × 0.10 + practices × 0.05
-```
+## Unavailable and partial measurements
 
-!!! info "Why no Structure or Tooling categories?"
-    Structure validation (project layout, `pyproject.toml` completeness) is
-    handled by `axm-init` with dedicated checks. Tooling availability checks
-    (`ruff`, `mypy`, `uv` on PATH) emit informational findings only. Both
-    categories produce findings but are intentionally excluded from the
-    composite score — `axm-audit` focuses on **code quality**.
+Current behavior is not uniformly fail-closed. In particular,
+`DependencyAuditRule` treats a classified transient PyPI/network failure as
+`passed=True`, score 100, warning severity and a skipped-scan message. That
+is a skipped measurement, not evidence of no vulnerabilities.
+Dependency-hygiene member errors can also be omitted from workspace issue
+aggregation. Review availability messages and required scope in addition
+to the grade and failure list.
 
-## Category Scoring
+Diff-size measurement uses uncommitted `git diff --stat HEAD`, not a branch
+comparison and not untracked file contents. Its score is 100 at/below the
+configured ideal, zero at/above the configured maximum, and decreases
+linearly between them (defaults 400 and 1200 lines).
 
-### Lint Score
+Python coverage comes from pytest-cov. Its per-file gap list excludes files
+named `__main__.py`, while the measured aggregate is not rewritten. To also
+exclude those files from the aggregate, configure coverage itself.
 
-```
-score = max(0, 100 − issue_count × 2)
-```
+## Serialization: strict and tolerant surfaces
 
-Per-category pass threshold: ≥ 90 (≤ 5 issues). The same threshold
-applies to the composite score — see [Grading Scale](#grading-scale).
+| Surface | No calculable score |
+|---|---|
+| `AuditResult.quality_score`, `.grade` | `None` |
+| `format_agent`, `format_test_quality_json` | Null score/grade |
+| `format_agent_text` | Omits the score/grade segment |
+| `format_json` | Raises `ScoreIncalculableError` |
+| `audit` tool / CLI JSON | Tolerates null score/grade via `format_agent` |
 
-### Format Score
+`format_json` is not the serializer used by CLI `--json-output`.
+Both strict and tolerant formatter paths share the score resolver.
 
-```
-score = max(0, 100 − unformatted_count × 5)
-```
+## Severity and tool success
 
-Per-category pass threshold: ≥ 90 (≤ 2 unformatted files).
+Severity describes a finding's impact. The `passed` flag determines
+whether that check contributes a failure. Warning and information
+severities are not universal exemptions.
 
-### Diff Size Score
-
-```
-score = 100                    if lines ≤ ideal
-score = 0                      if lines ≥ max
-score = 100 − (lines − ideal) × 100 / (max − ideal)   otherwise
-```
-
-Defaults: `ideal = 400`, `max = 1200`. Configurable via `pyproject.toml`:
-
-```toml
-[tool.axm-audit]
-diff_size_ideal = 400   # lines — perfect score ceiling
-diff_size_max = 1200    # lines — zero score floor
-```
-
-Per-category pass threshold: ≥ 90 (≤ 480 lines with defaults).
-
-### Type Score
-
-```
-score = max(0, 100 − error_count × 5)
-```
-
-Per-category pass threshold: ≥ 90 (≤ 2 errors).
-
-### Complexity Score
-
-```
-score = max(0, 100 − high_complexity_count × 10)
-```
-
-High complexity = radon rank ≥ C (cyclomatic complexity ≥ 11) **or** cognitive complexity > 15 (via complexipy). Per-category pass threshold: ≥ 90 (≤ 1 complex function).
-
-### Security Score
-
-Average of two sub-scores:
-
-- **Bandit**: `max(0, 100 − high_count × 15 − medium_count × 5)` — vulnerability scanning
-- **Hardcoded secrets**: `max(0, 100 − count × 25)` — regex pattern detection
-
-Per-category pass threshold: ≥ 90.
-
-### Dependencies Score
-
-Average of two sub-scores:
-
-- **pip-audit**: `max(0, 100 − vuln_count × 15)` — known CVEs (env tools `pip`, `setuptools`, `wheel`, `uv`, `pip-audit` are excluded from the count)
-- **deptry**: `max(0, 100 − issue_count × 10)` — unused/missing deps
-
-Per-category pass threshold: ≥ 90.
-
-### Testing Score
-
-```
-score = coverage_percentage
-```
-
-Uses `pytest-cov` to measure line coverage. Per-category pass threshold: ≥ 90%.
-
-Files whose basename equals `__main__.py` are excluded from the per-file gap
-list (they typically only host a `python -m` entry point and are not
-meaningfully unit-testable). The aggregate `total_pct` from pytest-cov is
-left untouched — this mirrors `coverage.py`'s `exclude_also` convention of
-filtering reports rather than rewriting underlying totals. To exclude
-`__main__.py` from the aggregate as well, add
-`[tool.coverage.run] omit = ["**/__main__.py"]` in the package's
-`pyproject.toml`.
-
-### Test Quality Score
-
-Average of four sub-scores, each penalising structural defects in the test suite:
-
-- **Pyramid level**: `max(0, 100 − misplaced_count × P)` — tests living at the
-  wrong layer (`tests/unit/` vs `tests/integration/` vs `tests/e2e/`)
-- **Tautology**: `max(0, 100 − tautological_count × P)` — tests whose body
-  cannot fail (e.g. `assert True`, asserting against the SUT's own output)
-- **Private imports**: `max(0, 100 − private_count × P)` — tests importing
-  underscore-prefixed names instead of going through the public API
-- **Duplicate tests**: `max(0, 100 − duplicate_pair_count × P)` — tests with
-  near-identical bodies clustered together
-
-Where `P` is each rule's per-finding penalty defined in `core/rules/test_quality/`.
-
-### Architecture Score
-
-Average of four sub-scores:
-
-- **Circular imports**: `max(0, 100 − cycle_count × 20)`
-- **God classes**: `max(0, 100 − god_class_count × 15)`
-- **Coupling**: `max(0, 100 − N(modules > threshold) × 5)` — fan-out exceeding 10 imports
-- **Duplication**: `max(0, 100 − duplicate_pair_count × 10)`
-
-### Practices Score
-
-Average of four sub-scores:
-
-- **Docstring coverage**: `int(coverage_pct × 100)`
-- **Bare excepts**: `max(0, 100 − count × 20)`
-- **Blocking I/O**: `max(0, 100 − count × 15)` — detects `time.sleep` in async contexts and HTTP calls without `timeout` parameter
-- **Test mirroring**: `max(0, 100 − missing_count × 15)`
-
-## Grading Scale
-
-| Grade | Score | Meaning |
-|---|---|---|
-| **A** | ≥ 90 | Excellent — production-ready |
-| **B** | ≥ 80 | Good — minor issues |
-| **C** | ≥ 70 | Acceptable — needs attention |
-| **D** | ≥ 60 | Poor — significant issues |
-| **F** | < 60 | Failing — critical problems |
-
-## Severity Levels
-
-Each individual check carries a severity:
-
-| Severity | Effect | Example |
-|---|---|---|
-| `error` | Blocks audit pass | Missing `pyproject.toml` |
-| `warning` | Non-blocking | High complexity function |
-| `info` | Informational only | Docstring coverage stats |
-
-## Type Safety
-
-All results use Pydantic models (`AuditResult`, `CheckResult`, `Severity`) with `extra = "forbid"` for strict validation — safe for both human and agent consumption.
+A successful audit tool invocation can contain failed checks.
+A successful `audit_test` invocation can measure failing tests.
+Use the [tool-specific verdict fields](../reference/cli.md) for automation.

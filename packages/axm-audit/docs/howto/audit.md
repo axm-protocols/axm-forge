@@ -34,8 +34,9 @@ axm audit_fix . --apply --rules '["TEST_QUALITY_FILE_NAMING"]'
 Only the `TEST_QUALITY_PYRAMID_LEVEL` and `TEST_QUALITY_FILE_NAMING`
 findings are deterministically fixable; other rules are reported
 as `unfixable` in the pipeline report. Parity of the test suite after
-`--apply` is the caller's responsibility — the command warns when the
-baseline is red but does not refuse to run.
+`--apply` is the caller's responsibility. The pipeline does not run a pytest
+baseline or a test suite. Its rollback covers only `tests/`; see the
+[pipeline limits](../fix_pipeline.md#convergence-and-rollback-limits).
 
 ## Python API
 
@@ -52,7 +53,7 @@ result = audit_project(Path("/path/to/project"))
 
 ### Quick Audit
 
-Run only linting + type checking (fastest):
+For Python, run only linting + type checking:
 
 ```python
 result = audit_project(Path("."), quick=True)
@@ -70,7 +71,10 @@ print(format_report(result))
 
 # JSON-serializable dict
 import json
-print(json.dumps(format_json(result), indent=2))
+if result.quality_score is not None:
+    print(json.dumps(format_json(result), indent=2))
+else:
+    print("No scored measurement; inspect result.checks")
 ```
 
 ### Agent Output
@@ -118,10 +122,14 @@ package name so callers can disambiguate.
 
 ### AXMTool output
 
-The unified CLI renders each tool's compact `ToolResult.text`, while MCP and
-Python callers retain the corresponding structured `ToolResult.data` payload:
+Without `--json-output`, the CLI renders compact text. With that flag it
+prints `ToolResult.data`; the `axm_call` MCP façade returns text only:
 
 ```bash
 axm audit . --json-output
 axm audit_test .
 ```
+
+For Node/React/Svelte, use category selection rather than `quick=True`.
+Read [framework detection](../reference/frameworks.md) and
+[configuration](../reference/configuration.md) before auditing a mixed workspace.
