@@ -29,6 +29,7 @@ graph TD
         WorkspaceChecks["workspace checks"]
         PaperChecks["paper checks"]
         ExperimentChecks["experiment checks"]
+        ProtocolChecks["protocol checks (explicit)"]
     end
 
     subgraph "Adapters"
@@ -58,6 +59,7 @@ graph TD
     CheckEngine --> WorkspaceChecks
     CheckEngine --> PaperChecks
     CheckEngine --> ExperimentChecks
+    CheckEngine -. explicit category .-> ProtocolChecks
     Reserver --> PyPI
     Reserver --> Copier
     Templates --> Copier
@@ -95,7 +97,7 @@ Application orchestration and domain logic separated from tool presentation:
 
 ### 3. Checks (`checks/`)
 
-The Python registry spans 10 categories; each an independently callable filesystem check `(Path) → CheckResult`. The registry is discovered dynamically (`_discover_checks()` walks `checks/` with `pkgutil`), so a new public module under `checks/` IS a new category — no registration:
+The default Python registry spans 10 categories; each is an independently callable filesystem check `(Path) → CheckResult`. `_discover_checks()` walks `checks/` with `pkgutil`. Modules marked explicit-only are resolved lazily when their category is selected and stay out of unfiltered runs, preserving scores and check counts for projects that did not request them:
 
 | Module | Category | Checks | Purpose |
 |---|---|---|---|
@@ -110,6 +112,7 @@ The Python registry spans 10 categories; each an independently callable filesyst
 | `workspace.py` | workspace | 10 |  |
 | `paper.py` | paper | 3 | [Form checks and implementation boundary](../reference/checks/catalogue.md#paper-check-implementation-boundary) |
 | `experiment.py` | experiment | 2 | [Form checks and implementation boundary](../reference/checks/catalogue.md#experiment-check-implementation-boundary) |
+| `protocols.py` | protocols *(explicit-only)* | 1 | Statically validate `[tool.axm-init.protocols]`, distribution/module identity, wheel inclusion, names, uniqueness, and declared protocol paths without importing inspected code |
 | `_workspace.py` | *(internal)* | — | Context detection and uv workspace resolution; see [context policy](project-contexts.md) |
 
 ### 4. Adapters (`adapters/`)
@@ -168,7 +171,7 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | Plans for protocol scaffolding | The deterministic plan is authoritative for preview and application; a canonical-root lock covers snapshot, preflight, writes and rollback so compatible concurrent declarations cannot overwrite one another, without serializing distinct roots |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Independent check functions | Each check takes a project path and returns a CheckResult; filesystem access remains explicit in tests |
-| Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |
+| Dynamic check registry | `checker.py` discovers default checks via `importlib`/`inspect`; explicit-only categories are loaded by name only when selected, avoiding score and count drift in unrelated projects |
 | Parallel check execution | `ThreadPoolExecutor` — checks are I/O-bound and independent |
 
 Protocol planning/application is implemented in `core/protocol_planner.py`

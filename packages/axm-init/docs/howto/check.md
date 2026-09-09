@@ -29,6 +29,7 @@ axm init_check --category structure
 axm init_check --category deps
 axm init_check --category changelog
 axm init_check --category workspace
+axm init_check /path/to/protocol-package --category protocols
 ```
 
 ## JSON Output for CI
@@ -93,10 +94,14 @@ By default, only failures are displayed.
 
 | **paper** | paper structure, plan, research protocol | 15 |
 | **experiment** | directory structure and required files | 10 |
+| **protocols** *(explicit-only)* | schema version, domain/distribution/module identity, wheel inclusion, names, duplicates, and unit/protocol relations | 4 |
 
-These are the Python catalogue categories before context filtering.
-See the [complete catalogue](../reference/checks/catalogue.md) for canonical
-identifiers and Node/React/Svelte selection.
+The first ten rows are the default Python catalogue before context filtering.
+`protocols` runs only when selected with `--category protocols`, so unfiltered
+quality scores for projects outside that profile do not change. Its findings
+include the metadata or source location and an actionable correction. See the
+[complete catalogue](../reference/checks/catalogue.md) for canonical identifiers
+and Node/React/Svelte selection.
 
 ### Workspace Context
 

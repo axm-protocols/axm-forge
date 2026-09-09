@@ -25,6 +25,7 @@ dependencies = [
     "pyyaml>=6.0",
     "axm",
     "axm-ingot",
+    "axm-ast",
     "axm-vault",
     "tomlkit>=0.13.3",
 ]

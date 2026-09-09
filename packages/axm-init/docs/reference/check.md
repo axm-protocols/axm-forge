@@ -16,9 +16,15 @@ axm init_check [OPTIONS] [PATH]
 | `--verbose` | | bool | `False` | Show all checks including passed |
 | `--category` | | string | *all* | Filter to one category |
 
-**Python categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`,
-`changelog`, `workspace`, `paper`, `experiment`. The selected framework can change
-this registry; see [check catalogue](checks/catalogue.md).
+**Default Python categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`,
+`deps`, `changelog`, `workspace`, `paper`, `experiment`. The selected framework
+can change this registry; see [check catalogue](checks/catalogue.md).
+
+`protocols` is an explicit-only Python category. Run it with
+`axm init_check PATH --category protocols`; it is intentionally absent from an
+unfiltered run so projects outside the protocol profile keep identical scores
+and check counts. The check reads `[tool.axm-init.protocols]` and Python source
+statically through `axm-ast`; it never imports the inspected package.
 
 **Exit codes:**
 

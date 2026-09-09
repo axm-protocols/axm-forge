@@ -138,6 +138,19 @@ capability, not an implicit effect of these tool requests.
 The orchestrator processes actions sequentially against a virtual inventory,
 so later actions see earlier planned content.
 
+Validate the materialized package explicitly with:
+
+```bash
+axm init_check /path/to/package --category protocols
+```
+
+This static check requires schema version `1`, a distribution named
+`axm-{domain}`, a `src/protocols_{domain}` module root, and wheel `packages`
+configuration that includes that protocol root. It also reports invalid or
+duplicate component names and mismatches between declared units/protocols and
+the generated module tree. Every finding carries a file location and a
+correction; inspected modules are parsed with `axm-ast`, never imported.
+
 `ScaffoldResult` also carries `success`, `path`, `message`, `files_created`
 and optional `distribution`. The human message currently remains
 `Protocol scaffold preview` even on application; `preview` is the authoritative

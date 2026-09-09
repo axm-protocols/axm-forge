@@ -84,6 +84,8 @@ def _discover_checks(
         if info.name.startswith("_") or info.name in skip_packages:
             continue
         mod = importlib.import_module(f"{prefix}.{info.name}")
+        if getattr(mod, "__axm_explicit_only__", False):
+            continue
         fns = _collect_check_fns(mod)
         if fns:
             registry[info.name] = fns
@@ -377,6 +379,22 @@ def validate_context_tables() -> None:
         raise ValueError(msg)
 
 
+def _discover_explicit_category(
+    category: str,
+) -> list[Callable[[Path], CheckResult]] | None:
+    """Discover a category that deliberately runs only when selected."""
+    if not category.isidentifier() or category.startswith("_"):
+        return None
+    try:
+        module = importlib.import_module(f"axm_init.checks.{category}")
+    except ModuleNotFoundError:
+        return None
+    if not getattr(module, "__axm_explicit_only__", False):
+        return None
+    checks = _collect_check_fns(module)
+    return checks or None
+
+
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
@@ -472,14 +490,17 @@ class CheckEngine:
         """Run all checks (or filtered by category) for the project's framework."""
         registry = CHECKS_BY_FRAMEWORK.get(self.framework, ALL_CHECKS)
         if self.category:
-            if self.category not in registry:
+            category_checks = registry.get(self.category)
+            if category_checks is None:
+                category_checks = _discover_explicit_category(self.category)
+            if category_checks is None:
                 valid = ", ".join(sorted(registry.keys()))
                 msg = (
                     f"Unknown category '{self.category}' for framework "
                     f"'{self.framework.value}'. Valid: {valid}"
                 )
                 raise ValueError(msg)
-            checks_to_run = {self.category: registry[self.category]}
+            checks_to_run = {self.category: category_checks}
         else:
             checks_to_run = registry
 
