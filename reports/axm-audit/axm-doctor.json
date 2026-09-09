@@ -1,18 +1,12 @@
 {
-  "score": 96.0,
+  "score": 92.0,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
     "ARCH_COUPLING: Coupling: 0 modules above threshold (max fan-out: 9)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    {
-      "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
-      "text": "\u2022 axm_echo/corpus.py:_packages_in_workspace cc=11 (C) cog=17 [cc+cog]",
-      "fix_hint": "Refactor complex functions into smaller units"
-    },
-    "QUALITY_TESTS: Test coverage: 91% (91/100)",
+    "QUALITY_TESTS: Test coverage: 91% (90/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -23,12 +17,7 @@
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
-    {
-      "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 94% (31/33)",
-      "text": "     \u2022 axm_echo/cluster.py: find, union",
-      "fix_hint": "Add docstrings to public functions"
-    },
+    "PRACTICE_DOCSTRING: Docstring coverage: 100% (17/17)",
     "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
       "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
@@ -54,7 +43,6 @@
     },
     "TEST_QUALITY_FILE_NAMING: no tests/ directory",
     "TEST_QUALITY_NO_PACKAGE_SYMBOL: no tests/ directory",
-    "TEST_QUALITY_PRIVATE_IMPORTS: No private imports in tests/ (see docs/test_quality.md#private-imports)",
     "TEST_QUALITY_PYRAMID_LEVEL: no tests/ directory",
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
@@ -63,7 +51,7 @@
         "verdicts": []
       }
     },
-    "QUALITY_SECURITY: Security score: 100/100 (0 high, 0 medium severity issues)",
+    "QUALITY_SECURITY: Security score: 95/100 (0 high, 1 medium severity issues)",
     "PRACTICE_SECURITY: 0 potential secret(s) found",
     "STRUCTURE_TESTS_PYRAMID: pyramid layout ok: unit, integration, e2e",
     "STRUCTURE_PYPROJECT: pyproject.toml completeness: 9/9 fields",
@@ -73,10 +61,22 @@
   ],
   "failed": [
     {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "text": "\u2022 axm_doctor/orchestrate.py:missing_secrets cc=9 (B) cog=18 [cog]\n\u2022 axm_doctor/detect.py:load_auth_declarations cc=8 (B) cog=16 [cog]\n\u2022 axm_doctor/orchestrate.py:provision_missing cc=12 (C) cog=12 [cc]",
+      "fix_hint": "Refactor complex functions into smaller units"
+    },
+    {
       "rule_id": "DEPS_AUDIT",
       "message": "2 vulnerable package(s) found",
       "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+4\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
       "fix_hint": "Run: pip-audit --fix to remediate"
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "message": "9 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [attribute] tests_axm_doctor/unit/test_cli.py:149 axm_doctor.cli._bootstrap_tools (function)\n\u2022 [attribute] tests_axm_doctor/unit/test_cli.py:169 axm_doctor.cli._bootstrap_tools (function)\n\u2022 [attribute] tests_axm_doctor/unit/test_cli.py:458 axm_doctor.cli._print_check (function)\n\u2022 [import] tests_axm_doctor/unit/test_orchestrate.py:10 axm_doctor.orchestrate._is_served (function)\n\u2022 [import] tests_axm_doctor/unit/test_tools.py:12 axm_doctor.tools._auth_map (function)\n\u2022 [attribute] tests_axm_doctor/unit/test_tools.py:186 axm_doctor.tools._credentials_map (function)\n\u2022 [attribute] tests_axm_doctor/unit/test_tools.py:207 axm_doctor.tools._credentials_text (function)\n\u2022 [attribute] tests_axm_doctor/unit/test_tools.py:240 axm_doctor.tools._credentials_map (function)\n\u2022 [attribute] tests_axm_doctor/unit/test_tools.py:241 axm_doctor.tools._credentials_text (function)",
+      "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]
 }

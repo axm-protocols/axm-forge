@@ -1,10 +1,11 @@
 {
-  "score": 90.5,
+  "score": 95.0,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
+    "QUALITY_COMPLEXITY: Complexity score: 100/100 (0 high-complexity functions)",
     "QUALITY_TESTS: Test coverage: 93% (93/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -64,14 +65,8 @@
     {
       "rule_id": "ARCH_GOD_CLASS",
       "message": "1 god class(es) found",
-      "text": "\u2022 scaffold.py:InitScaffoldTool 641L/10M",
+      "text": "\u2022 scaffold.py:InitScaffoldTool 641L/14M",
       "fix_hint": "Split large classes into smaller, focused classes"
-    },
-    {
-      "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
-      "text": "\u2022 axm_init/tools/scaffold.py:InitScaffoldTool.execute cc=25 (D) cog=23 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_assembly_findings cc=21 (D) cog=20 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_validate_protocol_tree cc=14 (C) cog=20 [cc+cog]",
-      "fix_hint": "Refactor complex functions into smaller units"
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",

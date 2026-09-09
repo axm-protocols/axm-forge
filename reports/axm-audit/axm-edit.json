@@ -1,5 +1,5 @@
 {
-  "score": 95.2,
+  "score": 94.5,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -12,6 +12,7 @@
       "text": "\u2022 axm_edit/tools/search_files.py:render_text cc=13 (C) cog=17 [cc+cog]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
+    "QUALITY_TESTS: Test coverage: 95% (94/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -58,15 +59,9 @@
   ],
   "failed": [
     {
-      "rule_id": "QUALITY_TESTS",
-      "message": "Test coverage: 95% (5 test(s) failed)",
-      "text": "\u2022 cov 95% \u2192 100%\n\u2022 FAIL test_docs_index_modules_table_lists_core_diagnostics\n\u2022 FAIL test_docs_index_features_advertise_near_miss_markers\n\u2022 FAIL test_readme_shows_batch_edit_check_call_example\n\u2022 FAIL test_readme_documents_batch_edit_check_read_only_contract\n\u2022 FAIL test_readme_documents_the_rewrite_operation",
-      "fix_hint": "Fix failing tests"
-    },
-    {
       "rule_id": "DEPS_AUDIT",
-      "message": "1 vulnerable package(s) found",
-      "text": "\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
+      "message": "2 vulnerable package(s) found",
+      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+4\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
       "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {

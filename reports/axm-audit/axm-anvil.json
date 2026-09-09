@@ -1,5 +1,5 @@
 {
-  "score": 94.5,
+  "score": 93.8,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -67,8 +67,8 @@
   "failed": [
     {
       "rule_id": "DEPS_AUDIT",
-      "message": "1 vulnerable package(s) found",
-      "text": "\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
+      "message": "2 vulnerable package(s) found",
+      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+4\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
       "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {

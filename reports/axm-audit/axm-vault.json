@@ -1,34 +1,23 @@
 {
-  "score": 96.0,
+  "score": 96.7,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
-    "ARCH_COUPLING: Coupling: 0 modules above threshold (max fan-out: 9)",
+    "ARCH_COUPLING: Coupling: 1 module(s) above threshold (-3 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    {
-      "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
-      "text": "\u2022 axm_echo/corpus.py:_packages_in_workspace cc=11 (C) cog=17 [cc+cog]",
-      "fix_hint": "Refactor complex functions into smaller units"
-    },
-    "QUALITY_TESTS: Test coverage: 91% (91/100)",
+    "QUALITY_COMPLEXITY: Complexity score: 100/100 (0 high-complexity functions)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_HYGIENE: Clean dependencies (0 issues)",
+    "DEPS_HYGIENE: 1 dependency issue(s) found",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
-    {
-      "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 94% (31/33)",
-      "text": "     \u2022 axm_echo/cluster.py: find, union",
-      "fix_hint": "Add docstrings to public functions"
-    },
+    "PRACTICE_DOCSTRING: Docstring coverage: 100% (44/44)",
     "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
       "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
@@ -54,7 +43,6 @@
     },
     "TEST_QUALITY_FILE_NAMING: no tests/ directory",
     "TEST_QUALITY_NO_PACKAGE_SYMBOL: no tests/ directory",
-    "TEST_QUALITY_PRIVATE_IMPORTS: No private imports in tests/ (see docs/test_quality.md#private-imports)",
     "TEST_QUALITY_PYRAMID_LEVEL: no tests/ directory",
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
@@ -73,10 +61,22 @@
   ],
   "failed": [
     {
+      "rule_id": "QUALITY_TESTS",
+      "message": "Test coverage: 89% (89/100)",
+      "text": "\u2022 cov 89% \u2192 100%",
+      "fix_hint": "Increase test coverage to >= 90%"
+    },
+    {
       "rule_id": "DEPS_AUDIT",
       "message": "2 vulnerable package(s) found",
       "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+4\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
       "fix_hint": "Run: pip-audit --fix to remediate"
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "message": "1 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_vault/unit/test_resolver.py:11 axm_vault.resolver._resolved_value (function)",
+      "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]
 }
