@@ -112,7 +112,7 @@ The default Python registry spans 10 categories; each is an independently callab
 | `workspace.py` | workspace | 10 |  |
 | `paper.py` | paper | 3 | [Form checks and implementation boundary](../reference/checks/catalogue.md#paper-check-implementation-boundary) |
 | `experiment.py` | experiment | 2 | [Form checks and implementation boundary](../reference/checks/catalogue.md#experiment-check-implementation-boundary) |
-| `protocols.py` | protocols *(explicit-only)* | 1 | Statically validate `[tool.axm-init.protocols]`, distribution/module identity, wheel inclusion, names, uniqueness, and declared protocol paths without importing inspected code |
+| `protocols.py` | protocols *(explicit-only)* | 1 | Statically validate `[tool.axm-init.protocols]`, distribution/module identity, wheel inclusion, required package layout, and bidirectional component inventory without importing inspected code; at a workspace root, aggregate profiled-member findings under each member's identity |
 | `_workspace.py` | *(internal)* | — | Context detection and uv workspace resolution; see [context policy](project-contexts.md) |
 
 ### 4. Adapters (`adapters/`)

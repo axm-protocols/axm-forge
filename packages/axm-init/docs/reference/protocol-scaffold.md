@@ -146,10 +146,23 @@ axm init_check /path/to/package --category protocols
 
 This static check requires schema version `1`, a distribution named
 `axm-{domain}`, a `src/protocols_{domain}` module root, and wheel `packages`
-configuration that includes that protocol root. It also reports invalid or
-duplicate component names and mismatches between declared units/protocols and
-the generated module tree. Every finding carries a file location and a
-correction; inspected modules are parsed with `axm-ast`, never imported.
+configuration that includes that protocol root. For every declared action, it
+also requires `protocol.py`, the package initializers, and the
+`contracts/`, `nodes/`, `prompts/`, and `phases/` directories generated
+by the planner.
+
+The component inventory is checked in both directions: each declared contract,
+node, prompt, or phase must have its corresponding local file, and every local
+component file must be declared in metadata. Findings distinguish declared
+components missing from disk from local components missing from the inventory,
+and name the component and corrective path.
+
+When the same explicit category is run on a uv workspace root, the check
+evaluates its members that declare the protocol profile. A member layout error
+fails the workspace result, whose details retain the member name. Workspaces
+without a profiled member remain non-applicable. Every finding carries a file
+location and a correction; inspected modules are parsed with `axm-ast`, never
+imported.
 
 `ScaffoldResult` also carries `success`, `path`, `message`, `files_created`
 and optional `distribution`. The human message currently remains

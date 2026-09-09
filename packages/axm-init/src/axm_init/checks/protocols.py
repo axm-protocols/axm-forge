@@ -134,6 +134,100 @@ def _protocol_inventory(pkg: PackageInfo) -> tuple[set[str], dict[str, set[str]]
     return set(symbols), symbols
 
 
+_COMPONENT_SUFFIXES = {
+    "contracts": ".py",
+    "nodes": ".py",
+    "prompts": ".md",
+    "phases": ".py",
+}
+
+
+def _required_action_paths(module_root: Path, action_root: Path) -> tuple[Path, ...]:
+    unit_root = action_root.parent
+    return (
+        module_root / "__init__.py",
+        unit_root / "__init__.py",
+        action_root / "__init__.py",
+        action_root / "protocol.py",
+        action_root / "contracts",
+        action_root / "contracts" / "__init__.py",
+        action_root / "nodes",
+        action_root / "nodes" / "__init__.py",
+        action_root / "prompts",
+        action_root / "prompts" / "__init__.py",
+        action_root / "phases",
+        action_root / "phases" / "__init__.py",
+    )
+
+
+def _validate_required_paths(
+    project: Path,
+    text: str,
+    paths: tuple[Path, ...],
+    details: list[str],
+) -> None:
+    for path in paths:
+        if path.exists():
+            continue
+        relative = path.relative_to(project).as_posix()
+        details.append(
+            _finding(
+                text,
+                "[tool.axm-init.protocols]",
+                f"required protocol path {relative} is missing",
+                f"create {relative}",
+            )
+        )
+
+
+def _local_components(directory: Path, suffix: str) -> set[str]:
+    if not directory.is_dir():
+        return set()
+    return {
+        path.stem
+        for path in directory.iterdir()
+        if path.is_file() and path.suffix == suffix and path.name != "__init__.py"
+    }
+
+
+def _validate_component_inventory(
+    project: Path,
+    text: str,
+    action_root: Path,
+    protocol: dict[str, object],
+    details: list[str],
+) -> None:
+    for field, suffix in _COMPONENT_SUFFIXES.items():
+        declared_values = _strings(protocol.get(field))
+        if declared_values is None:
+            continue
+        directory = action_root / field
+        if not directory.is_dir():
+            continue
+        declared = set(declared_values)
+        local = _local_components(directory, suffix)
+        for name in sorted(declared - local):
+            relative = (directory / f"{name}{suffix}").relative_to(project).as_posix()
+            details.append(
+                _finding(
+                    text,
+                    f"{field} =",
+                    f"declared {field[:-1]} {name!r} is missing on disk at {relative}",
+                    f"create {relative} or remove {name!r} from the {field} inventory",
+                )
+            )
+        for name in sorted(local - declared):
+            relative = (directory / f"{name}{suffix}").relative_to(project).as_posix()
+            details.append(
+                _finding(
+                    text,
+                    f"{field} =",
+                    f"local {field[:-1]} {name!r} at {relative} is not inventoried",
+                    f"add {name!r} to the {field} inventory or remove {relative}",
+                )
+            )
+
+
 def _validate_protocol_tree(
     project: Path,
     text: str,
@@ -171,17 +265,20 @@ def _validate_protocol_tree(
             if not isinstance(action, str):
                 continue
             declared.add((unit_name, action))
-            prefix = f"{module_name}.{unit_name}.{action}"
-            protocol_module = f"{prefix}.protocol"
-            if protocol_module not in modules:
-                details.append(
-                    _finding(
-                        text,
-                        f'action = "{action}"',
-                        f"protocol {unit_name}.{action} has no {protocol_module}.py",
-                        f"create src/{protocol_module.replace('.', '/')}.py",
-                    )
-                )
+            action_root = module_root / unit_name / action
+            _validate_required_paths(
+                project,
+                text,
+                _required_action_paths(module_root, action_root),
+                details,
+            )
+            _validate_component_inventory(
+                project,
+                text,
+                action_root,
+                protocol,
+                details,
+            )
 
     for module in sorted(modules):
         if not module.endswith(".protocol"):
@@ -319,6 +416,43 @@ def _validate_wheel_inclusion(
         )
 
 
+def _workspace_protocol_result(project: Path) -> CheckResult | None:
+    from axm_ingot.uv import resolve_workspace
+
+    workspace = resolve_workspace(project)
+    if workspace is None:
+        return None
+
+    applicable: list[tuple[str, CheckResult]] = []
+    for member in workspace.members:
+        result = check_protocols_profile(member.path)
+        if result.weight:
+            applicable.append((member.name, result))
+    if not applicable:
+        return None
+
+    failures = [
+        (member_name, detail)
+        for member_name, result in applicable
+        if not result.passed
+        for detail in result.details
+    ]
+    passed = not failures
+    return CheckResult(
+        name="protocols.profile",
+        category=_CATEGORY,
+        passed=passed,
+        weight=4,
+        message=(
+            "Workspace protocol profiles are statically coherent"
+            if passed
+            else f"Workspace protocol profiles have {len(failures)} finding(s)"
+        ),
+        details=[f"member {member_name}: {detail}" for member_name, detail in failures],
+        fix="" if passed else "Apply each correction in the named workspace member.",
+    )
+
+
 def check_protocols_profile(project: Path) -> CheckResult:
     """Validate a declared protocol profile without importing inspected code."""
     metadata = project / "pyproject.toml"
@@ -338,6 +472,9 @@ def check_protocols_profile(project: Path) -> CheckResult:
 
     profile = _nested(data, "tool", "axm-init", "protocols")
     if profile is None:
+        workspace_result = _workspace_protocol_result(project)
+        if workspace_result is not None:
+            return workspace_result
         return CheckResult(
             name="protocols.profile",
             category=_CATEGORY,

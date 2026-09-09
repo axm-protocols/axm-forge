@@ -7,6 +7,7 @@ its own gold-standard checks (node base, plus the svelte delta for svelte).
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -196,3 +197,112 @@ def test_protocols_rejects_invalid_duplicate_and_orphan_metadata(
     _replace_metadata(orphan, 'action = "exec"', 'action = "missing"')
     orphan_result = CheckEngine(orphan, category="protocols").run()
     _assert_localized_failure(orphan_result, "missing")
+
+
+def _protocol_action_root(dest: Path) -> Path:
+    """Return the generated action package used by layout scenarios."""
+    return dest / "src" / "protocols_dev" / "work" / "exec"
+
+
+def _failure_evidence(result: object) -> str:
+    """Render failure details and fixes for exact negative assertions."""
+    return "\n".join(
+        part for failure in result.failures for part in (*failure.details, failure.fix)
+    )
+
+
+@pytest.mark.integration
+def test_protocols_layout_reports_each_missing_required_path(
+    tmp_path: Path,
+) -> None:
+    """AC1: every missing required path has its own path and repair finding."""
+    mutations = (
+        ("protocol", "protocol.py"),
+        ("contracts", "contracts"),
+        ("nodes", "nodes"),
+        ("initializer", "__init__.py"),
+    )
+    evidence_by_variant: dict[str, str] = {}
+
+    for label, relative_path in mutations:
+        dest = _scaffold_protocol_profile(tmp_path, f"layout-{label}")
+        missing = _protocol_action_root(dest) / relative_path
+        if missing.is_dir():
+            shutil.rmtree(missing)
+        else:
+            missing.unlink()
+
+        result = CheckEngine(dest, category="protocols").run()
+        evidence = _failure_evidence(result)
+        assert result.failures
+        assert str(missing.relative_to(dest)) in evidence
+        assert "Correction:" in evidence
+        evidence_by_variant[label] = evidence
+
+    assert len(set(evidence_by_variant.values())) == len(mutations)
+
+
+@pytest.mark.integration
+def test_protocols_inventory_reports_declared_component_missing_on_disk(
+    tmp_path: Path,
+) -> None:
+    """AC2: an inventoried contract absent from disk names that declaration."""
+    dest = _scaffold_protocol_profile(tmp_path, "declared-missing")
+    missing_contract = _protocol_action_root(dest) / "contracts" / "input.py"
+    missing_contract.unlink()
+
+    result = CheckEngine(dest, category="protocols").run()
+    evidence = _failure_evidence(result)
+    assert result.failures
+    assert "input" in evidence
+    assert "declared" in evidence
+    assert "missing" in evidence
+
+
+@pytest.mark.integration
+def test_protocols_inventory_reports_local_component_missing_from_metadata(
+    tmp_path: Path,
+) -> None:
+    """AC2: a local contract absent from inventory names that local component."""
+    dest = _scaffold_protocol_profile(tmp_path, "local-uninventoried")
+    extra_contract = _protocol_action_root(dest) / "contracts" / "extra.py"
+    extra_contract.write_text(
+        '"""Local contract deliberately omitted from metadata."""\n',
+        encoding="utf-8",
+    )
+
+    result = CheckEngine(dest, category="protocols").run()
+    evidence = _failure_evidence(result)
+    assert result.failures
+    assert "extra" in evidence
+    assert "local" in evidence
+    assert "inventor" in evidence
+
+
+@pytest.mark.integration
+def test_protocols_workspace_propagates_member_layout_failure(
+    tmp_path: Path,
+) -> None:
+    """AC3: a workspace result preserves the failing profiled member identity."""
+    workspace = tmp_path / "workspace"
+    scaffold = InitScaffoldTool().execute(
+        path=str(workspace),
+        name="axm-suite",
+        org="acme",
+        author="Dev",
+        email="dev@example.com",
+        workspace=True,
+    )
+    assert scaffold.success, scaffold.error
+
+    member = workspace / "packages" / "axm-dev"
+    member.mkdir(parents=True)
+    profiled_member = _scaffold_protocol_profile(member.parent, member.name)
+    missing = _protocol_action_root(profiled_member) / "protocol.py"
+    missing.unlink()
+
+    result = CheckEngine(workspace, category="protocols").run()
+    evidence = _failure_evidence(result)
+    assert result.failures
+    assert member.name in evidence
+    assert str(missing.relative_to(member)) in evidence
