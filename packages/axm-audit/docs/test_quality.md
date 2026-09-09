@@ -2,7 +2,7 @@
 
 The `test_quality` category surfaces rules that reason about the **test tree
 itself** — what it imports, how it asserts, which fixtures do real I/O. Unlike
-`testing` (which just gates coverage), `test_quality` rules guard against
+`testing` (which measures the Python suite and coverage), `test_quality` rules guard against
 brittleness: tests that couple to implementation details, tautological
 asserts, or mock patterns that drift from production behavior.
 
@@ -13,9 +13,10 @@ axm audit [PATH] --json-output --category test_quality
 ```
 
 Runs the `test_quality` category through the `audit` AXMTool. The unified CLI
-prints the compact `ToolResult.text`; MCP callers receive the structured
-`ToolResult.data`, including every evaluated `TEST_QUALITY_*` rule. The command
-exits non-zero when the tool reports failure. See the [CLI
+prints JSON with `--json-output`, and compact text otherwise. The data
+includes evaluated `TEST_QUALITY_*` rules; the `axm_call` façade exposes text only. The command
+exits non-zero for a tool error, but reported quality failures do not by
+themselves change its exit code. See the [CLI
 reference](reference/cli.md) for details.
 
 Each pyramid mismatch line in the compact renderer shows the coarse
@@ -25,6 +26,9 @@ fragment (e.g. `signals: fixture:db_session, tmp_path->open`). The
 fragment is omitted entirely when no signals were recorded.
 
 ## Private Imports
+
+The examples below illustrate triage shapes; historical corpus paths are
+not a guarantee that those files remain in the current workspaces.
 
 **Rule ID**: `TEST_QUALITY_PRIVATE_IMPORTS`
 **Class**: `axm_audit.core.rules.test_quality.PrivateImportsRule`
@@ -43,11 +47,15 @@ taxonomy used by the original `DECISION_PRIVATE_IMPORTS.md` roadmap note:
 
 | Bucket | Meaning | AXM example |
 | -- | -- | -- |
-| **DELETE** | The test asserts a private helper directly; the scenario is already covered by a public-API test. Drop the redundant test. | `axm-engine/tests/unit/test_hooks_internal.py::test__normalize_params` — removed after `test_hook_run.py` covered the same path via the public `Hook.run()` entry point. |
+| **DELETE** | The test asserts a private helper directly; the scenario is already covered by a public-API test. Drop the redundant test. | `example/tests/unit/test_normalize.py::test_normalize` — removed after `test_hook_run.py` covered the same path via the public a public entry point entry point. |
 | **REFACTOR** | The test is valuable but reaches through a private surface. Replace the private symbol with a fixture, factory, or public seam. | `axm-audit/tests/unit/core/test_coupling_scoring.py` stopped importing `_compute_fan_out` and now drives scoring via a `CouplingMetricRule` instance. |
 | **PROMOTE** | The private helper is de-facto public; the right fix is to drop the `_` prefix and export it. | `axm-nexus/tests/test_registry.py` triggered promoting `_ResourceCatalog._load` to `ResourceCatalog.load` plus an `__all__` entry. |
 
 ### What it flags
+
+The implementation also resolves private attribute accesses through first-party
+imports and class instances when their kind can be established. Findings include
+`access_kind` (`import` or `attribute`); unresolved attributes are skipped.
 
 For every test file the rule walks `ast.ImportFrom` nodes whose module starts
 with a package under `src/`. Each imported symbol is inspected:
@@ -144,7 +152,7 @@ binary at all and gets no `e2e` classification — plumbing commands such as
 **Score**: `max(0, 100 - n_clustered_pairs * 5)`
 
 Clusters likely-duplicate test functions across the `tests/**/test_*.py`
-tree using three structural **signals** and four rescue **anti-signals**. A
+tree using structural **signals** and rescue **anti-signals**. A
 "clustered pair" counts against the score only when no rescue fires;
 ambiguous clusters are surfaced but do not dock points.
 
@@ -206,112 +214,13 @@ anything structural.
 
 ## Tautology Triage v4
 
-**Rule ID**: `TEST_QUALITY_TAUTOLOGY`
-**Class**: `axm_audit.core.rules.test_quality.tautology.TautologyRule`
-**Severity**: `WARNING`
-**Score**: `max(0, 100 - n_findings * 2)`
+`TEST_QUALITY_TAUTOLOGY` detects shallow or tautological assertions, then
+classifies findings into review actions. Its score is
+`max(0, 100 - 2 * counted_findings)`; it passes only with no counted findings.
+`KEEP` marker opt-outs remain in metadata but are not counted.
 
-Detects test functions whose asserts can never fail, then triages each
-finding into `DELETE` / `STRENGTHEN` / `UNKNOWN` by walking a fixed 22-step
-order over delete-side, precondition, and strengthen-side checks. The rule
-emits one entry per finding in `metadata["verdicts"]`; no source rewriting
-happens here — downstream tooling consumes the verdicts.
-
-### Detection patterns
-
-| Pattern | Example | Trigger |
-| -- | -- | -- |
-| `trivially_true` | `assert True`, `assert [1]` | Constant truthy / non-empty literal |
-| `self_compare` | `assert x == x`, `assertEqual(x, x)` | Both sides AST-equal |
-| `isinstance_only` | `assert isinstance(r, dict)` | All asserts are shallow `isinstance` |
-| `none_check_only` | `assert x is not None` | All asserts are not-None |
-| `len_tautology` | `assert len(r) >= 0` | Length comparison always true |
-| `mock_echo` | `mock.f.return_value = 1; assert f() == 1` | Asserts the value just stubbed |
-
-### The 22-step triage ladder
-
-Steps fire in order; the first matching step wins. The ladder has three
-bands: **delete-side** (N-prefixed precondition checks that force
-`DELETE`), **precondition** (structural rescues that short-circuit before
-the strengthen ladder), and **strengthen-side** (uniqueness / edge-case
-signals that keep the test).
-
-#### Marker opt-out (highest priority)
-
-`@pytest.mark.tautology_ok` (per-test) or `pytestmark = pytest.mark.tautology_ok` (file-level) lets authors explicitly mark an assertion as an intentional tautology. The marker fires **first** in the early-exit ladder, so it overrides every other step including the delete-side ones.
-
-| Step | Verdict | Fires when | AXM example |
-| -- | -- | -- | -- |
-| `step0_marker_opt_out` | KEEP | Test or its enclosing module carries `pytest.mark.tautology_ok` | `axm-word/tests/unit/test_layout.py::test_default_pt_size_is_safe` — narrows a `float` to satisfy mypy before a typed call. |
-
-The marker accepts an optional positional reason string (`@pytest.mark.tautology_ok("mypy narrow before typed call")`) which is captured into the verdict's `reason` field. Bare markers fall back to `"intentional tautology (no reason given)"`.
-
-`KEEP` verdicts remain in `metadata["verdicts"]` for JSON consumers and audit trails but are excluded from the finding count (`_NON_TAUTOLOGY_ACTIONS`) and from the text rendering.
-
-Downstream consumers using `--strict-markers` should register the marker in their own `pyproject.toml`:
-
-```toml
-[tool.pytest.ini_options]
-markers = [
-    "tautology_ok: opt out of TEST_QUALITY_TAUTOLOGY (optional reason arg)",
-]
-```
-
-#### Delete-side preconditions
-
-| Step | Verdict | Fires when | AXM example |
-| -- | -- | -- | -- |
-| `step_n2_import_smoke` | DELETE | Body is `from X import Y; assert Y is not None`-shaped | `axm-engine/tests/services/tools/test_protocol_tools.py::test_imports_ok` — redundant with `test_protocol_tools_init`. |
-| `step_n2b_lazy_import_sut` | STRENGTHEN | Same shape, but test sits in a `test_init.py` lazy-import surface | `axm-nexus/tests/test_package_init.py::test_lazy_imports` — kept: guards boot ordering. |
-| `step_n2c_toplevel_import_not_none` | DELETE | `assert X is not None` where X is top-level-imported AND used by ≥ 1 sibling | `axm-audit/tests/unit/core/test_rules_loaded.py::test_rule_loaded` — sibling already exercises the rule. |
-| `step_n1_no_siblings` | STRENGTHEN | File has a single test — nothing to dedupe against | `axm-commons/tests/test_retry.py::test_retry_once` — sole test, kept. |
-
-#### Precondition rescues
-
-| Step | Verdict | Fires when | AXM example |
-| -- | -- | -- | -- |
-| `step_0_self_compare` | STRENGTHEN | `self_compare` pattern — always rescued (author signals intent) | `axm-market/tests/test_ohlc.py::test_bar_equals_itself` — contract conformance. |
-| `step_0c_contract_conformance` | STRENGTHEN | `isinstance(x, T)` where T is a local Protocol / stdlib ABC | `axm-portfolio/tests/test_positions.py::test_position_is_mapping`. |
-
-#### Strengthen-side uniqueness signals
-
-| Step | Verdict | Fires when | AXM example |
-| -- | -- | -- | -- |
-| `step_1a_unique_fn` | STRENGTHEN | SUT is not exercised by any sibling | `axm-sentiment/tests/test_lexicon.py::test_load_lexicon`. |
-| `step_2_unique_io` | STRENGTHEN | Uses `tmp_path`/filesystem I/O not exercised by any sibling | `axm-bib/tests/integration/test_pdf_extract.py::test_extract_from_real_pdf`. |
-| `step_3_unique_parametrize` | STRENGTHEN | Carries `@parametrize` while no sibling does | `axm-screener/tests/test_filters.py::test_filter_matrix`. |
-| `step_4_boundary_literal` | STRENGTHEN | Exercises a boundary literal (`0`, `-1`, `""`, `b""`) unseen in siblings | `axm-backtest/tests/test_pnl.py::test_pnl_on_zero_volume`. |
-| `step_4c_significant_setup` | STRENGTHEN | ≥ 4 non-trivial setup statements combined with a weak assert | `axm-broker/tests/test_router.py::test_complex_routing_setup`. |
-| `step_1b_different_args` | STRENGTHEN | Same SUT, different literal args — runs before `step_0b` to rescue varying-args cases | `axm-ast/tests/test_parser.py::test_parses_single_line` vs `test_parses_multiline`. |
-| `step_4b_name_edge` | STRENGTHEN | Name mentions an edge-case keyword (`empty`, `null`, `overflow`, …) | `axm-mail/tests/test_threading.py::test_handles_empty_thread`. |
-| `step_4f_intentional_weakness` | STRENGTHEN | Docstring/comment explicitly flags a deliberately weak assertion | `axm-smelt/tests/test_rewrite.py::test_smoke_pass`. |
-| `step_4d_mocked_sut_contract` | STRENGTHEN | Mocked SUT is invoked and the result is `isinstance`-checked | `axm-n8n/tests/test_client.py::test_client_returns_dict`. |
-| `step_4e_homogeneity_check` | STRENGTHEN | `isinstance()` runs inside a loop / `all()` / `any()` — homogeneity contract | `axm-office/tests/test_docx.py::test_all_paragraphs_are_runs`. |
-
-#### Delete-side constructor checks (after strengthen rescues)
-
-| Step | Verdict | Fires when | AXM example |
-| -- | -- | -- | -- |
-| `step_0b_n_copies_constructor` | DELETE | Pure constructor + weak assert with ≥ 1 identical-args sibling | `axm-word/tests/test_doc.py::test_new_doc` duplicated by `test_new_empty_doc`. |
-| `step_0b2_impure_sibling_covers_ctor` | DELETE | Pure-ctor test whose constructor is already exercised by an impure sibling | `axm-anvil/tests/test_forge.py::test_forge_init`. |
-| `step_5_default_unknown` | UNKNOWN | Terminator — no step matched | `axm-formal/tests/test_proof.py::test_trivially_true` — left for human review. |
-
-The step order is load-bearing: strengthen-side rescues (`step_2`–`step_4e`)
-fire before the delete-side constructor checks (`step_0b` / `step_0b2`) so
-that a weak constructor test carrying real edge-case signal is kept
-rather than deleted.
-
-### Finding shape
-
-`metadata["verdicts"]` is a `list[dict]`; each entry exposes:
-
-- `file` — path relative to the project root
-- `test` — test function name
-- `line` — line number of the triggering assert
-- `pattern` — one of the six detection patterns above
-- `rule` — triage step that fired (e.g. `step_0b_n_copies_constructor`)
-- `verdict` — `DELETE` / `STRENGTHEN` / `UNKNOWN` / `KEEP` (`KEEP` set by the marker opt-out; counted toward `metadata["verdicts"]` but excluded from the rule's finding count)
-- `reason` — human-readable explanation from the triage step
+Read the [patterns, ordered triage ladder, markers and payload](reference/tautology.md).
+A `DELETE` suggestion requires checking the scenario's actual coverage.
 
 ## No-Package-Symbol
 
@@ -458,20 +367,13 @@ module basename is not actionable. Anti-mirror still fires on K≥2 mirrored
 stems (where FILE_NAMING also emits `SPLIT`) and on genuine mis-names
 (stem matches a source module but tests cover a different symbol).
 
-## Validation
+## Validation and limits
 
-The v6 / v4 stacks were validated against the internal AXM corpus and an
-external open-source corpus. Results:
+These are static heuristics, not proofs of behavioral redundancy or absence
+of I/O. Resolve findings against the test scenario before changing code.
+Historical internal/external corpus measurements do not establish a current
+false-positive rate or make every DELETE verdict safe to apply automatically.
 
-| Corpus | Findings | DELETE verdicts | False positives |
-| -- | -- | -- | -- |
-| AXM internal (`axm-workspaces/**`) | 169 | 17 | 0 |
-| External corpus | 126 | — | 1 |
-
-Key numbers: **169** total findings on the internal corpus, **17** DELETE
-verdicts confirmed by manual review with **0** false positives; **126**
-findings on the external corpus with exactly **1** false positive flagged
-during triage (`step_0b_n_copies_constructor` on a factory-style
-constructor test). The delete-side ladder is therefore safe to apply
-automatically on AXM packages; external application should keep the
-`DELETE` verdict gated behind a human-in-the-loop review.
+The naming and no-package-symbol checks currently require the literal
+`tests/` directory; a custom-only `tests_axm_*/` layout may skip those
+checks. See [configuration and exclusions](reference/configuration.md).

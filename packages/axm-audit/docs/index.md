@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">axm-audit</h1>
-<p align="center"><strong>Code auditing and quality rules for Python projects.</strong></p>
+<p align="center"><strong>Code auditing and quality rules for Python, Node.js/TypeScript, React and Svelte projects.</strong></p>
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -46,14 +46,14 @@ from pathlib import Path
 from axm_audit import audit_project
 
 result = audit_project(Path("."))
-print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
+print("Grade:", result.grade, "Score:", result.quality_score)
 # Grade: A — 95.0/100
 ```
 
 ## Features
 
-- 🔍 **Linting** — Ruff analysis (800+ rules)
-- 🔒 **Type Safety** — Strict mypy (per-project `pyproject.toml` config)
+- 🔍 **Linting** — Ruff for Python; ecosystem-specific tools for JS/TS
+- 🔒 **Type Safety** — mypy or TypeScript using project configuration
 - 📊 **Complexity** — Cyclomatic + cognitive complexity (radon + complexipy)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
@@ -76,3 +76,14 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - [Architecture](explanation/architecture.md)
 - [Scoring](explanation/scoring.md)
 - [Glossary](explanation/glossary.md)
+
+## Contracts and scope
+
+- [CLI and tools](reference/cli.md)
+- [Frameworks and workspaces](reference/frameworks.md)
+- [Configuration and exclusions](reference/configuration.md)
+- [Python API](reference/python-api.md)
+- [Witness quality gate](reference/witness.md)
+
+The table above describes Python measurements. Frameworks differ, and a score
+can be unavailable. A successful tool call can contain failed checks.

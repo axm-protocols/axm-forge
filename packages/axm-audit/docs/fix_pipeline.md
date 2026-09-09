@@ -11,6 +11,23 @@ AXM 3-level pyramid + canonical naming conventions. It consumes findings from th
   review)
 
 The pipeline runs in dry-run by default and mutates only on `--apply`.
+It targets Python test trees. It does not reorganise JS/TS tests.
+
+## Use safely
+
+```bash
+axm audit_fix . --json-output
+axm audit_fix . --rules '["TEST_QUALITY_FILE_NAMING"]' --json-output
+```
+
+The `rules` list selects naming/pyramid stages; unknown IDs are not rejected.
+In apply mode helper extraction and Ruff polish still run independently of
+that stage filter. An empty list is therefore not a general no-op guarantee.
+
+A dry-run plans one pass and skips the apply-only non-canonical-tier and
+layout-flattening stages. It is not a complete simulation of all apply effects.
+Inspect warnings as well as operations. Run tests before and after applying,
+and compare collection, outcomes and coverage yourself.
 
 ## Pipeline architecture
 
@@ -44,7 +61,7 @@ in `models.py` is the allow-list (`unit`, `integration`, `e2e`).
 
 ## Module layout (hexagonal split)
 
-The applicator lives at `src/axm_audit/core/fix/`, 13 modules organised by
+The applicator lives at `src/axm_audit/core/fix/`, modules organised by
 hexagonal layer:
 
 ```
@@ -106,10 +123,9 @@ auto-fix).
    source first (via `rename_top_level_in_source` in `cst_rewrite.py`),
    then handing anvil a clean conflict-free move.
 
-2. **`audit_project()` cache breaks after in-flight mutations** —
-   calling it post-apply raises `FileNotFoundError` on cached paths.
-   `collect_unfixable()` in `findings.py` swallows the exception
-   defensively.
+2. **Caches and file moves** — cache invalidation matters after in-flight
+   mutations. Residual findings are collected separately from the mutation
+   stages; a warning or missing residual result is not proof of parity.
 
 3. **`if TYPE_CHECKING:` imports are invisible to anvil** —
    `MockerFixture` imported only inside that block is treated as
@@ -227,7 +243,7 @@ auto-fix).
   for `tests/test_X.py` (no tier subdir yet) the function used to do
   `parts[1] = target_lvl` and return a directory path, then
   `_safe_move_units` crashed with `IsADirectoryError` on
-  `ast.parse(target.read_text())`. `paths.py:_retier` now branches on
+  `ast.parse(target.read_text())`. `paths.py:retier` now branches on
   `len(parts) == 2`: inject the tier between `tests` and the file
   instead of substituting at index 1.
 - **Overlong renamed identifiers (E501)** — `_bounded_rename` in
@@ -244,32 +260,41 @@ auto-fix).
   body element to count as one) and unconditionally promotes it to
   position 0 in the rewritten body.
 
-## Convergence + parity invariants
+## Convergence and rollback limits
 
-A correct pipeline run must satisfy:
+Apply makes at most six iterations and may stop earlier when a pass emits
+zero operations. Reaching the cap is not proof that every finding was cleared.
+A follow-up dry-run and real test run are caller-owned checks.
+Mixed-tier files that cannot be relocated unanimously may remain for review.
 
-- **Idempotence** — a second dry-run after `--apply` plans zero ops.
-- **Parity** — pass count and coverage % are unchanged across `--apply`.
-  Drift in either direction is a red flag (a test was silently
-  dropped/duplicated, or a fixture extraction broke isolation).
-- **Monotonicity** — pyramid score never decreases across iterations.
+The implementation snapshots the literal `tests/` directory to a temporary
+directory. Exceptions during the guarded mutation/polish block or a failed
+syntax gate trigger restoration of that directory.
 
-These invariants are enforced by source-level tests under `tests/`. They
-are not a runtime burden — the pipeline runs the same regardless.
+This is a **scoped rollback**, not a repository transaction:
 
-To guarantee convergence, RELOCATE applies a **unanimity rule**: a file
-is relocated only when *all* its tests agree on a single target tier
-distinct from the current one (`plan_relocate` counts every test's
-target level, including `cur == lvl` ones). Mixed-verdict files (one
-`integration` + one `unit`) are left for manual `/scenario-rename` or
-hand-splitting rather than oscillating across tiers.
+- The snapshot and gate do not cover `tests_axm_*/`, the Git index or files
+  outside `tests/`. Moves can affect Git staging.
+- If no `tests/` existed, there is no snapshot to restore.
+- The gate compiles `tests/**/test_*.py`; it does not import modules, resolve
+  fixtures, run pytest collection or execute tests.
+- Warnings are not necessarily exceptions and do not universally trigger rollback.
+- Residual/unfixable collection occurs after the guarded apply block.
 
-`run(apply=True)` is atomic: it snapshots `tests/` to a temp dir outside
-the project, runs the fixed-point loop, then runs a `compile()` collect
-gate over every `test_*.py`. On any exception or a failed gate the tree
-is restored byte-identical and a `FixApplyError` is raised.
+A concrete collection failure can survive the syntax gate: renaming a file to
+`tests/integration/test_add.py` when `tests/unit/test_add.py` already exists
+can cause pytest's default import mode to report an import-file mismatch.
+Use the project's intended pytest import policy (AXM uses
+`--import-mode=importlib`) and verify actual collection/execution after apply.
+
+Do not use the tool's success or the `applied` flag as evidence of parity,
+idempotence or guaranteed convergence. Review the actual diff and rerun tests.
 
 ## Out of pipeline (agent-driven follow-ups)
+
+The slash names below refer to separately installed operator skills, not
+commands or entry points distributed by axm-audit. Manual review against the
+reported scenario is always possible.
 
 - `TEST_QUALITY_DUPLICATE_TESTS` → `/dedup-tests`
 - `TEST_QUALITY_PRIVATE_IMPORTS` → `/private-imports-clear`

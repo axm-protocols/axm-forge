@@ -11,3 +11,7 @@ Task-oriented guides for common workflows.
 - [MCP Integration](mcp.md) — Use audit tools via MCP
 - [Read Results](results.md) — Interpret audit output
 - [Troubleshooting](troubleshooting.md) — Common issues and fixes
+
+- [Configure rules and exclusions](../reference/configuration.md)
+- [Audit a Node or mixed workspace](../reference/frameworks.md)
+- [Use the witness gate](../reference/witness.md)

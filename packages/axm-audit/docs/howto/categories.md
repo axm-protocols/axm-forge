@@ -4,6 +4,10 @@ Focus your audit on specific areas instead of running all checks.
 
 ## Available Categories
 
+The table lists Python rule classes. Node/React/Svelte have different
+implementations and may have no rules in a selected valid category;
+see [frameworks](../reference/frameworks.md).
+
 | Category | Rules | Focus |
 |---|---|---|
 | `lint` | `LintingRule`, `FormattingRule`, `DiffSizeRule`, `DeadCodeRule` | Code quality (Ruff, git) |
@@ -64,7 +68,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (33 instances)
+# All Python rules (the registry determines the number of instances)
 rules = get_rules_for_category(None)
 
 # Single category

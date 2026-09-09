@@ -1,6 +1,40 @@
 site_name: audit
+site_description: Code quality for Python, Node.js, React and Svelte projects
 docs_dir: docs
-
+theme:
+  name: material
+  logo: assets/logo.svg
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: true
+            heading_level: 3
+            signature_crossrefs: false
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - tables
+  - attr_list
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
 nav:
   - Overview: index.md
   - Tutorials:
@@ -15,9 +49,14 @@ nav:
     - Read Results: howto/results.md
     - Troubleshooting: howto/troubleshooting.md
   - Reference:
-    - CLI: reference/cli.md
+    - CLI and Tools: reference/cli.md
+    - Configuration: reference/configuration.md
+    - Frameworks and Workspaces: reference/frameworks.md
     - Test Quality Rules: test_quality.md
+    - Tautology Triage: reference/tautology.md
     - Fix Pipeline: fix_pipeline.md
+    - Witness: reference/witness.md
+    - Python API: reference/python-api.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Scoring: explanation/scoring.md

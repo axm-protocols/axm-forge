@@ -1,114 +1,52 @@
 # Use via MCP
 
-Integrate `axm-audit` into AI agent workflows through the AXM MCP server.
+Install `axm-audit` in the environment serving `axm-mcp`; installing it
+in an unrelated target project does not add tools to an already-running
+server. The server discovers `axm.tools` entry points.
 
-!!! info "Setup"
-    The `audit` tool is served by `axm-mcp`. If you haven't connected the server
-    yet, see the **[axm-mcp Quick Start](https://forge.axm-protocols.io/mcp/tutorials/quickstart/)** —
-    one command connects the whole toolchain. No per-package install needed.
+## Call an audit
 
-## Usage
-
-### From an AI agent
-
-Call the `audit` MCP tool with the project path:
+For a directly exposed `audit` tool, supply these arguments:
 
 ```json
-{"tool": "audit", "kwargs": {"path": "/path/to/project"}}
+{"path": "/path/to/project", "category": "lint"}
 ```
 
-The result includes both a structured `data` dict (via `format_agent`) and a compact `text` summary (via `format_agent_text`) optimised for token count. The `text` field uses `✓`/`✗` lines for ~55-60% token savings:
+For a tool behind the `axm_call` façade, supply:
 
 ```json
-{
-  "data": {
-    "score": 85.0,
-    "grade": "B",
-    "passed": ["QUALITY_LINT: Lint score: 100/100 (0 issues)"],
-    "failed": [{"rule_id": "...", "details": {...}, "fix_hint": "..."}]
-  },
-  "text": "audit | B 85 | 1 pass · 1 fail\n✓ QUALITY_LINT\n✗ ... details ..."
-}
+{"name": "audit", "arguments": {"path": "/path/to/project", "category": "lint"}}
 ```
 
-### One-shot verification
+The façade returns rendered text. It does not expose the full structured
+ToolResult payload to its caller. Direct tool registration may expose
+structured content according to the MCP server's adapter. Python execution
+retains `ToolResult.data` and `ToolResult.text`.
 
-`verify` is a built-in of the `axm-mcp` server (not an `axm-audit` tool) that
-wraps `audit` for a combined quality + governance check. Use it instead of
-`audit` when you want everything in one call:
+## Tests and fixes
 
 ```json
-{"tool": "verify", "kwargs": {"path": "/path/to/project"}}
+{"name": "audit_test", "arguments": {"path": "/path/to/project", "files": ["tests/unit/test_example.py"], "include_cases": true}}
 ```
-
-This runs `audit` + `init_check` + AST enrichment in a single call.
-
-### Structured test runner
-
-Use `audit_test` for structured, token-efficient test feedback:
 
 ```json
-{"tool": "audit_test", "kwargs": {"path": "/path/to/project"}}
+{"name": "audit_fix", "arguments": {"path": "/path/to/project", "apply": false}}
 ```
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | `"."` | Path to project root |
-| `files` | `list[str]` | `None` | Specific test files to run |
-| `markers` | `list[str]` | `None` | Pytest markers to filter |
-| `stop_on_first` | `bool` | `True` | Stop on first failure |
+`audit_test` returns a pytest report; a real failed test session is a
+successful measurement with `verdict=false`. `audit_fix` previews only;
+its [apply behavior](../fix_pipeline.md) has additional stages and limits.
 
-The result includes a structured `data` dict (full `TestReport` fields) and a compact `text` summary via `format_audit_test_text`, optimised for token count (~27 tokens green path, ~240 tokens with failures):
+## One-shot verification
 
-```
-audit_test | ✅ 42 passed | 1.2s | cov 95.0%
-```
+`verify` is provided by `axm-mcp`, not registered by this package.
+Its argument is `path`. It combines discovered `audit` and `init_check`
+results into `audit` and `governance` sections, then enriches audit failures
+with AST impact context when that tool is available.
 
-Failure output adds `✗` blocks and a coverage section for files below 95%:
+A section may be null when its tool is unavailable; this is not a passing
+check. The wrapper's success is not the combined quality verdict.
+It does not imply that `audit_test`, `audit_fix` or `doc_gate` ran.
+Check every required section and its findings.
 
-```
-audit_test | ❌ 10 passed · 2 failed | 3.4s | cov 88.0%
-✗ test_foo.py::test_bar (foo.py:42)
-  AssertionError: expected 5 got 3
-    assert 5 == 3
-cov< utils.py 80%
-```
-
-A red that no test failure explains names its cause on the line right under the
-header, followed by the bounded excerpt of the captured output — so an agent can
-diagnose it without re-running pytest by hand:
-
-```
-audit_test | ❌ 1 passed · 1 collected | 2.1s | pytest exit 1
-cause coverage_threshold: required test coverage of 100% not reached
-FAIL Required test coverage of 100% not reached. Total coverage: 62.50%
-```
-
-### Deterministic auto-fix
-
-Use `audit_fix` to run the deterministic test-suite fix pipeline:
-
-```json
-{"tool": "audit_fix", "kwargs": {"path": "/path/to/project", "apply": false}}
-```
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `path` | `str` | `"."` | Path to project root |
-| `apply` | `bool` | `False` | If `True`, mutate the tree; otherwise dry-run |
-| `rules` | `list[str]` | `None` | Optional list of rule ids to filter the pipeline |
-
-The result includes a structured `data` dict (planned/applied `FileOp` entries, unfixable findings, warnings, per-kind counts) and a human-readable `text` summary via `format_report`. Use `apply=False` to preview the plan before mutating files.
-
-## Output Format
-
-The MCP tool returns a structured result:
-
-| Key | Type | Content |
-|---|---|---|
-| `score` | `float` | Composite quality score (0–100) |
-| `grade` | `str` | Letter grade A–F |
-| `passed` | `list` | Strings or dicts with actionable details |
-| `failed` | `list` | Dicts with `rule_id`, `message`, `details`, `fix_hint` |
-
-For scoring details, see [Scoring & Grades](../explanation/scoring.md).
+See [tool contracts](../reference/cli.md) for defaults and error handling.

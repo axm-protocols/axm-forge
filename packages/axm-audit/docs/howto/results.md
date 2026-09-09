@@ -11,7 +11,7 @@ Every audit returns an `AuditResult` with these properties:
 | `success` | `bool` | `True` if all checks passed |
 | `total` | `int` | Total number of checks |
 | `failed` | `int` | Number of failed checks |
-| `quality_score` | `float \| None` | Composite score 0–100 (9-category weighted). `None` when auditing a single category with `--category` |
+| `quality_score` | `float \| None` | Composite score 0–100 (9-category weighted). `None` when no numeric scored category exists |
 | `grade` | `str \| None` | Letter grade A–F. `None` when `quality_score` is `None` |
 
 ## CheckResult Object
@@ -47,11 +47,12 @@ import json
 
 data = format_json(result)
 print(json.dumps(data, indent=2))
+# format_json raises ScoreIncalculableError when result has no numeric score.
 ```
 
 ### Agent Output
 
-`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings, complexity top offenders), in which case they become dicts. For failed checks, `text` and `details` are mutually exclusive — `text` takes priority when truthy, otherwise `details` is included:
+`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings, complexity top offenders), in which case they become dicts. For failed checks, both `text` and `details` are retained when present. Non-empty rule-specific `metadata` is also retained:
 
 ```python
 from axm_audit.formatters import format_agent
@@ -65,9 +66,9 @@ agent dict through `format_agent_text`:
 ```python
 from axm_audit.formatters import format_agent_text
 
-text = format_agent_text(data, category="lint")
+text = format_agent_text(data)
 print(text)
-# audit lint | B 85 | 3 pass · 1 fail
+# Illustrative multi-category output: audit | B 85 | 3 pass · 1 fail
 # ✓ QUALITY_LINT QUALITY_TYPES QUALITY_SECURITY
 # ✗ QUALITY_COMPLEXITY 3 functions exceed CC threshold
 #   src/mod.py:10 func_a CC=15
@@ -165,6 +166,14 @@ For details, see [Scoring & Grades](../explanation/scoring.md).
 
 | Severity | Effect | Example |
 |---|---|---|
-| `error` | Blocks audit pass | Missing `pyproject.toml` |
-| `warning` | Non-blocking | High complexity function |
-| `info` | Informational only | Docstring coverage stats |
+| `error` | Impact classification; inspect `passed` | Missing `pyproject.toml` |
+| `warning` | May accompany a failed check | High complexity function |
+| `info` | Does not itself determine pass/fail | Docstring coverage stats |
+
+`CheckResult` also carries `category` and a `metadata` dictionary.
+`AuditResult.crashed_rules` lists rules that raised. A formatted detail list
+may be a bounded summary; it is not always every raw tool diagnostic.
+
+Tool success is independent of quality: inspect audit `failed`, test
+`verdict`, or documentation `count` as described in the
+[tool reference](../reference/cli.md).

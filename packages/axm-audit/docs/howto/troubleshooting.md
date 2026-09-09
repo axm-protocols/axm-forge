@@ -6,7 +6,7 @@ Common issues and their solutions when running `axm-audit`.
 
 **Symptom**: `FileNotFoundError` or `command not found` for tools like `ruff`, `mypy`, `bandit`.
 
-**Note**: Since v0.5, `axm-audit` **auto-injects** its audit dependencies (ruff, mypy, bandit, pip-audit, deptry, pytest-cov) via `with_packages` — you **do not** need to install them in your project's environment. If you still see this error, it likely means `uv` itself is not available.
+**Note**: `axm-audit` requests several audit dependencies through `with_packages`. **mypy is an exception**: it must be available in the target environment, with its required stubs. Node tools also need project-local installation. Check the named tool and `uv` availability before retrying.
 
 **Solution**: Ensure `uv` is installed and on your PATH:
 
@@ -47,14 +47,14 @@ uv sync          # or: uv pip install types-<lib>
 axm audit . --json-output --category type
 ```
 
-The audit will not auto-install stubs or modify your environment — that is a
-dev/CI step, kept out of the audit so it has no side effects.
+The type rule does not request extra stubs. Prepare dependencies before
+running it; ordinary `uv run` environment synchronization still applies.
 
 ## Timeout errors
 
 **Symptom**: A check returns `returncode=124` or times out.
 
-**Cause**: All subprocess-based rules have a **300-second timeout**. Large projects or slow CI environments may hit this limit.
+**Cause**: The shared Python runner defaults to 300 seconds; the pytest runner uses 900 seconds, and doc_gate defaults to 120. Individual rules can use other subprocess paths.
 
 **Solutions**:
 
@@ -84,17 +84,17 @@ dev/CI step, kept out of the audit so it has no side effects.
 
 **Symptom**: `ComplexityRule` falls back to subprocess mode.
 
-**Cause**: `radon` is an optional dependency. The rule tries `radon.complexity.cc_visit()` first, then falls back to `radon cc --json` as a subprocess.
+**Cause**: `radon` is a declared runtime dependency; an import failure indicates an incomplete or broken installation. The rule tries `radon.complexity.cc_visit()` first, then falls back to `radon cc --json` as a subprocess.
 
-**Solution**: Install radon directly: `uv add --dev radon`
+**Solution**: Restore the declared runtime environment with `uv sync` (or reinstall `axm-audit`).
 
 ## Complexipy unavailable — cognitive layer disabled
 
 **Symptom**: `ComplexityRule` returns `severity=WARNING` with message "cognitive layer disabled (complexipy unavailable)" and `details["cognitive_disabled"] == True`.
 
-**Cause**: `complexipy` is required for the cognitive complexity layer (Cog<15, SonarSource convention). The rule tries `from complexipy import file_complexity` first, then falls back to a `complexipy` subprocess. Both unavailable means the rule degrades to CC-only (radon) mode and reports the degradation.
+**Cause**: `complexipy` is required for the cognitive complexity layer (cognitive complexity > 15 is flagged). The rule tries `from complexipy import file_complexity` first, then falls back to a `complexipy` subprocess. Both unavailable means the rule degrades to CC-only (radon) mode and reports the degradation.
 
-**Solution**: Install complexipy: `uv add complexipy>=5.4.0`. The double constraint (CC<10 via ruff C901 + Cog<15 via axm-audit) is documented in your project CLAUDE.md.
+**Solution**: Install complexipy: `uv sync`. The implemented complexity thresholds are CC ≥ 11 or cognitive complexity > 15; project policy can be stricter.
 
 ## Score seems wrong
 
@@ -104,4 +104,10 @@ If the composite score doesn't match expectations:
    structured Python/MCP response.
 
 2. Review the [scoring formula](../explanation/scoring.md) — each category has a different weight
-3. Remember that `quality_score` is `None` when only a single category is audited with `--category`
+3. A single scored category is normalized to 100. `quality_score` is `None` only when no numeric scored category remains.
+
+## Green command with failed checks
+
+The command exit code describes tool execution, not the quality verdict.
+Read `failed` in audit JSON, `verdict` in test JSON and `count` in doc_gate
+JSON. See [CLI contracts](../reference/cli.md).

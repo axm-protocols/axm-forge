@@ -31,10 +31,10 @@ Technical terms used throughout the `axm-audit` documentation.
 | Term | Definition |
 |---|---|
 | **Composite score** | The weighted average of all 9 scored category scores, producing a single 0–100 quality metric (Structure and Tooling emit findings but are not scored) |
-| **Pass threshold** | The minimum score (90/100) for an individual check to be marked as passing |
-| **Severity** | The impact level of a finding: `error` (blocks pass), `warning` (non-blocking), `info` (informational) |
+| **Pass threshold** | A rule-specific pass condition; 90 is common but lint/type and some test-quality rules require zero findings |
+| **Severity** | The impact level of a finding: `error`, `warning`, or `info`; pass/fail is the separate `passed` flag |
 | **ProjectRule** | The abstract base class that all audit rules inherit from. Defines the `rule_id` property and `check()` method |
 | **CheckResult** | A Pydantic model representing the outcome of a single rule check, including pass/fail, message, severity, and details |
 | **AuditResult** | A Pydantic model containing all check results, the composite score, and the letter grade |
 | **Diátaxis** | A documentation framework that organizes content into four quadrants: Tutorials, How-to guides, Reference, and Explanation |
-| **Fix corpus** | A synthetic fixture corpus under `tests/fixtures/fix_corpus/` — each case ships a paired `input/` and `expected/` mini-package so the `axm audit_fix` pipeline can be exercised end-to-end (RELOCATE, SPLIT, MERGE, RENAME, FLATTEN). Consumed via the `fix_corpus_case(name)` factory (defined in the corpus `conftest.py`) which copies `input/` to a temp dir, runs `git init`, and returns `(tmp_pkg, expected_path)` for diff-based assertions |
+| **Fix corpus** | A synthetic fixture corpus under `tests_axm_audit/fixtures/fix_corpus/` — each case ships a paired `input/` and `expected/` mini-package so the `axm audit_fix` pipeline can be exercised end-to-end (RELOCATE, SPLIT, MERGE, RENAME, FLATTEN). Consumed via the `fix_corpus_case(name)` factory (defined in the corpus `conftest.py`) which copies `input/` to a temp dir, runs `git init`, and returns `(tmp_pkg, expected_path)` for diff-based assertions |
