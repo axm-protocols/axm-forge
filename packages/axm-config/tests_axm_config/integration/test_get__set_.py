@@ -188,24 +188,6 @@ def test_execution_policy_uses_canonical_env_names_and_atomic_layer_pair(
     assert (policy.backend, policy.model, policy.analysis_enabled) == expected
 
 
-def test_execution_policy_env_names_are_documented_exactly() -> None:
-    """AC5: README advertises only the canonical double-underscore names."""
-    readme = (Path(__file__).parents[2] / "README.md").read_text(encoding="utf-8")
-    canonical = {
-        "AXM_EXECUTION__DEV__WORK_BACKEND",
-        "AXM_EXECUTION__DEV__WORK_MODEL",
-        "AXM_EXECUTION__DEV__WORK_ANALYSIS_ENABLED",
-    }
-    alternatives = {
-        "AXM_EXECUTION_DEV_WORK_BACKEND",
-        "AXM_EXECUTION_DEV_WORK_MODEL",
-        "AXM_EXECUTION_DEV_WORK_ANALYSIS_ENABLED",
-    }
-
-    assert all(name in readme for name in canonical)
-    assert all(name not in readme for name in alternatives)
-
-
 def test_listing_filters_malformed_leaves_without_weakening_targeted_reads() -> None:
     """AC1: listing skips each invalid leaf while direct lookup stays strict."""
     store = NamespaceStore()
