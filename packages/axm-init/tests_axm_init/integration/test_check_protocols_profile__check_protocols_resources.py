@@ -466,3 +466,47 @@ def test_declared_prompt_without_its_resource_is_reported(tmp_path: Path) -> Non
     assert resource_motif not in present_details
     assert inventory_motif in absent_details
     assert resource_motif in absent_details
+
+
+def test_inventory_and_disk_disagree_in_both_directions(tmp_path: Path) -> None:
+    """The inventory↔disk comparison must fire in BOTH directions.
+
+    The spec requires a declared-but-absent component and a present-but-
+    un-inventoried one to be reported alike. Only the first direction was
+    covered: neutralising the orphan-module branch failed nothing in the whole
+    integration suite, so a rule that only ever read the inventory would have
+    shipped green. Each direction asserts its own motif.
+    """
+    declared_absent = _project(tmp_path / "absent")
+    (declared_absent / "src/protocols_demo/work/exec/nodes/build.py").unlink()
+
+    not_inventoried = _project(
+        tmp_path / "orphan",
+        replacements={
+            "src/protocols_demo/work/exec/nodes/ghost.py": (
+                "from __future__ import annotations\n\n"
+                '__all__ = ["build_ghost"]\n\n\ndef build_ghost():\n    return None\n'
+            )
+        },
+    )
+
+    orphan_module = _project(
+        tmp_path / "rogue",
+        replacements={
+            "src/protocols_demo/rogue/exec/__init__.py": "",
+            "src/protocols_demo/rogue/exec/protocol.py": (
+                "from __future__ import annotations\n\n"
+                '__all__ = ["build_protocol"]\n\n\ndef build_protocol():\n'
+                "    return None\n"
+            ),
+        },
+    )
+
+    absent_details = _details(declared_absent)
+    orphan_details = _details(not_inventoried)
+    module_details = _details(orphan_module)
+
+    assert "declared node 'build' is missing on disk" in absent_details
+    assert "local node 'ghost'" in orphan_details
+    assert "is not inventoried" in orphan_details
+    assert "orphan protocol module" in module_details
