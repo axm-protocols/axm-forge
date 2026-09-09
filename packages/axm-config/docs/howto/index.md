@@ -1,9 +1,14 @@
-# How-To Guides
+# How-to guides
 
-Task-oriented guides for common workflows.
+Choose the guide matching the operation you need:
 
-## Available Guides
+- [Load a consumer configuration](load-a-consumer-config.md): bind non-sensitive
+  values to a Pydantic model and diagnose an override.
+- [Use profiles](profiles.md): select storage, propagate the selection and
+  understand the limits of the isolation diagnostic.
+- [Manage execution policies](execution-policies.md): persist a complete
+  backend/model pair, override analysis and remove a policy.
 
-- [Load a consumer package's config](load-a-consumer-config.md) — give your
-  package a typed config object backed by `~/.axm`, with an environment
-  override for CI, and diagnose an unexpected value with the doctor.
+The [CLI reference](../reference/cli.md) gives exact invocation forms.
+The [persistence explanation](../explanation/architecture.md) covers legacy
+file migration, partial failures and concurrent writers.

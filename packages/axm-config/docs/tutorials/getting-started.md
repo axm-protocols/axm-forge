@@ -1,82 +1,62 @@
-# Getting Started
+# Getting started
 
-This tutorial walks you through installing `axm-config` and verifying your setup.
+Follow one non-sensitive value through the file, environment and default layers.
 
-## Prerequisites
+## Install and verify
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+Use Python 3.12 or later:
 
 ```bash
 uv add axm-config
+axm-config --help
+python -c 'from importlib.metadata import version; print(version("axm-config"))'
 ```
 
-Or with pip:
+There is no root `axm_config.__version__` export. Read the installed distribution
+version with `importlib.metadata`.
+
+## Persist a setting in a separate profile
+
+Choose an unused profile name. This example creates
+`~/.axm/profiles/docs-demo/config.toml`; it does not use the production file.
 
 ```bash
-pip install axm-config
+AXM_PROFILE=docs-demo axm-config set research.demo timeout 30
+AXM_PROFILE=docs-demo axm-config get research.demo timeout
+# 30
+AXM_PROFILE=docs-demo axm-config doctor research.demo
+# research.demo.timeout: file
 ```
 
-## Step 1: Verify Installation
+The CLI writes the string `"30"`. For native TOML types, use `set_` in Python;
+the [consumer guide](../howto/load-a-consumer-config.md) shows typed model loading.
 
-```python
-from axm_config import __version__
-
-print(f"axm-config v{__version__}")
-```
-
-## Step 2: Resolve Config from the Shell
-
-The `axm-config` command persists and resolves runtime config under `~/.axm`:
+## Override for one command
 
 ```bash
-axm-config set research.fred api_key abc123  # writes [research.fred] in ~/.axm/config.toml
-axm-config get research.fred api_key         # -> abc123
-axm-config path                              # -> /Users/you/.axm
-axm-config doctor research.fred              # -> research.fred.api_key: file
+AXM_PROFILE=docs-demo AXM_RESEARCH__DEMO_TIMEOUT=10 axm-config get research.demo timeout
+# 10
+AXM_PROFILE=docs-demo AXM_RESEARCH__DEMO_TIMEOUT=10 axm-config doctor research.demo
+# research.demo.timeout: env
 ```
 
-An environment variable always wins over the file value. The env name is
-`AXM_<NS>_<KEY>` upper-cased, with each namespace dot folded to a *double*
-underscore (so `research.fred` → `RESEARCH__FRED`):
+Dots in the namespace become double underscores; key underscores stay single.
+The override is scoped to the command and does not rewrite the file.
+
+## Remove the value
 
 ```bash
-AXM_RESEARCH__FRED_API_KEY=from-env axm-config get research.fred api_key  # -> from-env
+AXM_PROFILE=docs-demo axm-config delete research.demo timeout
+AXM_PROFILE=docs-demo axm-config get research.demo timeout
+# None
 ```
 
-Select an isolated store with `AXM_PROFILE`. Reads never fall back to the
-production file, and the profile directory is created by its first write:
+The CLI has no default argument: an unresolved value prints `None` and succeeds.
+Python callers can use `get("research.demo", "timeout", default=30)`.
+The profile directory can remain after deleting its last setting.
 
-```bash
-AXM_PROFILE=dev axm-config set research.fred api_key dev-only
-# writes ~/.axm/profiles/dev/config.toml; ~/.axm/config.toml is unchanged
-AXM_PROFILE=dev axm-config get research.fred api_key  # -> dev-only
-```
+## Continue
 
-## Step 3: Handle a misconfigured `HOME`
-
-`axm-config` refuses a `~/.axm` that resolves inside a git checkout (a `HOME`
-pointing into a repo, e.g. dotfiles managed under a `~/.git`). The refusal is a
-typed `ConfigError` (`UnsafeHomeError`), so the CLI exits `1` with a one-line
-error rather than a raw traceback, and `get`/`load` propagate a catchable
-exception:
-
-```bash
-axm-config get demo key
-# error: refusing in-repo path .../.axm: resolves inside the git checkout at ...
-```
-
-## Step 4: Run the Tests
-
-The package has no local `Makefile`; run its suite from the workspace with `uv`:
-
-```bash
-uv run --package axm-config --directory packages/axm-config pytest -x -q
-```
-
-## Next Steps
-
-- [CLI Reference](../reference/cli.md) — Full command documentation
-- [Architecture](../explanation/architecture.md) — How the project is structured
+Read the [profile guide](../howto/profiles.md) before treating a profile as an
+isolation boundary, and the [persistence limits](../explanation/architecture.md)
+before sharing a file among writers. For passwords and tokens, use axm-vault.

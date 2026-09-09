@@ -1,15 +1,43 @@
-site_name: "axm-config"
+site_name: axm-config
 docs_dir: docs
-
+theme:
+  name: material
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    absolute_links: warn
+    unrecognized_links: warn
+    anchors: warn
 nav:
   - Home: index.md
   - Tutorials:
-    - Getting Started: tutorials/getting-started.md
-  - How-To Guides:
-    - howto/index.md
-    - Load a consumer config: howto/load-a-consumer-config.md
+      - Getting started: tutorials/getting-started.md
+  - How-to guides:
+      - howto/index.md
+      - Load a consumer config: howto/load-a-consumer-config.md
+      - Profiles and isolation: howto/profiles.md
+      - Execution policies: howto/execution-policies.md
   - Reference:
-    - CLI: reference/cli.md
-    - Python API: reference/api/
+      - CLI and tools: reference/cli.md
+      - Python contracts: reference/contracts.md
+      - Runtime settings: reference/runtime-settings.md
+      - Python API: reference/api.md
   - Explanation:
-    - Architecture: explanation/architecture.md
+      - Architecture and persistence: explanation/architecture.md
