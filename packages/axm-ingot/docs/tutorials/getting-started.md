@@ -1,70 +1,75 @@
-# Getting Started
+# Resolve and summarize a workspace
 
-This tutorial walks you through installing `axm-ingot` and verifying your setup.
+Create a disposable two-package workspace, exclude one member, then render a
+short summary. The example writes only inside a temporary directory, which is
+removed when the script finishes.
 
-## Prerequisites
+## Install
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+Use Python 3.12+ in a project or virtual environment:
 
 ```bash
 uv add axm-ingot
 ```
 
-Or with pip:
+Alternatively, install with `pip install axm-ingot` in your virtual environment.
 
-```bash
-pip install axm-ingot
-```
+## Run a complete example
 
-## Step 1: Resolve a workspace
+Save this as `workspace_demo.py`:
 
 ```python
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from axm_ingot import resolve_workspace
+from axm_ingot import find_project_root, find_workspace_root, resolve_workspace
+from axm_ingot.render import render_result
 
-workspace = resolve_workspace(Path("/path/to/your/uv-workspace"))
-if workspace is None:
-    print("not a uv workspace")
-else:
-    print("root:", workspace.root)
-    for member in workspace.members:
-        print(member.name, member.path)
+with TemporaryDirectory() as temporary:
+    root = Path(temporary).resolve()
+    (root / "pyproject.toml").write_text(
+        '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        'exclude = ["packages/experimental"]\n',
+        encoding="utf-8",
+    )
+    for name in ("demo", "experimental"):
+        member = root / "packages" / name
+        member.mkdir(parents=True)
+        (member / "pyproject.toml").write_text(
+            f'[project]\nname = "{name}-distribution"\n', encoding="utf-8"
+        )
+    nested = root / "packages" / "demo" / "src"
+    nested.mkdir()
+
+    assert find_project_root(nested) == nested.parent
+    assert find_workspace_root(nested) == root
+    workspace = resolve_workspace(root)
+    assert workspace is not None
+    assert [member.name for member in workspace.members] == ["demo"]
+    print(render_result("workspace", {"members": ["demo"]}))
 ```
-
-`resolve_workspace` returns `None` (never raises) when the directory has no
-`[tool.uv.workspace]` table or an unreadable `pyproject.toml`.
-
-## Step 2: Find the workspace root from anywhere
-
-```python
-from pathlib import Path
-
-from axm_ingot import find_workspace_root
-
-root = find_workspace_root(Path.cwd())  # walks up to the workspace root
-```
-
-## Step 3: Run the Tests
-
-`axm-ingot` has no package-local `Makefile` — run its test suite directly
-through `uv` from the workspace root:
 
 ```bash
-uv run --package axm-ingot --directory packages/axm-ingot pytest -x -q
+uv run python workspace_demo.py
 ```
 
-To lint and type-check the whole workspace at once, use the root `Makefile`
-target (run it from the workspace root, not from inside the package):
+Expected output:
 
-```bash
-make check  # lint + type-check + tests, across every workspace package
+```text
+workspace
+members=demo
 ```
 
-## Next Steps
+`find_project_root` finds the nearest project. `find_workspace_root` instead
+walks to a directory declaring `[tool.uv.workspace]`. Pass that directory to
+`resolve_workspace`: it does not search ancestors itself.
 
-- [API Reference](../reference/api.md) — Full public API documentation
-- [Architecture](../explanation/architecture.md) — How the project is structured
+The member name is `demo`, from its directory, even though its distribution
+name is `demo-distribution`. The resolver requires a member pyproject file to
+exist; it does not validate that member's project metadata.
+
+## Continue
+
+Use the [workspace recipes](../howto/index.md) for an existing checkout,
+[render reference](../reference/render.md) for formatting contracts, and
+[API index](../reference/api.md) for other helpers.

@@ -1,76 +1,43 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.png" alt="AXM Logo" width="140" />
-</p>
+# axm-ingot
 
-<h1 align="center">axm-ingot</h1>
-<p align="center"><strong>Shared helper library for the AXM forge.</strong></p>
+Shared Python helpers with **zero runtime dependencies**. Use them for uv
+workspace discovery, compact text, duration formatting, console-script lookup
+and pytest outcome tallies. Python 3.12+ is required.
 
-<p align="center">
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ingot/coverage.json" alt="Coverage"></a>
-  <a href="https://pypi.org/project/axm-ingot/"><img src="https://img.shields.io/pypi/v/axm-ingot" alt="PyPI"></a>
-  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
-</p>
+This package registers no CLI and no `axm.tools` entry point. Import its
+functions directly. Workspace, suite and console helpers read the filesystem;
+they do not write files or launch processes.
 
----
+| Need | Start here |
+|---|---|
+| Learn with a disposable workspace | [Getting started](tutorials/getting-started.md) |
+| Locate projects and workspace members | [Workspace recipes](howto/index.md) |
+| Replace a local text renderer | [Renderer migration](how-to/migrate-local-render-to-ingot.md) |
+| Find a helper and its import path | [API reference](reference/api.md) |
+| Understand the dependency boundary | [Architecture](explanation/architecture.md) |
+| Move shared code into this package | [Promote a helper](howto/promote-a-helper.md) |
 
-## What it does
+## Install and try
 
-`axm-ingot` is the AXM forge's **shared helper library** — the single home for
-small, general-purpose functions that more than one package needs. Logic that
-would otherwise be copy-pasted (and re-tested) across `axm-ast`, `axm-audit`,
-`axm-init` and `axm-anvil` lives here once, is tested once, and is imported as a
-normal workspace dependency. It is a **pure library**: no CLI, no MCP tool, no
-side effects.
-
-| Helper | Kind | What it returns |
-|---|---|---|
-| `resolve_workspace(dir)` | function | A `ResolvedWorkspace` (sorted, exclude-aware) or `None` |
-| `find_project_root(start)` | function | Nearest ancestor with any `pyproject.toml` (never `None`) |
-| `find_workspace_root(start)` | function | Nearest uv-workspace root, or `None` |
-| `parse_workspace_members(text)` | function | Raw `members` strings from pyproject text |
-| `ResolvedWorkspace` / `Member` | dataclass | Frozen value objects describing the result |
-
-## Quick Example
-
-```python
-from pathlib import Path
-
-from axm_ingot import resolve_workspace, find_workspace_root
-
-# Resolve a uv workspace to its members (sorted, exclude-aware, require_pyproject)
-workspace = resolve_workspace(Path("/path/to/workspace"))
-if workspace is not None:
-    for member in workspace.members:
-        print(member.name, "->", member.path)
-
-# Walk up from any directory to the enclosing uv-workspace root
-root = find_workspace_root(Path.cwd())
+```bash
+uv add axm-ingot
 ```
 
-## Features
+```python
+from axm_ingot import format_duration, header, tally_outcomes
 
-- **uv-workspace resolution** — `resolve_workspace` parses
-  `[tool.uv.workspace]`, expands `members` globs, subtracts `exclude`, enforces
-  `require_pyproject`, and returns members sorted by name
-- **Project-root discovery** — `find_project_root` walks parents to the first
-  `pyproject.toml` of any kind, always returning a `Path` (never `None`);
-  `find_workspace_root` stops at the first `[tool.uv.workspace]` specifically
-- **Raw members parsing** — `parse_workspace_members` reads the declared
-  member strings from pyproject text verbatim (no globs, no filesystem)
-- **Frozen value types** — `ResolvedWorkspace` and `Member` are stdlib
-  `@dataclass(frozen=True)` records
-- **Zero dependencies** — stdlib only (`tomllib`, `pathlib`, `dataclasses`); a
-  true leaf of the forge dependency graph
-- **Defensive** — an absent or malformed `pyproject.toml` returns `None`/`[]`,
-  never raises
+counts = tally_outcomes(["FAILED tests/test_a.py", "SKIPPED tests/test_b.py"])
+text = header("check", f"{counts['failed']} failed in {format_duration(1500)}")
+assert text == "check | 1 failed in 1.5s"
+```
 
-## Learn More
+The [README](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-ingot)
+is the repository entry point; this page is the documentation home.
 
-- [Getting Started Tutorial](tutorials/getting-started.md)
-- [List a workspace's members](howto/index.md)
-- [Promote a helper into ingot](howto/promote-a-helper.md)
-- [API Reference](reference/api.md)
-- [Architecture & Design Decisions](explanation/architecture.md)
+## Contracts to keep in mind
+
+- Workspace members use directory basenames, which need not be unique or match
+  distribution names.
+- Rendered text is for people. It is not an escaped, reversible serialization.
+- Defensive behavior is function-specific. There is no package-wide guarantee
+  that arbitrary inputs cannot raise.

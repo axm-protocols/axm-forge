@@ -25,8 +25,8 @@ copy-pasting the same logic into `axm-ast`, `axm-audit`, `axm-init` and
 `axm-anvil` — and testing it N times, inconsistently — the logic lives here
 once, is tested once, and is imported as a normal workspace dependency.
 
-It is a **pure library**: no CLI, no MCP tool, no side effects. Just typed,
-import-ready helpers.
+It is a Python library with no CLI or MCP tool. Workspace, suite and console
+helpers read the filesystem; they do not write files or launch processes.
 
 📖 **[Full documentation](https://forge.axm-protocols.io/ingot/)**
 
@@ -43,10 +43,11 @@ their own logic:
 - **Test once, trust everywhere** — helpers are covered in this package, so
   consumers don't re-test the same primitive.
 - **Stable public surface** — consumers import from `axm_ingot`, not from each
-  other, keeping the dependency graph a tree (no cross-tool coupling).
+  other, avoiding cross-tool coupling.
 
-Today the shared surface is uv-workspace resolution; the library grows by
-**promotion** — when a helper proves useful to a second package, it moves here.
+The shared surface covers workspace discovery, text rendering, durations,
+console-script lookup and pytest outcome tallies. The library grows by
+**promotion**, subject to reuse and dependency checks.
 
 ## What belongs here (the light-leaf invariant)
 
@@ -84,10 +85,13 @@ for promotion but **not sufficient**; the dependency gate is the second lock.
   unexpanded member strings from pyproject text, with no filesystem access.
 - **Typed value objects** — frozen `ResolvedWorkspace` and `Member` dataclasses
   describe the resolved result.
-- **Defensive by design** — a missing, malformed, non-UTF-8, or otherwise
-  unreadable `pyproject.toml`, and hostile member globs (absolute paths,
-  patterns `Path.glob` rejects), all degrade to empty/`None` results rather than
-  raising.
+- **Compact rendering** — primitives plus the submodule-level `render_result`
+  walker for readable text. Preserve structured data when exact types matter.
+- **Console and test helpers** — `console_script` locates a script without
+  executing it; `tally_outcomes` counts supplied outcome lines.
+- **Function-specific fallbacks** — pyproject read/parse errors and rejected
+  glob patterns have documented fallbacks. Arbitrary inputs and filesystem
+  operations do not share a blanket never-raises guarantee.
 - **Modern Python** — 3.12+ with strict typing, zero runtime dependencies
   beyond the standard library.
 
@@ -122,10 +126,11 @@ from axm_ingot import (
 )
 
 # Walk up to the nearest project root (any pyproject.toml ancestor).
-root = find_project_root(Path("packages/axm-ast/src/axm_ast/core"))
+root = find_project_root(Path.cwd())
 
 # Resolve a uv workspace into its sorted members.
-workspace = resolve_workspace(root)
+ws_root = find_workspace_root(Path.cwd())
+workspace = resolve_workspace(ws_root) if ws_root is not None else None
 if workspace is not None:
     for member in workspace.members:
         print(member.name, "->", member.path)
@@ -154,6 +159,17 @@ members = parse_workspace_members('[tool.uv.workspace]\nmembers = ["packages/*"]
 | `parse_workspace_members(text)` | function | Raw `members` from pyproject text (`axm_ingot.uv`) |
 | `ResolvedWorkspace` | dataclass | `{root, members}` — a resolved workspace |
 | `Member` | dataclass | `{name, path}` — one workspace member |
+| `header`, `labeled_block`, `compact_table` | functions | Compose readable text |
+| `truncate`, `format_count`, `format_size` | functions | Shorten text and format quantities |
+| `format_duration` | function | Milliseconds → duration text |
+| `console_script` | function | Interpreter directory → PATH → unchanged name |
+| `tally_outcomes` | function | Count failed/error/skipped/unknown lines |
+
+`render_result` and `record_table` are imported from `axm_ingot.render`, not
+from the package root. See the [API reference](docs/reference/api.md) for exact
+signatures, import paths and limitations, and the
+[temporary-workspace tutorial](docs/tutorials/getting-started.md) for a runnable
+example. Internal suite-discovery utilities live in `axm_ingot.suite`.
 
 ## Development
 

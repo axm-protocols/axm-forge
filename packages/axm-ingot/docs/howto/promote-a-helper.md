@@ -34,8 +34,8 @@ Before opening the PR, confirm every box:
 
 - [ ] **Two+ real consumers** copy-paste the logic today (Rule of Three).
 - [ ] **Stdlib-only** dependencies — nothing new enters `dependencies` (it stays `[]`).
-- [ ] The helper is **pure and defensive** — hostile inputs degrade to
-      `None`/`[]`/empty, they never raise. This is the leaf's core contract.
+- [ ] Inputs, I/O, exceptions and fallback values are explicit. Do not promise
+      arbitrary-object tolerance unless the implementation provides it.
 - [ ] A **frozen dataclass** (not Pydantic) for any value object it returns.
 - [ ] **Tests move with it** — the helper is tested *here*, once, so consumers
       stop re-testing the primitive.
@@ -49,7 +49,7 @@ Before opening the PR, confirm every box:
 Add the function/class to the relevant subpackage (e.g. `axm_ingot.uv`), export
 it in that subpackage's `__all__`, and — if it is top-level public — re-export it
 from `axm_ingot/__init__.py`. Move the *tests* alongside it (unit under
-`tests/unit/`, real-I/O scenarios under `tests/integration/`).
+`tests_axm_ingot/unit/`, real-I/O scenarios under `tests_axm_ingot/integration/`).
 
 ```python
 # src/axm_ingot/uv/__init__.py
@@ -78,7 +78,7 @@ Replace each copy-pasted implementation with an import:
 from axm_ingot.uv import my_new_helper
 ```
 
-Run each consumer's suite (`uv run --package <consumer> pytest`) — since the
+Run each consumer's suite from its package directory — since the
 primitive is now tested in `axm-ingot`, the consumer's own tests should only
 cover *its* integration, not re-test the helper.
 
@@ -91,7 +91,7 @@ bug fixed here is fixed everywhere.
 ### 5. Verify the leaf stayed a leaf
 
 Confirm `dependencies = []` is unchanged in `axm-ingot`'s `pyproject.toml`, then
-run the workspace gate:
+run the package suite from the workspace root:
 
 ```bash
 uv run --package axm-ingot --directory packages/axm-ingot pytest -x -q

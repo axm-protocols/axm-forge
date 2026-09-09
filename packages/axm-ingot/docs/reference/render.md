@@ -1,10 +1,10 @@
 # `axm_ingot.render` — compact `ToolResult` text primitives
 
 `axm_ingot.render` is a **stdlib-strict** toolbox for building the compact
-`text` face of an AXM `ToolResult`. Each AXM tool fills `data` (a Pydantic
-`model_dump`) but often leaves `text=None`, so the MCP server falls back to a
-verbose JSON dump. These six primitives compose into a few-line métier renderer
-that emits a token-cheap `text` instead.
+`text` face of an AXM `ToolResult`. Callers supply Python values and choose how to attach the returned string
+to their result. The module has no dependency on AXM or Pydantic. The six
+root-exported primitives below compose a domain-specific renderer; the generic
+walker and record table are additional submodule exports.
 
 Import them directly from the module:
 
@@ -19,15 +19,17 @@ from axm_ingot.render import (
 )
 ```
 
-All primitives are **pure and defensive**: `None` cells render as blank (never
-the literal `"None"`), empty inputs degrade to `""`, and nothing raises on
-hostile input.
+These primitives do not perform I/O for ordinary values. `compact_table` and
+`labeled_block` render `None` cells as blank; the generic walker instead uses
+an em dash. Inputs must follow the documented types. Conversion via `str()`
+can raise or invoke user-defined behavior, and primitives do not catch it.
+There is no common rule that every empty input produces an empty string.
 
 ---
 
 ## `header`
 
-```python
+```text
 header(tool: str, summary: str) -> str
 ```
 
@@ -50,7 +52,7 @@ métier renderer.
 
 ## `labeled_block`
 
-```python
+```text
 labeled_block(label: str, lines: Sequence[str | None]) -> str
 ```
 
@@ -77,7 +79,7 @@ lines rather than the literal `"None"`.
 
 ## `compact_table`
 
-```python
+```text
 compact_table(
     rows: Sequence[Sequence[object]],
     headers: Sequence[object] | None = None,
@@ -110,7 +112,7 @@ bar.py  12
 
 ## `truncate`
 
-```python
+```text
 truncate(text: str, limit: int) -> str
 ```
 
@@ -137,12 +139,13 @@ has at most `limit + 1` characters and ends with the ellipsis marker. A negative
 
 ## `format_count`
 
-```python
+```text
 format_count(n: int) -> str
 ```
 
 Render an item count, abbreviating thousands with `K`/`M`/`B` suffixes. Values
-under 1000 are rendered verbatim.
+with absolute value under 1000 are rendered verbatim. Negative values scale
+identically (`-1500` → `-1.5K`); the largest suffix is `B`.
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -161,12 +164,14 @@ under 1000 are rendered verbatim.
 
 ## `format_size`
 
-```python
+```text
 format_size(num_bytes: int) -> str
 ```
 
 Render a byte count in human units (base-1024), from `B` up to `PB`. Whole bytes
-have no decimal; larger units carry one decimal place.
+have no decimal; larger units carry one decimal place. Magnitude selects the
+band for negative values as well (`-2048` → `-2.0 KB`). The labels are `KB` etc.
+but the divisor is 1024. Values above the PB band remain expressed in PB.
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -180,3 +185,58 @@ have no decimal; larger units carry one decimal place.
 >>> format_size(2048)
 '2.0 KB'
 ```
+
+## `render_result`
+
+Import from `axm_ingot.render`; it is not re-exported at the root.
+
+```python
+from axm_ingot.render import render_result
+
+assert render_result("check", True) == "check → yes"
+assert render_result("check", {"ok": True}, label="result") == (
+    "check | result\nok=yes"
+)
+```
+
+Signature: `render_result(tool: str, data: object, *, label: str = "") -> str`.
+
+The first line is the tool name, with ` | label` when supplied. A scalar uses
+the arrow form above. Dictionaries retain insertion order; flat dictionaries
+use `key=value · key=value` on one line. Nested containers use indentation. Short scalar lists (up to eight values) render inline;
+homogeneous lists of at least two dictionaries with identical keys and scalar
+values use a record table. Other lists use bullet items. Empty lists/tuples render `(none)`; an empty dictionary renders `(empty)`. No terminal newline is added.
+
+Values use `str()`, except `None` → `—` and booleans → `yes`/`no`.
+Separators and embedded newlines are not escaped. Text does not preserve types
+or allow lossless round trips: for example `True` and `"yes"` look alike.
+
+Ordinary exceptions while rendering the body (including recursive payloads)
+are caught and return **the header only**, without an error indicator. This
+does not cover header construction with invalid tool/label objects, nor
+`BaseException` subclasses. Keep structured data for exact values and avoid
+using text alone to decide whether rendering succeeded.
+
+## `record_table`
+
+Signature: `record_table(rows: Sequence[object], keys: Sequence[str], *,
+indent: int = 0) -> list[str]`.
+
+```python
+from axm_ingot.render import record_table
+
+assert record_table([{"name": "demo", "ok": True}], ["name", "ok"]) == [
+    "name | ok", "demo | yes"
+]
+```
+
+Returns lines, not one string: join them with `"\n".join(...)`. The first
+line lists the selected keys with ` | `; each subsequent line projects one
+record onto those keys. Extra fields are omitted. Missing keys, `None`
+values and non-dictionary rows yield em-dash cells. Empty rows still produce
+the header. Each indent level adds two spaces.
+
+Direct calls do not verify homogeneity, scalar cells or escaping. Arbitrary
+object conversion can raise. Use `compact_table` for padded alignment and
+`record_table` for delimiter-separated records; neither is CSV or a safe
+machine-readable interchange format.

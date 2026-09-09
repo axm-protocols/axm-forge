@@ -8,14 +8,15 @@ removes the drift.
 
 ## `format_duration`
 
-```python
+```text
 format_duration(millis: float) -> str
 ```
 
 Render a millisecond duration as a short human string. Sub-second values render
 in integer milliseconds; the second, minute and hour bands render in their own
-unit, rounded (not truncated) to at most one decimal. Negative, non-numeric or
-non-finite input returns the fallback `"n/a"` without raising.
+unit, rounded (not truncated) to at most one decimal. Input is converted with `float()`. Negative or non-finite values and conversion
+`TypeError`/`ValueError` return `"n/a"`. Other exceptions, including overflow
+converting extremely large integers or custom conversion errors, can escape.
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -24,6 +25,7 @@ non-finite input returns the fallback `"n/a"` without raising.
 **Returns** — `str`, the short human duration, or `"n/a"` for invalid input.
 
 ```python
+>>> from axm_ingot import format_duration
 >>> format_duration(450)
 '450ms'
 >>> format_duration(1500)
@@ -35,3 +37,12 @@ non-finite input returns the fallback `"n/a"` without raising.
 >>> format_duration(-5)
 'n/a'
 ```
+
+## Band boundaries
+
+Bands are selected before rounding: below 1000ms uses integer truncation;
+1000–59999…ms uses seconds; 60000–3599999…ms uses minutes; 3600000ms and above
+uses hours. Thus `999.9` → `"999ms"`, `1000` → `"1.0s"` and `59999` →
+`"60.0s"`, rather than moving to the minute band. Numeric strings and booleans
+are accepted by the current float conversion even though the annotated input
+is `float`. No locale or day unit is applied.
