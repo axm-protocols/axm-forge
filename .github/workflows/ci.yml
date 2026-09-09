@@ -25,6 +25,13 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          # Pin the comparison base. Left unset, the action resolves it from the
+          # push event, which names whatever branch the commits arrived on --
+          # and a branch deleted after the fact makes every later run die with
+          # `couldn't find remote ref <branch>`, skipping the whole matrix.
+          # Measured: the same commit passed on 08/09 and failed on 09/09 with
+          # no code change, once `main-contributors-refresh` was removed.
+          base: main
           filters: |
             shared:
               - 'pyproject.toml'

@@ -27,6 +27,9 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          # Pin the comparison base -- see the note in ci.yml: an unset base is
+          # resolved from the push event and breaks once that branch is deleted.
+          base: main
           filters: |
             shared:
               - 'pyproject.toml'
