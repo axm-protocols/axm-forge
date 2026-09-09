@@ -1,10 +1,10 @@
 {
-  "score": 97,
+  "score": 94,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
-  "passed_count": 35,
+  "passed_count": 34,
   "failures": [
     {
       "name": "deps.dev_deps",
@@ -13,6 +13,14 @@
         "Missing: pytest-xdist"
       ],
       "fix": "Add pytest-xdist to [dependency-groups] dev."
+    },
+    {
+      "name": "docs.readme",
+      "message": "README missing 1 section(s)",
+      "details": [
+        "Missing: Features"
+      ],
+      "fix": "Add Features section(s) to README.md."
     }
   ]
 }

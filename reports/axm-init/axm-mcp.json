@@ -1,10 +1,10 @@
 {
-  "score": 97,
+  "score": 91,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
-  "passed_count": 35,
+  "passed_count": 33,
   "failures": [
     {
       "name": "deps.dev_deps",
@@ -13,6 +13,22 @@
         "Missing: pytest-xdist"
       ],
       "fix": "Add pytest-xdist to [dependency-groups] dev."
+    },
+    {
+      "name": "docs.readme",
+      "message": "README missing 2 section(s)",
+      "details": [
+        "Missing: Features, Installation"
+      ],
+      "fix": "Add Features, Installation section(s) to README.md."
+    },
+    {
+      "name": "docs.standalone_api_ref",
+      "message": "nav declares reference/api/ but standalone build cannot resolve it \u2014 missing 2 item(s)",
+      "details": [
+        "Missing locally: gen-files, literate-nav"
+      ],
+      "fix": "Add docs/gen_ref_pages.py + gen-files/literate-nav/mkdocstrings plugins so `mkdocs build --strict` passes standalone (do not rely on the workspace-root mkdocs.yml)."
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
-  "score": 80.0,
-  "grade": "B",
+  "score": 90.5,
+  "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
@@ -15,7 +15,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 98% (167/171)",
+      "message": "Docstring coverage: 98% (169/173)",
       "text": "     \u2022 axm_init/models/protocol_scaffold.py: model_name, factory_name, factory_name, graph_name",
       "fix_hint": "Add docstrings to public functions"
     },
@@ -69,8 +69,8 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 0/100 (13 high-complexity functions)",
-      "text": "\u2022 axm_init/tools/scaffold.py:InitScaffoldTool.execute cc=25 (D) cog=23 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_assembly_findings cc=21 (D) cog=20 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_validate_protocol_tree cc=14 (C) cog=20 [cc+cog]\n\u2022 axm_init/core/checker.py:_format_category_checks cc=9 (B) cog=17 [cog]\n\u2022 axm_init/checks/protocols.py:_validate_units cc=11 (C) cog=16 [cc+cog]\n\u2022 axm_init/models/protocol_scaffold.py:ProtocolScaffoldDecl._validate_component_references cc=12 (C) cog=16 [cc+cog]\n\u2022 axm_init/adapters/workspace_patcher.py:_find_vertical_yaml_list_range cc=12 (C) cog=16 [cc+cog]\n\u2022 axm_init/checks/workspace.py:check_pytest_testpaths cc=12 (C) cog=14 [cc]\n\u2022 axm_init/tools/reserve.py:InitReserveTool.execute cc=13 (C) cog=11 [cc]\n\u2022 axm_init/checks/protocols.py:check_protocols_resources cc=12 (C) cog=11 [cc]\n\u2022 axm_init/core/protocol_scaffolder.py:_preflight_protocol_plan cc=11 (C) cog=12 [cc]\n\u2022 axm_init/checks/protocols.py:_workspace_protocol_result cc=11 (C) cog=8 [cc]\n\u2022 axm_init/checks/protocols.py:_workspace_protocol_resources_result cc=11 (C) cog=8 [cc]",
+      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "text": "\u2022 axm_init/tools/scaffold.py:InitScaffoldTool.execute cc=25 (D) cog=23 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_assembly_findings cc=21 (D) cog=20 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_validate_protocol_tree cc=14 (C) cog=20 [cc+cog]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
