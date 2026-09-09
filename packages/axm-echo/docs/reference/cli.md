@@ -1,136 +1,112 @@
 # CLI Reference
 
+Echo declares `echo_code` and `echo_check` in the `axm.tools` entry-point
+group. Install axm-echo in the same environment as the generic `axm` command
+or MCP server. There is no separate `axm-echo` executable.
+
+```bash
+axm echo_code --help
+axm echo_check --help
+```
+
 ## Commands
 
 ### `axm echo_code`
 
-Detect cross-package code **echoes** — intent-equivalent duplicate symbols
-across the configured monorepo. The tool walks the scope, embeds every public
-documented symbol, finds cross-package pairs whose docstrings are semantically
-close, applies the v7 anti-signals, and prints the surviving **clusters** plus
-the demoted parallel-API / boilerplate buckets.
-
-The command is auto-registered from the `axm.tools` entry point, so the same
-implementation is reachable as an MCP tool and a DAG `tool_node` too.
+Find cross-package duplicate **candidates** by embedding signatures and
+docstrings, applying heuristics, then grouping surviving pairs.
 
 ```bash
-# Cluster echoes across the corpus (~/.axm/config.toml [echo] scope, or the cwd).
-axm echo_code
-
-# The default backend is neural "st" (MiniLM, in-process). Opt into the
-# pure-CPU tfidf backend to avoid loading torch.
-axm echo_code --backend tfidf
-
-# Raise the cosine floor for a candidate pair (default 0.55).
-axm echo_code --threshold 0.7
-
-# Show only the 10 nearest actionable clusters (the total stays in the header).
-axm echo_code --top-n 10
-
-# Tighten the over-merge guard (default 50): drop any component above 20.
-axm echo_code --max-cluster-size 20
+AXM_ECHO_WORKSPACE_ROOTS="$PWD" axm echo_code --backend tfidf --top-n 10
+axm echo_code --threshold 0.7 --max-cluster-size 20
+axm echo_code --backend tfidf --json-output
 ```
 
-| Option | Default | Description |
-| -- | -- | -- |
-| `--backend` | `st` | Embedding backend: `st` (neural MiniLM, the in-process default) or `tfidf` (pure CPU, no torch). |
-| `--threshold` | `0.55` | Minimum cosine similarity for a candidate pair. |
-| `--top-n` | `30` | Bound the report to the N nearest *non-acknowledged* clusters. The neural pass still finds them all — only the display is bounded; the total count stays in the header. |
-| `--max-cluster-size` | `50` | Reject any connected component larger than this as a union-find over-merge (a structural-conformity signal, not a duplicate echo — a genuine duplicate is 2-5 members). |
+| Option | Default | Contract |
+|---|---|---|
+| `--backend` | `st` | `st` (MiniLM) or `tfidf`. |
+| `--threshold` | `0.55` | Inclusive cosine floor; must be in [0, 1]. |
+| `--top-n` | `30` | Maximum displayed non-acknowledged clusters; integer ≥ 1. Does not reduce the scan. |
+| `--max-cluster-size` | `50` | Components larger than this integer ≥ 1 are discarded, not split. |
+| `--json-output` | false | Generic AXM option: print the tool's data dictionary. |
 
-Output names the tool, the live/shown/actionable cluster counts, the corpus
-size, and the demoted buckets, then lists each shown cluster's members with
-their package and docstring first line:
-
-```text
-echo_code | 8 clusters, 3 shown (8 actionable) | corpus 16 symbols | 0 parallel-API · 0 boilerplate (demoted)
-
-cluster 1  sim=1.000  (2 symbols)
-  axm_commons.errors.RateLimitError  [axm-commons]  “Raised when the upstream API rate limit has been exceeded.”
-  axm_bib.errors.RateLimitError  [axm-bib]  “Raised when the upstream API rate limit has been exceeded.”
-```
+Clusters are sorted by their **highest edge score**, not their mean or
+minimum similarity. Each demoted bucket contains at most 50 pairs in
+`data`; separate counts retain the totals. The text report shows cluster
+members and first-line docstrings, but omits hashes, waiver errors and full
+demoted-pair details. Use JSON for [complete result contracts](results.md).
 
 #### Acknowledging a cluster (waiver)
 
-A genuine cross-package echo that is *intended* (a parallel API, a deliberate
-wrapper) is noise on every run. Acknowledge it in the **scan-root** `pyproject.toml`
-(the first workspace root in `~/.axm/config.toml` `[echo]`) so it drops out of the
-actionable top-N. Each entry is a 12-hex `cluster_hash` (printed in the tool's
-`data.clusters[*].cluster_hash`) plus a non-empty `reason`:
-
-```toml
-[[tool.axm-echo.acknowledged]]
-hash = "ca29d81fb73c"
-reason = "parallel API, intended cross-package duplication"
-```
-
-An acknowledged *live* cluster is marked `acknowledged` and excluded from the
-top-N and the `actionable_count`. The mechanism is self-cleaning: a waiver whose
-hash no longer matches any live cluster is reported under
-`data.stale_acknowledged` ("this waiver no longer serves a purpose, retire it")
-— informative, never blocking. A malformed entry (bad hash, empty reason) is
-rejected gracefully into `data.acknowledged_errors`; the run never crashes.
+See [review and acknowledge clusters](../howto/review-clusters.md) for the
+scan-root ownership rule, hash workflow and stale entries. Echo reads waivers;
+it never writes or removes them.
 
 ### `axm echo_check`
 
-Retrieve the public symbols closest to a free-form **intention**, ranked by
-semantic similarity across the whole monorepo. Before writing a new helper,
-ask `echo_check` what already exists: it embeds the intention, returns the
-top-k nearest documented symbols with their docstrings, and tags each with a
-location **verdict** so you know whether to reuse the canonical symbol, reuse
-one in place, or promote it.
-
-The verdict is a *location* tag, not a decision: a high score means "this is
-the closest existing promise", never "use this". The use / extend / nothing
-call is left to the calling agent — a partial match may legitimately score
-above an exact one.
-
-Like `echo_code`, the command is auto-registered from the `axm.tools` entry
-point, so the same implementation is reachable as an MCP tool and a DAG
-`tool_node` too.
+Retrieve documented symbols matching a free-form intention.
 
 ```bash
-# Retrieve the closest existing symbols for an intention.
-axm echo_check --intention "HTTP request with retry and backoff"
-
-# The default backend is neural "st" (MiniLM, in-process). Opt into the
-# pure-CPU tfidf backend to avoid loading torch.
-axm echo_check --intention "slugify a string" --backend tfidf
-
-# Raise the retrieval floor / cap the number of candidates.
-axm echo_check --intention "parse a CSV file" --threshold 0.5 --k 3
+AXM_ECHO_WORKSPACE_ROOTS="$PWD" axm echo_check \
+  --intention "parse a CSV document into rows" --backend tfidf --k 3
+axm echo_check --intention "retry an HTTP request" --json-output
 ```
 
-| Option | Default | Description |
-| -- | -- | -- |
-| `--intention` | `""` | Free-form description of the behaviour to implement. |
-| `--backend` | `st` | Embedding backend: `st` (neural MiniLM, the in-process default) or `tfidf` (pure CPU, no torch). |
-| `--k` | `10` | Maximum number of candidates to return. |
-| `--threshold` | `0.30` | Minimum cosine similarity for a candidate to be retrieved. Below it the candidate is dropped, so a novel intention returns an empty list rather than a spurious match. |
+| Option | Default | Contract |
+|---|---|---|
+| `--intention` | empty string | Must contain non-whitespace text. |
+| `--backend` | `st` | `st` or `tfidf`. |
+| `--k` | `10` | Maximum candidate count; integer ≥ 1. |
+| `--threshold` | `0.30` | Inclusive cosine floor in [0, 1]. |
+| `--json-output` | false | Print the data dictionary, including full candidate docstrings. |
 
-The verdict is set by the candidate's package: a hit in `axm-ingot` is
-`reuse_canonical`; anything else is `reuse_in_place` (with a `promotable→ingot`
-hint when the symbol is documented well enough to be worth canonicalising).
+An empty candidate list means no included symbol crossed the threshold. It
+does not establish novelty. `reuse_canonical` depends only on the package
+directory name `axm-ingot`. `promotable` checks docstring length, not purity,
+dependency compatibility or API stability. See [planning](../howto/reuse-check-in-planning.md).
 
-Output names the tool, the intention, the candidate count, and the corpus
-size, then lists each ranked candidate with its package, similarity, verdict
-and docstring first line:
+## MCP and Python
+
+The same inputs use snake_case over MCP, for example `top_n` and
+`max_cluster_size`. In an AXM façade client:
 
 ```text
-echo_check | “HTTP request with retry and backoff” | 1 candidates | corpus 2 symbols
-
-1. axm_ingot.net.fetch_url  [axm-ingot]  sim=0.762  reuse_canonical
-   "Perform an HTTP request, retrying with backoff on transient errors."
+axm_call(name="echo_check", arguments={
+  "intention": "retry an HTTP request",
+  "backend": "tfidf",
+  "k": 3
+})
 ```
 
-When nothing crosses the threshold the report says so explicitly, rather than
-surfacing a weak false match:
+The façade renders compact text. To consume full result data in Python:
 
-```text
-echo_check | “render a mermaid sequence diagram” | 0 candidates | corpus 2 symbols
-(no candidate above threshold — likely novel)
+```python
+from axm_echo.tools import EchoCheckTool
+
+result = EchoCheckTool().execute(
+    intention="retry an HTTP request",
+    backend="tfidf",
+)
+if not result.success:
+    raise RuntimeError(result.error)
+for candidate in result.data["candidates"]:
+    print(candidate["qualname"], candidate["doc_full"])
 ```
+
+This call uses the [configured scope](../howto/configure-scope.md).
+`EchoCodeTool` is exported from `axm_echo`; `EchoCheckTool` is available
+from `axm_echo.tools` and its registered tool name, not the package root.
+
+Both tools return `ToolResult(success=False, error=...)` for supported input
+validation failures or exceptions during execution. The generic CLI exits
+nonzero on tool failure and writes errors to stderr. JSON mode prints only
+`data`, so inspect the exit code as well as stdout. A successful result may
+still be empty or contain
+waiver errors: success is execution status, not a quality verdict. Python
+callers must respect the annotated input types; not every wrong type is
+converted into a ToolResult. Extra `**kwargs` are ignored by the tool
+implementation, so misspelled Python/MCP options may silently do nothing.
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+See [Python API](api/index.md) for library defaults and exports.

@@ -1,16 +1,50 @@
-site_name: "axm-echo"
+site_name: axm-echo
+site_description: Similarity and reuse retrieval over documented Python symbols
 docs_dir: docs
-
+theme:
+  name: material
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: true
+            heading_level: 3
+            signature_crossrefs: false
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
 nav:
   - Home: index.md
   - Tutorials:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
-    - howto/index.md
+    - Overview: howto/index.md
     - Configure the scope: howto/configure-scope.md
     - Reuse check in planning: howto/reuse-check-in-planning.md
+    - Review clusters: howto/review-clusters.md
+    - Structural similarity: howto/structural-similarity.md
   - Reference:
-    - CLI: reference/cli.md
-    - Python API: reference/api/
+    - CLI and tools: reference/cli.md
+    - Result contracts: reference/results.md
+    - Python API: reference/api/index.md
   - Explanation:
     - Architecture: explanation/architecture.md
