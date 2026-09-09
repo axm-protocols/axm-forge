@@ -1,110 +1,82 @@
 # Architecture
 
-## Overview
+## From an input to a measured result
 
-`axm-smelt` follows a layered architecture with clear separation of concerns:
+`axm-smelt` performs deterministic transformations and token counting.
+It does not ask an LLM to summarize content. The useful question is whether
+a chosen representation saves tokens **and remains suitable for its consumer**.
 
 ```mermaid
-graph TB
-    CLI["AXM CLI"] --> ToolRegistry["axm.tools registry"]
-    MCP["MCP"] --> ToolRegistry
-    DAG["DAG node"] --> ToolRegistry
-    ToolRegistry --> Tools["smelt / smelt_check / smelt_count"]
-    Tools --> InputSource["explicit data / input_path / stdin"]
-    InputSource --> Pipeline["smelt() / check() / count()"]
-    Pipeline --> Detector["detect_format()"]
-    Pipeline --> Counter["count() — tiktoken"]
-    Pipeline --> Strategies["Strategy pipeline"]
-    Strategies --> StrategyRegistry["_REGISTRY / _PRESETS"]
-    Pipeline --> Report["SmeltReport"]
+flowchart TD
+    Registry["AXM CLI / MCP / tool_node"] --> Tools["Three registered AXMTools"]
+    Tools --> Source["data / UTF-8 file / stdin"]
+    Source --> API["smelt / check / count"]
+    Python["Python caller"] --> API
+    API --> Detect["Detect input format"]
+    Detect --> Pipeline["Strategy candidates"]
+    Pipeline --> Guard["Count tokens and accept or discard"]
+    Guard --> Report["SmeltReport / ToolResult"]
 ```
 
 ## Layers
 
-### 1. Public API (`__init__.py`)
+- The root `axm_smelt` module exports the [public functions and models](../reference/contracts.md#public-imports).
+- `tools/` adapts input sources and catches exceptions into `ToolResult`.
+  The same registrations supply generated CLI commands and MCP/DAG access.
+- `core/pipeline.py` resolves input/strategy selection and constructs reports.
+- `core/detector.py` selects the original format. `core/counter.py` resolves a
+  tiktoken encoding and caches it by requested model name in the process.
+- `strategies/` holds the internal strategy implementations and registry.
+  A strategy takes and returns a `SmeltContext`.
 
-Three exported functions:
+Files are read only when an input path is selected. Tools do not persist
+compacted data; callers decide whether to keep it.
 
-- **`smelt(text?, strategies?, preset?, *, parsed?)`** — run the pipeline and return a `SmeltReport`. Accepts either `text` (str) or `parsed` (dict/list); at least one is required.
-- **`check(text?, *, parsed?)`** — dry-run every registered strategy and return per-strategy savings estimates. Same input contract as `smelt`.
-- **`count(text, model?)`** — count tokens via tiktoken (`o200k_base` by default)
+## Acceptance is local and greedy
 
-### 2. AXMTools (`tools/`)
+For each selected strategy, the pipeline counts the candidate and accepts it
+only if it reduces tokens, or has equal tokens with fewer characters. The
+next strategy sees the last **accepted** context. Rejected candidates are not
+chained, even if they could enable a later reduction.
 
-`SmeltTool`, `SmeltCheckTool`, and `SmeltCountTool` are registered once under the `axm.tools` entry point group. That registry supplies MCP, AXM CLI, and DAG-node access without a second interface layer. Their shared input resolver applies one deterministic precedence rule: explicit non-empty `data`, then the UTF-8 file named by `input_path`, then non-interactive stdin, then the historical empty default. When `data` is already a dict or list, the compaction and analysis tools pass it via `parsed=` to skip the serialize→deserialize round-trip.
+This guard prevents token regression for the pipeline's encoding. It does not
+prove semantic equivalence, parseability, or globally optimal savings.
+`aggressive` therefore does not guarantee a smaller output than `moderate`.
+A shorter equal-token output is accepted with zero reported token savings.
 
-The former Cyclopts façade (`cli.py`), standalone `axm-smelt` executable, and `python -m axm_smelt` module were removed. File input is handled by the shared `input_path` contract; output persistence remains the caller's responsibility. No compatibility alias remains.
+## Representations and ordering
 
-### 3. Pipeline (`core/pipeline.py`)
+For raw text, the baseline is exactly the input string. For `parsed=`, it is
+a compact Unicode JSON serialization with insertion-order keys. Savings are
+measured against that working text, not an artificial pretty-printed version.
 
-`smelt()` composes three helpers (`resolve_input` and `resolve_strategies` are module-level public; `_apply_strategies` is private):
+JSON-aware strategies reuse parsed objects where available. Text transforms
+can invalidate that representation and require a later parse attempt.
+Several JSON strategies serialize sorted keys, while the working baseline and
+some other transformations preserve insertion order. The guard can reject a
+sorted serialization: **the final result is not a canonical JSON encoding**.
 
-1. **`resolve_input(text, parsed)`** — normalizes inputs into `(text, parsed)`. If `parsed` is provided it is JSON-serialized; if neither argument is given, raises `ValueError`
-2. **`resolve_strategies(strategies, preset)`** — returns strategy instances from explicit names, a preset name, or the `"safe"` default
-3. **`_apply_strategies(ctx, strats, current_tokens)`** — applies strategies in order with a token-count guard: each `strategy.apply(ctx)` receives and returns a `SmeltContext`; the strategy is only accepted if it strictly reduces tokens (or reduces text length at equal tokens). Strategies that regress are silently discarded
+`SmeltContext` is an internal frozen dataclass with cached representations.
+Freezing fields does not make a caller-supplied dict/list deeply immutable;
+code using that internal type must not mutate its parsed value. The public
+pipeline's built-in strategies construct transformed values rather than editing
+the caller's object.
 
-Between helper calls, `smelt()` detects the format via `detect_format_parsed()` (JSON is probed inline to capture the already-parsed object; the remaining probes are `try_xml`, `try_yaml`, `try_markdown`), counts input tokens, and builds the initial `SmeltContext`. After `_apply_strategies` returns, it counts output tokens and computes `savings_pct`.
+## Analysis is a separate report
 
-The **savings baseline** is the pipeline's working text in both input paths. For the `text=` path the baseline is the provided raw string, unchanged. For the `parsed=` path there is no user-supplied textual form, so `resolve_input` produces the compact serialization `json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)` and that compact working text *is* the baseline — there is no pretty `indent=2` reference form. Measuring against this single honest baseline means a `parsed=` input with no applicable strategy yields `savings_pct` 0 rather than a fabricated gain against an indented dump the caller never saw. This matches the `smelt` docstring semantics at `pipeline.py:100-113`. `report.original` carries the same compact serialization (the pipeline's working text).
+`check` tries each registry strategy independently against the original
+context, then measures the default safe chain. It retains the original text
+and token counts in its report while exposing the projected safe savings.
+The tool wrapper returns only isolated estimates, input format, and count;
+see [report versus tool data](../reference/contracts.md).
 
-`check()` runs every registered strategy independently on the original `SmeltContext` and records per-strategy savings without chaining. Only strategies with positive savings (> 0%) are included in `strategy_estimates`; strategies that regress or break even are omitted.
+## Boundaries
 
-### 4. Strategies (`strategies/`)
+There is no streaming path or resource budget. Text/JSON parsing and candidates
+are held in memory. The strategy loop treats a strategy's `RecursionError`
+as a no-op, but other exceptions and errors outside that loop can propagate.
+The tool wrapper returns failures as structured errors.
 
-Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ctx) -> SmeltContext`). Strategies are registered in `_REGISTRY` and composed into presets via `_PRESETS`:
-
-**Serialization key ordering** — the strategy and context serialization sites use a single canonical policy: `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. The structural strategies (`minify`, `drop_nulls`, `round_numbers`, `flatten`, `dedup_values_with_refs`) emit object keys in sorted order, matching `SmeltContext.text`, so a value round-tripped through a strategy has the same byte layout as the same value via `SmeltContext.text`. (`resolve_input` produces the pipeline's *working text* with compact separators but insertion order; the first `minify` in every preset re-canonicalizes it, so the reported output is stable.)
-
-| Preset | Strategies |
-|---|---|
-| `safe` | `minify`, `collapse_whitespace` |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
-
-| Strategy class | Name | Category |
-|---|---|---|
-| `MinifyStrategy` | `minify` | whitespace |
-| `CollapseWhitespaceStrategy` | `collapse_whitespace` | whitespace |
-| `CompactTablesStrategy` | `compact_tables` | whitespace |
-| `DropNullsStrategy` | `drop_nulls` | structural |
-| `FlattenStrategy` | `flatten` | structural |
-| `TabularStrategy` | `tabular` | structural |
-| `DedupValuesStrategy` | `dedup_values_with_refs` | structural |
-| `StripQuotesStrategy` | `strip_quotes` | cosmetic |
-| `StripHtmlCommentsStrategy` | `strip_html_comments` | cosmetic |
-| `RoundNumbersStrategy` | `round_numbers` | cosmetic |
-
-### 5. Format Detection (`core/detector.py`)
-
-Heuristic detection returns a `Format` enum value (`JSON`, `YAML`, `XML`, `TOML`, `CSV`, `MARKDOWN`, `TEXT`). Strategies that are format-specific (e.g., `minify` for JSON) check the first character before attempting to parse.
-
-### 6. Models (`core/models.py`)
-
-`SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. `SmeltContext.text` derives from `parsed` via the canonical sorted-key serialization (`sort_keys=True`, compact separators), the same policy every strategy applies. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model carrying the compaction metrics plus the `counter_backend` used. `Format` — string enum.
-
-## Data Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant API as smelt() / AXMTool
-    participant Pipeline
-    participant Strategies
-
-    User->>API: smelt(text, preset="moderate")
-    API->>Pipeline: resolve_input(text, parsed)
-    Pipeline-->>API: (text, parsed)
-    API->>Pipeline: detect_format(text)
-    API->>Pipeline: count(text) -> original_tokens
-    API->>Pipeline: resolve_strategies(None, "moderate")
-    Pipeline-->>API: strats
-    Pipeline->>Pipeline: SmeltContext(text, format)
-    API->>Pipeline: _apply_strategies(ctx, strats, original_tokens)
-    loop For each strategy in strats
-        Pipeline->>Strategies: strategy.apply(ctx)
-        Strategies-->>Pipeline: ctx (accepted if tokens decrease, else discarded)
-    end
-    Pipeline-->>API: (ctx, applied)
-    Pipeline->>Pipeline: count(ctx.text) -> compacted_tokens
-    Pipeline-->>User: SmeltReport
-```
+The report's `format` always describes the **input**. A table or unquoted-key
+output may still be labelled `json`; downstream consumers must validate the
+actual output they use.

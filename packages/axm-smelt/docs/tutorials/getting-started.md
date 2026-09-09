@@ -1,28 +1,27 @@
 # Getting Started
 
-This tutorial walks you through installing `axm-smelt` and compacting your first
-payload through its stable Python API.
+Compact a JSON payload, verify its meaning, and compare a more destructive
+preset. You need Python 3.12+ and an environment containing `axm-smelt`.
 
-## Prerequisites
+## Install
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+From an existing uv project:
 
 ```bash
 uv add axm-smelt
 ```
 
-Or with pip:
+Run the Python snippets in that environment (for example `uv run python`).
+With pip, install into an activated virtual environment:
 
 ```bash
 pip install axm-smelt
 ```
 
-## Step 1: Compact from Python
+## Step 1: Compact JSON and verify the result
 
 ```python
+import json
 from axm_smelt import smelt
 
 data = """{
@@ -30,54 +29,67 @@ data = """{
   "age": 30,
   "notes": null
 }"""
-report = smelt(data, preset="moderate")
-
+report = smelt(data)
+assert json.loads(report.compacted) == json.loads(data)
+assert report.compacted_tokens <= report.original_tokens
 print(report.compacted)
-print(f"{report.savings_pct:.1f}% saved")
+print(f"{report.savings_pct:.2f}% saved")
 print(report.strategies_applied)
 ```
 
-The report carries both the compacted value and the measured token counts, so
-callers can decide whether to keep the transformation.
+The default preset is `safe`. This example verifies JSON values, not original
+bytes or key order. The name does not promise lossless XML/YAML/Markdown
+compaction; [preset trade-offs](../howto/presets.md) explain the differences.
 
-## Step 2: Analyze token waste
-
-Use `check` to estimate each strategy without modifying the input:
+## Step 2: Measure alternatives
 
 ```python
 from axm_smelt import check
 
-report = check(data)
-for strategy, savings in report.strategy_estimates.items():
-    print(f"{strategy}: {savings:.1f}%")
+analysis = check(data)
+for strategy, savings in analysis.strategy_estimates.items():
+    print(f"{strategy}: {savings:.2f}% in isolation")
+assert analysis.compacted == data
+assert analysis.savings_pct == report.savings_pct
 ```
 
-## Step 3: Count tokens
+Estimates are independent; do not sum them. The cumulative `savings_pct`
+belongs to the safe pipeline.
+
+## Step 3: Inspect a structural transform
+
+```python
+reduced = smelt(data, strategies=["minify", "drop_nulls"])
+assert "notes" not in json.loads(reduced.compacted)
+print(reduced.compacted)
+```
+
+Removing a null field changes the object. Decide whether that is acceptable
+before sending it to a consumer. Neither call overwrites the source.
+
+## Step 4: Count and use the CLI
 
 ```python
 from axm_smelt import count
 
-tokens = count("hello world")
-print(tokens)
+print(count("hello world"))
 ```
 
-## Step 4: Discover the AXMTool surfaces
-
-The package registers `smelt`, `smelt_check`, and `smelt_count` once under
-`axm.tools`. That registry provides MCP, AXM CLI, and DAG-node access without
-a separate `axm-smelt` executable:
+In your uv project:
 
 ```bash
-axm smelt --help
-axm smelt_check --help
-axm smelt_count --help
+printf '{"name": "Alice", "notes": null}\n' | uv run axm smelt --json-output
+uv run axm smelt_check --help
+uv run axm smelt_count --data 'hello world'
 ```
 
-For structured agent calls, continue with [Use via MCP](../howto/mcp.md).
+The plain CLI renders a header and payload; `--json-output` renders the data
+mapping. Counts use a tiktoken encoding, not a full model-request billing
+estimate.
 
-## Next Steps
+## Next steps
 
-- [Compact Data](../howto/compact.md) — Python API and AXMTool access
-- [Use Strategies](../howto/strategies.md) — Apply individual strategies
-- [Use Presets](../howto/presets.md) — Choose the right preset
-- [Strategy Catalog](../explanation/strategies.md) — Detailed strategy reference
+- [Compact and save text](../howto/compact.md)
+- [Choose strategies](../howto/strategies.md)
+- [Use MCP or DAG nodes](../howto/mcp.md)
+- [Consult the Python/tool contract](../reference/contracts.md)

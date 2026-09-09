@@ -1,64 +1,51 @@
 # Analyze Token Waste
 
-Use `check` to analyze a payload and see how much each strategy would save — without modifying the input.
+Use `check` to measure a payload before choosing a transformation.
 
-## AXMTool
+## Compare estimates with the default pipeline
 
-Analysis is exposed as the `smelt_check` AXMTool through MCP, the AXM CLI, and
-DAG nodes:
+```python
+from axm_smelt import check, smelt
 
-Redirect text to standard input or designate a UTF-8 file:
+data = '{"name": "Alice", "notes": null}'
+report = check(data)
+for strategy, savings in report.strategy_estimates.items():
+    print(f"{strategy}: {savings:.2f}% in isolation")
+print(f"Safe pipeline: {report.savings_pct:.2f}%")
+assert report.compacted == data
+assert report.savings_pct == smelt(data).savings_pct
+```
+
+Each estimate applies one strategy to the original input. Positive reductions
+alone are included and rounded to two decimals. They overlap, so **do not add
+them**. A structural strategy can also save whitespace by serializing JSON.
+An absent estimate can mean inapplicable, unchanged, equal-token, or larger output.
+
+`report.savings_pct` measures the chained **safe** preset; it does not estimate
+`moderate` or `aggressive`. To evaluate those, call `smelt(data, preset=...)`
+and inspect the returned text. Neither function mutates your source object.
+
+## From CLI or MCP
 
 ```bash
-printf '{"name": "Alice", "notes": null}\n' | axm smelt_check
+printf '{"name": "Alice", "notes": null}\n' | axm smelt_check --json-output
 axm smelt_check --input-path ./payload.json
 ```
 
-You can also provide the payload as the tool's `data` input. Input is resolved
-in this order: explicit data, `--input-path`, then non-interactive standard
-input. Its `ToolResult` reports the detected format, token count, isolated
-strategy estimates, and real cumulative savings. There is no standalone
-`axm-smelt check` command or `--file` shim.
+The tool returns `format`, `tokens`, and `strategy_estimates`.
+**Cumulative savings is available in Python's report only.** To obtain actual
+pipeline metrics through MCP/CLI, call `smelt` with the chosen preset.
+The text “no waste detected” means no registered strategy produced a positive
+isolated reduction; it does not mean the content is minimal or semantically safe.
 
-Only strategies with positive savings are included — strategies that would
-produce no savings or increase tokens are filtered out.
+## Difference from smelt
 
-## Isolated estimates vs. real cumulative gain
-
-The per-strategy `strategy_estimates` are measured **in isolation**, each against
-the unmodified input. They are **independent and non-additive**: summing them
-overstates the achievable reduction, because strategies overlap (for example
-`minify` already removes whitespace that `collapse_whitespace` would also target).
-
-For the figure you can actually expect, read `report.savings_pct`. It is the
-**real cumulative gain** obtained by chaining the default strategy set (the
-`safe` preset — exactly what `smelt(text)` applies with no explicit strategies),
-so `check(text).savings_pct == smelt(text).savings_pct`. Already-minified input
-yields `savings_pct == 0`.
-
-## Python API
-
-```python
-from axm_smelt import check
-
-report = check(data)
-
-print(f"Format: {report.format.value}")
-print(f"Tokens: {report.original_tokens}")
-
-for strat, pct in report.strategy_estimates.items():
-    if pct > 0:
-        print(f"  {strat}: {pct:.1f}%")
-```
-
-## Difference from `smelt`
-
-| | `check` | `smelt` |
+| Report behavior | `check` | `smelt` |
 |---|---|---|
-| Modifies input | No | Yes |
-| Returns `compacted` | Input unchanged | Compacted text |
-| `strategy_estimates` | Populated (isolated, non-additive) | Empty |
-| `savings_pct` | Real cumulative gain (default strategy set) | Real cumulative gain |
-| `strategies_applied` | Always `[]` | Strategies that changed the output |
+| `compacted` | Input unchanged | Accepted output text |
+| `compacted_tokens` | Input count | Output count |
+| `strategy_estimates` | Positive isolated estimates | Empty |
+| `savings_pct` | Projected safe pipeline gain | Actual selected pipeline gain |
+| `strategies_applied` | Empty | Accepted transforms |
 
-Use `check` to decide which preset or strategies to use, then call `smelt` to apply them.
+Continue with [presets](presets.md) and [report contracts](../reference/contracts.md).

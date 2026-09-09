@@ -1,11 +1,13 @@
 # How-To Guides
 
-Task-oriented guides for common workflows.
+Choose the task you need to complete:
 
-## Available Guides
+- [Compact Data](compact.md) — Use text or parsed objects and save the returned payload.
+- [Use Strategies](strategies.md) — Select explicit transformations with runnable examples.
+- [Use Presets](presets.md) — Choose acceptable changes and compare actual outputs.
+- [Analyze Token Waste](check.md) — Interpret isolated estimates and cumulative savings.
+- [Use via MCP and DAG Nodes](mcp.md) — Call the installed registry tools and map outputs.
 
-- [Compact Data](compact.md) — Reduce token count via CLI or Python API
-- [Use Strategies](strategies.md) — Apply individual strategies with examples
-- [Use Presets](presets.md) — Choose a preset and understand the trade-offs
-- [Analyze Token Waste](check.md) — Inspect per-strategy savings without transforming
-- [Use via MCP](mcp.md) — Call the compaction tool from AI agents
+For a first guided example, start with the [tutorial](../tutorials/getting-started.md).
+For exact arguments and fields, use the [contracts](../reference/contracts.md)
+or [CLI reference](../reference/cli.md).

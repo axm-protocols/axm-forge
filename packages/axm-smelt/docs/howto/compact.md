@@ -1,65 +1,66 @@
 # Compact Data
 
-Reduce token count through the Python API or the registered `smelt` AXMTool.
+Choose text input when whitespace is part of the baseline, or parsed JSON
+when the object is already in memory.
 
-## AXMTool access
-
-Compaction is registered once as the `smelt` AXMTool. That declaration powers
-MCP, the AXM CLI, and DAG nodes; there is no standalone `axm-smelt compact`
-command.
-
-Redirect text to standard input or designate a UTF-8 file:
-
-```bash
-printf '{"name": "Alice", "notes": null}\n' | axm smelt
-axm smelt --input-path ./payload.json
-```
-
-Pass `data`, `strategies`, and `preset` as tool inputs. Input is resolved in this
-order: explicit data, `--input-path`, then non-interactive standard input. The
-tool returns the compacted value and metrics in a structured `ToolResult`;
-persisting that output remains the caller's responsibility. If the designated
-path does not exist or is not valid UTF-8, the command exits with a non-zero
-status and a diagnostic that names the path. See [Use via MCP](mcp.md) for a
-complete programmatic example.
-
-## Python API
-
-### Default preset (safe)
+## Compact text
 
 ```python
 from axm_smelt import smelt
 
-report = smelt('{\n  "name": "Alice",\n  "age": 30\n}')
-print(report.compacted)        # {"name":"Alice","age":30}
-print(report.savings_pct)      # 35.71...
-print(report.original_tokens)  # 14
-print(report.compacted_tokens) # 9
+data = '{\n  "name": "Alice",\n  "age": 30\n}'
+report = smelt(data)
+print(report.compacted)
+print(report.original_tokens, report.compacted_tokens)
+print(f"{report.savings_pct:.2f}% saved")
+assert report.compacted_tokens <= report.original_tokens
 ```
 
-### With a preset
+The default `safe` preset still changes representation. Review
+[format-specific limits](../explanation/strategies.md#minify) for XML, YAML,
+and Markdown before using the result in a parser or renderer.
+
+## Compact an existing object
 
 ```python
-report = smelt(data, preset="moderate")
-print(report.strategies_applied)  # ['minify', 'drop_nulls', ...]
+from axm_smelt import smelt
+
+payload = {"name": "Alice", "notes": None}
+report = smelt(parsed=payload, strategies=["minify", "drop_nulls"])
+assert payload["notes"] is None
+print(report.original)   # Compact JSON baseline, before the strategies
+print(report.compacted)
 ```
 
-### With explicit strategies
+A nonempty strategy list overrides `preset`; an empty list falls back to
+the preset/default. Only accepted transforms appear in `strategies_applied`.
+A selection is not a guarantee that each strategy will be applied.
+
+## Save only the compacted text
+
+This example writes a **separate output file** in the current directory:
 
 ```python
-report = smelt(data, strategies=["minify", "drop_nulls"])
+from pathlib import Path
+from axm_smelt import smelt
+
+source = Path("payload.json").read_text(encoding="utf-8")
+report = smelt(source)
+Path("payload.compacted.txt").write_text(report.compacted, encoding="utf-8")
 ```
 
-## SmeltReport fields
+For a JSON consumer, validate the parsed result against the source before
+writing it. `moderate` and `aggressive` can change shape, values, and syntax.
 
-| Field | Type | Description |
-|---|---|---|
-| `original` | `str` | Input text |
-| `compacted` | `str` | Compacted text |
-| `original_tokens` | `int` | Token count before |
-| `compacted_tokens` | `int` | Token count after |
-| `savings_pct` | `float` | Percentage saved |
-| `format` | `Format` | Detected input format |
-| `strategies_applied` | `list[str]` | Strategies that changed the output |
-| `strategy_estimates` | `dict[str, float]` | Per-strategy savings estimates (from `check` only) |
-| `counter_backend` | `CounterBackend` | Token-counter backend used (always `tiktoken`; retained as the seam for a future tokenizer backend) |
+## Use the CLI
+
+In an activated environment containing the package (or with `uv run`):
+
+```bash
+printf '{"name": "Alice", "notes": null}\n' | axm smelt
+axm smelt --input-path ./payload.json --preset moderate --json-output
+```
+
+Plain stdout includes a header. JSON output contains the compacted string and
+metrics; extract `compacted` if you need just the payload.
+See [CLI argument encoding](../reference/cli.md) and [all report fields](../reference/contracts.md#smeltreport).
