@@ -1,93 +1,116 @@
-# CLI Reference
+# CLI reference
 
 ## The `axm` Command
 
-`axm` is a thin wrapper that autodiscovers commands from installed AXM packages.
-
 ```bash
-axm              # list available commands (or show install hints)
-axm <command>    # run a discovered command
-axm --version    # print the installed axm version (also -V), exit 0
+axm
+axm --help
+axm --version
+axm -V
 ```
+
+No arguments or root help prints the installed command catalog without loading
+tool implementations. Version flags are recognized as the first argument and
+print the installed `axm` version. Unknown commands exit with code 2:
+the diagnostic goes to stderr and the catalog to stdout.
 
 ## Available Commands
 
-Commands depend on which AXM packages are installed:
+`axm` declares its launcher under `project.scripts`; it declares no tool
+entry points itself. The current environment supplies the catalog through
+`axm.tools`. Do not assume a fixed command count.
 
-| Command | Package | Description |
-|---|---|---|
-| `axm init_scaffold` | `axm-init` | Scaffold a new project |
-| `axm init_check` | `axm-init` | Check project conformity |
-| `axm init_reserve` | `axm-init` | Reserve a PyPI package name |
-| `axm audit` | `axm-audit` | Code quality audit |
-| `axm-bib search` | `axm-bib` | Search papers |
-| `axm-bib resolve` | `axm-bib` | Resolve a reference (DOI/arXiv/title) to BibTeX |
-| `axm-bib pdf` | `axm-bib` | Download + extract paper PDFs |
-| `axm-bib extract` | `axm-bib` | Extract local PDF to Markdown |
-| `axm-mcp` | `axm-mcp` | MCP server exposing all AXM tools to AI agents |
+For example, after installing `'axm[init]'`:
+
+```bash
+axm init_check --help
+axm init_check --path . --json-output
+```
+
+Use each provider's help for its domain options. Standalone provider binaries
+are separate interfaces, not automatically subcommands of this launcher.
+
+## Parameters
+
+Generated tool signatures come from `execute` (or a registered callable).
+The adapter drops `self`, a parameter named `kwargs` and variadic
+`**kwargs`. Keyword-only parameters are exposed as positional-or-keyword,
+so the first parameter can usually be passed either positionally or by name.
+Scalar `Annotated[..., cyclopts.Parameter(...)]` metadata is retained;
+structured parameters are replaced by JSON-string annotations.
 
 ## Non-scalar parameters
 
-Each tool's CLI signature is derived from its `execute` signature, including the
-`Annotated[..., cyclopts.Parameter(...)]` convention. The wrapper also adds the
-shared `--json-output` option when the tool does not already declare a local
-`json_output` parameter. Purely structured parameters (`list` / `dict` / `tuple`
-/ `set` / pydantic models) are passed as a single JSON string and decoded before
-the call. This also applies when the annotation is wrapped in `Optional` /
-`X | None` or `Annotated[...]`:
+Lists, dicts, tuples, sets and other structured annotations, including
+Pydantic models, use one JSON token on the command line. This also applies to
+optional and `Annotated` wrappers. The wrapper decodes JSON; it does **not**
+construct a Pydantic model, tuple or set from the decoded value. The tool owns
+any required conversion and domain validation.
+
+For the [example tool](../howto/write-tool.md):
 
 ```bash
-axm batch_edit --path . --operations '[{"op": "replace", "file": "x.py"}]'
+axm demo_count --labels '["alpha", "beta"]'
 ```
 
-For a union that admits `str`, including a plain or recursive PEP 695 type
-alias, the wrapper first attempts JSON decoding. A valid JSON token is delivered
-as the decoded structure; any other token is delivered verbatim as literal
-text, preserving Unicode and consecutive spaces. Consequently, text that is
-itself valid JSON (`null`, `123`, or a quoted string) is decoded rather than
-preserved literally.
-
-Invalid JSON still exits with code `2` for purely structured parameters.
+A purely structured parameter with invalid JSON exits with code 2 before
+execution. For a structured union that also admits `str`, including supported
+recursive PEP 695 aliases, valid JSON is decoded and other tokens remain
+literal text. Thus `null`, `123` or a quoted JSON string is decoded rather
+than preserved verbatim.
 
 ## Output modes
 
-By default, generated tool commands write the human-readable `ToolResult.text`
-to standard output. Pass `--json-output` to write the structured
-`ToolResult.data` mapping as valid JSON instead:
+Generated tool commands use the following default rendering order:
 
-```bash
-axm audit . --json-output
-```
+1. If the result failed and has a nonempty error, write it to stderr.
+2. If `text` is a string, write it to stdout (even an empty string).
+3. Otherwise, render a nonempty `data` dictionary as JSON.
+4. With no such data, print the result's string representation, except an
+   error-only failure has already been reported on stderr.
 
-Diagnostics remain on standard error and do not contaminate JSON output. If a
-tool already defines its own `json_output` parameter, the wrapper does not add
-or intercept another one: that tool keeps its existing flag and output contract.
+The shared `--json-output` instead emits the data dictionary, including
+`{}` when empty. It does not emit a `success/data/error` envelope.
+Values unsupported by JSON serialization use their string representation.
+Check the process exit status in addition to parsing the JSON.
 
-Tool `execute` parameters are keyword-only by convention, but the CLI relaxes
-them so **both** the positional form `axm audit .` and the keyword form
-`axm audit --path .` work.
+If the tool declares its own `json_output` parameter, the wrapper neither
+adds nor intercepts the shared option: the tool owns that flag's behavior.
+
+The wrapper keeps its own failure diagnostics on stderr; it cannot prevent
+a provider from printing directly to stdout.
+
+## Exit statuses
+
+| Status | Generated-tool behavior |
+|---|---|
+| 0 | Normal completion; also root catalog and version |
+| 1 | `success=False`, an exception in execution, or generated-tool loading failure |
+| 2 | Invalid command usage or invalid JSON for a structured parameter |
+
+Legacy `axm.commands` entries are ignored, including when they share a name
+with a tool. Migrate request–response commands to `axm.tools`; standalone
+process lifecycle commands belong under `project.scripts`.
 
 ## Python API
 
+These launcher helpers live in `axm.cli`, outside the root SDK façade.
+`create_app()` eagerly loads the catalog and is intended for introspection
+and tests. The installed command uses the lazy `main()` path.
+
 ::: axm.cli.create_app
+    options:
+      skip_local_inventory: true
 
 ::: axm.cli.build_command_for_tool
+    options:
+      skip_local_inventory: true
 
 ## Tool Interface
 
-::: axm.tools.base.ToolResult
+See the [SDK reference](python-api.md) for `AXMTool`, `ToolResult`,
+metadata and the node adapter.
 
-::: axm.tools.base.AXMTool
+## Validation Interface
 
-!!! tip "Agent hints"
-    Tools can set an `agent_hint` class attribute (one-liner string) to provide
-    LLM-optimized descriptions that propagate to MCP tool listings. It is a
-    best-effort discovery attribute (read via `tool_metadata` / `getattr`), not
-    a protocol member — when absent, nothing is substituted (there is no
-    guaranteed docstring fallback).
-
-## Hook Interface
-
-::: axm.hooks.base.HookResult
-
-::: axm.hooks.base.HookAction
+See [witnesses](witnesses.md) for their separate result contracts.

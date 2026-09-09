@@ -2,8 +2,7 @@
 
 Every ``axm.tools`` entry point becomes a CLI command (``axm audit``,
 ``axm git_commit``, …) with the *same* typed signature as the tool's
-``execute`` — so a tool's CLI and its MCP schema never drift.  Explicit
-``axm.commands`` entry points keep priority over the auto-generated ones.
+``execute`` — so a tool's CLI and its MCP schema never drift.
 
 Dispatch is **lazy**: a CLI process lives for one invocation, so we resolve
 the requested command from ``sys.argv`` and import only that one entry point.
@@ -42,7 +41,6 @@ __all__ = ["build_command_for_tool", "create_app", "main"]
 
 logger = logging.getLogger(__name__)
 
-_COMMANDS_GROUP = "axm.commands"
 _TOOLS_GROUP = "axm.tools"
 
 # Parameter annotations passed verbatim as a single CLI token (scalars).
@@ -353,54 +351,22 @@ def _new_app() -> cyclopts.App:
 
 
 def create_app() -> cyclopts.App:
-    """Create an app with *every* command registered (eager).
+    """Create an app with every installed AXMTool registered eagerly.
 
-    This loads all entry points — convenient for tests and introspection, but
-    NOT the path used by ``main`` (which dispatches lazily).  Explicit
-    ``axm.commands`` win over auto-generated tool commands of the same name.
-
-    Returns:
-        A fully-populated cyclopts App.
+    Intended for tests and introspection; main() dispatches lazily.
     """
     app = _new_app()
-    commands = _entry_points(_COMMANDS_GROUP)
-    tools = _entry_points(_TOOLS_GROUP)
-
-    mounted = {
-        name for name in commands if _try_mount_command(app, name, commands[name])
-    }
-
-    for name, ep in tools.items():
-        if name in mounted:
-            continue  # an explicit command already claims this name
+    for name, ep in _entry_points(_TOOLS_GROUP).items():
         try:
             app.command(build_command_for_tool(name, _load(ep)), name=name)
         except Exception:
             logger.warning("Failed to auto-register tool '%s'", name, exc_info=True)
-
     return app
 
 
-def _try_mount_command(
-    app: cyclopts.App, name: str, ep: importlib.metadata.EntryPoint
-) -> bool:
-    """Mount an explicit ``axm.commands`` entry; return whether it succeeded.
-
-    A command that fails to mount does *not* claim its name, so a healthy
-    same-named tool can still be auto-registered — the eager catalog then
-    matches the lazy dispatch of :func:`_build_single_app`.
-    """
-    try:
-        app.command(_load(ep), name=name)
-        return True
-    except Exception:
-        logger.warning("Failed to load command '%s'", name, exc_info=True)
-        return False
-
-
-def _print_catalog(commands: dict[str, Any], tools: dict[str, Any]) -> None:
+def _print_catalog(tools: dict[str, Any]) -> None:
     """List available commands from metadata alone (no tool import)."""
-    names = sorted(set(commands) | set(tools))
+    names = sorted(tools)
     out = sys.stdout
     out.write("AXM — Protocol execution ecosystem.\n\n")
     out.write("Usage: axm COMMAND [ARGS]...\n\n")
@@ -436,50 +402,27 @@ def main() -> None:
 
         sys.stdout.write(f"{__version__}\n")
         return
-    commands = _entry_points(_COMMANDS_GROUP)
     tools = _entry_points(_TOOLS_GROUP)
     cmd = _resolve_command(argv)
 
-    if cmd is None or (cmd not in commands and cmd not in tools):
+    if cmd is None or cmd not in tools:
         if cmd is None or cmd in ("-h", "--help"):
-            _print_catalog(commands, tools)
+            _print_catalog(tools)
             return
         # Unknown command: show catalog on stderr, exit 2 (bad usage).
         sys.stderr.write(f"Unknown command: {cmd}\n\n")
-        _print_catalog(commands, tools)
+        _print_catalog(tools)
         raise SystemExit(2)
 
-    app = _build_single_app(cmd, commands, tools)
+    app = _build_single_app(cmd, tools)
     app(argv)
 
 
 def _build_single_app(
     cmd: str,
-    commands: dict[str, importlib.metadata.EntryPoint],
     tools: dict[str, importlib.metadata.EntryPoint],
 ) -> cyclopts.App:
-    """Build a one-command app, preferring an explicit ``axm.commands`` entry.
-
-    If the explicit command fails to mount (e.g. a fragile custom cyclopts
-    sub-app with an unresolved forward reference) and a same-named tool exists,
-    fall back to the auto-generated tool command on a *fresh* app — the
-    resilient path the migration ultimately standardises on.  ``app.command``
-    mutates the app even when it raises, so the fallback must start clean.
-    """
-    if cmd in commands:
-        app = _new_app()
-        try:
-            app.command(_load(commands[cmd]), name=cmd)
-            return app
-        except Exception as exc:  # fall back to the tool when possible
-            if cmd not in tools:
-                raise
-            logger.warning(
-                "Custom command '%s' failed to mount (%s); using "
-                "auto-generated tool command instead.",
-                cmd,
-                exc,
-            )
+    """Build a one-command app from the requested AXMTool."""
     app = _new_app()
     try:
         app.command(build_command_for_tool(cmd, _load(tools[cmd])), name=cmd)

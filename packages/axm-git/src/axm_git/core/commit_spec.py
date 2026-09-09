@@ -1,12 +1,4 @@
-"""Shared commit plumbing: spec validation, autofix-retry, result building.
-
-Single source of truth for the commit helpers used by both surfaces
-(:class:`axm_git.tools.commit.GitCommitTool` and
-:class:`axm_git.tools.commit.GitCommitTool`).  The validation is
-pure (returns ``(spec, err)``) so each surface wraps the error string in
-its own result type; the autofix-retry and HookResult builder are shared
-verbatim.
-"""
+"""Shared commit spec validation and Git hook autofix-retry plumbing."""
 
 from __future__ import annotations
 
@@ -14,18 +6,13 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
-from axm.hooks.base import HookResult
-
-from axm_git.core.identity import GitIdentity
 from axm_git.core.runner import run_git, stage_spec_files
 
 __all__ = [
     "AutofixRetry",
     "attempt_commit_with_autofix_retry",
-    "build_commit_result",
-    "retry_commit_on_autofix",
     "validate_commit_spec",
 ]
 
@@ -161,45 +148,3 @@ def attempt_commit_with_autofix_retry(
     retried = run_git(cmd, git_root)
     reconciled = _reconcile_with_repo_state(retried, git_root, head_before)
     return AutofixRetry(result=reconciled, retried=True, auto_fixed=auto_fixed)
-
-
-def retry_commit_on_autofix(
-    files: list[str],
-    cmd: list[str],
-    git_root: Path,
-    first_result: _GitResultLike,
-    *,
-    working_dir: Path | None = None,
-) -> _GitResultLike:
-    """Hook-facing wrapper: return only the retried GitResult.
-
-    Thin adapter over :func:`attempt_commit_with_autofix_retry` for callers
-    that only need the final result object (the commit-phase hook).
-    """
-    return attempt_commit_with_autofix_retry(
-        cmd, files, git_root, first_result, working_dir=working_dir
-    ).result
-
-
-def build_commit_result(
-    git_root: Path,
-    message: str,
-    identity: GitIdentity | None,
-    warnings: list[str],
-) -> HookResult:
-    """Build a successful commit :class:`HookResult`.
-
-    Reads the current HEAD short hash and assembles the result dict
-    with optional identity and warning fields.
-    """
-    hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
-    result_kw: dict[str, Any] = {  # type: ignore[explicit-any]  # heterogeneous metadata payload for HookResult.ok(**metadata: Any)
-        "commit": hash_result.stdout.strip(),
-        "message": message,
-    }
-    if identity:
-        result_kw["author_name"] = identity.name
-        result_kw["author_email"] = identity.email
-    if warnings:
-        result_kw["warnings"] = warnings
-    return HookResult.ok(**result_kw)

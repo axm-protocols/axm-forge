@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>AXM CLI — Unified command-line interface for the AXM ecosystem</strong>
+  <strong>AXM — Shared SDK and unified command launcher</strong>
 </p>
 
 <p align="center">
@@ -19,83 +19,103 @@
 
 ## Features
 
-- 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
-- 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
-- 🛠️ **Shared interface** — re-exports the core contracts from the package root (`from axm import AXMTool, ToolResult, HookAction, HookResult, WitnessResult, ValidationFeedback, WitnessRule, tool_node, tool_metadata, ToolMetadata, ToolNodeError`): `AXMTool`/`ToolResult` (with optional `agent_hint` for LLM-optimized descriptions and `text` for pre-rendered output), `HookAction`/`HookResult`, `WitnessResult`/`ValidationFeedback`/`WitnessRule`, and `tool_node` (adapt any `axm.tools` tool into a DAG python-node) for ecosystem development
-- 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
+- **Shared SDK** — `AXMTool`, `ToolResult`, discovery metadata,
+  witness contracts, and the `tool_node` adapter.
+- **Lazy CLI discovery** — list installed entry points without importing every
+  provider; load the requested command when dispatched.
+- **One tool declaration** — `axm.tools` connects a provider to the generic CLI,
+  MCP discovery and tool-node resolution.
+- **Small runtime** — only Cyclopts is required; ecosystem providers are optional.
 
 ## Installation
 
 ```bash
-uv add axm              # CLI shell only
-uv add axm[init]        # + scaffolding & project checks
-uv add axm[audit]       # + code quality audits
-uv add axm[bib]         # + bibliography tools
-uv add axm[mcp]         # + MCP server (for AI agents)
-uv add axm[all]         # everything
+uv add axm                  # SDK and launcher; no domain tools
+uv add 'axm[init]'           # scaffolding and project checks
+uv add 'axm[audit]'          # code quality
+uv add 'axm[bib]'            # bibliography provider
+uv add 'axm[mcp]'            # MCP server package
+uv add 'axm[all]'            # the four optional providers above
 ```
 
-<details>
-<summary>Or with pip</summary>
-
-```bash
-pip install axm              # CLI shell only
-pip install axm[init]        # + scaffolding & project checks
-pip install axm[audit]       # + code quality audits
-pip install axm[bib]         # + bibliography tools
-pip install axm[mcp]         # + MCP server (for AI agents)
-pip install axm[all]         # everything
-```
-
-</details>
+With an activated virtual environment, `pip install 'axm[init]'` is an
+alternative. Quote extras in shells such as zsh. `all` does not install every
+package in the AXM ecosystem.
 
 ## Usage
 
+From the project environment:
+
 ```bash
-axm                          # shows available commands
-axm init_scaffold my-project # if axm-init is installed
-axm init_check .             # check project conformity
-axm audit .                  # if axm-audit is installed
+uv run axm --help
+uv run axm --version
+uv run axm init_check --help
+uv run axm init_check --path . --json-output
 ```
+
+The catalog depends on installed providers. Use a command's help for its
+actual options. Generated commands normally print `ToolResult.text` or fall
+back to data; the shared `--json-output` emits the data mapping. Failures remain
+nonzero. A provider with its own `json_output` parameter owns that flag's
+behavior. See the [CLI reference](docs/reference/cli.md).
+
+## Shared Python contracts
+
+```python
+from axm import AXMTool, ToolResult, tool_node
+
+result = ToolResult(success=True, data={"count": 3}, text="3 items")
+assert result.data["count"] == 3
+```
+
+The root also exports `ToolMetadata`, `tool_metadata`, `ToolNodeError`,
+`WitnessRule`, `WitnessResult`,
+`ValidationFeedback` and `__version__`. See the
+[SDK reference](docs/reference/python-api.md) and
+[witnesses](docs/reference/witnesses.md) for their contracts.
 
 ## How It Works
 
-Each AXM package declares commands via `pyproject.toml`:
+A provider registers an implementation in its `pyproject.toml`:
 
 ```toml
-# axm-init/pyproject.toml
-[project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:scaffold"
-init_check    = "axm_init.cli:check"
-init_reserve  = "axm_init.cli:reserve"
+[project.entry-points."axm.tools"]
+demo_count = "demo_tools.count:CountTool"
 ```
 
-The `axm` CLI discovers these from entry-point metadata and dispatches lazily — it imports only the command you invoke, not every tool at startup.
+This is an illustrative provider, implemented in the
+[write-a-tool guide](docs/howto/write-tool.md). The CLI derives arguments from
+its `execute` signature. Only `axm.tools` extends the unified launcher.
+
+## Documentation
+
+- [Getting started](docs/tutorials/getting-started.md)
+- [Write a tool](docs/howto/write-tool.md)
+- [Compose a tool node](docs/howto/tool-node.md)
+- [Architecture](docs/explanation/architecture.md)
+- [Published documentation](https://forge.axm-protocols.io/axm/)
+
+The MkDocs home page is [docs/index.md](docs/index.md); it is separate from this
+README. The package has a standalone MkDocs configuration and also participates
+in the workspace site.
 
 ## Package Structure
 
-```
-axm/
-├── src/axm/
-│   ├── cli.py            # Lazy, dispatch-first autodiscovery wrapper
-│   ├── hooks/
-│   │   ├── base.py       # HookAction Protocol + HookResult (lifecycle hooks)
-│   │   └── __init__.py
-│   ├── tools/
-│   │   ├── base.py       # AXMTool Protocol + ToolResult + ToolMetadata
-│   │   ├── node.py       # tool_node adapter + ToolNodeError (AXMTool → DAG node)
-│   │   ├── _discovery.py # entry-point metadata helper
-│   │   └── __init__.py
-│   ├── witnesses.py      # WitnessResult + ValidationFeedback + WitnessRule
-│   └── __init__.py
-└── tests/
-    ├── unit/             # mirrors src/ (hooks/, tools/, cli, witnesses, __init__)
-    └── e2e/              # CLI invoked as a subprocess (test_axm.py)
+```text
+src/axm/
+  __init__.py          # root SDK exports and version
+  cli.py               # command discovery and rendering
+  tools/base.py        # tool protocol, result and metadata
+  tools/node.py        # tool-node adapter and scoped substitutes
+  tools/write_scope.py # internal write-scope decisions
+  witnesses.py         # validation contracts
+tests_axm/             # package tests
+docs/                  # tutorials, guides, reference and explanations
 ```
 
 ## Development
 
-This package is part of the **axm-forge** workspace.
+This package belongs to the **axm-forge** workspace.
 
 ```bash
 git clone https://github.com/axm-protocols/axm-forge.git
@@ -103,6 +123,10 @@ cd axm-forge
 uv sync --all-groups
 uv run --package axm --directory packages/axm pytest
 ```
+
+From `packages/axm`, build the package documentation with
+`mkdocs build --strict` in an environment containing the package's docs
+dependencies.
 
 ## License
 

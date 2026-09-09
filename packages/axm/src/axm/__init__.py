@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
-from axm.hooks.base import HookAction, HookResult
 from axm.tools import ToolMetadata, ToolNodeError, tool_metadata, tool_node
 from axm.tools.base import AXMTool, ToolResult
 from axm.witnesses import ValidationFeedback, WitnessResult, WitnessRule
@@ -16,8 +15,6 @@ except PackageNotFoundError:
 
 __all__ = [
     "AXMTool",
-    "HookAction",
-    "HookResult",
     "ToolMetadata",
     "ToolNodeError",
     "ToolResult",

@@ -484,15 +484,25 @@ class TestCreateApp:
             app = create_app()
         assert "audit" in list(app)
 
-    def test_explicit_command_wins_over_tool(self) -> None:
+    def test_legacy_command_cannot_override_tool(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         def custom_audit() -> None:
-            """Custom audit command."""
+            raise AssertionError("Legacy command must not run")
 
         with patch(
             _EP, _eps(commands={"audit": custom_audit}, tools={"audit": _AuditTool})
         ):
             app = create_app()
-        assert "audit" in list(app)
+        with pytest.raises(SystemExit) as exc:
+            app(["audit", "/eager"], exit_on_error=False)
+        assert exc.value.code == 0
+        assert "audit /eager: 90" in capsys.readouterr().out
+
+    def test_legacy_only_command_is_not_registered(self) -> None:
+        with patch(_EP, _eps(commands={"old": _AuditTool})):
+            app = create_app()
+        assert "old" not in list(app)
 
     def test_broken_tool_is_skipped_not_fatal(self) -> None:
         class _Broken:
@@ -569,25 +579,33 @@ class TestMainDispatch:
             main()  # early return, no SystemExit
         assert __version__ in capsys.readouterr().out
 
-    def test_custom_command_failure_falls_back_to_tool(
+    def test_legacy_command_is_ignored_during_dispatch(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # A custom command that raises at mount time, with a healthy same-named tool.
-        def _raising_loader() -> Any:
-            raise RuntimeError("forward ref boom")
+        def custom_audit() -> None:
+            raise AssertionError("Legacy command must not run")
 
-        def _fn(*, group: str | None = None, **_: Any) -> list[Any]:
-            if group == _COMMANDS_GROUP:
-                ep = _FakeEP("audit", None)
-                ep.load = _raising_loader  # type: ignore[method-assign]
-                return [ep]
-            if group == _TOOLS_GROUP:
-                return [_FakeEP("audit", _AuditTool)]
-            return []
-
-        with patch(_EP, _fn), patch("sys.argv", ["axm", "audit", "--path", "/fb"]):
+        with (
+            patch(
+                _EP,
+                _eps(commands={"audit": custom_audit}, tools={"audit": _AuditTool}),
+            ),
+            patch("sys.argv", ["axm", "audit", "/tool"]),
+        ):
             _run_main_ok()
-        assert "audit /fb: 90" in capsys.readouterr().out
+        assert "audit /tool: 90" in capsys.readouterr().out
+
+    def test_legacy_only_command_is_unknown(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with (
+            patch(_EP, _eps(commands={"old": _AuditTool})),
+            patch("sys.argv", ["axm", "old"]),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main()
+        assert exc.value.code == _EXIT_BAD_ARGS
+        assert "Unknown command: old" in capsys.readouterr().err
 
     def test_broken_tool_load_exits_1_without_traceback(
         self, capsys: pytest.CaptureFixture[str]

@@ -1,65 +1,62 @@
-# Getting Started
+# Getting started
 
-This tutorial walks you through installing `axm` and running your first command.
+This tutorial installs the launcher and one provider, then inspects an available
+command without creating files or publishing anything.
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
-
-Install the CLI with the plugins you need:
-
-=== "Minimal"
-
-    ```bash
-    uv pip install axm
-    ```
-
-=== "With init & audit"
-
-    ```bash
-    uv pip install axm[init,audit]
-    ```
-
-=== "Everything"
-
-    ```bash
-    uv pip install axm[all]
-    ```
-
-=== "MCP server"
-
-    ```bash
-    uv pip install axm[mcp]
-    ```
-
-## Step 1: Check Available Commands
+Use Python 3.12 or newer and uv. Start in an existing Python project.
+If you do not have a project yet, create an empty one first:
 
 ```bash
-axm
+uv init axm-demo
+cd axm-demo
 ```
 
-Without any plugins, `axm` will show which packages you can install. With plugins:
+## Install a provider
 
 ```bash
-axm init_scaffold my-project  # scaffold a new project
-axm init_check .              # check project conformity
-axm audit .                   # run quality checks
+uv add 'axm[init]'
+uv run axm --version
+uv run axm --help
 ```
 
-## Step 2: Optional Dependencies
+The version is that of the installed `axm` distribution, not of every provider.
+The catalog lists commands from the current environment. Installing `axm`
+alone supplies SDK types and the launcher but no domain commands.
 
-| Extra | Provides | Commands |
-|---|---|---|
-| `init` | `axm-init` | `axm init_scaffold`, `axm init_check`, `axm init_reserve` |
-| `audit` | `axm-audit` | `axm audit` |
-| `bib` | `axm-bib` | `axm-bib search`, `axm-bib pdf`, `axm-bib resolve` |
-| `mcp` | `axm-mcp` | `axm-mcp` (MCP server for AI agents) |
-| `all` | Everything above | All commands |
+With pip, activate a virtual environment and use `pip install 'axm[init]'`;
+then invoke `axm` directly instead of `uv run axm`.
 
-## Next Steps
+## Inspect a command
 
-- [Architecture](../explanation/architecture.md) — How autodiscovery works
-- [Add a Command](../howto/index.md) — Register your own CLI command
+```bash
+uv run axm init_check --help
+```
+
+The help describes the installed provider's actual options. To check the project:
+
+```bash
+uv run axm init_check --path . --json-output
+```
+
+This is a real conformity check, so a new project may return a nonzero exit
+status. The JSON is the tool's data mapping; check the exit status separately.
+The launcher does not turn a failed check into success merely because it
+produced JSON.
+
+## Choose optional packages
+
+| Extra | Installs |
+|---|---|
+| `init` | `axm-init` |
+| `audit` | `axm-audit` |
+| `bib` | `axm-bib` |
+| `mcp` | `axm-mcp` |
+| `all` | The four packages above |
+
+Providers may expose additional standalone binaries. Their individual
+documentation owns those contracts; the `axm` catalog lists entry-point names.
+
+Continue with [writing a tool](../howto/write-tool.md) or consult
+[CLI output and errors](../reference/cli.md).

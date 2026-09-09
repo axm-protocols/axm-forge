@@ -2,72 +2,83 @@
 
 ## Overview
 
-`axm` is a **thin autodiscovery CLI wrapper** that delegates all functionality to installed AXM ecosystem packages. It contains zero business logic.
+`axm` combines a thin command launcher with shared Python contracts.
+Domain operations belong to installed providers. MCP transport belongs to
+`axm-mcp`; DAG execution belongs to `axm-dag` and authoring to `axm-loom`.
+The core package depends only on Cyclopts.
 
 ```mermaid
-graph TD
-    AXM["axm CLI"] -->|"discovers via<br>entry_points"| INIT["axm-init"]
-    AXM -->|"discovers"| AUDIT["axm-audit"]
-    AXM -->|"discovers"| BIB["axm-bib"]
-
-    subgraph "Base Types"
-        TBase["tools.base<br>AXMTool / ToolResult"]
-        HBase["hooks.base<br>HookAction / HookResult"]
-    end
-
-    GIT["axm-git"] -.->|"imports"| HBase
-    TICKET["axm-ticket"] -.->|"imports"| HBase
-    MCP["axm-mcp"] -.->|"imports"| TBase
-
-    style AXM fill:#4CAF50,color:#fff
-    style INIT fill:#2196F3,color:#fff
-    style AUDIT fill:#2196F3,color:#fff
-    style BIB fill:#2196F3,color:#fff
-    style TBase fill:#FF9800,color:#fff
-    style HBase fill:#FF9800,color:#fff
+flowchart TD
+    Providers["Installed provider entry points"] --> CLI["axm launcher"]
+    Providers --> MCP["axm-mcp discovery"]
+    Providers --> Node["tool_node adapter"]
+    CLI --> Operation["Tool execute"]
+    MCP --> Operation
+    Node --> Operation
+    Operation --> Result["ToolResult: data and text"]
 ```
 
 ## Autodiscovery Pattern
 
-Dispatch is **lazy**: `axm` resolves the requested command from `sys.argv` and
-imports only that one entry point (no tool module is imported at startup). It
-lists the catalog from entry-point *metadata* alone and dispatches on two groups
-— explicit `axm.commands` (priority) and auto-generated `axm.tools` commands:
+The CLI discovers operations through one entry-point group:
 
-```python
-# axm.cli.main (simplified)
-cmd = _resolve_command(sys.argv[1:])          # first non-flag token
-commands = entry_points_for("axm.commands")   # metadata only
-tools = entry_points_for("axm.tools")         # metadata only
-app = _build_single_app(cmd, commands, tools) # imports ONLY cmd's entry point
-app(sys.argv[1:])
-```
+| Group | Target | Behavior |
+|---|---|---|
+| `axm.tools` | A tool class, instance or supported callable | Generate a command from its execution signature |
 
-`create_app()` (eager, all entry points loaded) exists for tests and
-introspection but is **not** the path `main` uses.
-
-Each AXM package declares its commands in `pyproject.toml`:
+For a request returning structured data, register an `AXMTool` under
+`axm.tools`. This is the shared route for CLI, MCP discovery and
+`tool_node`. Process lifecycles that do not return a tool result can expose
+separate console scripts under `project.scripts`.
 
 ```toml
-[project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:scaffold"
-init_check    = "axm_init.cli:check"
+[project.entry-points."axm.tools"]
+demo_count = "demo_tools.count:CountTool"
 ```
 
-This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group).
+See the [complete tool guide](../howto/write-tool.md).
+
+Dispatch is lazy: the installed `main()` selects the requested entry point
+before loading its implementation. Root help and catalog listing use metadata
+only. A class target is instantiated without arguments.
+`create_app()` is an eager alternative for introspection and tests.
+
+Only the tool registry is queried. Legacy command entries cannot override
+tools or appear in the command catalog.
+
+## Shared contracts
+
+The root imports in the [SDK reference](../reference/python-api.md) are a
+façade over the defining modules. Tools use `ToolResult`; witnesses use
+`WitnessResult`. These types have
+different fields and should not be treated as interchangeable envelopes.
+
+`ToolResult.data` serves machine consumers and `text` serves readers.
+The CLI, MCP consumers and node mappings decide which representation to use.
+The core does not guarantee a textual rendering for every result.
+
+Optional discovery metadata is read through `tool_metadata` and attributes,
+rather than being required protocol members. A structural tool can therefore
+remain an `AXMTool` without declaring MCP-specific metadata.
+
+## Tool composition
+
+`tool_node` is an adapter to a callable, not a scheduler. Its explicit output
+mapping records which values the surrounding graph will receive. It normally
+fails immediately on tool failure; observation workflows can explicitly opt
+into returning failure data. See [mapping and failure rules](../howto/tool-node.md).
+
+Real tools are cached per node after first resolution. Scoped substitutes use
+context-local state and take precedence over that cache. The adapter does not
+add a transaction, retry policy or synchronization around a provider instance.
 
 ## Design Decisions
 
-| Decision | Rationale |
+| Decision | Purpose |
 |---|---|
-| Entry-point autodiscovery | No hard dependencies on ecosystem packages |
-| Optional deps (`axm[init]`) | Users install only what they need |
-| `cyclopts` for CLI | Same framework as other AXM CLIs |
-| `src/` layout | PEP 621 best practice, no import conflicts |
-| Zero business logic | All functionality lives in dedicated packages |
-| `{domain}_{action}` naming | One name for CLI and MCP — no mental translation |
-| `AXMTool`/`ToolResult` in `axm` | Shared interface, no private dependency needed; `text` field carries pre-rendered output |
-| `HookAction`/`HookResult` in `axm` | Hooks contract without pulling `axm-engine` deps |
-| Core contracts re-exported from the `axm` root | The eleven contracts (`AXMTool`, `ToolResult`, `ToolMetadata`, `tool_metadata`, `HookAction`, `HookResult`, `WitnessResult`, `ValidationFeedback`, `WitnessRule`, `tool_node`, `ToolNodeError`) are re-exported from `axm/__init__.py` as a pure façade — types stay defined in their submodules. These root re-exports are the package's stable import surface; treat any change to them as breaking |
-| `agent_hint` on `AXMTool` | LLM-optimized one-liner propagates to MCP tool descriptions — richer than docstrings, cheaper than system prompts |
-| `tool_node` adapter in `axm` | Turns any `axm.tools` tool into a `fn(payload) -> dict` DAG python-node (fail-fast on `ToolResult.success is False`, raising `ToolNodeError`) — lets graphs reuse deterministic tools without a bespoke wrapper |
+| Entry-point discovery | Providers can be installed independently |
+| Optional dependency extras | A small launcher without all ecosystem dependencies |
+| Shared root contracts | A common import surface for tools and consumers |
+| Explicit node outputs | Make returned graph state deliberate |
+| Separate structured data and text | Support automation and human inspection |
+| Cyclopts signatures | Derive command arguments from the execution interface |

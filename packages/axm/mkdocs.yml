@@ -3,7 +3,49 @@ docs_dir: docs
 
 nav:
   - Overview: index.md
-  - Getting Started: tutorials/getting-started.md
-  - How-To: howto/index.md
-  - Architecture: explanation/architecture.md
-  - CLI Reference: reference/cli.md
+  - Tutorials:
+    - Getting Started: tutorials/getting-started.md
+  - How-To Guides:
+    - index: howto/index.md
+    - Write a Tool: howto/write-tool.md
+    - Use a Tool as a Node: howto/tool-node.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python SDK: reference/python-api.md
+    - Witnesses: reference/witnesses.md
+  - Explanation:
+    - Architecture: explanation/architecture.md
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: false
+
+markdown_extensions:
+  - admonition
+  - tables
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn

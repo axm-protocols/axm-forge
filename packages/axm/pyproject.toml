@@ -141,13 +141,12 @@ disable_error_code = [
 ]
 
 # Contract boundaries: `Any` is deliberate to let downstream packages
-# (tools, hooks, witnesses) define their own typed payloads without
+# (tools, witnesses) define their own typed payloads without
 # coupling to a fixed schema. Loosening `disallow_any_explicit` here
 # only — the rest of the package stays strict.
 [[tool.mypy.overrides]]
 module = [
     "axm.tools.base",
-    "axm.hooks.base",
     "axm.witnesses",
     "axm.cli",
 ]
@@ -172,9 +171,6 @@ reason = "mixed observation surfaces: 2 happy-path tests assert on the returned 
 hash = "54c40b8fa6e0"
 reason = "two distinct SUT branches both mapping to exit code 1 (tool returns success=False vs execute() raises) — distinct coverage; a generic param would hide which branch is exercised"
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "935c6a5eef12"
-reason = "distinct create_app scenarios sharing the '\"audit\" in list(app)' shape: bare tool registration vs explicit-command-wins-over-tool precedence — parametrization would conflate two registration rules"
 
 [tool.pytest.ini_options]
 testpaths = ["tests_axm"]

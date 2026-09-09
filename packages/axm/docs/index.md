@@ -1,78 +1,45 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.png" alt="AXM Logo" width="140" />
-</p>
+# axm — shared SDK and command launcher
 
-<h1 align="center">axm (CLI)</h1>
-<p align="center"><strong>Unified command-line interface for the AXM ecosystem.</strong></p>
+`axm` provides the shared contracts used by AXM packages and the `axm`
+command that discovers their installed tools. It ships no tool of its own.
+Its only runtime dependency is `cyclopts`; ecosystem packages are optional.
 
-<p align="center">
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm/coverage.json" alt="Coverage"></a>
-  <a href="https://pypi.org/project/axm/"><img src="https://img.shields.io/pypi/v/axm" alt="PyPI"></a>
-</p>
+## Start here
 
----
-
-## Features
-
-- 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
-- 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
-- 🛠️ **Shared interface** — re-exports the core contracts from the package root (`from axm import AXMTool, ToolResult, HookAction, HookResult, WitnessResult, ValidationFeedback, WitnessRule, tool_node, tool_metadata, ToolMetadata, ToolNodeError`): `AXMTool`/`ToolResult` (with `text` for pre-rendered output), `HookAction`/`HookResult`, `WitnessResult`/`ValidationFeedback`/`WitnessRule`, and `tool_node` (adapt any `axm.tools` tool into a DAG python-node) for ecosystem development
-- 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
+- [Getting started](tutorials/getting-started.md): install a tool and inspect its CLI.
+- [Write a tool](howto/write-tool.md): implement one operation for Python, CLI and MCP discovery.
+- [Use a tool as a node](howto/tool-node.md): map inputs and outputs, handle failures and substitute tools.
+- [CLI reference](reference/cli.md): arguments, JSON output and exit statuses.
+- [SDK reference](reference/python-api.md): root imports, metadata and generated contracts.
+- [Witnesses](reference/witnesses.md): validation results.
+- [Architecture](explanation/architecture.md): discovery and package boundaries.
 
 ## Installation
 
 ```bash
-uv add axm              # CLI shell only
-uv add axm[init]        # + scaffolding & project checks
-uv add axm[audit]       # + code quality audits
-uv add axm[bib]         # + bibliography tools
-uv add axm[mcp]         # + MCP server (for AI agents)
-uv add axm[all]         # everything
+uv add axm
+uv add 'axm[init]'
+uv run axm --help
+uv run axm init_check --help
 ```
 
-## Usage
+The `init` extra installs `axm-init`. Other extras are `audit`, `bib`,
+and `mcp`; `all` installs these four optional packages, not the whole ecosystem.
+Quote extras in shells such as zsh.
 
-```bash
-axm                          # shows available commands
-axm --version                # print the installed axm version (also -V)
-axm init_scaffold my-project # if axm-init is installed
-axm init_check .             # check project conformity
-axm audit .                  # if axm-audit is installed
+## Python entry point
+
+```python
+from axm import ToolResult
+
+result = ToolResult(success=True, data={"count": 3}, text="3 items")
+assert result.data["count"] == 3
 ```
 
-## How It Works
+The package root re-exports the shared SDK contracts. The CLI delegates domain
+operations to providers; MCP transport belongs to `axm-mcp`, and DAG scheduling
+belongs to `axm-dag` / `axm-loom`. See the
+[architecture](explanation/architecture.md) for those boundaries.
 
-Each AXM package declares commands via `pyproject.toml`:
-
-```toml
-# axm-init/pyproject.toml
-[project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:scaffold"
-init_check    = "axm_init.cli:check"
-init_reserve  = "axm_init.cli:reserve"
-```
-
-The `axm` CLI discovers these from entry-point metadata and dispatches lazily — it imports only the one command you invoke, not every tool at startup.
-
-## Package Structure
-
-```
-axm/
-├── src/axm/
-│   ├── cli.py            # Lazy, dispatch-first autodiscovery wrapper
-│   ├── hooks/
-│   │   └── base.py       # HookAction Protocol + HookResult
-│   ├── tools/
-│   │   ├── base.py       # AXMTool Protocol + ToolResult + ToolMetadata
-│   │   └── node.py       # tool_node adapter + ToolNodeError (AXMTool → DAG node)
-│   └── witnesses.py      # WitnessResult + ValidationFeedback + WitnessRule
-└── tests/
-```
-
-## Learn More
-
-- [Getting Started Tutorial](tutorials/getting-started.md)
-- [Architecture](explanation/architecture.md)
-- [CLI Reference](reference/cli.md)
+This page is the MkDocs home page and is included in the wheel. The repository
+README is a separate entry point; the complete site is built from `docs/`.
