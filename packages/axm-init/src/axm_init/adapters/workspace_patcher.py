@@ -256,39 +256,61 @@ def _is_ignored_yaml_scan_line(line: str) -> bool:
     return not stripped or stripped.startswith("#")
 
 
+@dataclass
+class _YamlListScan:
+    """Mutable accumulator for a vertical YAML block-sequence scan."""
+
+    first: int = -1
+    last: int = -1
+    list_indent: int = -1
+
+    def open_at(self, index: int, indent: int) -> None:
+        """Record the first ``- `` item, which fixes the list indent."""
+        self.first = index
+        self.last = index
+        self.list_indent = indent
+
+    def range(self) -> tuple[int, int] | None:
+        """Return the half-open item range, or ``None`` when nothing matched."""
+        if self.first == -1:
+            return None
+        return self.first, self.last + 1
+
+
+def _consume_yaml_item(scan: _YamlListScan, index: int, indent: int) -> bool:
+    """Absorb one ``- `` item; return whether the scan continues."""
+    if scan.first == -1:
+        scan.open_at(index, indent)
+        return True
+    if indent == scan.list_indent:
+        scan.last = index
+        return True
+    return False
+
+
 def _find_vertical_yaml_list_range(
     lines: list[str],
     scan_start: int,
     marker_indent: int,
 ) -> tuple[int, int] | None:
-    first = -1
-    last = -1
-    list_indent = -1
+    scan = _YamlListScan()
 
     for i in range(scan_start, len(lines)):
         line = lines[i]
         if _is_ignored_yaml_scan_line(line):
             continue
-        stripped = line.strip()
         current_indent = len(line) - len(line.lstrip())
 
-        if first == -1 and marker_indent >= 0 and current_indent <= marker_indent:
+        if scan.first == -1 and marker_indent >= 0 and current_indent <= marker_indent:
             break
-        if stripped.startswith("- "):
-            if first == -1:
-                first = i
-                list_indent = current_indent
-                last = i
-            elif current_indent == list_indent:
-                last = i
-            else:
+        if line.strip().startswith("- "):
+            if not _consume_yaml_item(scan, i, current_indent):
                 break
-        elif first >= 0 and current_indent <= list_indent:
+            continue
+        if scan.first >= 0 and current_indent <= scan.list_indent:
             break
 
-    if first == -1:
-        return None
-    return first, last + 1
+    return scan.range()
 
 
 def _find_yaml_list_range(

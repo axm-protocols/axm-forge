@@ -405,33 +405,64 @@ def _resolved_member_suites(project: Path) -> list[tuple[Path, Path]]:
     return suites
 
 
+def _testpaths_result(
+    *,
+    passed: bool,
+    message: str,
+    details: list[str],
+    fix: str,
+) -> CheckResult:
+    """Build the ``workspace.pytest_testpaths`` result for one outcome."""
+    return CheckResult(
+        name="workspace.pytest_testpaths",
+        category="workspace",
+        passed=passed,
+        weight=2,
+        message=message,
+        details=details,
+        fix=fix,
+    )
+
+
+def _configured_testpaths(data: TomlTable) -> list[str]:
+    """Return the string testpaths configured under pytest ini options."""
+    testpaths_raw = _get_pytest_config(data).get("testpaths", [])
+    if not isinstance(testpaths_raw, list):
+        return []
+    return [path for path in testpaths_raw if isinstance(path, str)]
+
+
+def _uncovered_member_suites(
+    member_suites: list[tuple[Path, Path]],
+    project: Path,
+    testpaths: list[str],
+) -> list[tuple[Path, str]]:
+    """Return the member suites no configured testpath covers."""
+    uncovered: list[tuple[Path, str]] = []
+    for member, suite in member_suites:
+        suite_path = suite.relative_to(project).as_posix()
+        if not any(
+            _testpath_covers_suite(testpath, suite_path) for testpath in testpaths
+        ):
+            uncovered.append((member, suite_path))
+    return uncovered
+
+
 def check_pytest_testpaths(project: Path) -> CheckResult:
     """Check root testpaths covers every existing workspace member suite."""
     data = load_toml(project)
     if data is None:
-        return CheckResult(
-            name="workspace.pytest_testpaths",
-            category="workspace",
+        return _testpaths_result(
             passed=False,
-            weight=2,
             message="No pyproject.toml at root",
             details=[],
             fix="Create pyproject.toml with [tool.pytest.ini_options].",
         )
 
-    pytest_cfg = _get_pytest_config(data)
-    testpaths_raw = pytest_cfg.get("testpaths", [])
-    testpaths: list[str] = (
-        [path for path in testpaths_raw if isinstance(path, str)]
-        if isinstance(testpaths_raw, list)
-        else []
-    )
+    testpaths = _configured_testpaths(data)
     if not testpaths:
-        return CheckResult(
-            name="workspace.pytest_testpaths",
-            category="workspace",
+        return _testpaths_result(
             passed=False,
-            weight=2,
             message="No testpaths configured",
             details=["Expected testpaths listing member test directories"],
             fix=(
@@ -441,32 +472,20 @@ def check_pytest_testpaths(project: Path) -> CheckResult:
         )
 
     member_suites = _resolved_member_suites(project)
-    uncovered: list[tuple[Path, str]] = []
-    for member, suite in member_suites:
-        suite_path = suite.relative_to(project).as_posix()
-        if not any(
-            _testpath_covers_suite(testpath, suite_path) for testpath in testpaths
-        ):
-            uncovered.append((member, suite_path))
-
+    uncovered = _uncovered_member_suites(member_suites, project, testpaths)
     if uncovered:
-        details = [f"{member.name}: {suite_path}" for member, suite_path in uncovered]
         missing_paths = [suite_path for _, suite_path in uncovered]
-        return CheckResult(
-            name="workspace.pytest_testpaths",
-            category="workspace",
+        return _testpaths_result(
             passed=False,
-            weight=2,
-            message=(f"testpaths does not cover {len(uncovered)} member suite(s)"),
-            details=details,
-            fix=(f"Add the uncovered suites to testpaths: {', '.join(missing_paths)}"),
+            message=f"testpaths does not cover {len(uncovered)} member suite(s)",
+            details=[
+                f"{member.name}: {suite_path}" for member, suite_path in uncovered
+            ],
+            fix=f"Add the uncovered suites to testpaths: {', '.join(missing_paths)}",
         )
 
-    return CheckResult(
-        name="workspace.pytest_testpaths",
-        category="workspace",
+    return _testpaths_result(
         passed=True,
-        weight=2,
         message=f"testpaths cover {len(member_suites)} member suite(s)",
         details=[],
         fix="",

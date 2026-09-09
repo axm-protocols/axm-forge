@@ -311,6 +311,64 @@ def _validate_protocol_tree(
             )
 
 
+def _validate_unit_protocols(
+    text: str,
+    name: str,
+    protocols: list[dict[str, object]],
+    details: list[str],
+) -> None:
+    """Validate the protocol tables nested under one declared unit."""
+    actions = [
+        action
+        for protocol in protocols
+        if isinstance((action := protocol.get("action")), str)
+    ]
+    _invalid_names(text, "protocol action", actions, details)
+    _duplicates(text, "protocol action", actions, details)
+    for protocol in protocols:
+        if not isinstance(protocol.get("action"), str):
+            details.append(
+                _finding(
+                    text,
+                    "[[tool.axm-init.protocols.units.protocols]]",
+                    f"protocol action is missing in unit {name!r}",
+                    "add a lower_snake_case action",
+                )
+            )
+        _validate_components(text, protocol, details)
+
+
+def _unit_protocols_or_finding(
+    text: str,
+    unit: dict[str, object],
+    details: list[str],
+) -> tuple[str, list[dict[str, object]]] | None:
+    """Return one unit's name and protocol tables, or record why it is invalid."""
+    name = unit.get("name")
+    if not isinstance(name, str):
+        details.append(
+            _finding(
+                text,
+                "[[tool.axm-init.protocols.units]]",
+                "unit name is missing",
+                "add a lower_snake_case name",
+            )
+        )
+        return None
+    protocols = _tables(unit.get("protocols"))
+    if protocols is None:
+        details.append(
+            _finding(
+                text,
+                f'name = "{name}"',
+                f"unit {name!r} has no protocols array",
+                "add at least one nested protocols table",
+            )
+        )
+        return None
+    return name, protocols
+
+
 def _validate_units(
     text: str,
     profile: dict[str, object],
@@ -332,46 +390,11 @@ def _validate_units(
     _invalid_names(text, "unit", unit_names, details)
     _duplicates(text, "unit", unit_names, details)
     for unit in units:
-        name = unit.get("name")
-        if not isinstance(name, str):
-            details.append(
-                _finding(
-                    text,
-                    "[[tool.axm-init.protocols.units]]",
-                    "unit name is missing",
-                    "add a lower_snake_case name",
-                )
-            )
+        resolved = _unit_protocols_or_finding(text, unit, details)
+        if resolved is None:
             continue
-        protocols = _tables(unit.get("protocols"))
-        if protocols is None:
-            details.append(
-                _finding(
-                    text,
-                    f'name = "{name}"',
-                    f"unit {name!r} has no protocols array",
-                    "add at least one nested protocols table",
-                )
-            )
-            continue
-        actions = [
-            action
-            for protocol in protocols
-            if isinstance((action := protocol.get("action")), str)
-        ]
-        _invalid_names(text, "protocol action", actions, details)
-        _duplicates(text, "protocol action", actions, details)
-        for protocol in protocols:
-            if not isinstance(protocol.get("action"), str):
-                details.append(
-                    _finding(
-                        text,
-                        "[[tool.axm-init.protocols.units.protocols]]",
-                        f"protocol action is missing in unit {name!r}",
-                        "add a lower_snake_case action",
-                    )
-                )
-            _validate_components(text, protocol, details)
+        name, protocols = resolved
+        _validate_unit_protocols(text, name, protocols, details)
     return units
 
 

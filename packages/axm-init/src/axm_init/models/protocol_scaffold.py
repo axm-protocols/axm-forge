@@ -141,11 +141,9 @@ class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
             msg = "derived public names must be unique"
             raise ValueError(msg)
 
-    def _validate_component_references(self) -> None:
+    def _validate_node_references(self) -> None:
         declared_contracts = {contract.name for contract in self.contracts}
         declared_prompts = {prompt.name for prompt in self.prompts}
-        declared_nodes = {node.name for node in self.nodes}
-
         for node in self.nodes:
             if node.contract is not None and node.contract not in declared_contracts:
                 msg = (
@@ -157,13 +155,17 @@ class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
                 msg = f"node prompt {node.prompt!r} must reference a declared prompt"
                 raise ValueError(msg)
 
-        for phase in self.phases:
-            for node_reference in phase.nodes:
-                if node_reference not in declared_nodes:
-                    msg = (
-                        f"phase node {node_reference!r} must reference a declared node"
-                    )
-                    raise ValueError(msg)
+    def _validate_phase_references(self) -> None:
+        declared_nodes = {node.name for node in self.nodes}
+        references = (reference for phase in self.phases for reference in phase.nodes)
+        for node_reference in references:
+            if node_reference not in declared_nodes:
+                msg = f"phase node {node_reference!r} must reference a declared node"
+                raise ValueError(msg)
+
+    def _validate_component_references(self) -> None:
+        self._validate_node_references()
+        self._validate_phase_references()
 
     def _validate_ticket_binding(self) -> None:
         if self.ticket is None:

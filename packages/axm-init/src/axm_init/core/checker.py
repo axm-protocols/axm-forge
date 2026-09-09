@@ -529,29 +529,30 @@ class CheckEngine:
         )
 
 
+def _format_check_line(check: CheckResult) -> str:
+    """Format one check as a single status line."""
+    status = "✅" if check.passed else "❌"
+    earned = f"{check.earned}/{check.weight}"
+    return f"    {status} {check.name:<30s} {earned:>5s}  {check.message}"
+
+
+def _format_category_summary(checks: list[CheckResult]) -> list[str]:
+    """Format a category as one passed-count line plus the failures."""
+    passed_count = sum(1 for c in checks if c.passed)
+    lines = [f"    ✅ {passed_count} checks passed"] if passed_count else []
+    lines.extend(_format_check_line(c) for c in checks if not c.passed)
+    return lines
+
+
 def _format_category_checks(
     checks: list[CheckResult],
     *,
     verbose: bool,
 ) -> list[str]:
     """Format check lines for a single category."""
-    lines: list[str] = []
     if verbose:
-        for check in checks:
-            status = "✅" if check.passed else "❌"
-            earned = f"{check.earned}/{check.weight}"
-            lines.append(
-                f"    {status} {check.name:<30s} {earned:>5s}  {check.message}"
-            )
-    else:
-        passed_count = sum(1 for c in checks if c.passed)
-        if passed_count:
-            lines.append(f"    ✅ {passed_count} checks passed")
-        for check in checks:
-            if not check.passed:
-                earned = f"{check.earned}/{check.weight}"
-                lines.append(f"    ❌ {check.name:<30s} {earned:>5s}  {check.message}")
-    return lines
+        return [_format_check_line(check) for check in checks]
+    return _format_category_summary(checks)
 
 
 def _format_failures(failures: list[CheckResult]) -> list[str]:
