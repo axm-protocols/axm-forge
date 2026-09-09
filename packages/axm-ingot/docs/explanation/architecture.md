@@ -2,42 +2,51 @@
 
 ## Overview
 
-`axm-ingot` is a **canonical leaf library**: it factors logic that was
-duplicated across forge packages into one stdlib-only home that everyone can
-depend on without creating a dependency cycle.
-
-```mermaid
-graph TD
-    subgraph "axm_ingot.uv"
-        Models["models.py — Member, ResolvedWorkspace"]
-        Resolve["resolve.py — resolve_workspace, parse_workspace_members, find_workspace_root, find_project_root"]
-    end
-    Resolve --> Models
-```
+`axm-ingot` holds shared helpers used by several packages. Its runtime
+dependency list is empty: all implementations use the standard library.
+Consumers depend on this library without importing each other's tool layers.
 
 ## Module map
 
-### `axm_ingot.uv.models`
+| Module | Responsibility | I/O |
+|---|---|---|
+| `axm_ingot.uv.models` | Frozen `Member`, `ResolvedWorkspace` dataclasses | None |
+| `axm_ingot.uv.resolve` | Parse workspace declarations, resolve globs, discover roots | Reads paths and pyprojects; text parser has no I/O |
+| `axm_ingot.render` | Compact text primitives and generic renderer | None for ordinary values |
+| `axm_ingot.duration` | Milliseconds to short duration text | None |
+| `axm_ingot.console` | Locate a console script beside Python or on PATH | File lookup only |
+| `axm_ingot.pytest_tally` | Classify supplied outcome lines | Consumes iterable, no pytest execution |
+| `axm_ingot.suite` | Internal suite naming and discovery | Reads directories and pyproject |
 
-Frozen value types — `Member` (`name`, `path`) and `ResolvedWorkspace`
-(`root`, `members`). Plain `@dataclass(frozen=True)`, no behavior.
+The [API index](../reference/api.md) distinguishes root exports from documented
+submodule imports. Suite helpers are internal Python utilities, not root exports.
 
-### `axm_ingot.uv.resolve`
-
-The resolution logic — `resolve_workspace`, `find_workspace_root`, and
-`find_project_root`, plus `parse_workspace_members` (the pure-text reader of
-the raw `[tool.uv.workspace].members` array, no glob/filesystem), and private
-helpers (`_load_pyproject`, `_get_workspace_config`, `_resolve_glob_dirs`).
-Pure functions over the filesystem; all TOML parsing is defensive.
-
-## Design Decisions
+## Design decisions
 
 | Decision | Rationale |
 |---|---|
-| Leaf of the forge dep graph | `dependencies = []`; callers (audit, init) depend on it, it depends on no forge package — no cycles |
-| Stdlib only (`tomllib`, `pathlib`, `dataclasses`) | No Pydantic, no third-party runtime deps; trivially importable everywhere |
-| Frozen dataclasses, not Pydantic | This is a leaf — adding Pydantic would pull a dependency and break the leaf invariant |
-| `Member` carries both `name` and `path` | Callers project trivially: audit wants `[m.path …]`, init wants `[m.name …]` |
-| Defensive parsing returns `None` | A missing/malformed `pyproject.toml` is a normal "not a workspace" answer, not an error |
-| Workspace semantics for `find_workspace_root` | Stops at the first `[tool.uv.workspace]`, not the first project `pyproject.toml` |
-| Project semantics for `find_project_root` | Stops at the first `pyproject.toml` of any kind and never returns `None` (start-dir fallback) — distinct from `find_workspace_root`, so callers anchoring relative imports never propagate a `None` root |
+| Zero third-party runtime dependencies | A small consumer does not inherit a tool framework or heavy library |
+| Frozen dataclasses | Typed records without a model dependency |
+| Directory-based workspace members | Resolution does not need to parse every member's package metadata |
+| Separate project and workspace discovery | The nearest project is often a member rather than the workspace root |
+| Rendering stays independent of `ToolResult` | Callers supply data and decide how to expose or persist the resulting text |
+
+Frozen dataclasses prevent field reassignment, but do not validate constructor
+arguments. Absolute paths and sorted members describe resolver-produced values,
+not invariants enforced when a caller constructs records manually.
+
+## Boundaries and failure behavior
+
+There is no package-wide purity or never-raises contract. File discovery reads
+the live filesystem and can race with concurrent changes. Parsing catches
+specific errors; path resolution and user-defined string conversions can fail.
+
+The generic renderer catches ordinary exceptions while formatting its body
+and returns its header alone. It does not signal that content was dropped.
+Its readable separators and yes/no conversion are not reversible serialization;
+retain the structured data when exact types and values matter.
+
+Sharing primitive tests does not replace consumer tests: keep checks of the
+consumer's field mapping, error handling and integration. The
+[promotion guide](../howto/promote-a-helper.md) explains how to remove duplication
+without losing those scenarios.

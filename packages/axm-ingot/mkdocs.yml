@@ -1,5 +1,39 @@
 site_name: ingot
+site_description: Standard-library shared helpers for AXM.
 docs_dir: docs
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: true
+            show_source: false
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences
+  - pymdownx.details
+  - toc:
+      permalink: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
 
 nav:
   - Home: index.md
@@ -13,5 +47,8 @@ nav:
     - Public API: reference/api.md
     - Render primitives: reference/render.md
     - Duration primitive: reference/duration.md
+    - Console and outcomes: reference/helpers.md
+    - Internal suite helpers: reference/suites.md
+    - Generated API: reference/generated.md
   - Explanation:
     - Architecture: explanation/architecture.md
