@@ -9,7 +9,7 @@ from axm_ast import PackageInfo, analyze_package, search_symbols
 
 from axm_init.models.check import CheckResult
 
-__all__ = ["check_protocols_profile"]
+__all__ = ["check_protocols_profile", "check_protocols_resources"]
 
 __axm_explicit_only__ = True
 
@@ -450,6 +450,177 @@ def _workspace_protocol_result(project: Path) -> CheckResult | None:
         ),
         details=[f"member {member_name}: {detail}" for member_name, detail in failures],
         fix="" if passed else "Apply each correction in the named workspace member.",
+    )
+
+
+def _declared_prompt_paths(
+    project: Path,
+    profile: dict[str, object],
+) -> list[Path]:
+    domain = profile.get("domain")
+    units = _tables(profile.get("units"))
+    if not isinstance(domain, str) or units is None:
+        return []
+
+    module_root = project / "src" / f"protocols_{domain}"
+    paths: list[Path] = []
+    for unit in units:
+        unit_name = unit.get("name")
+        protocols = _tables(unit.get("protocols"))
+        if not isinstance(unit_name, str) or protocols is None:
+            continue
+        for protocol in protocols:
+            action = protocol.get("action")
+            prompts = _strings(protocol.get("prompts"))
+            if not isinstance(action, str) or prompts is None:
+                continue
+            paths.extend(
+                module_root / unit_name / action / "prompts" / f"{prompt}.md"
+                for prompt in prompts
+            )
+    return paths
+
+
+def _protocol_resources_included(
+    data: dict[str, object],
+    domain: str,
+) -> bool:
+    force_include = _nested(
+        data,
+        "tool",
+        "hatch",
+        "build",
+        "targets",
+        "wheel",
+        "force-include",
+    )
+    expected_source = f"src/protocols_{domain}"
+    expected_target = f"protocols_{domain}"
+    return (
+        force_include is not None
+        and force_include.get(expected_source) == expected_target
+    )
+
+
+def _workspace_protocol_resources_result(project: Path) -> CheckResult | None:
+    from axm_ingot.uv import resolve_workspace
+
+    workspace = resolve_workspace(project)
+    if workspace is None:
+        return None
+
+    applicable: list[tuple[str, CheckResult]] = []
+    for member in workspace.members:
+        result = check_protocols_resources(member.path)
+        if result.weight:
+            applicable.append((member.name, result))
+    if not applicable:
+        return None
+
+    failures = [
+        (member_name, detail)
+        for member_name, result in applicable
+        if not result.passed
+        for detail in result.details
+    ]
+    passed = not failures
+    return CheckResult(
+        name="protocols.protocols_resources",
+        category=_CATEGORY,
+        passed=passed,
+        weight=2,
+        message=(
+            "Workspace protocol prompt resources are distributable"
+            if passed
+            else f"Workspace protocol resources have {len(failures)} finding(s)"
+        ),
+        details=[f"member {member_name}: {detail}" for member_name, detail in failures],
+        fix="" if passed else "Apply each correction in the named workspace member.",
+    )
+
+
+def check_protocols_resources(project: Path) -> CheckResult:
+    """Validate declared prompt files and their distribution configuration."""
+    metadata = project / "pyproject.toml"
+    try:
+        text = metadata.read_text(encoding="utf-8")
+        data = cast("dict[str, object]", tomllib.loads(text))
+    except (OSError, tomllib.TOMLDecodeError):
+        return CheckResult(
+            name="protocols.protocols_resources",
+            category=_CATEGORY,
+            passed=True,
+            weight=0,
+            message="Protocol prompt resources are not applicable",
+            details=[],
+            fix="",
+        )
+
+    profile = _nested(data, "tool", "axm-init", "protocols")
+    if profile is None:
+        workspace_result = _workspace_protocol_resources_result(project)
+        if workspace_result is not None:
+            return workspace_result
+        return CheckResult(
+            name="protocols.protocols_resources",
+            category=_CATEGORY,
+            passed=True,
+            weight=0,
+            message="Protocol profile not declared",
+            details=[],
+            fix="",
+        )
+
+    prompt_paths = _declared_prompt_paths(project, profile)
+    details: list[str] = []
+    for prompt_path in prompt_paths:
+        if prompt_path.is_file():
+            continue
+        relative = prompt_path.relative_to(project).as_posix()
+        details.append(
+            _finding(
+                text,
+                "prompts =",
+                f"declared prompt resource is missing on disk at {relative}",
+                f"create {relative} or remove it from the prompts inventory",
+            )
+        )
+
+    domain = profile.get("domain")
+    if (
+        prompt_paths
+        and isinstance(domain, str)
+        and not _protocol_resources_included(data, domain)
+    ):
+        source = f"src/protocols_{domain}"
+        target = f"protocols_{domain}"
+        relative_prompts = ", ".join(
+            path.relative_to(project).as_posix() for path in prompt_paths
+        )
+        details.append(
+            _finding(
+                text,
+                "[tool.hatch.build.targets.wheel]",
+                f"prompt resources {relative_prompts} are excluded from "
+                "the distribution",
+                "declare [tool.hatch.build.targets.wheel.force-include] and add "
+                f'"{source}" = "{target}"',
+            )
+        )
+
+    passed = not details
+    return CheckResult(
+        name="protocols.protocols_resources",
+        category=_CATEGORY,
+        passed=passed,
+        weight=2,
+        message=(
+            "Protocol prompt resources are present and distributable"
+            if passed
+            else f"Protocol prompt resources have {len(details)} finding(s)"
+        ),
+        details=details,
+        fix="" if passed else "Apply every correction listed in the findings.",
     )
 
 

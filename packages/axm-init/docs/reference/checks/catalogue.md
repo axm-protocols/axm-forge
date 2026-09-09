@@ -161,6 +161,30 @@ An experiment folder — a directory whose root `manifest.yaml` declares both
     and papers, so a Python package is never reproached an experiment check.
 
 
+### protocols (6 pts, explicit-only)
+
+Protocol-profile checks run only when the `protocols` category is requested:
+
+| Check | Weight | What It Verifies |
+|-------|--------|------------------|
+| `protocols.profile` | 4 | Profile metadata, distribution/module identity, required layout, and bidirectional component inventory |
+| `protocols.protocols_resources` | 2 | Every declared prompt has a `prompts/<name>.md` resource and the protocol package is explicitly included in the wheel |
+
+Prompt existence and distribution inclusion are independent invariants. A local
+file is not sufficient evidence that Hatch will ship it. For a domain such as
+`dev`, declare the package mapping explicitly:
+
+```toml
+[tool.hatch.build.targets.wheel.force-include]
+"src/protocols_dev" = "protocols_dev"
+```
+
+A missing prompt finding names its expected repository-relative path and the
+correction. A missing distribution mapping names `pyproject.toml`, every affected
+prompt path, and the required `force-include` declaration. At a workspace root,
+findings retain the member identity. Projects without a protocol profile remain
+not applicable.
+
 ## Framework-specific registries
 
 The tables above describe Python. Without `package.json`, detection selects

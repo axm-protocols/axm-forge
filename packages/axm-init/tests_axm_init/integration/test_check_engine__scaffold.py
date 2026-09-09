@@ -60,7 +60,8 @@ _PROTOCOL_DECLARATIONS = [
     {
         "action": "exec",
         "contracts": [{"name": "input"}],
-        "nodes": [{"name": "run", "contract": "input"}],
+        "nodes": [{"name": "run", "contract": "input", "prompt": "run"}],
+        "prompts": [{"name": "run", "text": "Execute the declared work."}],
         "phases": [{"name": "build", "nodes": ["run"]}],
     }
 ]
@@ -94,6 +95,8 @@ def _scaffold_protocol_profile(tmp_path: Path, label: str) -> Path:
         + (
             "\n[tool.hatch.build.targets.wheel]\n"
             'packages = ["src/axm_dev", "src/protocols_dev"]\n'
+            "\n[tool.hatch.build.targets.wheel.force-include]\n"
+            '"src/protocols_dev" = "protocols_dev"\n'
         ),
         encoding="utf-8",
     )
@@ -306,3 +309,56 @@ def test_protocols_workspace_propagates_member_layout_failure(
     assert result.failures
     assert member.name in evidence
     assert str(missing.relative_to(member)) in evidence
+
+
+@pytest.mark.integration
+def test_protocols_resources_reports_declared_prompt_missing_on_disk(
+    tmp_path: Path,
+) -> None:
+    """AC1: a declared prompt missing on disk reports its path and correction."""
+    dest = _scaffold_protocol_profile(tmp_path, "prompt-missing")
+    missing = _protocol_action_root(dest) / "prompts" / "run.md"
+    missing.unlink()
+
+    result = CheckEngine(dest, category="protocols").run()
+    resource_failures = [
+        failure
+        for failure in result.failures
+        if failure.name == "protocols.protocols_resources"
+    ]
+    assert len(resource_failures) == 1
+    failure = resource_failures[0]
+    evidence = "\n".join((*failure.details, failure.fix))
+    assert str(missing.relative_to(dest)) in evidence
+    assert "Correction:" in evidence
+
+
+@pytest.mark.integration
+def test_protocols_resources_reports_prompt_excluded_from_distribution(
+    tmp_path: Path,
+) -> None:
+    """AC2: an existing prompt without build inclusion reports that omission."""
+    dest = _scaffold_protocol_profile(tmp_path, "prompt-excluded")
+    prompt = _protocol_action_root(dest) / "prompts" / "run.md"
+    assert prompt.is_file()
+    _replace_metadata(
+        dest,
+        (
+            "\n[tool.hatch.build.targets.wheel.force-include]\n"
+            '"src/protocols_dev" = "protocols_dev"\n'
+        ),
+        "",
+    )
+
+    result = CheckEngine(dest, category="protocols").run()
+    resource_failures = [
+        failure
+        for failure in result.failures
+        if failure.name == "protocols.protocols_resources"
+    ]
+    assert len(resource_failures) == 1
+    failure = resource_failures[0]
+    evidence = "\n".join((*failure.details, failure.fix))
+    assert "pyproject.toml" in evidence
+    assert "force-include" in evidence
+    assert str(prompt.relative_to(dest)) in evidence
