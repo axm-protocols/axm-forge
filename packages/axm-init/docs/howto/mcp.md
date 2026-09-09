@@ -1,55 +1,67 @@
 # Use via MCP
 
-`axm-init` exposes its CLI commands as MCP (Model Context Protocol) tools via `axm-mcp`. AI agents can call them directly without spawning subprocesses.
+The same three AXMTools power the CLI and MCP. `axm-mcp` discovers their
+`axm.tools` entry points in its installed environment.
 
-## Available Tools
-
-| MCP Tool | Equivalent CLI | Purpose |
+| Tool | CLI | Purpose |
 |---|---|---|
-| `init_check` | `axm init_check` | Score a project, returns context (standalone/workspace/member) |
-| `init_scaffold` | `axm init_scaffold` | Scaffold a project, workspace, or member package |
-| `init_reserve` | `axm init_reserve` | Reserve a package name on PyPI |
+| `init_check` | `axm init_check` | Context- and framework-aware governance |
+| `init_scaffold` | `axm init_scaffold` | Scaffolding and protocol planning/application |
+| `init_reserve` | `axm init_reserve` | PyPI reservation |
 
-## Usage
+## Dispatch through the facade
 
-!!! note "MCP dispatch"
-    The examples below show the **logical API** — the parameters and return values.
-    In practice, AI agents call these via MCP tool dispatch (e.g. `mcp_axm-mcp_init_check`),
-    not direct Python imports.
+Tools not directly exposed by the server remain callable through
+`axm_call(name=..., arguments=...)`. Client-specific MCP prefixes are not
+Python function names. The following JSON objects are facade arguments.
 
 ### Check a project
 
-```python
-# MCP tool call (not importable — dispatched by axm-mcp)
-result = mcp_axm_mcp_init_check(path="/path/to/project")
+```json
+{"name":"init_check","arguments":{"path":"/path/to/project"}}
 ```
 
-Returns the same structured output as `axm init_check --agent` — passed checks summarized, failed checks with full detail and fix hints.
+The tool's structured data follows the [check output contract](../reference/check.md).
+The facade returns its text rendering.
 
-### Scaffold a project
+### Scaffold a workspace
 
-```python
-# MCP tool call (not importable — dispatched by axm-mcp)
-result = mcp_axm_mcp_init_scaffold(
-    path="/path/to/new-project",
-    name="my-project",
-    org="my-org",
-    author="Your Name",
-    email="you@example.com",
-    workspace=True,   # or member="my-lib"
-)
+```json
+{
+  "name": "init_scaffold",
+  "arguments": {
+    "path": "/path/to/new-workspace",
+    "name": "my-workspace",
+    "org": "my-org",
+    "author": "Your Name",
+    "email": "you@example.com",
+    "workspace": true
+  }
+}
 ```
 
-### Reserve a package name
+For a member, use `member: "my-lib"` and the workspace path instead of
+`workspace: true`. See [protocol scaffolding](scaffold-protocols.md) for
+structured protocol payloads.
 
-```python
-# MCP tool call (not importable — dispatched by axm-mcp)
-result = mcp_axm_mcp_init_reserve(name="my-package", author="Your Name", email="you@example.com")
+### Check a package name before publication
+
+```json
+{
+  "name": "init_reserve",
+  "arguments": {
+    "name": "my-package",
+    "author": "Your Name",
+    "email": "you@example.com",
+    "dry_run": true
+  }
+}
 ```
 
-## Entry Points
+Set `dry_run` to false only for the actual publication. Identity and credential
+rules are shared with the [CLI](../reference/reserve.md).
 
-The tools are registered via `pyproject.toml` entry points:
+## Entry points
 
 ```toml
 [project.entry-points."axm.tools"]
@@ -57,5 +69,3 @@ init_check    = "axm_init.tools.check:InitCheckTool"
 init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
 init_reserve  = "axm_init.tools.reserve:InitReserveTool"
 ```
-
-`axm-mcp` discovers these automatically at startup.

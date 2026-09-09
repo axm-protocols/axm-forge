@@ -10,7 +10,7 @@ This tutorial walks you through installing `axm-init` and creating your first pr
 ## Installation
 
 ```bash
-uv add axm-init
+uv tool install --with axm-init axm
 ```
 
 Or with pip:
@@ -19,10 +19,14 @@ Or with pip:
 pip install axm-init
 ```
 
+The uv tool installation exposes `axm` on your tool PATH. For an existing uv
+project, `uv add axm-init` is also valid; then use `uv run axm ...` instead
+of assuming the project environment is activated.
+
 Verify the installation:
 
 ```bash
-axm-init version
+axm init_scaffold --help
 ```
 
 ## Step 1: Create a New Project
@@ -36,13 +40,14 @@ axm init_scaffold my-project \
 
 You'll see output with all scaffolded files:
 
+```text
+init_scaffold | ✓ | my-project (standalone) | <count> files
+. : README.md pyproject.toml ...
+src/ : my_project/__init__.py ...
+tests/ : __init__.py ...
 ```
-✅ Project 'my-project' created at /path/to/my-project
-   📄 pyproject.toml
-   📄 src/my_project/__init__.py
-   📄 tests/__init__.py
-   📄 README.md
-```
+
+This is an abbreviated output shape; the command lists the actual generated files.
 
 !!! tip "Default name"
     If you omit `--name`, the project name defaults to the target directory name.
@@ -84,15 +89,19 @@ my-project/
 ## Step 3: Run the Checks
 
 ```bash
-cd my-project
 make ci
 ```
 
-`make ci` runs the full quality pipeline in sequence: **Ruff lint → MyPy type-check → Pytest**. It's equivalent to:
+From the project directory entered in step 2, `make ci` installs all dependency
+groups, then runs lint/format checks, MyPy, dependency security auditing and
+pytest. Its sequential shell equivalent is:
 
 ```bash
-uv run ruff check src/ tests/
-uv run mypy src/ tests/
+uv sync --all-groups
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run mypy src
+uv run pip-audit
 uv run pytest
 ```
 

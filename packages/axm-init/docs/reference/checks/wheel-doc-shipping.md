@@ -1,4 +1,4 @@
-# `pyproject.wheel_doc_shipping`
+# `pyproject.pyproject_wheel_doc_shipping`
 
 **Category:** `pyproject` &nbsp;·&nbsp; **Weight:** 2
 
@@ -14,11 +14,11 @@ distribution is silently missing them.
 The check resolves the expected doc file list in this order:
 
 1. **Explicit opt-in** — `[tool.axm-init.wheel-doc].files` lists the doc
-   files to ship. The check fails (ERROR) if any listed file is not
+   files to ship. The check fails (`passed=False`, weight 2) if any listed file is not
    force-included.
 2. **Auto-detection** — when no explicit list is provided, every
    `docs/*.md` file on disk is treated as a shipping candidate. The check
-   fails (WARNING) if any auto-detected file is not force-included.
+   fails (`passed=False`, weight 2) if any auto-detected file is not force-included.
 3. **No docs anywhere** — passes silently.
 
 To **opt out** entirely, declare an empty list: `[tool.axm-init.wheel-doc]`
@@ -59,7 +59,7 @@ on disk is expected to be force-included. For a project with
 ```
 
 If one of the auto-detected files is missing from `force-include`, the
-check emits a WARNING with a ready-to-paste fix snippet.
+check returns a failed result with a ready-to-paste fix snippet.
 
 ### Opt out
 
@@ -69,3 +69,14 @@ For projects that intentionally do not ship docs inside the wheel:
 [tool.axm-init.wheel-doc]
 files = []
 ```
+
+## Scope and limitations
+
+Auto-detection covers Markdown files directly in `docs/`, not nested pages.
+The implementation matches exact source keys in `force-include`; it does not
+inspect the built wheel or validate destination paths. `CheckResult` has no
+ERROR/WARNING severity field: explicit opt-in and auto-detection both affect
+the weighted score on failure.
+
+A `[tool.axm-init.wheel-doc]` table without a `files` key currently behaves
+like an empty list. Omit the whole table to request auto-detection.

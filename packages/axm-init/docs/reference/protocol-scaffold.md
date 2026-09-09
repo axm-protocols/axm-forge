@@ -40,7 +40,7 @@ collide.
 All name segments must be safe lowercase Python identifiers. Path separators,
 parent traversal, absolute paths, reserved words, and extra fields are rejected.
 
-## Scaffold and preview surface
+## Scaffold, preview and application surface
 
 `init_scaffold` accepts protocol declarations through the same AXMTool
 signature used by MCP and the generated CLI. Set `profile="protocols"` and a
@@ -83,7 +83,7 @@ removes paths created by that operation and restores the original file and
 metadata bytes. This is application-level rollback, not crash-safe atomicity.
 
 Invalid request combinations are also rejected before any write: protocol
-options without a profile, a unit with an empty protocol list, the profile on a
+options without a profile, an empty protocol list when `unit` or `preview` is set, the profile on a
 non-Python framework, or protocol declarations without a unit.
 
 ## Example
@@ -121,3 +121,17 @@ declaration = ProtocolScaffoldDecl(
 
 assert declaration.graph_name == "dev.work.exec"
 ```
+
+## Current interface notes
+
+Declaration requests require an existing package with a readable `pyproject.toml`.
+The orchestrator processes actions sequentially against a virtual inventory,
+so later actions see earlier planned content.
+
+`ScaffoldResult` also carries `success`, `path`, `message`, `files_created`
+and optional `distribution`. The human message currently remains
+`Protocol scaffold preview` even on application; `preview` is the authoritative
+mode flag. A preview can report conflicts without applying them.
+
+Rollback is in-process; it does not serialize concurrent writers or supply a
+durable recovery journal. See [the operational guide](../howto/scaffold-protocols.md).

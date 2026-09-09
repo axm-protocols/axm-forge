@@ -40,8 +40,17 @@ axm init_check --json-output
 Use in CI to enforce quality gates:
 
 ```bash
-axm init_check --json-output | jq -e '.score >= 90'
+report=$(mktemp)
+trap 'rm -f "$report"' EXIT
+status=0
+axm init_check --json-output > "$report" || status=$?
+if [ "$status" -gt 1 ]; then exit "$status"; fi
+jq -e 'has("score") and (.score != null) and (.score >= 90)' "$report"
 ```
+
+This example intentionally accepts an applicable score of at least 90, even
+though the tool exits 1 below 100. Invalid/missing JSON and N/A fail this gate.
+For the built-in 100-point policy, use the tool's exit status directly.
 
 ## Agent Output for AI
 
@@ -69,22 +78,32 @@ pyproject (29/29)
 
 By default, only failures are displayed.
 
-## What Gets Checked (49 Checks)
+## What Gets Checked
 
 | Category | Checks | Points |
 |----------|--------|--------|
 | **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage, classifiers, ruff_rules, wheel_doc_shipping | 29 |
 | **ci** | workflow, lint job, test job, security job, trusted publishing, dependabot | 16 |
 | **tooling** | commit-hook config (×5), hooks installed, Makefile targets | 16 |
-| **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README, README badges | 16 |
+| **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README, README badges, standalone API wiring | 18 |
 | **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
 | **deps** | dev group, docs group | 5 |
 | **changelog** | git-cliff config, no manual CHANGELOG | 5 |
-| **workspace** | packages layout, members consistent, monorepo plugin, matrix packages, requires-python compat, root name collision, pytest importmode, pytest testpaths, quality workflow | 19 |
+| **workspace** | packages layout, members consistent, monorepo plugin, matrix packages, requires-python compat, root name collision, pytest importmode, pytest testpaths, quality workflow, unique test-suite directory names | 21 |
+
+| **paper** | paper structure, plan, research protocol | 15 |
+| **experiment** | directory structure and required files | 10 |
+
+These are the Python catalogue categories before context filtering.
+See the [complete catalogue](../reference/checks/catalogue.md) for canonical
+identifiers and Node/React/Svelte selection.
 
 ### Workspace Context
 
-`axm init_check` auto-detects the project context (STANDALONE, WORKSPACE, or MEMBER) and displays it in the report header. Workspace members have CI checks excluded automatically, and per-package exclusions can be configured via `[tool.axm-init].exclude`.
+`axm init_check` detects standalone, workspace, member, paper or experiment
+contexts. Members redirect CI and shared tooling checks to their workspace
+root; other inapplicable checks are skipped. Per-package exclusions use
+`[tool.axm-init].exclude`. See [context routing](../explanation/project-contexts.md).
 
 ## Reading the Report
 

@@ -9,14 +9,60 @@ nav:
   - How-To Guides:
     - index: howto/index.md
     - Scaffold a Project: howto/scaffold.md
+    - Scaffold Research: howto/scaffold-research.md
+    - Scaffold Protocols: howto/scaffold-protocols.md
+    - Scaffold Node or Svelte: howto/scaffold-web.md
     - Check Project Quality: howto/check.md
     - Reserve a Name: howto/reserve.md
     - Use via MCP: howto/mcp.md
     - CI Badge: howto/ci-badge.md
   - Reference:
     - CLI: reference/cli.md
+    - Scaffold Command: reference/scaffold.md
+    - Check Command: reference/check.md
+    - Reserve Command: reference/reserve.md
+    - Python Entry Points: reference/python-api.md
+    - Template Selection: reference/templates.md
+    - Research Templates: reference/research-templates.md
+    - Protocol Declarations: reference/protocol-scaffold.md
     - Checks:
+      - Catalogue: reference/checks/catalogue.md
       - wheel-doc-shipping: reference/checks/wheel-doc-shipping.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Check Grades: explanation/check-grades.md
+    - Project Contexts: explanation/project-contexts.md
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: false
+
+markdown_extensions:
+  - admonition
+  - tables
+  - attr_list
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn

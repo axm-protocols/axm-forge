@@ -23,7 +23,7 @@
 ## Quick Example
 
 ```bash
-$ axm init_scaffold my-project \
+axm init_scaffold my-project \
     --org axm-protocols --author "Your Name" --email "you@example.com"
 
 ✅ Project 'my-project' created at /path/to/my-project
@@ -36,7 +36,7 @@ $ axm init_scaffold my-project \
 ## Features
 
 - 🚀 **Scaffold** — Bootstrap projects with Copier templates (`src/` layout, PEP 621)
-- 📋 **Check** — Score any project against the AXM gold standard (49 checks, A–F grade)
+- 📋 **Check** — Score any project against the AXM gold standard (context-selected checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 - ✅ **Standards** — Pre-configured Ruff, MyPy, Pytest, GitHub Actions
 - 📊 **JSON output** — Machine-readable output for CI integration
@@ -51,3 +51,6 @@ $ axm init_scaffold my-project \
 - [Architecture](explanation/architecture.md)
 - [Check Grades](explanation/check-grades.md)
 - [CLI Reference](reference/cli.md)
+- [Protocol declarations](reference/protocol-scaffold.md)
+- [Node and Svelte](howto/scaffold-web.md)
+- [Python entry points](reference/python-api.md)

@@ -10,8 +10,16 @@ This tutorial walks you through installing `axm-init` and verifying your setup.
 ## Installation
 
 ```bash
-uv add axm-init
+uv tool install --with axm-init axm
 ```
+
+Check that the tool is discoverable:
+
+```bash
+axm init_scaffold --help
+```
+
+Inside an existing uv project, use `uv add axm-init` and `uv run axm ...`.
 
 ## Quick Start
 

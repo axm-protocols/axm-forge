@@ -9,3 +9,7 @@ Task-oriented guides for common workflows.
 - [MCP Integration](mcp.md) — Use init tools via MCP
 - [Reserve a Name](reserve.md) — Reserve a package name
 - [Scaffold a Project](scaffold.md) — Create a new project from template
+
+- [Research Scaffolds](scaffold-research.md) — Paper and experiment workflows
+- [Protocol Scaffolds](scaffold-protocols.md) — Package creation, preview and application
+- [Node and Svelte](scaffold-web.md) — Standalone TypeScript projects

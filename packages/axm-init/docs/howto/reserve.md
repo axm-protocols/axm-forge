@@ -9,11 +9,12 @@ You need a PyPI API token. `axm-init` resolves it automatically (first match win
 | Priority | Source |
 |---|---|
 | 1 | axm-vault credentials catalog (`PYPI_API_TOKEN` environment variable or `pypi.token` credential) |
-| 2 | Interactive prompt (persisted to the axm-vault credentials catalog) |
 
-!!! tip "First-time setup"
-    On first run without a token, you'll be prompted once.
-    The token is persisted to the axm-vault credentials catalog for future runs.
+
+The reservation tool never prompts. Configure the catalog credential or
+`PYPI_API_TOKEN` before a real publication. The separate adapter method
+`resolve_pypi_token()` can prompt and persist credentials, but this tool uses
+`get_pypi_token()` only.
 
 ## Reserve
 
@@ -26,6 +27,7 @@ This publishes a minimal placeholder package (`0.0.1.dev0`) to secure the name.
 !!! tip "Author defaults"
     If `--author` and `--email` are omitted, `axm-init` reads `git config user.name`
     and `git config user.email` from your local git configuration.
+    If only one identity flag is supplied, no git fallback fills the other.
     If neither flag is provided and git config is unavailable, the command exits with
     an error — author and email are **required** to publish valid package metadata.
 
@@ -35,7 +37,7 @@ This publishes a minimal placeholder package (`0.0.1.dev0`) to secure the name.
 axm init_reserve my-package-name --dry-run
 ```
 
-Verifies availability without publishing. No token required.
+Contacts PyPI to verify availability without building or publishing. No token required.
 
 ## JSON Output
 
@@ -43,7 +45,9 @@ Verifies availability without publishing. No token required.
 axm init_reserve my-package-name --json-output
 ```
 
-Returns structured JSON for CI integration. Exits with code 1 and JSON error if no token is configured (no interactive prompt in JSON mode).
+Returns `package_name`, `version`, and `message` on a completed reservation.
+Missing identity/token produces exit code 1 and an `error` payload; stderr also
+carries the error. There is no interactive prompt in any output mode.
 
 ## Troubleshooting
 
@@ -51,5 +55,5 @@ Returns structured JSON for CI integration. Exits with code 1 and JSON error if 
 |---|---|---|
 | `Name already taken on PyPI` | Package name is already registered | Choose a different name, or check if you own it at `pypi.org/project/<name>/` |
 | `Author and email are required` | Neither `--author`/`--email` flags nor `git config` values found | Pass `--author "Name" --email "email@example.com"` explicitly |
-| `No PyPI token configured` | Neither catalog resolution nor the interactive prompt returned a value | Set `PYPI_API_TOKEN`, configure the axm-vault credential `pypi.token`, or run interactively |
+| `No PyPI token configured` | Catalog resolution returned no token | Set `PYPI_API_TOKEN`, configure the axm-vault credential `pypi.token` |
 | `Build failed` | Package build error (rare) | Check that `uv` and `hatchling` are installed: `uv pip install hatchling` |

@@ -7,7 +7,7 @@ Add an `axm-init` check-score badge to your project.
 If you created your package with `axm init_scaffold`, you're done — scaffolding
 already emits a correct `.github/workflows/axm-quality.yml` that runs the
 `axm-init` checks, generates the badge JSON (with the AXM logo inlined the right
-way), and pushes it to the `gh-pages/badges/` branch. Most users need nothing
+way), and pushes it to the `gh-pages` branch under `badges/`. Most users need nothing
 further; just add the README snippet below.
 
 The rest of this page is for **retrofitting an existing repo** that wasn't
@@ -48,7 +48,13 @@ jobs:
       - name: Run AXM Init check
         id: init
         run: |
-          RESULT=$(uvx --from axm-init axm init_check . --json-output) || true
+          CHECK_STATUS=0
+          RESULT=$(uvx --with axm-init axm init_check . --json-output) || CHECK_STATUS=$?
+          if [ "$CHECK_STATUS" -gt 1 ]; then exit "$CHECK_STATUS"; fi
+          echo "$RESULT" | jq -e '
+            has("score") and has("grade") and
+            ((.score == null) or ((.score | type) == "number"))
+          ' > /dev/null
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
@@ -59,7 +65,8 @@ jobs:
         id: color
         run: |
           SCORE=$(echo "${{ steps.init.outputs.score }}" | cut -d. -f1)
-          if [ "$SCORE" -ge 95 ]; then COLOR="brightgreen"
+          if [ "$SCORE" = "null" ]; then COLOR="lightgrey"
+          elif [ "$SCORE" -ge 95 ]; then COLOR="brightgreen"
           elif [ "$SCORE" -ge 80 ]; then COLOR="green"
           elif [ "$SCORE" -ge 60 ]; then COLOR="yellow"
           else COLOR="red"; fi
@@ -80,7 +87,7 @@ jobs:
               '{
                 schemaVersion: 1,
                 label: "axm-init",
-                message: "\($score)%",
+                message: (if $score == "null" then "N/A" else "\($score)%" end),
                 color: $color,
                 style: "flat",
                 logoSvg: $logo
@@ -92,7 +99,7 @@ jobs:
               '{
                 schemaVersion: 1,
                 label: "axm-init",
-                message: "\($score)%",
+                message: (if $score == "null" then "N/A" else "\($score)%" end),
                 color: $color,
                 style: "flat"
               }' > badges/axm-init.json
@@ -110,7 +117,7 @@ jobs:
 ```
 
 !!! note "uvx vs uv run"
-    Use `uvx --from axm-init axm` for external projects (installs from PyPI).
+    Use `uvx --with axm-init axm` for external projects (installs from PyPI).
     Within the axm-init repo itself, use `uv run axm` (local library).
 
 ### Logo handling
@@ -147,7 +154,7 @@ The badge will appear after the first workflow run pushes to `gh-pages`.
 !!! note "Stale badge?"
     After the first publish (or a fix), the badge may keep showing "package not
     found" or a stale score: shields.io caches the JSON and GitHub's camo image
-    proxy re-caches on top. The badge refreshes on its own within ~1h. To force a
+    proxy re-caches on top. Refresh timing depends on those caches. To force a
     refresh or check the real current state, hit the raw JSON or the shields
     endpoint with a cache-buster query param (e.g. append `?v=2`) rather than
     trusting the rendered image.
@@ -160,3 +167,4 @@ The badge will appear after the first workflow run pushes to `gh-pages`.
 | ≥ 80 | 🟢 `green` |
 | ≥ 60 | 🟡 `yellow` |
 | < 60 | 🔴 `red` |
+| N/A | `lightgrey` |

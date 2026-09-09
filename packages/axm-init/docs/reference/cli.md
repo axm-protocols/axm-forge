@@ -1,272 +1,33 @@
-# CLI Reference
+# CLI reference
 
-## Global Options
+The `axm` command discovers the three `axm.tools` entries shipped by
+`axm-init`. There is no separate `axm-init` executable.
 
-```
-axm --help       Show the shared tool catalog
-axm --version    Show the AXM version
-```
-
-## `init_scaffold` — Scaffold a Project
-
-```
-axm init_scaffold [OPTIONS] [PATH]
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `PATH` | | string | `.` | Directory to initialize project in |
-| `--name` | `-n` | string | *dir name* | Project name (defaults to directory name) |
-| `--org` | `-o` | string | *required* | GitHub org or username |
-| `--author` | `-a` | string | *required* | Author name |
-| `--email` | `-e` | string | *required* | Author email |
-| `--license` | `-l` | string | `Apache-2.0` | License type (MIT, Apache-2.0, EUPL-1.2) |
-| `--license-holder` | | string | *--org* | License holder (defaults to --org) |
-| `--description` | `-d` | string | `""` | Project description |
-| `--workspace` | `-w` | bool | `False` | Scaffold a UV workspace instead of a standalone package |
-| `--member` | `-m` | string | `None` | Scaffold a member sub-package with this name |
-| `--kind` | `-k` | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper` or `experiment` |
-| `--check-pypi` | | bool | `False` | Check PyPI name availability first |
-| `--json-output` | | bool | `False` | Output as JSON |
-
-**Validation rules:**
-
-- Missing `--name` → defaults to target directory name
-- Missing `--org`, `--author`, or `--email` → exit code 1
-- `--license-holder` omitted → defaults to `--org` value
-- `--workspace` and `--member` are mutually exclusive → exit code 1
-- `--check-pypi` with taken name → exit code 1
-- `--member` outside a workspace → exit code 1
-- `--kind` outside the declared set (`standalone`, `workspace`, `member`,
-  `paper`, `experiment`) → exit code 1
-- `--kind experiment` on a directory that is not a detected paper → exit code 1,
-  and nothing is written under that directory
-
-**Exit codes:**
-
-- `0` — scaffold succeeded
-- `1` — scaffold failed (validation, copier error, taken name, …)
-
-The exit code is authoritative in **both** text and `--json-output` mode: a failure
-always exits `1`, and the JSON payload carries the error or structured result
-field describing the cause. Scripts may route on `$?`.
-
-**Example:**
+| Command | Contract |
+|---|---|
+| [`axm init_scaffold`](scaffold.md) | Project, research and protocol scaffolding |
+| [`axm init_check`](check.md) | Context-aware governance checks |
+| [`axm init_reserve`](reserve.md) | PyPI placeholder reservation |
 
 ```bash
-axm init_scaffold my-project --name my-project \
-  --org axm-protocols --author "Your Name" --email "you@example.com"
-```
-
-```
-✅ Project 'my-project' created at /path/to/my-project
-   📄 pyproject.toml
-   📄 src/my_project/__init__.py
-   📄 tests/__init__.py
-```
-
-**Workspace example:**
-
-```bash
-axm init_scaffold --workspace --name my-workspace \\
-  --org axm-protocols --author "Your Name" --email "you@example.com"
-```
-
-**Member example** (run from inside a workspace):
-
-```bash
-axm init_scaffold --member my-lib \\
-  --org axm-protocols --author "Your Name" --email "you@example.com"
-```
-
-```
-✅ Member 'my-lib' created at /path/to/workspace/packages/my-lib
-   📄 pyproject.toml
-   📄 src/my_lib/__init__.py
-   🔧 Patched root files: Makefile, mkdocs.yml, pyproject.toml
-```
-
-**Paper example** (`--kind paper`, into an empty directory):
-
-```bash
-axm init_scaffold my-paper --kind paper \\
-  --org axm-protocols --author "Your Name" --email "you@example.com" \\
-  --description "Attention study"
-```
-
-Renders `PLAN.md`, `PIPELINE.md` (the data-provenance skeleton), `README.md`,
-`paper/` (LaTeX source + bibliography) and the `experiments/` root the tool
-owns. `--description` becomes the paper title;
-`--name` (or the directory name) is slugified into the paper slug.
-
-**Experiment example** (`--kind experiment`, run against a scaffolded paper):
-
-```bash
-axm init_scaffold my-paper --kind experiment --name baseline \\
-  --org axm-protocols --author "Your Name" --email "you@example.com"
-```
-
-The experiment directory is named by the CLI, never by the template: the next
-free zero-padded index followed by the slug (`experiments/01-baseline/`, then
-`experiments/02-…`). Its `manifest.yaml` — the 1.1.0 experiment contract, keyed
-`contract_version` / `id` / `title` / `question` / `type` / `repro_level`, plus
-the optional `supports` list (the identifiers of the investigations the
-experiment serves, rendered as an empty list) — is created at scaffold time,
-before any script runs, and appears in the `files` list under `--json-output`.
-
-Every entry of that `files` list is named relative to the payload's own `path`
-(the experiment directory the scaffold produced), so joining `path` with an
-entry always resolves on disk — `manifest.yaml`, `inputs/SOURCES.md`, … The
-`paper` kind follows the same rule against the paper root it reports.
-
----
-
-## `init_reserve` — Reserve Package Name on PyPI
-
-```
-axm init_reserve [OPTIONS] NAME
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `NAME` | | string | *required* | Package name to reserve |
-| `--author` | `-a` | string | *git config* | Author name |
-| `--email` | `-e` | string | *git config* | Author email |
-| `--dry-run` | | bool | `False` | Skip actual publish |
-| `--json-output` | | bool | `False` | Output as JSON |
-
-**Default resolution for `--author` / `--email`:**
-If omitted, resolved from `git config user.name` / `git config user.email`.
-If git config is not available and neither flag is provided, `axm init_reserve` exits
-with code 1 and a descriptive error message.
-
-**Validation rules:**
-
-- Empty `--author` or `--email` after git config fallback → exit code 1
-- Placeholder values (`John Doe`, `john.doe@example.com`) are rejected by the MCP tool layer
-
-**Token resolution:**
-
-1. axm-vault credentials catalog (`PYPI_API_TOKEN` environment variable or `pypi.token` credential)
-2. Interactive prompt (if TTY; persisted to the catalog)
-
-**Exit codes:**
-
-- `0` — reservation succeeded (or dry-run completed)
-- `1` — reservation failed (missing identity/token, name taken, …)
-
-As with `init_scaffold`, the exit code is authoritative in text and `--json-output`
-mode — a failed reservation exits `1` and the JSON payload carries `success`
-and `message`.
-
-**Example:**
-
-```bash
-axm init_reserve my-cool-package --dry-run
-```
-
-```
-✅ Dry run — would reserve 'my-cool-package' on PyPI
-   View at: https://pypi.org/project/my-cool-package/
-```
-
----
-
-## `init_check` — Check Project Against AXM Standard
-
-```
-axm init_check [OPTIONS] [PATH]
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `PATH` | | string | `.` | Directory to check |
-| `--json-output` | | bool | `False` | Output as JSON |
-| `--agent` | | bool | `False` | Compact agent-friendly output |
-| `--verbose` | `-v` | bool | `False` | Show all checks including passed |
-| `--category` | `-c` | string | *all* | Filter to one category |
-
-**Available categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`
-
-**Exit codes:**
-
-- `0` — Score is 100/100
-- `1` — Score below 100 (failures found)
-
-**Example:**
-
-```bash
-axm init_check
-```
-
-```
-📋 AXM Check — my-project
-   Path: /path/to/my-project
-
-  pyproject (29/29)
-    ✅ pyproject.pyproject_exists        4/4  pyproject.toml found
-    ...
-
-  Score: 97/100 — Grade A 🏆
-
-  📝 Failures (1):
-
-  ❌ docs.readme (3 pts)
-     Problem: README missing 1 section(s)
-     Missing: Development
-     Fix:     Add Development section(s) to README.md.
-```
-
-**Check output with workspace context:**
-
-```bash
-axm init_check
-```
-
-```
-📋 AXM Check — my-workspace
-   Path: /path/to/my-workspace
-   Context: WORKSPACE
-
-  pyproject (29/29)
-    ✅ pyproject.pyproject_exists        4/4  pyproject.toml found
-    ...
-
-  Score: 100/100 — Grade A 🏆
-```
-
-**JSON output:**
-
-```bash
-axm init_check --json-output
-```
-
-```json
-{
-  "project": "/path/to/my-project",
-  "score": 97,
-  "grade": "A",
-  "categories": { "pyproject": { "earned": 27, "total": 27 } },
-  "failures": [
-    { "name": "docs.readme", "weight": 3, "fix": "Add Development..." }
-  ]
-}
-```
-
----
-
-## Show Version
-
-```
+axm --help
 axm --version
+axm init_scaffold --help
+axm init_check --help
+axm init_reserve --help
 ```
 
-**Example:**
+`axm --version` reports the shared AXM package version, not the axm-init version.
+Its output is a version string (for example `0.8.0`).
 
-```bash
-axm --version
-```
+Use long parameter names such as `--author` and `--category`. The generated CLI
+does not declare the old short aliases (`-a`, `-c`, `-o`, and so on).
+Booleans also have negative forms, such as `--no-preview`. The first path or
+name argument can be positional; use named options for the remaining arguments.
 
-```
-axm 0.1.0
-```
+A tool failure produces exit code 1 and an error on stderr. Parsing failures
+may instead exit 2. `--json-output` selects structured stdout; stderr and
+the exit status remain separate. Do not assume every error uses the same JSON
+shape: consult the command reference.
+
+See [Python entry points](python-api.md) and [MCP usage](../howto/mcp.md).
