@@ -1,7 +1,10 @@
 # Scaffold protocol packages and units
 
 Use the Python `protocols` profile. Declaration requests target an existing
-package with `pyproject.toml`; create that package first if necessary.
+package whose `pyproject.toml` already declares `[tool.axm-init.protocols]`
+with the requested domain; create that protocol package first if necessary.
+Unit and protocol requests reject missing profiles and conflicting domains
+before any mutation.
 
 ## Create a protocol package
 
@@ -53,7 +56,9 @@ The resulting `preview` field is false.
 The current human message can still say `Protocol scaffold preview` during
 application; inspect the structured `preview` field and the path lists.
 On a caught write failure, the implementation attempts to restore prior
-files and metadata and remove new files. This is an in-process rollback,
-not durable crash recovery or concurrency serialization.
+files and metadata and remove new files. A process-local lock serializes
+snapshot, preflight, writes and rollback for the same canonical root; distinct
+roots remain concurrent. This does not provide cross-process coordination
+or durable crash recovery.
 
 See [declarations and result fields](../reference/protocol-scaffold.md).

@@ -90,7 +90,8 @@ Application orchestration and domain logic separated from tool presentation:
 | `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Exact type/framework template selection; see [template catalogue](../reference/templates.md) and [research contracts](../reference/research-templates.md) |
 | `reserver.py` | `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow (the `ReserveResult` model lives in `models/results.py`) |
 | `protocol_planner.py` | `plan_protocol_scaffold()`, `ProtocolScaffoldPlan`, `PlanOperation` | Pure, deterministic protocol filesystem planning; owned compatible implementations are preserved as unchanged |
-| `protocol_scaffolder.py` | `prepare_protocol_request()`, `preview_protocol_scaffold()` | Preview or apply the planner result. Application preflights confinement, symlinks and ownership before writing, then provides in-memory rollback for partial application failures |
+| `protocol_scaffolder.py` | `prepare_protocol_request()`, `preview_protocol_scaffold()` | Preview or apply the planner result. Application serializes preflight-through-rollback by canonical target root, while distinct roots remain concurrent; it preflights confinement and symlinks before writing, then provides in-memory rollback for partial application failures. Missing profiles and profile-domain conflicts are rejected at the external `InitScaffoldTool` boundary before mutation; lower-level preview and registration deliberately retain automatic profile adoption |
+
 
 ### 3. Checks (`checks/`)
 
@@ -164,10 +165,10 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | Hexagonal architecture | Testable core, swappable adapters |
 | Pydantic models | Structured validation and serialization |
 | Copier for project scaffolding | Jinja2 templates, supports project updates |
+| Plans for protocol scaffolding | The deterministic plan is authoritative for preview and application; a canonical-root lock covers snapshot, preflight, writes and rollback so compatible concurrent declarations cannot overwrite one another, without serializing distinct roots |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Independent check functions | Each check takes a project path and returns a CheckResult; filesystem access remains explicit in tests |
 | Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |
-| Plans for protocol scaffolding | The deterministic plan is authoritative for preview and application; preflight prevents partial invalid writes and an in-memory journal restores application-stage failures |
 | Parallel check execution | `ThreadPoolExecutor` — checks are I/O-bound and independent |
 
 Protocol planning/application is implemented in `core/protocol_planner.py`

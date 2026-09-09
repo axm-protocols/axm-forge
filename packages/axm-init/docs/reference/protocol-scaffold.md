@@ -76,11 +76,17 @@ creates or updates only paths carried by the plan and writes the merged
 template. Reapplying an owned plan leaves unchanged files byte-for-byte, including
 skeletons extended by a compatible implementation.
 
-Before the first mutation, application resolves every destination and rejects
-paths outside the root, outward-pointing symlinks, conflicts, and incompatible
-occupied paths. If a file or metadata write fails after application begins, it
-removes paths created by that operation and restores the original file and
-metadata bytes. This is application-level rollback, not crash-safe atomicity.
+Before reading its filesystem snapshot, application acquires a lock keyed by
+the fully resolved target root and holds it through preflight, writes, and any
+rollback. Concurrent applications through aliases of one root therefore cannot
+silently overwrite compatible declarations, while applications to distinct
+roots remain concurrent. Application then resolves every destination and
+rejects paths outside the root, outward-pointing symlinks, conflicts, and
+incompatible occupied paths. If a file or metadata write fails after application
+begins, it removes paths created by that operation, restores the original file
+and metadata bytes, and releases the root lock. This is process-local
+application-level coordination and rollback, not cross-process or crash-safe
+atomicity.
 
 Invalid request combinations are also rejected before any write: protocol
 options without a profile, an empty protocol list when `unit` or `preview` is set, the profile on a
@@ -124,7 +130,11 @@ assert declaration.graph_name == "dev.work.exec"
 
 ## Current interface notes
 
-Declaration requests require an existing package with a readable `pyproject.toml`.
+Unit and protocol requests require an existing package with a readable
+`pyproject.toml` and an already-declared `[tool.axm-init.protocols]` profile
+whose domain matches the request. The tool rejects missing profiles or
+conflicting domains before mutation; profile adoption remains a lower-level
+capability, not an implicit effect of these tool requests.
 The orchestrator processes actions sequentially against a virtual inventory,
 so later actions see earlier planned content.
 
@@ -133,5 +143,6 @@ and optional `distribution`. The human message currently remains
 `Protocol scaffold preview` even on application; `preview` is the authoritative
 mode flag. A preview can report conflicts without applying them.
 
-Rollback is in-process; it does not serialize concurrent writers or supply a
-durable recovery journal. See [the operational guide](../howto/scaffold-protocols.md).
+Rollback and the per-root lock are process-local; they do not coordinate
+writers in separate processes or supply a durable recovery journal.
+See [the operational guide](../howto/scaffold-protocols.md).

@@ -289,7 +289,10 @@ def test_protocol_unit_preview_is_exact_and_has_no_side_effect(
     """AC2: preview reports the planner paths and leaves bytes/metadata intact."""
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n',
+        # The target owns the profile up front: a unit/protocol request
+        # refuses a package that declares none rather than registering one.
+        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n'
+        '\n[tool.axm-init.protocols]\nschema_version = 1\ndomain = "dev"\n',
         encoding="utf-8",
     )
     before = _tree_snapshot(tmp_path)
@@ -399,7 +402,10 @@ ACTION_ONLY_PROTOCOL: dict[str, object] = {
 def _write_protocol_project(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     (root / "pyproject.toml").write_text(
-        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n',
+        # The target owns the profile up front: a unit/protocol request
+        # refuses a package that declares none rather than registering one.
+        '[project]\nname = "protocols-dev"\nversion = "0.1.0"\n'
+        '\n[tool.axm-init.protocols]\nschema_version = 1\ndomain = "dev"\n',
         encoding="utf-8",
     )
 

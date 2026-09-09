@@ -6,6 +6,9 @@ from enum import StrEnum
 from functools import partial
 from pathlib import PurePosixPath
 
+from tomlkit import parse
+from tomlkit.items import Table
+
 from axm_init.core.protocol_metadata import merge_protocol_metadata
 from axm_init.models.protocol_scaffold import (
     ContractDecl,
@@ -219,7 +222,15 @@ def _planned_files(declaration: ProtocolScaffoldDecl) -> tuple[_PlannedFile, ...
 
 
 def _is_profile_owned(metadata: str, declaration: ProtocolScaffoldDecl) -> bool:
-    return merge_protocol_metadata(metadata, declaration) == metadata
+    document = parse(metadata)
+    tool = document.get("tool")
+    if not isinstance(tool, Table):
+        return False
+    axm_init = tool.get("axm-init")
+    if not isinstance(axm_init, Table):
+        return False
+    profile = axm_init.get("protocols")
+    return isinstance(profile, Table) and profile.get("domain") == declaration.domain
 
 
 def _classify(
