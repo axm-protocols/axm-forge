@@ -3,7 +3,7 @@
 The catalog is described by **value-less** pydantic models. A
 `CredentialSpec` declares the schema of a resolvable credential; an
 `AuthDependencySpec` reports only the state of an external authentication
-session. Neither kind stores or exposes a secret value.
+session. Keep real secrets out of declarations: `CredentialSpec.default` is an ordinary string and is not protected or rejected for SECRET specs.
 
 All models are frozen (`frozen=True`) and reject unknown fields
 (`extra="forbid"`).
@@ -50,7 +50,7 @@ spec = CredentialSpec(name="api_key", env="ACME_API_KEY", kind="token")
 ## Authentication dependencies
 
 An authentication dependency represents a session managed by an external tool.
-Vault observes that session but never reads its token or provisions a value.
+The `AuthDependencySpec.status()` method delegates observation to its source. The contract asks sources not to read authentication material; vault cannot enforce the I/O behavior of arbitrary provider code.
 
 ### `AuthStatus`
 
@@ -159,3 +159,5 @@ group = CredentialGroup(
 group.spec("api_key")   # -> CredentialSpec(...)
 group.spec("missing")   # -> raises KeyError
 ```
+
+`kind` is descriptive metadata, not a validator or converter; the resolver supplies strings. `AuthDependencySpec.status()` delegates directly and does not validate the source's returned enum at runtime. Instance helpers likewise delegate behavior and errors; the no-secret contract must be respected by the source implementation.

@@ -16,15 +16,15 @@ env  >  file  >  keyring  >  default  >  prompt
 
 | Layer | Source | Notes |
 | -- | -- | -- |
-| `env` | `spec.env`, then each `spec.aliases` | Canonical env name wins over aliases; a present env var beats every lower layer |
-| `file` | `~/.axm/<group>.toml` (via `axm_config.store.NamespaceStore`) | **File-only**: reads the on-disk namespace file, never the environment — provenance reported as `file` is always file-backed |
+| `env` | `spec.env`, then each `spec.aliases` | Canonical env name wins over aliases; an empty variable is skipped, including before trying aliases |
+| `file` | Active profile config table `[group]` via `axm_config.store.NamespaceStore` | Default file: `~/.axm/config.toml`; legacy `~/.axm/<group>.toml` fallback. Reads strings from disk, not config's environment-value tier |
 | `keyring` | [`KeyringStore`](store.md) | Consulted **only** when `spec.sensitivity is Sensitivity.SECRET`; `CONFIG` never hits the keyring. On a headless host (no usable backend) the layer is skipped gracefully (see [below](#headless-keyring-graceful-degradation)) rather than crashing |
-| `default` | `spec.default` | Fallback for non-required specs |
+| `default` | `spec.default` | Used for required and optional specs; an empty string is a value |
 | `prompt` | `getpass(spec.prompt)` (SECRET) / `input(spec.prompt)` (else) | Active only on an interactive resolver (`Resolver(interactive=True)`) with a `spec.prompt` set. A `SECRET` spec is read through `getpass` so the typed value is never echoed to the terminal; a non-secret spec uses a visible `input` prompt |
 
 !!! note "File tier is file-only"
-    The `file` layer reads the per-namespace TOML file under `~/.axm`
-    through `axm-config`'s `NamespaceStore` — vault never resolves the
+    The `file` layer reads the namespace table through `axm-config`'s
+    `NamespaceStore`, with a legacy per-namespace file fallback. Vault delegates the
     `~/.axm` path itself (that stays `axm-config`'s single source of truth),
     and it never consults the environment from this layer. It deliberately
     does **not** call `axm_config.get`, whose `env > file` precedence (under
@@ -61,7 +61,7 @@ Keychain or secret service), [`KeyringStore`](store.md) raises a typed
 [`KeyringUnavailableError`](store.md#keyringunavailableerror). The resolver
 **catches it on the `keyring` layer and skips that layer**, so a `SECRET`
 spec falls through to its lower layers (`default`, or `env`/`file` above) and
-resolution never crashes. The outage is surfaced operationally by the
+only typed keyring unavailability is suppressed. Missing required values and other backend or file errors still propagate. The outage is surfaced operationally by the
 [doctor](doctor.md), which annotates the affected spec `keyring:
 "unavailable"`.
 
@@ -73,7 +73,7 @@ wrap secrets themselves (e.g. via [`as_secret`](secrets.md)).
 
 ```python
 class Resolved(BaseModel):
-    value: str
+    value: str | None
     layer: Layer        # Literal["env", "file", "keyring", "default", "prompt"]
     spec: CredentialSpec
 ```
@@ -106,7 +106,7 @@ creds.api_key.get_secret_value()   # the resolved secret
 
 ## `get`
 
-`get(group, name, instance=None) -> str` is the module-level convenience over
+`get(group, name, instance=None) -> str | None` is the module-level convenience over
 the process-wide `resolver` singleton: it loads the catalog, resolves the
 named credential and returns just the value.
 
@@ -124,3 +124,9 @@ the prompt layer.
 
 Raised when a *required* spec resolves to nothing across every layer. Carries
 the `{group_id}.{name}` of the credential that could not be sourced.
+
+## Reading and instance boundaries
+
+The file layer reads strings for **every** sensitivity, including SECRET and NONSENSITIVE. Non-string TOML values are ignored; an empty string is accepted. `instance` selects only a keyring username: environment variables, file keys, defaults and prompts are shared across instances. A non-`None` default wins before an interactive prompt, even for a required spec.
+
+A direct `Resolver().resolve(group, ...)` uses the supplied group without catalog validation. Module-level `get` and `bind` require a discovered group. A missing group/spec raises `KeyError`; binding also propagates consumer-model validation errors. `Resolved` is frozen but does not set `extra="forbid"`, unlike the catalog models. Its representation and dumps contain the plaintext value.

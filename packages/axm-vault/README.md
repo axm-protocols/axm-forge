@@ -18,16 +18,16 @@ Catalog-resolver secrets manager (keyring + SecretStr) for AXM
 
 ## Features
 
-- **Value-less catalog** — pydantic v2 models (`Sensitivity`, `CredentialSpec`, `CredentialGroup`) describe credential *schema* only; no field ever holds a secret value.
+- **Value-less catalog** — pydantic v2 models (`Sensitivity`, `CredentialSpec`, `CredentialGroup`) describe credential *schema* only; defaults and descriptions must contain no real secrets (this is a provider responsibility).
 - **Entry-point discovery** — `load_catalog()` aggregates `axm.credentials` groups contributed by packages (empty-safe, cached).
 - **Layered resolution** — `Resolver` walks `env > file > keyring > default > prompt`; the file tier is delegated to `axm-config`, the keyring tier is consulted only for `SECRET` specs.
 - **Typed binding** — `bind(model, group)` builds a pydantic model from resolved values, wrapping `SECRET` fields as `SecretStr` and returning the concrete model type.
 - **Value-free doctor** — `doctor_data()` / the `vault_doctor` tool report each credential's `{layer, present}` provenance without ever returning a secret.
-- **MCP tools** — `vault_doctor` (provenance) and `vault_set` (keyring/config) ship as `axm.tools` (MCP + CLI + DAG node).
-- **Operator CLI** — `axm-vault` exposes `setup`/`get`/`set`/`rotate`/`doctor`/`path`; interactive `setup` is TTY-guarded and idempotent, `get` masks secrets unless `--reveal`.
+- **MCP tools** — `vault_doctor` (provenance), `vault_set` (keyring/config), and `vault_delete` (keyring removal) ship as `axm.tools` (MCP + CLI + DAG node).
+- **Operator CLI** — `axm-vault` exposes `setup`/`get`/`set`/`rotate`/`delete`/`doctor`/`path`; interactive `setup` is TTY-guarded and idempotent, `get` masks secrets unless `--reveal`.
 - **Frozen & strict** — immutable models that forbid unknown fields (`frozen=True`, `extra="forbid"`).
 
-See the [documentation](https://axm-protocols.github.io/axm-forge-workspace/) for the full guide, including [how to declare your package's credentials](docs/howto/declare-credentials.md).
+See the [documentation](https://forge.axm-protocols.io/axm-vault/) for the full guide, including [how to declare your package's credentials](docs/howto/declare-credentials.md).
 
 ## Installation
 
@@ -44,6 +44,12 @@ dependencies = ["axm-vault"]
 [tool.uv.sources]
 axm-vault = { workspace = true }
 ```
+
+## Start here
+
+Follow the [isolated tutorial](docs/tutorials/getting-started.md), then [register a provider](docs/howto/declare-credentials.md). The README is the repository entry point; [docs/index.md](docs/index.md) is the site home.
+
+`Resolver.resolve()` and `get()` return plaintext; `bind()` wraps SECRET fields in `SecretStr` when the consumer model accepts that type. Provenance omits resolved values but reads the underlying stores. File resolution applies to all sensitivities, and arbitrary provider/backend errors are not redacted. See [the security and I/O boundaries](docs/explanation/architecture.md).
 
 ## Development
 

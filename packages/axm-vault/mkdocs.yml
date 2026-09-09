@@ -16,6 +16,37 @@ nav:
     - Doctor & Tools: reference/doctor.md
     - Store: reference/store.md
     - CLI: reference/cli.md
-    - Python API: reference/api/
+    - Python API: reference/api/index.md
   - Explanation:
     - Architecture: explanation/architecture.md
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+            - ../axm-config/src
+            - ../axm/src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: false
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.superfences
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn

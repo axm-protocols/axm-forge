@@ -1,7 +1,7 @@
 # CLI Reference
 
-axm-vault ships **two** command surfaces, both upholding the never-leak
-invariant — no command ever prints a `SECRET` value:
+axm-vault ships **two** command surfaces. `get` masks SECRET values by default;
+`get --reveal` deliberately prints plaintext:
 
 1. The standalone **`axm-vault`** console script (`[project.scripts]`), an
    interactive operator CLI built on [cyclopts](https://cyclopts.readthedocs.io).
@@ -19,8 +19,8 @@ logic is duplicated across the CLI / MCP boundary.
 | -- | -- |
 | `axm-vault setup [--only <group.name>]` | Interactively prompt for and store every storable credential (`getpass` for `SECRET`, `input` for `CONFIG`) |
 | `axm-vault get <group> <name> [--reveal]` | Resolve a credential and print it, masking `SECRET` values as `********` unless `--reveal` |
-| `axm-vault set <group> <name> <value>` | Store a credential by sensitivity (`SECRET`->keyring, `CONFIG`->config); echoes only the storage target |
-| `axm-vault rotate <group> <name> <value> [--instance <id>]` | Rotate a `SECRET`, retaining the previous value as `{name}.prev` for one cycle |
+| `axm-vault set <group> <name> [value]` | Store a credential by sensitivity (`SECRET`->keyring, `CONFIG`->config); echoes only the storage target |
+| `axm-vault rotate <group> <name> [value] [--instance <id>]` | Rotate a `SECRET`, retaining the previous value as `{name}.prev` for one cycle |
 | `axm-vault delete <group> <name> [--instance <id>]` | Remove a stored credential from the keyring; a safe no-op when it is already absent (resolves the spec via the catalog first) |
 | `axm-vault doctor [--package <pkg>] [--instance <id>]` | Print each credential's provenance (`layer` + `present`) — value-free. Appends a `keyring:unavailable` marker on any `SECRET` row whose keyring backend is unreachable |
 | `axm-vault path` | Print the resolved `~/.axm` home directory used for file-backed config |
@@ -57,16 +57,15 @@ silently reading as a plain `missing`.
 
 ### `setup` — interactive provisioning
 
-`setup` is the only genuine *process-lifecycle* command: it reads from a TTY
-and blocks on operator input, which is why it lives as a plain function
-(`run_setup`) behind the CLI rather than as an `AXMTool`. It:
+`setup` is an interactive provisioning driver (`run_setup`) that returns after
+walking the catalog. It:
 
 - **refuses to run without a TTY** — a non-interactive invocation prints to
   stderr and exits `1`, so credentials are never written silently;
 - **skips `NONSENSITIVE` specs** — they are environment-only; storing them
   would create a second, stale source of truth;
 - **is idempotent** — a blank answer keeps any existing value, so a re-run
-  only fills in what is still missing (the prompt advertises `[keep]` when a
+  can preserve existing values or replace them with a nonblank answer (the prompt advertises `[keep]` when a
   value already exists);
 - routes `SECRET` -> keyring only (presence is derived by probing the keyring,
   never recorded as a separate marker) and `CONFIG` -> `axm-config`.
@@ -75,7 +74,7 @@ and blocks on operator input, which is why it lives as a plain function
 
 All three tools are deterministic `axm.tools.base.AXMTool` implementations, so a
 single entry-point declaration exposes each over MCP, the `axm` CLI and as a
-DAG node. No command ever prints a `SECRET` value.
+DAG node. Successful tool results report provenance or targets, not stored values.
 
 | Command | Purpose |
 | -- | -- |
@@ -98,4 +97,12 @@ See [Doctor & Tools](doctor.md) for the full parameter and routing tables.
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+Rendered API reference is available under [Python API](api/index.md).
+
+## Operational limits
+
+- Omit `value` from standalone `set` and `rotate` to use hidden `getpass` input. Supplying a real secret as an argument exposes it to shell history and process arguments. `vault_set` requires a value and has no hidden-input mode.
+- `get`, standalone `set`, and `setup` have no `instance` option. Use the Python resolver and `vault_set --instance` for named keyring instances. `setup` does not enumerate instances or authentication sessions.
+- `setup --only` accepts `group.name` or a bare name; a bare name may match several groups and an unmatched filter does nothing. Blank input never creates a missing required value, so completion does not prove provisioning completeness.
+- `delete` removes only the keyring slot, even for a CONFIG spec, and leaves `.prev`, file and environment sources intact. Resolution can still succeed after deletion.
+- Tool failures become `ToolResult(success=False, error=str(exc))`. Standalone `set`, `rotate` and `delete` exit 1 for reported failures; `get` handles unknown/missing credentials but other I/O errors may propagate. These messages are not a universal redaction boundary.

@@ -1,74 +1,106 @@
-# Getting Started
+# Resolve a synthetic credential in isolation
 
-This tutorial walks you through installing `axm-vault` and verifying your setup.
+This tutorial declares a group and observes resolution and masking without
+accessing your keyring or configuration. Use Python 3.12+ in a disposable process.
 
-## Prerequisites
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
-
-## Installation
+## Install
 
 ```bash
 uv add axm-vault
+axm-vault --help
 ```
 
-Or with pip:
-
-```bash
-pip install axm-vault
-```
-
-## Step 1: Verify Installation
+Package version metadata is available through the public packaging interface:
 
 ```python
-from axm_vault._version import __version__
+from importlib.metadata import version
 
-print(f"axm-vault v{__version__}")
+print(version("axm-vault"))
 ```
 
-## Step 2: Declare a Credential Group
+## Configure an isolated backend before reading anything
 
-The catalog describes the credentials a package needs — schema only, no values:
+Save the following complete example as `vault_demo.py`. All values are synthetic.
+The explicit patch of `Path.home()` and in-memory keyring ensure that lower-layer
+probes do not consult your real settings or keychain.
 
 ```python
-from axm_vault import CredentialGroup, CredentialSpec, Sensitivity
+from __future__ import annotations
 
-group = CredentialGroup(
-    id="acme",
-    package="axm-acme",
-    title="Acme",
-    specs=(
-        CredentialSpec(name="api_key", env="ACME_API_KEY", kind="token"),
-        CredentialSpec(
-            name="region", env="ACME_REGION", kind="str",
-            sensitivity=Sensitivity.CONFIG, required=False, default="eu",
-        ),
-    ),
+import os
+from tempfile import TemporaryDirectory
+from pathlib import Path
+from unittest.mock import patch
+
+import keyring
+from keyring.backend import KeyringBackend
+
+
+class MemoryKeyring(KeyringBackend):
+    priority = 1.0
+
+    def __init__(self):
+        self.values = {}
+
+    def get_password(self, service, username):
+        return self.values.get((service, username))
+
+    def set_password(self, service, username, password):
+        self.values[(service, username)] = password
+
+    def delete_password(self, service, username):
+        self.values.pop((service, username), None)
+
+
+keyring.set_keyring(MemoryKeyring())
+
+from axm_vault import (
+    Catalog, CredentialGroup, CredentialSpec, KeyringStore,
+    Resolver, as_secret, doctor_data,
 )
 
-print(group.spec("api_key").env)  # ACME_API_KEY
+with TemporaryDirectory() as synthetic_home, patch(
+    "pathlib.Path.home", return_value=Path(synthetic_home)
+):
+    os.environ["VAULT_DOCS_TOKEN"] = "synthetic-env"
+    group = CredentialGroup(
+        id="docsdemo",
+        package="docs-example",
+        title="Documentation example",
+        specs=(CredentialSpec(
+            name="token", env="VAULT_DOCS_TOKEN", kind="token",
+        ),),
+    )
+    store = KeyringStore()
+    store.set("docsdemo", "token", "synthetic-keyring")
+
+    resolved = Resolver().resolve(group, "token")
+    assert resolved.layer == "env"
+    assert resolved.value == "synthetic-env"
+    masked = as_secret(resolved.value)
+    assert str(masked) == "**********"
+
+    del os.environ["VAULT_DOCS_TOKEN"]
+    assert Resolver().resolve(group, "token").layer == "keyring"
+
+    report = doctor_data(catalog=Catalog(groups=(group,)))
+    assert report == {"docsdemo.token": {"layer": "keyring", "present": True}}
+    assert "synthetic-keyring" not in str(report)
+    print("Synthetic resolution and provenance verified.")
 ```
 
-See the [Catalog Models reference](../reference/models.md) for every field.
-
-## Step 3: Run the Tests
-
-The workspace `Makefile` lives at the `axm-forge` root, not inside the package:
+Run it in the project's environment:
 
 ```bash
-cd axm-forge
-make check          # lint + type check + security audit + tests, all packages
+uv run python vault_demo.py
 ```
 
-To exercise just this package:
+The direct resolver accepts your in-memory group. Module-level `get` and `bind`
+instead use the installed provider catalog; creating a local variable named
+`group` does not register it.
 
-```bash
-uv run --package axm-vault --directory packages/axm-vault pytest -x -q
-```
+## Next steps
 
-## Next Steps
-
-- [Catalog Models](../reference/models.md) — Full model reference
-- [CLI Reference](../reference/cli.md) — Full command documentation
-- [Architecture](../explanation/architecture.md) — How the project is structured
+[Register your package's provider](../howto/declare-credentials.md) before using
+catalog-based commands. Consult [Resolver](../reference/resolver.md) for optional
+values and instance limits, and [CLI](../reference/cli.md) for provisioning.

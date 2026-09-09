@@ -5,15 +5,15 @@ Helpers for wrapping credential values in a pydantic
 and for scrubbing secrets out of arbitrary text (e.g. logs).
 
 !!! warning "Reveal surface"
-    A `SecretStr` never exposes its plaintext in `repr()`, `str()`, an
-    f-string, or `model_dump()` / `model_dump_json()` — it always renders
-    as `**********`. The plaintext is reachable **only** through an
-    explicit `get_secret_value()` call, which is the single deliberate reveal
-    surface (an explicit opt-in — no audit trail is emitted).
+    With default Pydantic serialization, nonempty `SecretStr` values display
+    as `**********`; empty values display as an empty string. `model_dump()`
+    retains a `SecretStr` object, while JSON serialization masks it. Custom
+    serializers can reveal it, and `get_secret_value()` returns plaintext.
+    This is display masking, not encryption or memory isolation.
 
 ## `as_secret`
 
-```python
+```text
 as_secret(value: str | SecretStr | None) -> SecretStr | None
 ```
 
@@ -32,7 +32,7 @@ as_secret(None)             # None
 as_secret(token) is token   # True (idempotent)
 ```
 
-A model field typed as `SecretStr` never leaks on dump:
+With default serializers, a model field typed as `SecretStr` is masked on dump:
 
 ```python
 from pydantic import BaseModel, SecretStr
@@ -48,7 +48,7 @@ m.model_dump_json()   # '{"token":"**********"}'
 
 ## `redact`
 
-```python
+```text
 redact(text: str, *secrets: str | SecretStr) -> str
 ```
 
@@ -80,8 +80,8 @@ redact("auth=s3cr3t", SecretStr("s3cr3t"))    # "auth=********"  (SecretStr unwr
 !!! warning "Best-effort, not a security boundary"
     `redact` only masks the exact substrings it is given, in the casing it is
     given; it cannot catch transformed, encoded, or partial echoes. It is
-    best-effort log scrubbing. The authoritative never-leak surface is
-    `SecretStr` itself.
+    best-effort log scrubbing. `SecretStr` also offers masking only; neither
+    helper redacts arbitrary exception messages automatically.
 
 ## `MASK`
 
