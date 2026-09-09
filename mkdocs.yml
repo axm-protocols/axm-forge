@@ -1,5 +1,5 @@
 site_name: axm-forge
-site_description: AXM developer tools workspace — AST introspection, code auditing, project scaffolding, and git automation.
+site_description: AXM developer tools and SDK — analysis, quality checks, editing, scaffolding, Git and runtime configuration.
 site_url: https://forge.axm-protocols.io
 repo_url: https://github.com/axm-protocols/axm-forge
 repo_name: axm-protocols/axm-forge
@@ -48,6 +48,9 @@ extra_css:
 nav:
   - Home:
     - index.md
+    - First Workspace Query: tutorials/getting-started.md
+    - Architecture: explanation/architecture.md
+    - Node and Svelte: node-svelte/index.md
   - Packages:
     - packages/index.md
     - axm: '!include ./packages/axm/mkdocs.yml'
@@ -66,10 +69,14 @@ nav:
     - axm-ingot: '!include ./packages/axm-ingot/mkdocs.yml'
   - Contributing:
     - contributing.md
+    - Documentation: howto/documentation.md
+    - Module Reference: reference/index.md
 
 plugins:
   - monorepo
   - search
+  - autorefs:
+      resolve_closest: true
   - gen-files:
       scripts:
         - docs/gen_ref_pages.py
