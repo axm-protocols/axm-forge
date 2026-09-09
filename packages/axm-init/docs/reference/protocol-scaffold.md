@@ -76,11 +76,17 @@ creates or updates only paths carried by the plan and writes the merged
 template. Reapplying an owned plan leaves unchanged files byte-for-byte, including
 skeletons extended by a compatible implementation.
 
-Before the first mutation, application resolves every destination and rejects
-paths outside the root, outward-pointing symlinks, conflicts, and incompatible
-occupied paths. If a file or metadata write fails after application begins, it
-removes paths created by that operation and restores the original file and
-metadata bytes. This is application-level rollback, not crash-safe atomicity.
+Before reading its filesystem snapshot, application acquires a lock keyed by
+the fully resolved target root and holds it through preflight, writes, and any
+rollback. Concurrent applications through aliases of one root therefore cannot
+silently overwrite compatible declarations, while applications to distinct
+roots remain concurrent. Application then resolves every destination and
+rejects paths outside the root, outward-pointing symlinks, conflicts, and
+incompatible occupied paths. If a file or metadata write fails after application
+begins, it removes paths created by that operation, restores the original file
+and metadata bytes, and releases the root lock. This is process-local
+application-level coordination and rollback, not cross-process or crash-safe
+atomicity.
 
 Invalid request combinations are also rejected before any write: protocol
 options without a profile, a unit with an empty protocol list, the profile on a

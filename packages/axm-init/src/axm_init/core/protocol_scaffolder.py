@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import _thread
 import json
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -307,7 +311,49 @@ def _apply_protocol_plan(
         raise
 
 
+@dataclass
+class _RootLockEntry:
+    lock: _thread.RLock
+    users: int = 0
+
+
+_ROOT_LOCKS: dict[Path, _RootLockEntry] = {}
+_ROOT_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def _target_root_lock(root: Path) -> Iterator[None]:
+    canonical_root = root.resolve()
+    with _ROOT_LOCKS_GUARD:
+        entry = _ROOT_LOCKS.get(canonical_root)
+        if entry is None:
+            entry = _RootLockEntry(lock=_thread.RLock())
+            _ROOT_LOCKS[canonical_root] = entry
+        entry.users += 1
+    entry.lock.acquire()
+    try:
+        yield
+    finally:
+        entry.lock.release()
+        with _ROOT_LOCKS_GUARD:
+            entry.users -= 1
+            if entry.users == 0:
+                _ROOT_LOCKS.pop(canonical_root, None)
+
+
 def preview_protocol_scaffold(
+    root: Path,
+    request: ProtocolScaffoldRequest,
+) -> ScaffoldResult:
+    """Plan declarations and serialize applications by canonical target root."""
+    if request.preview:
+        return _preview_protocol_scaffold_unlocked(root, request)
+    canonical_root = root.resolve()
+    with _target_root_lock(canonical_root):
+        return _preview_protocol_scaffold_unlocked(canonical_root, request)
+
+
+def _preview_protocol_scaffold_unlocked(
     root: Path,
     request: ProtocolScaffoldRequest,
 ) -> ScaffoldResult:
@@ -341,6 +387,13 @@ def preview_protocol_scaffold(
 
 
 def register_protocol_profile(root: Path, domain: str) -> None:
+    """Persist the profile while serialized with applications on this root."""
+    canonical_root = root.resolve()
+    with _target_root_lock(canonical_root):
+        _register_protocol_profile_unlocked(canonical_root, domain)
+
+
+def _register_protocol_profile_unlocked(root: Path, domain: str) -> None:
     """Persist the package-level protocol profile in its project metadata."""
     metadata_path = root / "pyproject.toml"
     document = parse(metadata_path.read_text(encoding="utf-8"))
