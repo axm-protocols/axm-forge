@@ -244,12 +244,27 @@ def test_validates_assembly_factory_and_literal_graph_identity(tmp_path: Path) -
 
 
 def test_rejects_observable_import_time_execution_structurally(tmp_path: Path) -> None:
-    """AC3: module-level iteration, comprehension and I/O are non-conforming."""
+    """AC3: module-level iteration, comprehension and I/O are non-conforming.
+
+    Each form asserts its OWN motif, not merely that some finding mentions
+    "non-conform": the witness carries other deliberate defects, so a coarse
+    substring test stays green even when a whole rule branch is removed
+    (measured — deleting the module-level-iteration branch failed none of the
+    nine tests in this module).
+    """
     forms = {
         "iteration": "for item in ITEMS:\n    consume(item)",
         "comprehension": "VALUES = [consume(item) for item in ITEMS]",
         "direct-io": 'DATA = open("input.txt").read()',
         "external-effect": 'Path("sentinel").write_text("created")',
+    }
+    # The motif each form must produce, so that removing one branch of the
+    # grammar turns exactly one of these red.
+    motifs = {
+        "iteration": "module-level business iteration",
+        "comprehension": "evaluated module-level comprehension",
+        "direct-io": "direct i/o call",
+        "external-effect": "direct i/o call",
     }
     details: dict[str, str] = {}
     for label, form in forms.items():
@@ -269,8 +284,11 @@ def test_rejects_observable_import_time_execution_structurally(tmp_path: Path) -
         )
         details[label] = _details(project)
 
-    assert all("non-conform" in value for value in details.values())
     assert all("nodes/build.py:" in value for value in details.values())
+    for label, motif in motifs.items():
+        assert motif in details[label], (
+            f"{label}: expected the {motif!r} motif, got {details[label]!r}"
+        )
 
 
 def test_accepts_calibrated_protocol_author_grammar(tmp_path: Path) -> None:
