@@ -1,15 +1,29 @@
 from __future__ import annotations
 
+import ast
 import re
 import tomllib
 from pathlib import Path
 from typing import cast
 
-from axm_ast import PackageInfo, analyze_package, search_symbols
+from axm_ast import (
+    ClassInfo,
+    FunctionInfo,
+    ModuleInfo,
+    PackageInfo,
+    analyze_package,
+    search_symbols,
+)
 
 from axm_init.models.check import CheckResult
 
-__all__ = ["check_protocols_profile", "check_protocols_resources"]
+__all__ = [
+    "check_author_grammar",
+    "check_protocol_assembly",
+    "check_protocol_components",
+    "check_protocols_profile",
+    "check_protocols_resources",
+]
 
 __axm_explicit_only__ = True
 
@@ -540,6 +554,372 @@ def _workspace_protocol_resources_result(project: Path) -> CheckResult | None:
         details=[f"member {member_name}: {detail}" for member_name, detail in failures],
         fix="" if passed else "Apply each correction in the named workspace member.",
     )
+
+
+def _protocol_package(project: Path) -> tuple[str, Path, PackageInfo] | None:
+    """Return the explicitly declared protocol package, when applicable."""
+    try:
+        data = cast(
+            "dict[str, object]",
+            tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8")),
+        )
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    profile = _nested(data, "tool", "axm-init", "protocols")
+    domain = profile.get("domain") if profile is not None else None
+    if not isinstance(domain, str):
+        return None
+    root = project / "src" / f"protocols_{domain}"
+    if not root.is_dir():
+        return None
+    return domain, root, analyze_package(root)
+
+
+def _content_result(name: str, details: list[str], *, applicable: bool) -> CheckResult:
+    """Build a consistently weighted static-content result."""
+    passed = not details
+    if not applicable:
+        message = "Protocol profile not declared"
+    elif passed:
+        message = f"{name} is conforming"
+    else:
+        message = f"{name} has {len(details)} finding(s)"
+    return CheckResult(
+        name=name,
+        category=_CATEGORY,
+        passed=passed,
+        weight=2 if applicable else 0,
+        message=message,
+        details=details,
+        fix="" if passed else "Correct each localized static form.",
+    )
+
+
+def _location(project: Path, module: ModuleInfo, line: int) -> str:
+    """Render a stable project-relative source location."""
+    try:
+        relative = module.path.relative_to(project.resolve()).as_posix()
+    except ValueError:
+        relative = module.path.as_posix()
+    return f"{relative}:{line}"
+
+
+def _principal_kind(module: ModuleInfo) -> str | None:
+    """Return the declaration kind implied by a component directory."""
+    if module.path.parent.name == "contracts":
+        return "class"
+    if module.path.parent.name in {"nodes", "phases"}:
+        return "function"
+    return None
+
+
+def _principal_candidates(
+    module: ModuleInfo, kind: str
+) -> list[FunctionInfo | ClassInfo]:
+    """Return public declarations independently of explicit exports."""
+    if kind == "class":
+        return [item for item in module.classes if item.is_public]
+    return [item for item in module.functions if item.is_public]
+
+
+def _component_findings(project: Path, package: PackageInfo) -> list[str]:
+    """Validate one explicitly exported principal per component module."""
+    details: list[str] = []
+    for module in package.modules:
+        kind = _principal_kind(module)
+        if kind is None or module.path.name == "__init__.py":
+            continue
+        candidates = _principal_candidates(module, kind)
+        if not candidates:
+            details.append(
+                f"{_location(project, module, 1)}: non-conforming component: "
+                "no public principal"
+            )
+        elif len(candidates) > 1:
+            details.append(
+                f"{_location(project, module, candidates[1].line_start)}: "
+                f"non-conforming component: multiple public principal "
+                f"declarations ({len(candidates)})"
+            )
+        elif module.all_exports is None or candidates[0].name not in module.all_exports:
+            details.append(
+                f"{_location(project, module, candidates[0].line_start)}: "
+                f"non-conforming component: principal {candidates[0].name!r} "
+                "is not explicitly exported in __all__"
+            )
+    return details
+
+
+def check_protocol_components(project: Path) -> CheckResult:
+    """Validate principal components without importing inspected code."""
+    context = _protocol_package(project)
+    details = [] if context is None else _component_findings(project, context[2])
+    return _content_result(
+        "protocol_components", details, applicable=context is not None
+    )
+
+
+# Calls are composition only when their local binding resolves to this registry.
+_COMPOSITION_INTERFACES = frozenset(
+    {
+        ("axm_loom", "phase"),
+        ("axm_loom", "protocol"),
+        ("axm_loom", "router"),
+        ("axm_loom", "task"),
+    }
+)
+_SAFE_FACTORY_INTERFACES = _COMPOSITION_INTERFACES | frozenset(
+    {
+        ("contextvars", "ContextVar"),
+        ("logging", "getLogger"),
+        ("pydantic", "create_model"),
+        ("re", "compile"),
+        ("threading", "Lock"),
+        ("threading", "RLock"),
+    }
+)
+_SAFE_BUILTINS = frozenset({"dict", "frozenset", "list", "object", "set", "tuple"})
+
+
+def _import_bindings(module: ModuleInfo) -> dict[str, tuple[str, str]]:
+    """Map local names to resolved imports from typed axm-ast results."""
+    bindings: dict[str, tuple[str, str]] = {}
+    for imported in module.imports:
+        if imported.module is None:
+            for name in imported.names:
+                bindings[imported.alias or name] = (name, "")
+        else:
+            for name in imported.names:
+                bindings[imported.alias or name] = (imported.module, name)
+    return bindings
+
+
+def _resolved_call(
+    call: ast.Call, bindings: dict[str, tuple[str, str]]
+) -> tuple[str, str] | None:
+    """Resolve a call target through typed import bindings."""
+    if isinstance(call.func, ast.Name):
+        return bindings.get(call.func.id)
+    if isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name):
+        imported = bindings.get(call.func.value.id)
+        if imported is not None:
+            return imported[0], call.func.attr
+    return None
+
+
+def _parse(module: ModuleInfo) -> ast.Module:
+    """Parse syntax without importing or executing the inspected project."""
+    source = module.path.read_text(encoding="utf-8")
+    return ast.parse(source, filename=str(module.path))
+
+
+def _assembly_findings(
+    project: Path, domain: str, root: Path, package: PackageInfo
+) -> list[str]:
+    """Validate the ready assembly factory and its literal graph identity."""
+    module = next(
+        (item for item in package.modules if item.path.name == "protocol.py"), None
+    )
+    if module is None:
+        return []
+    if "# axm-init: incomplete-skeleton" in module.path.read_text(encoding="utf-8"):
+        return []
+    tree = _parse(module)
+    info = next(
+        (
+            item
+            for item in module.functions
+            if item.name == "build_protocol" and item.is_public
+        ),
+        None,
+    )
+    factory = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "build_protocol"
+        ),
+        None,
+    )
+    if info is None or factory is None:
+        return [
+            f"{_location(project, module, 1)}: non-conforming assembly: "
+            "expected public factory 'build_protocol' is missing"
+        ]
+    bindings = _import_bindings(module)
+    call = next(
+        (
+            node
+            for node in ast.walk(factory)
+            if isinstance(node, ast.Call)
+            and _resolved_call(node, bindings) == ("axm_loom", "protocol")
+        ),
+        None,
+    )
+    if call is None or not call.args:
+        return [
+            f"{_location(project, module, info.line_start)}: non-verifiable "
+            "assembly: protocol composition call is not statically resolvable"
+        ]
+    identity = call.args[0]
+    if not isinstance(identity, ast.Constant) or not isinstance(identity.value, str):
+        return [
+            f"{_location(project, module, identity.lineno)}: non-verifiable "
+            "assembly: graph name is not a string literal"
+        ]
+    relative = module.path.relative_to(root)
+    expected = ".".join((domain, *relative.parts[:-1]))
+    details: list[str] = []
+    if identity.value != expected:
+        details.append(
+            f"{_location(project, module, identity.lineno)}: non-conforming "
+            f"assembly: literal graph name {identity.value!r} differs from "
+            f"path-derived name {expected!r}"
+        )
+    return details
+
+
+def check_protocol_assembly(project: Path) -> CheckResult:
+    """Validate assembly factories and graph identities statically."""
+    context = _protocol_package(project)
+    details = (
+        []
+        if context is None
+        else _assembly_findings(project, context[0], context[1], context[2])
+    )
+    return _content_result("protocol_assembly", details, applicable=context is not None)
+
+
+_IO_METHODS = frozenset(
+    {
+        "mkdir",
+        "open",
+        "read_bytes",
+        "read_text",
+        "rename",
+        "replace",
+        "rmdir",
+        "touch",
+        "unlink",
+        "write_bytes",
+        "write_text",
+    }
+)
+
+
+def _call_label(call: ast.Call) -> str:
+    """Render a bounded syntactic call label."""
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return "call"
+
+
+def _direct_io(value: ast.AST) -> ast.Call | None:
+    """Return the first statically direct filesystem operation."""
+    for node in ast.walk(value):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name) and node.func.id == "open":
+            return node
+        if isinstance(node.func, ast.Attribute) and node.func.attr in _IO_METHODS:
+            return node
+    return None
+
+
+def _safe_factory(call: ast.Call, bindings: dict[str, tuple[str, str]]) -> bool:
+    """Recognize calibrated declarative factories through imports."""
+    if isinstance(call.func, ast.Name) and call.func.id in _SAFE_BUILTINS:
+        return True
+    return _resolved_call(call, bindings) in _SAFE_FACTORY_INTERFACES
+
+
+def _assignment_finding(
+    project: Path,
+    module: ModuleInfo,
+    statement: ast.Assign | ast.AnnAssign,
+    bindings: dict[str, tuple[str, str]],
+) -> str | None:
+    """Classify an evaluated module-level assignment."""
+    value = statement.value
+    if value is None:
+        return None
+    comprehension = next(
+        (
+            node
+            for node in ast.walk(value)
+            if isinstance(
+                node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+            )
+        ),
+        None,
+    )
+    if comprehension is not None:
+        return (
+            f"{_location(project, module, comprehension.lineno)}: "
+            "non-conforming author form: evaluated module-level comprehension"
+        )
+    io_call = _direct_io(value)
+    if io_call is not None:
+        return (
+            f"{_location(project, module, io_call.lineno)}: non-conforming "
+            f"author form: direct I/O call {_call_label(io_call)!r}"
+        )
+    if isinstance(value, ast.Call) and not _safe_factory(value, bindings):
+        return (
+            f"{_location(project, module, value.lineno)}: non-conforming author "
+            f"form: observable module-level call {_call_label(value)!r}"
+        )
+    return None
+
+
+def _statement_finding(
+    project: Path,
+    module: ModuleInfo,
+    statement: ast.stmt,
+    bindings: dict[str, tuple[str, str]],
+) -> str | None:
+    """Classify one evaluated top-level statement conservatively."""
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        return (
+            f"{_location(project, module, statement.lineno)}: non-conforming "
+            "author form: module-level business iteration"
+        )
+    if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+        return _assignment_finding(project, module, statement, bindings)
+    if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call):
+        call = statement.value
+        io_call = _direct_io(call)
+        label = _call_label(io_call or call)
+        observed = "direct I/O call" if io_call is not None else "observable call"
+        return (
+            f"{_location(project, module, call.lineno)}: non-conforming author "
+            f"form: module-level {observed} {label!r}"
+        )
+    return None
+
+
+def _author_findings(project: Path, package: PackageInfo) -> list[str]:
+    """Report evaluated module forms without executing inspected modules."""
+    details: list[str] = []
+    for module in package.modules:
+        if module.path.name == "__init__.py":
+            continue
+        bindings = _import_bindings(module)
+        for statement in _parse(module).body:
+            finding = _statement_finding(project, module, statement, bindings)
+            if finding is not None:
+                details.append(finding)
+    return details
+
+
+def check_author_grammar(project: Path) -> CheckResult:
+    """Validate import-time forms through syntax and resolved imports."""
+    context = _protocol_package(project)
+    details = [] if context is None else _author_findings(project, context[2])
+    return _content_result("author_grammar", details, applicable=context is not None)
 
 
 def check_protocols_resources(project: Path) -> CheckResult:
