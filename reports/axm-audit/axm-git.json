@@ -1,5 +1,5 @@
 {
-  "score": 94.4,
+  "score": 94.9,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -11,7 +11,7 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_HYGIENE: 1 dependency issue(s) found",
+    "DEPS_HYGIENE: Clean dependencies (0 issues)",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
@@ -19,7 +19,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 99% (91/92)",
+      "message": "Docstring coverage: 99% (89/90)",
       "text": "     \u2022 axm_git/credentials.py: status",
       "fix_hint": "Add docstrings to public functions"
     },

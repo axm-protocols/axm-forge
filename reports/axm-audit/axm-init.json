@@ -1,11 +1,11 @@
 {
-  "score": 88.3,
+  "score": 80.0,
   "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
-    "ARCH_COUPLING: Coupling: 1 module(s) above threshold (-3 pts)",
+    "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_TESTS: Test coverage: 94% (94/100)",
+    "QUALITY_TESTS: Test coverage: 93% (93/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
@@ -13,7 +13,12 @@
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
-    "PRACTICE_DOCSTRING: Docstring coverage: 100% (156/156)",
+    {
+      "rule_id": "PRACTICE_DOCSTRING",
+      "message": "Docstring coverage: 98% (167/171)",
+      "text": "     \u2022 axm_init/models/protocol_scaffold.py: model_name, factory_name, factory_name, graph_name",
+      "fix_hint": "Add docstrings to public functions"
+    },
     "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
       "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
@@ -59,13 +64,13 @@
     {
       "rule_id": "ARCH_GOD_CLASS",
       "message": "1 god class(es) found",
-      "text": "\u2022 scaffold.py:InitScaffoldTool 564L/10M",
+      "text": "\u2022 scaffold.py:InitScaffoldTool 641L/10M",
       "fix_hint": "Split large classes into smaller, focused classes"
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 50/100 (5 high-complexity functions)",
-      "text": "\u2022 axm_init/core/checker.py:_format_category_checks cc=9 (B) cog=17 [cog]\n\u2022 axm_init/adapters/workspace_patcher.py:_find_vertical_yaml_list_range cc=12 (C) cog=16 [cc+cog]\n\u2022 axm_init/tools/scaffold.py:InitScaffoldTool.execute cc=14 (C) cog=11 [cc]\n\u2022 axm_init/checks/workspace.py:check_pytest_testpaths cc=12 (C) cog=14 [cc]\n\u2022 axm_init/tools/reserve.py:InitReserveTool.execute cc=13 (C) cog=11 [cc]",
+      "message": "Complexity score: 0/100 (13 high-complexity functions)",
+      "text": "\u2022 axm_init/tools/scaffold.py:InitScaffoldTool.execute cc=25 (D) cog=23 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_assembly_findings cc=21 (D) cog=20 [cc+cog]\n\u2022 axm_init/checks/protocols.py:_validate_protocol_tree cc=14 (C) cog=20 [cc+cog]\n\u2022 axm_init/core/checker.py:_format_category_checks cc=9 (B) cog=17 [cog]\n\u2022 axm_init/checks/protocols.py:_validate_units cc=11 (C) cog=16 [cc+cog]\n\u2022 axm_init/models/protocol_scaffold.py:ProtocolScaffoldDecl._validate_component_references cc=12 (C) cog=16 [cc+cog]\n\u2022 axm_init/adapters/workspace_patcher.py:_find_vertical_yaml_list_range cc=12 (C) cog=16 [cc+cog]\n\u2022 axm_init/checks/workspace.py:check_pytest_testpaths cc=12 (C) cog=14 [cc]\n\u2022 axm_init/tools/reserve.py:InitReserveTool.execute cc=13 (C) cog=11 [cc]\n\u2022 axm_init/checks/protocols.py:check_protocols_resources cc=12 (C) cog=11 [cc]\n\u2022 axm_init/core/protocol_scaffolder.py:_preflight_protocol_plan cc=11 (C) cog=12 [cc]\n\u2022 axm_init/checks/protocols.py:_workspace_protocol_result cc=11 (C) cog=8 [cc]\n\u2022 axm_init/checks/protocols.py:_workspace_protocol_resources_result cc=11 (C) cog=8 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
@@ -82,20 +87,20 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "message": "1 orphan test(s)",
-      "text": "\u2022 orphan: tests_axm_init/unit/test_scoring.py",
-      "fix_hint": "tests_axm_init/unit/test_scoring.py \u2192 rename to test_tsconfig.py or merge into tests_axm_init/unit/test_tsconfig.py"
+      "message": "1 source module(s) without tests; 1 orphan test(s)",
+      "text": "\u2022 untested: protocols.py\n\u2022 orphan: tests_axm_init/unit/test_scoring.py",
+      "fix_hint": "Create test files: tests_axm_init/test_protocols.py; tests_axm_init/unit/test_scoring.py \u2192 rename to test_tsconfig.py or merge into tests_axm_init/unit/test_tsconfig.py"
     },
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "message": "3 integration/e2e test(s) named after source modules",
-      "text": "\u2022 anti-mirror: tests_axm_init/e2e/test_check.py tests_axm_init/e2e/test_scaffold.py tests_axm_init/integration/test_scaffold.py",
+      "message": "4 integration/e2e test(s) named after source modules",
+      "text": "\u2022 anti-mirror: tests_axm_init/e2e/test_check.py tests_axm_init/e2e/test_scaffold.py tests_axm_init/integration/test_protocol_planner.py tests_axm_init/integration/test_scaffold.py",
       "fix_hint": "tests_axm_init/e2e/test_check.py \u2192 rename to test_<scenario>.py describing what the test verifies (scenario-named, not source-mirrored)"
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "message": "13 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "text": "\u2022 [import] tests_axm_init/integration/test_check_engine__skip_by_context.py:22 axm_init.core.checker._discover_checks (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._append_to_toml_array_lines (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._find_top_level_key_index (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._find_yaml_list_range (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._insert_into_yaml_list (function)\n\u2022 [import] tests_axm_init/unit/checks/test__workspace.py:88 axm_init.checks._workspace._is_experiment_manifest (function)\n\u2022 [import] tests_axm_init/unit/checks/test__workspace.py:104 axm_init.checks._workspace._is_experiment_manifest (function)\n\u2022 [attribute] tests_axm_init/unit/checks/test_check_ci_steps_executable.py:21 axm_init.checks._invalid_step_entries (function)\n\u2022 [attribute] tests_axm_init/unit/checks/test_check_ci_steps_executable.py:52 axm_init.checks._invalid_step_entries (function)\n\u2022 [import] tests_axm_init/unit/checks/test_experiment.py:5 axm_init.checks.experiment._missing_entries (function)\n\u2022 [import] tests_axm_init/unit/checks/test_experiment.py:10 axm_init.core.checker._known_check_ids (function)\n\u2022 [import] tests_axm_init/unit/checks/test_paper.py:5 axm_init.checks.paper._parse_front_matter (function)\n\u2022 [import] tests_axm_init/unit/core/test_checker.py:23 axm_init.core.checker._known_check_ids (function)",
+      "message": "17 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_init/integration/test_check_engine__skip_by_context.py:22 axm_init.core.checker._discover_checks (function)\n\u2022 [attribute] tests_axm_init/integration/test_plan_protocol_scaffold__register_protocol_profile.py:61 axm_init.core._apply_protocol_plan (function)\n\u2022 [attribute] tests_axm_init/integration/test_plan_protocol_scaffold__register_protocol_profile.py:107 axm_init.core._apply_protocol_plan (function)\n\u2022 [attribute] tests_axm_init/integration/test_plan_protocol_scaffold__register_protocol_profile.py:164 axm_init.core._apply_protocol_plan (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._append_to_toml_array_lines (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._find_top_level_key_index (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._find_yaml_list_range (function)\n\u2022 [import] tests_axm_init/unit/adapters/test_workspace_patcher.py:5 axm_init.adapters.workspace_patcher._insert_into_yaml_list (function)\n\u2022 [import] tests_axm_init/unit/checks/test__workspace.py:88 axm_init.checks._workspace._is_experiment_manifest (function)\n\u2022 [import] tests_axm_init/unit/checks/test__workspace.py:104 axm_init.checks._workspace._is_experiment_manifest (function)\n\u2022 [attribute] tests_axm_init/unit/checks/test_check_ci_steps_executable.py:21 axm_init.checks._invalid_step_entries (function)\n\u2022 [attribute] tests_axm_init/unit/checks/test_check_ci_steps_executable.py:52 axm_init.checks._invalid_step_entries (function)\n\u2022 [import] tests_axm_init/unit/checks/test_experiment.py:5 axm_init.checks.experiment._missing_entries (function)\n\u2022 [import] tests_axm_init/unit/checks/test_experiment.py:10 axm_init.core.checker._known_check_ids (function)\n\u2022 [import] tests_axm_init/unit/checks/test_paper.py:5 axm_init.checks.paper._parse_front_matter (function)\n\u2022 [import] tests_axm_init/unit/core/test_checker.py:23 axm_init.core.checker._known_check_ids (function)\n\u2022 [import] tests_axm_init/unit/tools/test_scaffold.py:351 axm_init.tools.scaffold._read_kind (function)",
       "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]
