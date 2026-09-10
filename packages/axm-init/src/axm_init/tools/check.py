@@ -3,10 +3,38 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from axm.tools.base import ToolResult
 
+if TYPE_CHECKING:
+    from axm_init.models.check import ProjectResult
+
 __all__ = ["InitCheckTool"]
+
+
+def _resolve_success(result: ProjectResult) -> bool:
+    """Treat a non-project result as passing, it carries no exit code."""
+    from axm_init.core.checker import resolve_exit_code
+    from axm_init.models.check import ProjectResult
+
+    if not isinstance(result, ProjectResult):
+        return True
+    return resolve_exit_code(result) == 0
+
+
+def _render_text(
+    result: ProjectResult, *, structured: bool, verbose: bool
+) -> str | None:
+    """Select the human rendering, suppressed when a structured payload is asked."""
+    from axm_init.core.checker import format_agent_text, format_report
+    from axm_init.models.check import ProjectResult
+
+    if structured:
+        return None
+    if verbose and isinstance(result, ProjectResult):
+        return format_report(result, verbose=True)
+    return format_agent_text(result)
 
 
 class InitCheckTool:
@@ -49,10 +77,7 @@ class InitCheckTool:
             from axm_init.core.checker import (
                 CheckEngine,
                 format_agent,
-                format_agent_text,
-                format_report,
                 protocol_status,
-                resolve_exit_code,
             )
             from axm_init.models.check import ProjectResult
 
@@ -67,21 +92,13 @@ class InitCheckTool:
             record_quality_snapshot(
                 path=str(project_path), kind="governance", data=data
             )
-            success = (
-                resolve_exit_code(result) == 0
-                if isinstance(result, ProjectResult)
-                else True
-            )
-            if json_output or agent:
-                text = None
-            elif verbose and isinstance(result, ProjectResult):
-                text = format_report(result, verbose=True)
-            else:
-                text = format_agent_text(result)
+            success = _resolve_success(result)
             return ToolResult(
                 success=success,
                 data=data,
-                text=text,
+                text=_render_text(
+                    result, structured=json_output or agent, verbose=verbose
+                ),
                 error=None if success else "Gold-standard checks failed",
             )
         except Exception as exc:

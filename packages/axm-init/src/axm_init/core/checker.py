@@ -413,6 +413,47 @@ def _protocol_members(project: Path) -> list[tuple[str, Path]]:
     return selected
 
 
+def _member_failure_details(
+    root_details: list[str], results: list[tuple[str, CheckResult]]
+) -> list[str]:
+    """Localize each failing member's findings under its own name."""
+    details = list(root_details)
+    for name, result in results:
+        if result.passed:
+            continue
+        details.extend(
+            f"member {name}: {detail}"
+            for detail in (result.details or [result.message])
+        )
+        if result.fix:
+            details.append(f"member {name}: Correction: {result.fix}")
+    return details
+
+
+def _aggregated_update(
+    root_result: CheckResult,
+    results: list[tuple[str, CheckResult]],
+    details: list[str],
+    *,
+    passed: bool,
+) -> dict[str, object]:
+    """Build the aggregated field update preserving the rule's weight."""
+    message = (
+        "Workspace protocol checks are conforming"
+        if passed
+        else f"Workspace protocol check has {len(details)} finding(s)"
+    )
+    fix = "" if passed else "Apply each correction in the named workspace member."
+    weights = [root_result.weight, *(result.weight for _, result in results)]
+    return {
+        "passed": passed,
+        "weight": max(weights),
+        "details": details,
+        "message": message,
+        "fix": fix,
+    }
+
+
 def _aggregate_member_check(
     fn: Callable[[Path], CheckResult],
     root_result: CheckResult,
@@ -420,32 +461,10 @@ def _aggregate_member_check(
 ) -> CheckResult:
     """Preserve each rule's identity, weight and localized member findings."""
     results = [(name, fn(path)) for name, path in members]
-    failures = [(name, result) for name, result in results if not result.passed]
-    details = list(root_result.details)
-    for name, result in failures:
-        details.extend(
-            f"member {name}: {detail}"
-            for detail in (result.details or [result.message])
-        )
-        if result.fix:
-            details.append(f"member {name}: Correction: {result.fix}")
-    passed = root_result.passed and not failures
+    details = _member_failure_details(list(root_result.details), results)
+    passed = root_result.passed and all(result.passed for _, result in results)
     return root_result.model_copy(
-        update={
-            "passed": passed,
-            "weight": max(
-                [root_result.weight, *(result.weight for _, result in results)]
-            ),
-            "details": details,
-            "message": (
-                "Workspace protocol checks are conforming"
-                if passed
-                else f"Workspace protocol check has {len(details)} finding(s)"
-            ),
-            "fix": ""
-            if passed
-            else "Apply each correction in the named workspace member.",
-        }
+        update=_aggregated_update(root_result, results, details, passed=passed)
     )
 
 
@@ -474,27 +493,37 @@ def _category_inventory_findings(
     ]
 
 
+def _status_projects(result: ProjectResult) -> list[tuple[str, Path]]:
+    """Resolve the projects whose declared inventories compose the status."""
+    members = (
+        _protocol_members(result.project_path) if result.context == "workspace" else []
+    )
+    return members or [(result.project_path.name, result.project_path)]
+
+
+def _status_trusted(result: ProjectResult) -> bool:
+    """Report whether protocol verdicts are both complete and conforming."""
+    applicable = [c for c in result.checks if c.category == "protocols"]
+    conforming = bool(applicable) and all(c.passed for c in applicable)
+    complete = not any(name.startswith("protocols.") for name in result.excluded_checks)
+    return conforming and complete
+
+
 def protocol_status(result: ProjectResult) -> list[dict[str, str | bool]]:
     """Project explicit declared state independently of conformity verdicts."""
     from axm_init.checks.protocols import protocol_inventory
 
-    members = (
-        _protocol_members(result.project_path) if result.context == "workspace" else []
-    )
-    projects = members or [(result.project_path.name, result.project_path)]
-    applicable = [c for c in result.checks if c.category == "protocols"]
-    conforming = bool(applicable) and all(c.passed for c in applicable)
-    complete = not any(name.startswith("protocols.") for name in result.excluded_checks)
+    trusted = _status_trusted(result)
     return [
         {
             "member": member,
             "graph_name": record.graph_name,
             "state": record.state,
             "location": record.location,
-            "validated": record.state == "ready" and conforming and complete,
-            "executable": record.state == "ready" and conforming and complete,
+            "validated": record.state == "ready" and trusted,
+            "executable": record.state == "ready" and trusted,
         }
-        for member, path in projects
+        for member, path in _status_projects(result)
         for record in protocol_inventory(path)
     ]
 
