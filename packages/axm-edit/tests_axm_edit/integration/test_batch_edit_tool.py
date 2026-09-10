@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from axm_edit.tools.batch_edit import BatchEditTool
+from axm_edit.tools.batch_edit_check import BatchEditCheckTool
 
 
 @pytest.fixture
@@ -937,3 +938,186 @@ class TestBlockedBatchSurfacesTheEnrichedDiagnostic:
         # Nothing was written: same files, same bytes, same mtimes.
         assert _tree_snapshot(tmp_path) == before
         assert "checkpoint" not in result.data
+
+
+def test_create_collision_hint_recovers_with_overwrite(tmp_path: Path) -> None:
+    """AC2: adding only overwrite:true makes advised recovery succeed."""
+    target = tmp_path / "note.txt"
+    target.write_text("old\n", encoding="utf-8")
+    base_op: dict[str, object] = {
+        "op": "create",
+        "file": "note.txt",
+        "content": "new\n",
+    }
+
+    refused = BatchEditTool().execute(
+        path=str(tmp_path), operations=[base_op], lint=False
+    )
+    assert refused.success is False
+    assert "overwrite: true" in ((refused.text or "") + (refused.error or ""))
+    recovered_op = {**base_op, "overwrite": True}
+
+    checked = BatchEditCheckTool().execute(
+        path=str(tmp_path), operations=[recovered_op]
+    )
+    assert checked.success is True
+    assert checked.data is not None
+    assert checked.data["ok"] is True
+    applied = BatchEditTool().execute(
+        path=str(tmp_path), operations=[recovered_op], lint=False
+    )
+    assert applied.success is True
+    assert target.read_bytes() == b"new\n"
+
+
+def test_create_overwrite_authorization_is_per_operation(tmp_path: Path) -> None:
+    """AC3: overwrite permission never leaks to later create operations."""
+    target = tmp_path / "note.txt"
+    target.write_text("old\n", encoding="utf-8")
+    allowed = {
+        "op": "create",
+        "file": "note.txt",
+        "content": "authorised\n",
+        "overwrite": True,
+    }
+
+    checked = BatchEditCheckTool().execute(path=str(tmp_path), operations=[allowed])
+    assert checked.success is True
+    assert checked.data is not None
+    assert checked.data["ok"] is True
+    applied = BatchEditTool().execute(
+        path=str(tmp_path), operations=[allowed], lint=False
+    )
+    assert applied.success is True
+    assert target.read_bytes() == b"authorised\n"
+
+    denied_ops: tuple[dict[str, object], ...] = (
+        {"op": "create", "file": "note.txt", "content": "missing flag\n"},
+        {
+            "op": "create",
+            "file": "note.txt",
+            "content": "false flag\n",
+            "overwrite": False,
+        },
+    )
+    for denied in denied_ops:
+        before = target.read_bytes()
+        denied_check = BatchEditCheckTool().execute(
+            path=str(tmp_path), operations=[denied]
+        )
+        assert denied_check.success is True
+        assert denied_check.data is not None
+        assert denied_check.data["ok"] is False
+        assert target.read_bytes() == before
+        denied_apply = BatchEditTool().execute(
+            path=str(tmp_path), operations=[denied], lint=False
+        )
+        assert denied_apply.success is False
+        assert target.read_bytes() == before
+
+
+def test_create_overwrite_recovery_preserves_target_boundaries(
+    tmp_path: Path,
+) -> None:
+    """AC4: overwrite recovery still rejects directories and traversal."""
+    root = tmp_path / "root"
+    root.mkdir()
+    allowed = root / "allowed.txt"
+    allowed.write_text("old\n", encoding="utf-8")
+    allowed_op = {
+        "op": "create",
+        "file": "allowed.txt",
+        "content": "new\n",
+        "overwrite": True,
+    }
+    checked = BatchEditCheckTool().execute(path=str(root), operations=[allowed_op])
+    assert checked.success is True
+    assert checked.data is not None
+    assert checked.data["ok"] is True
+    applied = BatchEditTool().execute(
+        path=str(root), operations=[allowed_op], lint=False
+    )
+    assert applied.success is True
+    assert allowed.read_bytes() == b"new\n"
+
+    directory = root / "protected"
+    directory.mkdir()
+    sentinel = directory / "sentinel.txt"
+    sentinel.write_bytes(b"sentinel\n")
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"outside\n")
+    forbidden_ops: tuple[dict[str, object], ...] = (
+        {
+            "op": "create",
+            "file": "protected",
+            "content": "directory replacement\n",
+            "overwrite": True,
+        },
+        {
+            "op": "create",
+            "file": "../outside.txt",
+            "content": "escaped replacement\n",
+            "overwrite": True,
+        },
+    )
+    for forbidden in forbidden_ops:
+        sentinel_before = sentinel.read_bytes()
+        outside_before = outside.read_bytes()
+        denied_check = BatchEditCheckTool().execute(
+            path=str(root), operations=[forbidden]
+        )
+        assert denied_check.success is True
+        assert denied_check.data is not None
+        assert denied_check.data["ok"] is False
+        assert directory.is_dir()
+        assert sentinel.read_bytes() == sentinel_before
+        assert outside.read_bytes() == outside_before
+        denied_apply = BatchEditTool().execute(
+            path=str(root), operations=[forbidden], lint=False
+        )
+        assert denied_apply.success is False
+        assert directory.is_dir()
+        assert sentinel.read_bytes() == sentinel_before
+        assert outside.read_bytes() == outside_before
+
+
+def test_create_overwrite_revalidates_after_successful_check(tmp_path: Path) -> None:
+    """AC5: execution rejects a checked target changed to dir or symlink."""
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"outside\n")
+
+    for replacement_kind in ("directory", "symlink"):
+        root = tmp_path / replacement_kind
+        root.mkdir()
+        target = root / "target.txt"
+        target.write_bytes(b"old\n")
+        operation = {
+            "op": "create",
+            "file": "target.txt",
+            "content": "new\n",
+            "overwrite": True,
+        }
+        checked = BatchEditCheckTool().execute(path=str(root), operations=[operation])
+        assert checked.success is True
+        assert checked.data is not None
+        assert checked.data["ok"] is True
+        assert target.read_bytes() == b"old\n"
+
+        target.unlink()
+        if replacement_kind == "directory":
+            target.mkdir()
+            sentinel = target / "sentinel.txt"
+            sentinel.write_bytes(b"sentinel\n")
+        else:
+            target.symlink_to(outside)
+
+        applied = BatchEditTool().execute(
+            path=str(root), operations=[operation], lint=False
+        )
+        assert applied.success is False
+        if replacement_kind == "directory":
+            assert target.is_dir()
+            assert sentinel.read_bytes() == b"sentinel\n"
+        else:
+            assert target.is_symlink()
+            assert outside.read_bytes() == b"outside\n"

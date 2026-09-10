@@ -19,7 +19,7 @@ Use exact parameter names: extra tool kwargs may be ignored rather than rejected
 | `op` | Required payload | Target |
 |---|---|---|
 | `replace` | `file`, `edits` with `old` and `new` | Existing text file |
-| `create` | `file`, `content` | Absent path; parents created |
+| `create` | `file`, `content`; optional `overwrite` | Absent path, or an existing regular file when `overwrite: true`; parents created |
 | `delete` | `file` | Existing file |
 | `rewrite` | `file`, `content`, `checksum` | Existing regular nonbinary file |
 
@@ -64,7 +64,24 @@ UTF-8 content is important, including a missing final newline.
 {"op": "create", "file": "notes/new.txt", "content": "Ready.\n"}
 ```
 
-Create refuses an existing path; there is no `overwrite` flag.
+Create refuses an existing path by default. Set `overwrite: true` on that
+specific operation to replace an existing regular file inside `path`:
+
+```json
+{
+  "op": "create",
+  "file": "notes/status.txt",
+  "content": "Ready.\n",
+  "overwrite": true
+}
+```
+
+The permission is local to that operation; omitting `overwrite` or setting it to
+`false` on a later create restores the default refusal. Both tools reject
+directories and targets that resolve outside the project root, including a
+symbolic link to an external file. `batch_edit_check` is read-only, and
+`batch_edit` repeats preflight and validation before writing, so changing a
+checked file into a directory or an external symbolic link causes apply to fail.
 
 ```json
 {"op": "delete", "file": "notes/obsolete.txt"}

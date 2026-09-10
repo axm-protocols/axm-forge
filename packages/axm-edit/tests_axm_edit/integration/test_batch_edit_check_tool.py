@@ -156,3 +156,34 @@ class TestReadOnlyInvariant:
 
         assert result.success is True
         assert _snapshot(project) == before
+
+
+def test_create_overwrite_accepts_existing_file_without_writing(
+    tmp_path: Path,
+) -> None:
+    """AC1: overwrite:true accepts an existing regular file read-only."""
+    target = tmp_path / "note.txt"
+    original = b"original bytes\n"
+    target.write_bytes(original)
+
+    result = BatchEditCheckTool().execute(
+        path=str(tmp_path),
+        operations=[
+            {
+                "op": "create",
+                "file": "note.txt",
+                "content": "replacement bytes\n",
+                "overwrite": True,
+            }
+        ],
+    )
+
+    assert result.success is True
+    assert result.data is not None
+    assert result.data["ok"] is True
+    assert result.data["blocking"] is False
+    assert not any(
+        diagnostic["code"] == "CREATE_ON_EXISTING"
+        for diagnostic in result.data["diagnostics"]
+    )
+    assert target.read_bytes() == original

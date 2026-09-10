@@ -173,18 +173,26 @@ def check_create_targets(
     Returns:
         One ``CREATE_ON_EXISTING`` error per colliding create, else ``[]``.
     """
-    return [
-        CheckDiagnostic(
-            op_index=index,
-            file=op.file,
-            severity="error",
-            code="CREATE_ON_EXISTING",
-            message=f"`create` targets {op.file!r}, which already exists.",
-            hint=_CREATE_ON_EXISTING_HINT,
+    diagnostics: list[CheckDiagnostic] = []
+    for index, op in enumerate(_parse(operations)):
+        if not isinstance(op, CreateOp):
+            continue
+        target = resolve_safe(root, op.file)
+        if target is not None and (
+            not _exists(root, op.file) or (op.overwrite and target.is_file())
+        ):
+            continue
+        diagnostics.append(
+            CheckDiagnostic(
+                op_index=index,
+                file=op.file,
+                severity="error",
+                code="CREATE_ON_EXISTING",
+                message=f"`create` targets {op.file!r}, which already exists.",
+                hint=_CREATE_ON_EXISTING_HINT,
+            )
         )
-        for index, op in enumerate(_parse(operations))
-        if isinstance(op, CreateOp) and _exists(root, op.file)
-    ]
+    return diagnostics
 
 
 def _observe_target(root: Path, relative: str) -> tuple[bool, bool, str | None]:
