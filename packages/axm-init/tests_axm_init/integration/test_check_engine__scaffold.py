@@ -99,18 +99,8 @@ def _scaffold_protocol_profile(tmp_path: Path, label: str) -> Path:
         )
     assert protocol.success, protocol.error
     materialize_post_copy_artifacts(dest)
-
-    metadata = dest / "pyproject.toml"
-    metadata.write_text(
-        metadata.read_text(encoding="utf-8")
-        + (
-            "\n[tool.hatch.build.targets.wheel]\n"
-            'packages = ["src/protocols_dev"]\n'
-            "\n[tool.hatch.build.targets.wheel.force-include]\n"
-            '"src/protocols_dev" = "protocols_dev"\n'
-        ),
-        encoding="utf-8",
-    )
+    # No wheel-inclusion fixup here on purpose: the scaffold declares it
+    # itself, so patching it back would hide a generator regression.
     return dest
 
 

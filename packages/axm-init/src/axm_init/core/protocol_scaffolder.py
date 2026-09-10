@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from tomlkit import dumps, parse, table
+from tomlkit import TOMLDocument, dumps, parse, table
 from tomlkit.items import Table
 
 from axm_init.core.framework import Framework
@@ -419,4 +419,42 @@ def _register_protocol_profile_unlocked(root: Path, domain: str) -> None:
         axm_init["protocols"] = profile
     profile["schema_version"] = 1
     profile["domain"] = domain
+    _declare_resource_inclusion(document, domain)
     metadata_path.write_text(dumps(document), encoding="utf-8")
+
+
+def _wheel_table(document: TOMLDocument) -> Table:
+    """Return the wheel build target, creating the branch when absent."""
+    node: Table | TOMLDocument = document
+    for key in ("tool", "hatch", "build", "targets", "wheel"):
+        child = node.get(key)
+        if not isinstance(child, Table):
+            child = table()
+            node[key] = child
+        node = child
+    if not isinstance(node, Table):  # pragma: no cover - defensive
+        message = "wheel target is not a table"
+        raise TypeError(message)
+    return node
+
+
+def _declare_resource_inclusion(document: TOMLDocument, domain: str) -> None:
+    """Ship the protocol package and its non-Python resources in the wheel.
+
+    A protocol tree carries ``.md`` prompts, which hatchling leaves out of the
+    distribution unless they are force-included. Declaring this alongside the
+    profile keeps a freshly scaffolded package conforming to its own
+    ``protocols`` rules, and stays idempotent across later protocol additions.
+    """
+    source = f"src/protocols_{domain}"
+    wheel = _wheel_table(document)
+    packages = wheel.get("packages")
+    if not isinstance(packages, list):
+        wheel["packages"] = [source]
+    elif source not in packages:
+        packages.append(source)
+    force_include = wheel.get("force-include")
+    if not isinstance(force_include, Table):
+        force_include = table()
+        wheel["force-include"] = force_include
+    force_include[source] = f"protocols_{domain}"
