@@ -128,6 +128,35 @@ declaration = ProtocolScaffoldDecl(
 assert declaration.graph_name == "dev.work.exec"
 ```
 
+## Ticket declaration check
+
+`check_protocol_ticket(project: Path) -> CheckResult` in
+`axm_init.checks.protocols` is discovered as `protocols.protocol_ticket` by
+`CheckEngine`. Request it through the explicit `protocols` category. It has
+weight 2 when a declared domain has its protocol module root; otherwise it
+returns a passing, zero-weight result. Omitting both a ticket announcement and
+its file is valid.
+
+| Defect | Diagnostic location and correction |
+| --- | --- |
+| Action announces `ticket_type`, but its `ticket.py` is absent | The announcement's `pyproject.toml` line and expected file path; create the file or remove the announcement |
+| `ticket.py` exists without an action announcement | The `TICKET_TYPE` line, or line 1 if absent; declare `ticket_type` in the action metadata or remove the file |
+| A present `INPUT_CONTRACT` references an undeclared contract | The assignment line; select a name from that action's `contracts` inventory |
+| A present `GRAPH_NAME` differs from the path-derived identity | The assignment line, expected and observed names; use `<domain>.<unit>.<action>` |
+
+Reference checks inspect the constants present in the typed variable inventory.
+They require literal values; unresolved expressions fail those checks. They do
+not require an absent `INPUT_CONTRACT` or `GRAPH_NAME` assignment to be added.
+The planner generates `TICKET_TYPE` and `INPUT_CONTRACT`; it does not currently
+add `GRAPH_NAME` to `ticket.py`. Ticket type identifiers are independent of graph
+names, and this rule does not compare the value of `TICKET_TYPE` with the
+metadata value.
+
+Inspection uses `axm-ast` module and variable information without importing the
+inspected package. At a workspace root, the existing engine aggregation keeps
+the canonical rule name and prefixes member findings with their member identity.
+See [checking and repairing declarations](../howto/scaffold-protocols.md#check-and-repair-ticket-declarations).
+
 ## Current interface notes
 
 Unit and protocol requests require an existing package with a readable

@@ -9,7 +9,13 @@ import pytest
 from axm_init.checks._workspace import ProjectContext
 from axm_init.core import checker
 from axm_init.core.checker import ALL_CHECKS, CheckEngine, get_check_name
-from axm_init.models.check import ProjectResult
+from axm_init.core.protocol_planner import plan_protocol_scaffold
+from axm_init.models.check import CheckResult, ProjectResult
+from axm_init.models.protocol_scaffold import (
+    ContractDecl,
+    ProtocolScaffoldDecl,
+    TicketDecl,
+)
 
 __all__: list[str] = []
 
@@ -304,3 +310,156 @@ def test_conserver_tous_les_echecs_de_categorie_des_membres(
                     member_name in root_detail and detail in root_detail
                     for root_detail in aggregated.details
                 ), (member_name, failure.name, detail)
+
+
+TICKET_RULE = "protocols.protocol_ticket"
+TICKET_PATH = "src/protocols_demo/work/exec/ticket.py"
+TICKET_DEFECTS = ("missing-file", "unannounced", "contract", "graph")
+
+
+@pytest.fixture
+def ticket_member(workspace_root: Path) -> Path:
+    """Materialize the planner's ticket format without post-copy tasks."""
+    member = workspace_root / "packages" / "protocols-demo"
+    member.mkdir(parents=True)
+    declaration = ProtocolScaffoldDecl(
+        domain="demo",
+        unit="work",
+        action="exec",
+        contracts=[ContractDecl(name="request")],
+        nodes=[],
+        ticket=TicketDecl(ticket_type="demo.job", input_contract="request"),
+    )
+    plan = plan_protocol_scaffold(
+        declaration,
+        '[project]\nname = "protocols-demo"\nversion = "0.1.0"\n',
+        {},
+    )
+    (member / "pyproject.toml").write_text(plan.metadata, encoding="utf-8")
+    for operation in plan.operations:
+        assert operation.content is not None
+        target = member / operation.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(operation.content, encoding="utf-8")
+    ticket = member / TICKET_PATH
+    ticket.write_text(
+        ticket.read_text(encoding="utf-8") + "GRAPH_NAME = 'demo.work.exec'\n",
+        encoding="utf-8",
+    )
+    return member
+
+
+def _introduce_ticket_defect(member: Path, defect: str) -> None:
+    """Change one ticket binding, leaving its declared profile in place."""
+    ticket = member / TICKET_PATH
+    if defect == "missing-file":
+        ticket.unlink()
+    elif defect == "unannounced":
+        metadata = member / "pyproject.toml"
+        text = metadata.read_text(encoding="utf-8")
+        metadata.write_text(
+            "\n".join(
+                line
+                for line in text.splitlines()
+                if not line.startswith("ticket_type =")
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    else:
+        old, new = (
+            ("INPUT_CONTRACT = 'request'", "INPUT_CONTRACT = 'undeclared'")
+            if defect == "contract"
+            else ("GRAPH_NAME = 'demo.work.exec'", "GRAPH_NAME = 'demo.work.other'")
+        )
+        text = ticket.read_text(encoding="utf-8")
+        assert old in text
+        ticket.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def _ticket_failure(project: Path) -> CheckResult:
+    """Require a failed ticket rule through category discovery."""
+    checks = CheckEngine(project, category="protocols").run().checks
+    matches = [check for check in checks if check.name == TICKET_RULE]
+    assert len(matches) == 1, [check.name for check in checks]
+    result = matches[0]
+    assert not result.passed
+    assert result.details
+    return result
+
+
+def _reference_location(member: Path, relative: str, reference: str) -> str:
+    """Locate a fixture reference without prescribing generated header length."""
+    lines = (member / relative).read_text(encoding="utf-8").splitlines()
+    line = next(i for i, text in enumerate(lines, 1) if reference in text)
+    return f"{relative}:{line}"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("defect", TICKET_DEFECTS[:2])
+def test_refuser_presence_declaration_incoherente(
+    ticket_member: Path, defect: str
+) -> None:
+    """AC1: reject either presence mismatch with location and correction."""
+    announcement = _reference_location(ticket_member, "pyproject.toml", "ticket_type =")
+    declaration = _reference_location(ticket_member, TICKET_PATH, "TICKET_TYPE =")
+    _introduce_ticket_defect(ticket_member, defect)
+
+    result = _ticket_failure(ticket_member)
+
+    location = announcement if defect == "missing-file" else declaration
+    assert any(
+        location in detail
+        and TICKET_PATH in detail
+        and "Correction:" in detail
+        and ("ticket_type" in detail or "TICKET_TYPE" in detail)
+        for detail in result.details
+    ), result.details
+
+
+@pytest.mark.integration
+def test_refuser_contrat_ticket_non_declare(ticket_member: Path) -> None:
+    """AC2: reject an undeclared input contract at its ticket reference."""
+    _introduce_ticket_defect(ticket_member, "contract")
+    location = _reference_location(ticket_member, TICKET_PATH, "INPUT_CONTRACT =")
+
+    result = _ticket_failure(ticket_member)
+
+    assert any(
+        location in detail and "undeclared" in detail and "Correction:" in detail
+        for detail in result.details
+    ), result.details
+
+
+@pytest.mark.integration
+def test_refuser_graphe_ticket_incoherent(ticket_member: Path) -> None:
+    """AC3: report both graph names at the inconsistent ticket reference."""
+    _introduce_ticket_defect(ticket_member, "graph")
+    location = _reference_location(ticket_member, TICKET_PATH, "GRAPH_NAME =")
+
+    result = _ticket_failure(ticket_member)
+
+    assert any(
+        location in detail
+        and "demo.work.exec" in detail
+        and "demo.work.other" in detail
+        for detail in result.details
+    ), result.details
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("defect", TICKET_DEFECTS)
+def test_remonter_defauts_ticket_sous_la_regle_ticket(
+    workspace_root: Path, ticket_member: Path, defect: str
+) -> None:
+    """AC4: aggregate each ticket defect under its rule with member attribution."""
+    _introduce_ticket_defect(ticket_member, defect)
+
+    local = _ticket_failure(ticket_member)
+    aggregated = _ticket_failure(workspace_root)
+
+    for detail in local.details:
+        assert any(
+            "protocols-demo" in root_detail and detail in root_detail
+            for root_detail in aggregated.details
+        ), (defect, detail, aggregated.details)

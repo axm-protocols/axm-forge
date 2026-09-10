@@ -161,7 +161,7 @@ An experiment folder — a directory whose root `manifest.yaml` declares both
     and papers, so a Python package is never reproached an experiment check.
 
 
-### protocols (6 pts, explicit-only)
+### protocols (explicit-only)
 
 Protocol-profile checks run only when the `protocols` category is requested:
 
@@ -169,6 +169,7 @@ Protocol-profile checks run only when the `protocols` category is requested:
 |-------|--------|------------------|
 | `protocols.profile` | 4 | Profile metadata, distribution/module identity, required layout, and bidirectional component inventory |
 | `protocols.protocols_resources` | 2 | Every declared prompt has a `prompts/<name>.md` resource and the protocol package is explicitly included in the wheel |
+| [`protocols.protocol_ticket`](../protocol-scaffold.md#ticket-declaration-check) | 2 | Ticket file/announcement presence, declared input-contract references, and path-derived graph identity when referenced; localized findings retain member attribution at workspace roots |
 
 Prompt existence and distribution inclusion are independent invariants. A local
 file is not sufficient evidence that Hatch will ship it. For a domain such as

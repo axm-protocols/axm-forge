@@ -61,4 +61,30 @@ snapshot, preflight, writes and rollback for the same canonical root; distinct
 roots remain concurrent. This does not provide cross-process coordination
 or durable crash recovery.
 
-See [declarations and result fields](../reference/protocol-scaffold.md).
+## Check and repair ticket declarations
+
+After applying or editing a declaration, run:
+
+```bash
+axm init_check /path/to/package --category protocols
+```
+
+Inspect `protocols.protocol_ticket` and follow the correction in each detail:
+
+1. If an action announces `ticket_type`, keep its declaration at
+   `src/protocols_<domain>/<unit>/<action>/ticket.py`. Create the missing file,
+   or remove the announcement if the action no longer declares a ticket.
+2. If a `ticket.py` exists without an announcement, add `ticket_type` to that
+   action's metadata, or remove the unwanted file.
+3. Set `INPUT_CONTRACT` to a name listed in the action's `contracts` metadata.
+4. If the ticket declares `GRAPH_NAME`, use the identity derived from its path:
+   `demo.work.exec` for `src/protocols_demo/work/exec/ticket.py`.
+   The ticket type itself may differ, for example `demo.job`.
+
+Run the same command with the workspace root as the path to check all members
+that declare the profile. Failures retain `protocols.protocol_ticket` and
+include the member name alongside the original localized details. Re-run after
+repairing the reported declarations; this check does not modify files.
+
+See [ticket diagnostics](../reference/protocol-scaffold.md#ticket-declaration-check)
+and [declarations and result fields](../reference/protocol-scaffold.md).

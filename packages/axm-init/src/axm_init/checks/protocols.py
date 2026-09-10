@@ -21,6 +21,7 @@ __all__ = [
     "check_author_grammar",
     "check_protocol_assembly",
     "check_protocol_components",
+    "check_protocol_ticket",
     "check_protocols_profile",
     "check_protocols_resources",
 ]
@@ -615,6 +616,137 @@ def _component_findings(project: Path, package: PackageInfo) -> list[str]:
                 "is not explicitly exported in __all__"
             )
     return details
+
+
+def _ticket_announcement_line(text: str, unit: str, action: str) -> int:
+    """Locate an announcement within its own TOML array-of-tables entry."""
+    lines = text.splitlines()
+    for number, line in enumerate(lines, 1):
+        if line.partition("=")[0].strip() != "ticket_type":
+            continue
+        prefix = tomllib.loads("\n".join(lines[:number]))
+        profile = _nested(prefix, "tool", "axm-init", "protocols") or {}
+        entries = _declared_actions(_tables(profile.get("units")) or [])
+        if entries and entries[-1][:2] == (unit, action):
+            return number
+    return 1
+
+
+def _ticket_declarations(
+    project: Path, root: Path
+) -> dict[Path, tuple[dict[str, object], int]]:
+    """Index action metadata and announcement locations by ticket path."""
+    text = (project / "pyproject.toml").read_text(encoding="utf-8")
+    profile = _nested(tomllib.loads(text), "tool", "axm-init", "protocols") or {}
+    return {
+        (root / unit / action / "ticket.py").resolve(): (
+            declaration,
+            _ticket_announcement_line(text, unit, action),
+        )
+        for unit, action, declaration in _declared_actions(
+            _tables(profile.get("units")) or []
+        )
+    }
+
+
+def _ticket_reference_findings(
+    project: Path, module: ModuleInfo, contracts: set[str], graph_name: str
+) -> list[str]:
+    """Check literal references using the typed variable inventory."""
+    details: list[str] = []
+    for variable in module.variables:
+        if variable.name not in {"INPUT_CONTRACT", "GRAPH_NAME"}:
+            continue
+        try:
+            value = ast.literal_eval(variable.value_repr or "")
+        except (SyntaxError, ValueError):
+            value = None
+        location = _location(project, module, variable.line)
+        if variable.name == "INPUT_CONTRACT":
+            if isinstance(value, str) and value in contracts:
+                continue
+            details.append(
+                f"{location}: INPUT_CONTRACT {value!r} is not a declared contract. "
+                f"Correction: reference one of {sorted(contracts)!r} in INPUT_CONTRACT."
+            )
+        elif value != graph_name:
+            details.append(
+                f"{location}: GRAPH_NAME expected {graph_name!r}, found {value!r}. "
+                f"Correction: set GRAPH_NAME to {graph_name!r}."
+            )
+    return details
+
+
+def _ticket_module_findings(
+    project: Path,
+    module: ModuleInfo,
+    declaration: dict[str, object],
+    graph_name: str,
+) -> list[str]:
+    """Validate an existing ticket against its action declaration."""
+    details: list[str] = []
+    if not declaration.get("ticket_type"):
+        line = next(
+            (
+                variable.line
+                for variable in module.variables
+                if variable.name == "TICKET_TYPE"
+            ),
+            1,
+        )
+        details.append(
+            f"{_location(project, module, line)}: ticket.py exists without an "
+            "announced ticket_type. Correction: declare ticket_type in the action "
+            "metadata or remove this ticket.py."
+        )
+    details.extend(
+        _ticket_reference_findings(
+            project,
+            module,
+            set(_strings(declaration.get("contracts")) or []),
+            graph_name,
+        )
+    )
+    return details
+
+
+def _ticket_findings(
+    project: Path, domain: str, root: Path, package: PackageInfo
+) -> list[str]:
+    """Compare all declared and inventoried ticket files deterministically."""
+    declarations = _ticket_declarations(project, root)
+    modules = {
+        module.path.resolve(): module
+        for module in package.modules
+        if module.path.name == "ticket.py"
+    }
+    details: list[str] = []
+    for path in sorted(declarations.keys() | modules.keys()):
+        declaration, line = declarations.get(path, ({}, 1))
+        module = modules.get(path)
+        if module is None:
+            if declaration.get("ticket_type"):
+                relative = path.relative_to(project.resolve()).as_posix()
+                details.append(
+                    f"pyproject.toml:{line}: announced ticket_type "
+                    f"{declaration['ticket_type']!r} has no declaration at {relative}. "
+                    f"Correction: create {relative} or remove the "
+                    "ticket_type announcement."
+                )
+            continue
+        relative_path = path.relative_to(root.resolve())
+        graph_name = ".".join((domain, *relative_path.parts[:-1]))
+        details.extend(
+            _ticket_module_findings(project, module, declaration, graph_name)
+        )
+    return details
+
+
+def check_protocol_ticket(project: Path) -> CheckResult:
+    """Validate ticket presence and references without importing inspected code."""
+    context = _protocol_package(project)
+    details = [] if context is None else _ticket_findings(project, *context)
+    return _content_result("protocol_ticket", details, applicable=context is not None)
 
 
 def check_protocol_components(project: Path) -> CheckResult:
