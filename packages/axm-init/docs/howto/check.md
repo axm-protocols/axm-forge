@@ -32,6 +32,33 @@ axm init_check --category workspace
 axm init_check /path/to/protocol-package --category protocols
 ```
 
+## Check Workspace Protocols
+
+To check all declared protocol members from a uv workspace root, select the
+category explicitly:
+
+```bash
+axm init_check /path/to/workspace --category protocols --json-output
+```
+
+The engine selects members declaring `[tool.axm-init.protocols]` in their
+`pyproject.toml`; members without the profile are ignored. In the report, find
+the failing canonical rule, such as `protocols.protocol_components`,
+`protocols.protocol_assembly` or `protocols.author_grammar`. Its details identify
+the member and preserve the localized finding and available correction.
+Source paths in those findings are relative to the named member.
+
+Apply the correction in that member, then rerun the workspace command. To focus
+on one member while fixing it, use its path with the same category:
+
+```bash
+axm init_check /path/to/workspace/packages/my-member --category protocols
+```
+
+All discovered rules in this category use the same aggregation path. See
+[workspace protocol aggregation](../explanation/project-contexts.md#protocol-checks-at-the-workspace-root)
+for identity, weighting and execution boundaries.
+
 ## JSON Output for CI
 
 ```bash
@@ -94,7 +121,7 @@ By default, only failures are displayed.
 
 | **paper** | paper structure, plan, research protocol | 15 |
 | **experiment** | directory structure and required files | 10 |
-| **protocols** *(explicit-only)* | schema version, domain/distribution/module identity, wheel inclusion, names, duplicates, and unit/protocol relations | 4 |
+| **protocols** *(explicit-only)* | profile metadata, prompt resources, public components, assembly, and author grammar | 12 |
 
 The first ten rows are the default Python catalogue before context filtering.
 `protocols` runs only when selected with `--category protocols`, so unfiltered

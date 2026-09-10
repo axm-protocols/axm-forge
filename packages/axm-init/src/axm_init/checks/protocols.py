@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 import re
 import tomllib
-from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -475,68 +474,6 @@ def _validate_wheel_inclusion(
         )
 
 
-def _workspace_member_failures(
-    project: Path,
-    check: Callable[[Path], CheckResult],
-) -> list[tuple[str, str]] | None:
-    """Collect per-member findings, or None when the check does not apply."""
-    from axm_ingot.uv import resolve_workspace
-
-    workspace = resolve_workspace(project)
-    if workspace is None:
-        return None
-
-    applicable: list[tuple[str, CheckResult]] = []
-    for member in workspace.members:
-        result = check(member.path)
-        if result.weight:
-            applicable.append((member.name, result))
-    if not applicable:
-        return None
-
-    return [
-        (member_name, detail)
-        for member_name, result in applicable
-        if not result.passed
-        for detail in result.details
-    ]
-
-
-def _workspace_result(
-    name: str,
-    weight: int,
-    passed_message: str,
-    failed_prefix: str,
-    failures: list[tuple[str, str]],
-) -> CheckResult:
-    """Assemble the aggregated workspace-level result from member findings."""
-    passed = not failures
-    return CheckResult(
-        name=name,
-        category=_CATEGORY,
-        passed=passed,
-        weight=weight,
-        message=(
-            passed_message if passed else f"{failed_prefix} {len(failures)} finding(s)"
-        ),
-        details=[f"member {member_name}: {detail}" for member_name, detail in failures],
-        fix="" if passed else "Apply each correction in the named workspace member.",
-    )
-
-
-def _workspace_protocol_result(project: Path) -> CheckResult | None:
-    failures = _workspace_member_failures(project, check_protocols_profile)
-    if failures is None:
-        return None
-    return _workspace_result(
-        "protocols.profile",
-        4,
-        "Workspace protocol profiles are statically coherent",
-        "Workspace protocol profiles have",
-        failures,
-    )
-
-
 def _declared_prompt_paths(
     project: Path,
     profile: dict[str, object],
@@ -583,19 +520,6 @@ def _protocol_resources_included(
     return (
         force_include is not None
         and force_include.get(expected_source) == expected_target
-    )
-
-
-def _workspace_protocol_resources_result(project: Path) -> CheckResult | None:
-    failures = _workspace_member_failures(project, check_protocols_resources)
-    if failures is None:
-        return None
-    return _workspace_result(
-        "protocols.protocols_resources",
-        2,
-        "Workspace protocol prompt resources are distributable",
-        "Workspace protocol resources have",
-        failures,
     )
 
 
@@ -1072,9 +996,6 @@ def check_protocols_resources(project: Path) -> CheckResult:
 
     profile = _nested(data, "tool", "axm-init", "protocols")
     if profile is None:
-        workspace_result = _workspace_protocol_resources_result(project)
-        if workspace_result is not None:
-            return workspace_result
         return CheckResult(
             name="protocols.protocols_resources",
             category=_CATEGORY,
@@ -1126,9 +1047,6 @@ def check_protocols_profile(project: Path) -> CheckResult:
 
     profile = _nested(data, "tool", "axm-init", "protocols")
     if profile is None:
-        workspace_result = _workspace_protocol_result(project)
-        if workspace_result is not None:
-            return workspace_result
         return CheckResult(
             name="protocols.profile",
             category=_CATEGORY,

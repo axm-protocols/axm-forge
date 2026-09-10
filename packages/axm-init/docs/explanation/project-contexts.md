@@ -34,6 +34,35 @@ A folder holding a `manifest.yaml` is not a Python distribution: `pyproject.pypr
 
 Only `experiment.experiment_structure` and `experiment.experiment_files` are graded — so an experiment freshly scaffolded with `--kind experiment` is reported in the `experiment` context with an EMPTY failure list, while its manifest substance (still TODO placeholders) stays axm-lab's business
 
+## Protocol checks at the workspace root
+
+When `CheckEngine` runs with `category="protocols"` in the `workspace`
+context, it resolves uv members and selects those declaring
+`[tool.axm-init.protocols]` in their metadata. Directory names do not determine
+eligibility; members without that declaration are ignored.
+
+The engine executes every discovered rule on the root and each selected member,
+then aggregates results under the rule's canonical name. Component, assembly
+and author-grammar failures therefore remain attributed to their own rules.
+Member findings retain their file and line information, prefixed with the
+member's project name (or directory name when no project name is available).
+Available corrections are included in the details; a failure without details
+contributes its message instead.
+
+Each rule produces one root result, failing if the root or any selected member
+fails. Its weight is the maximum of the root and member weights, rather than a
+sum proportional to the number of members. Root exclusions are applied after
+aggregation using the canonical name.
+
+This responsibility belongs to category execution in the engine: new rules
+participate through discovery without adding workspace branches to individual
+validators. Direct calls to individual protocol validators inspect only the
+supplied project; use `CheckEngine` for workspace aggregation. The category
+remains explicit-only, so unfiltered checks and scores are unchanged.
+
+See [checking workspace protocols](../howto/check.md#check-workspace-protocols)
+for the command and how to follow a finding back to its member.
+
 ## What a member inherits
 
 CI and shared tooling checks can execute against the workspace root. Others,

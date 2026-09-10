@@ -1,5 +1,7 @@
 """Split from ``test_check_engine_run_and_format.py``."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,8 @@ from axm_init.checks._workspace import ProjectContext
 from axm_init.core import checker
 from axm_init.core.checker import ALL_CHECKS, CheckEngine, get_check_name
 from axm_init.models.check import ProjectResult
+
+__all__: list[str] = []
 
 
 class TestEngineMember:
@@ -157,3 +161,146 @@ def test_legacy_contexts_keep_their_exact_non_excluded_id_sets(
         assert _ran_ids(result) == expected
         assert PAPER_CHECK_IDS <= set(skip_table[context])
         assert PAPER_CHECK_IDS & _ran_ids(result) == set()
+
+
+@pytest.fixture
+def protocol_workspace(tmp_path: Path) -> tuple[Path, list[Path]]:
+    """Build two declared members with real defects in all protocol checks."""
+    root = tmp_path / "workspace"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "protocol-workspace"\nversion = "0.1.0"\n'
+        '[tool.uv.workspace]\nmembers = ["members/*"]\n',
+        encoding="utf-8",
+    )
+    members = []
+    for directory, name in (("one", "protocols-demo"), ("two", "protocols-other")):
+        domain = name.removeprefix("protocols-")
+        member = root / "members" / directory
+        package = member / "src" / f"protocols_{domain}"
+        action = package / "work" / "exec"
+        nodes = action / "nodes"
+        nodes.mkdir(parents=True)
+        for folder in (package, package / "work", action, nodes):
+            (folder / "__init__.py").write_text("", encoding="utf-8")
+        (member / "pyproject.toml").write_text(
+            f'[project]\nname = "{name}"\nversion = "0.1.0"\n'
+            "[tool.hatch.build.targets.wheel]\n"
+            f'packages = ["src/protocols_{domain}"]\n'
+            "[tool.axm-init.protocols]\nschema_version = 999\n"
+            f'domain = "{domain}"\n'
+            '[[tool.axm-init.protocols.units]]\nname = "work"\n'
+            "[[tool.axm-init.protocols.units.protocols]]\n"
+            'action = "exec"\nprompts = ["missing"]\n',
+            encoding="utf-8",
+        )
+        (nodes / "broken.py").write_text(
+            "def perform() -> int:\n    return 1\n", encoding="utf-8"
+        )
+        (action / "protocol.py").write_text(
+            "def wrong_factory() -> None:\n    return None\n", encoding="utf-8"
+        )
+        (action / "grammar.py").write_text(
+            "for item in (1, 2):\n    value = item\n", encoding="utf-8"
+        )
+        members.append(member)
+    return root, members
+
+
+def _assert_protocol_failure_is_propagated(
+    root: Path, member: Path, canonical: str, location: str, defect: str
+) -> None:
+    """Compare a real member finding with its canonical workspace result."""
+    local = next(
+        check
+        for check in CheckEngine(member, category="protocols").run().checks
+        if check.name == canonical
+    )
+    assert not local.passed
+    assert any(location in detail and defect in detail for detail in local.details)
+    aggregated = next(
+        check
+        for check in CheckEngine(root, category="protocols").run().checks
+        if check.name == canonical
+    )
+    assert not aggregated.passed
+    member_name = f"protocols-{member.joinpath('src').iterdir().__next__().name[10:]}"
+    for detail in local.details:
+        assert any(
+            member_name in root_detail and detail in root_detail
+            for root_detail in aggregated.details
+        )
+
+
+@pytest.mark.integration
+def test_remonter_le_defaut_de_composant_sous_sa_regle(
+    protocol_workspace: tuple[Path, list[Path]],
+) -> None:
+    """AC1: preserve component rule, member, file, line and export correction."""
+    root, members = protocol_workspace
+    _assert_protocol_failure_is_propagated(
+        root,
+        members[0],
+        "protocols.protocol_components",
+        "nodes/broken.py:1",
+        "__all__",
+    )
+
+
+@pytest.mark.integration
+def test_remonter_le_defaut_d_assemblage_sous_sa_regle(
+    protocol_workspace: tuple[Path, list[Path]],
+) -> None:
+    """AC2: propagate the assembly defect under its canonical rule."""
+    root, members = protocol_workspace
+    _assert_protocol_failure_is_propagated(
+        root,
+        members[0],
+        "protocols.protocol_assembly",
+        "protocol.py:1",
+        "build_protocol",
+    )
+
+
+@pytest.mark.integration
+def test_remonter_le_defaut_de_grammaire_sous_sa_regle(
+    protocol_workspace: tuple[Path, list[Path]],
+) -> None:
+    """AC3: propagate the author grammar defect with member attribution."""
+    root, members = protocol_workspace
+    _assert_protocol_failure_is_propagated(
+        root,
+        members[0],
+        "protocols.author_grammar",
+        "grammar.py:1",
+        "module-level business iteration",
+    )
+
+
+@pytest.mark.integration
+def test_conserver_tous_les_echecs_de_categorie_des_membres(
+    protocol_workspace: tuple[Path, list[Path]],
+) -> None:
+    """AC4: every discovered member failure retains its rule and all findings."""
+    root, members = protocol_workspace
+    local_results = [
+        CheckEngine(member, category="protocols").run() for member in members
+    ]
+    root_result = CheckEngine(root, category="protocols").run()
+    by_name = {check.name: check for check in root_result.checks}
+    assert len(by_name) == len(root_result.checks)
+    for member, local in zip(members, local_results, strict=True):
+        assert local.failures
+        member_name = (
+            f"protocols-{member.joinpath('src').iterdir().__next__().name[10:]}"
+        )
+        for failure in local.failures:
+            assert failure.name in by_name
+            aggregated = by_name[failure.name]
+            assert not aggregated.passed, (member_name, failure.name)
+            assert failure.details
+            for detail in failure.details:
+                assert any(
+                    member_name in root_detail and detail in root_detail
+                    for root_detail in aggregated.details
+                ), (member_name, failure.name, detail)

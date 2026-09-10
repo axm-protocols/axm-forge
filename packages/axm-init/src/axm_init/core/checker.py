@@ -9,8 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from axm_ingot.uv import resolve_workspace
+
 import axm_init.checks as _checks_pkg
-from axm_init.checks._utils import load_exclusions
+from axm_init.checks._utils import load_exclusions, load_toml, section
 from axm_init.checks._workspace import (
     ProjectContext,
     detect_context,
@@ -395,6 +397,58 @@ def _discover_explicit_category(
     return checks or None
 
 
+def _protocol_members(project: Path) -> list[tuple[str, Path]]:
+    """Select workspace members by declared metadata, never directory names."""
+    workspace = resolve_workspace(project)
+    if workspace is None:
+        return []
+    selected: list[tuple[str, Path]] = []
+    for member in workspace.members:
+        data = load_toml(member.path) or {}
+        config = section(section(data, "tool"), "axm-init")
+        if "protocols" not in config:
+            continue
+        name = section(data, "project").get("name")
+        selected.append((name if isinstance(name, str) else member.name, member.path))
+    return selected
+
+
+def _aggregate_member_check(
+    fn: Callable[[Path], CheckResult],
+    root_result: CheckResult,
+    members: list[tuple[str, Path]],
+) -> CheckResult:
+    """Preserve each rule's identity, weight and localized member findings."""
+    results = [(name, fn(path)) for name, path in members]
+    failures = [(name, result) for name, result in results if not result.passed]
+    details = list(root_result.details)
+    for name, result in failures:
+        details.extend(
+            f"member {name}: {detail}"
+            for detail in (result.details or [result.message])
+        )
+        if result.fix:
+            details.append(f"member {name}: Correction: {result.fix}")
+    passed = root_result.passed and not failures
+    return root_result.model_copy(
+        update={
+            "passed": passed,
+            "weight": max(
+                [root_result.weight, *(result.weight for _, result in results)]
+            ),
+            "details": details,
+            "message": (
+                "Workspace protocol checks are conforming"
+                if passed
+                else f"Workspace protocol check has {len(details)} finding(s)"
+            ),
+            "fix": ""
+            if passed
+            else "Apply each correction in the named workspace member.",
+        }
+    )
+
+
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
@@ -507,8 +561,20 @@ class CheckEngine:
         exclusions = load_exclusions(self.project_path)
         all_fns = self._filter_checks(checks_to_run)
 
+        members = (
+            _protocol_members(self.project_path)
+            if self.category == "protocols" and self.context == ProjectContext.WORKSPACE
+            else []
+        )
         with ThreadPoolExecutor(max_workers=8) as pool:
             raw_results = list(pool.map(lambda fn: fn(self.project_path), all_fns))
+            if members:
+                raw_results = list(
+                    pool.map(
+                        lambda pair: _aggregate_member_check(pair[0], pair[1], members),
+                        zip(all_fns, raw_results, strict=True),
+                    )
+                )
 
         # Single source of truth: re-stamp every result with the canonical
         # name (``get_check_name``) so SKIP / REDIRECT / exclude / display
