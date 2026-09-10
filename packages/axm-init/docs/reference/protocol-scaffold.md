@@ -157,6 +157,13 @@ inspected package. At a workspace root, the existing engine aggregation keeps
 the canonical rule name and prefixes member findings with their member identity.
 See [checking and repairing declarations](../howto/scaffold-protocols.md#check-and-repair-ticket-declarations).
 
+## Registration and declared state
+
+The explicit category also checks factory registration and ready-state skeleton
+markers. Its tool result exposes declared state separately from validation.
+See [protocol registration and declared state](protocol-readiness.md) for the
+canonical rules, static resolution boundaries and structured result fields.
+
 ## Current interface notes
 
 Unit and protocol requests require an existing package with a readable

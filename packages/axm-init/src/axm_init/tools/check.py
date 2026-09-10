@@ -51,6 +51,7 @@ class InitCheckTool:
                 format_agent,
                 format_agent_text,
                 format_report,
+                protocol_status,
                 resolve_exit_code,
             )
             from axm_init.models.check import ProjectResult
@@ -58,6 +59,8 @@ class InitCheckTool:
             engine = CheckEngine(project_path, category=category)
             result = engine.run()
             data = format_agent(result)
+            if category == "protocols" and isinstance(result, ProjectResult):
+                data["protocols"] = protocol_status(result)
 
             from axm_init.quality_trace import record_quality_snapshot
 

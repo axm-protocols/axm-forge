@@ -449,6 +449,59 @@ def _aggregate_member_check(
     )
 
 
+def _category_inventory_findings(
+    project: Path, members: list[tuple[str, Path]], results: list[CheckResult]
+) -> list[CheckResult]:
+    """Merge category-wide inventory findings after ordinary member aggregation."""
+    if not members:
+        return results
+    from axm_init.checks.protocols import protocol_collisions, protocol_inventory
+
+    inventories = [(str(project), protocol_inventory(project))]
+    inventories.extend((name, protocol_inventory(path)) for name, path in members)
+    findings = {"protocols.protocol_registration": protocol_collisions(inventories)}
+    return [
+        result.model_copy(
+            update={
+                "passed": False,
+                "details": [*result.details, *findings[result.name]],
+                "fix": "Correct the localized category inventory collisions.",
+            }
+        )
+        if findings.get(result.name)
+        else result
+        for result in results
+    ]
+
+
+def protocol_status(result: ProjectResult) -> list[dict[str, str | bool]]:
+    """Project explicit declared state independently of conformity verdicts."""
+    from axm_init.checks.protocols import protocol_inventory
+
+    members = (
+        _protocol_members(result.project_path) if result.context == "workspace" else []
+    )
+    projects = members or [(result.project_path.name, result.project_path)]
+    applicable = [c for c in result.checks if c.category == "protocols"]
+    conforming = bool(applicable) and all(c.passed for c in applicable)
+    complete = not any(name.startswith("protocols.") for name in result.excluded_checks)
+    return [
+        {
+            "member": member,
+            "graph_name": record.graph_name,
+            "state": record.state,
+            "location": record.location,
+            "validated": record.state == "ready" and conforming and complete,
+            "executable": record.state == "ready" and conforming and complete,
+        }
+        for member, path in projects
+        for record in protocol_inventory(path)
+    ]
+
+
+__all__ += ["protocol_status"]
+
+
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
@@ -584,6 +637,7 @@ class CheckEngine:
             for fn, result in zip(all_fns, raw_results, strict=True)
         ]
 
+        results = _category_inventory_findings(self.project_path, members, results)
         results, excluded_names = self._apply_exclusions(results, exclusions)
 
         return ProjectResult.from_checks(

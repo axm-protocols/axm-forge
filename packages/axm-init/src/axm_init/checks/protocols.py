@@ -3,12 +3,15 @@ from __future__ import annotations
 import ast
 import re
 import tomllib
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from typing import cast
 
 from axm_ast import (
     ClassInfo,
     FunctionInfo,
+    ImportInfo,
     ModuleInfo,
     PackageInfo,
     analyze_package,
@@ -18,12 +21,17 @@ from axm_ast import (
 from axm_init.models.check import CheckResult
 
 __all__ = [
+    "ProtocolRecord",
     "check_author_grammar",
     "check_protocol_assembly",
     "check_protocol_components",
+    "check_protocol_draft",
+    "check_protocol_registration",
     "check_protocol_ticket",
     "check_protocols_profile",
     "check_protocols_resources",
+    "protocol_collisions",
+    "protocol_inventory",
 ]
 
 __axm_explicit_only__ = True
@@ -135,6 +143,278 @@ def _validate_components(
             continue
         _invalid_names(text, field[:-1], values, details)
         _duplicates(text, field[:-1], values, details)
+
+
+@dataclass
+class ProtocolRecord:
+    """Static category inventory entry; declaration and validity stay separate."""
+
+    graph_name: str
+    state: str
+    location: str
+    factory: str
+    claims: list[tuple[str, str, str]] = dataclass_field(default_factory=list)
+    registration_findings: list[str] = dataclass_field(default_factory=list)
+    skeleton_findings: list[str] = dataclass_field(default_factory=list)
+
+
+def _module_index(root: Path, package: PackageInfo) -> dict[str, ModuleInfo]:
+    modules = {}
+    for module in package.modules:
+        parts = list(module.path.relative_to(root).with_suffix("").parts)
+        if parts[-1] == "__init__":
+            parts.pop()
+        modules[".".join((root.name, *parts))] = module
+    return modules
+
+
+def _import_base(
+    imported: ImportInfo, module: ModuleInfo, qualified: str
+) -> str | None:
+    base = imported.module or ""
+    if not imported.is_relative:
+        return base
+    parent = (
+        qualified if module.path.name == "__init__.py" else qualified.rpartition(".")[0]
+    )
+    parts = parent.split(".")
+    if imported.level > len(parts):
+        return None
+    return ".".join((*parts[: len(parts) - imported.level + 1], base)).rstrip(".")
+
+
+def _import_target(module: ModuleInfo, qualified: str, symbol: str) -> str | None:
+    for imported in module.imports:
+        for name in imported.names:
+            if (imported.alias or name) != symbol:
+                continue
+            base = _import_base(imported, module, qualified)
+            return None if base is None else f"{base}:{name}"
+    return None
+
+
+def _assignment_target(module: ModuleInfo, qualified: str, symbol: str) -> str | None:
+    return next(
+        (
+            f"{qualified}:{variable.value_repr}"
+            for variable in module.variables
+            if variable.name == symbol
+            and variable.value_repr
+            and variable.value_repr.isidentifier()
+        ),
+        None,
+    )
+
+
+def _resolve_factory(
+    target: str, modules: dict[str, ModuleInfo], seen: frozenset[str] = frozenset()
+) -> str | None:
+    if target in seen:
+        return None
+    qualified, separator, symbol = target.partition(":")
+    module = modules.get(qualified)
+    if not separator or module is None:
+        return None
+    if any(fn.name == symbol for fn in module.public_functions):
+        return f"{qualified}:{symbol}"
+    binding = _import_target(module, qualified, symbol)
+    if binding is None:
+        binding = _assignment_target(module, qualified, symbol)
+    return (
+        None if binding is None else _resolve_factory(binding, modules, seen | {target})
+    )
+
+
+def _constant_claim(module: ModuleInfo, name: str) -> tuple[str, int] | None:
+    for variable in module.variables:
+        if variable.name != name or variable.value_repr is None:
+            continue
+        try:
+            value = ast.literal_eval(variable.value_repr)
+        except (ValueError, SyntaxError):
+            continue
+        if isinstance(value, str):
+            return value, variable.line
+    return None
+
+
+def _graph_claim(module: ModuleInfo) -> tuple[str, int] | None:
+    """Prefer the factory's actual composition identity over a metadata constant."""
+    factory = _assembly_factory(module, _parse(module))
+    if factory is not None:
+        identity = _composition_identity(factory[1], _import_bindings(module))
+        if isinstance(identity, ast.Constant) and isinstance(identity.value, str):
+            return identity.value, identity.lineno
+    return _constant_claim(module, "GRAPH_NAME")
+
+
+def _record_claims(project: Path, module: ModuleInfo) -> list[tuple[str, str, str]]:
+    claims = []
+    for registry, constant in (
+        ("axm.graphs", "GRAPH_NAME"),
+        ("axm.ticket_types", "TICKET_TYPE"),
+    ):
+        expected_file = "protocol.py" if registry == "axm.graphs" else "ticket.py"
+        if module.path.name != expected_file:
+            continue
+        claim = (
+            _graph_claim(module)
+            if registry == "axm.graphs"
+            else _constant_claim(module, constant)
+        )
+        if claim is not None:
+            claims.append((registry, claim[0], _location(project, module, claim[1])))
+    return claims
+
+
+def _state_location(text: str, unit: str, action: str) -> str:
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.partition("=")[0].strip() != "state":
+            continue
+        prefix = tomllib.loads("\n".join(text.splitlines()[:number]))
+        profile = _nested(prefix, "tool", "axm-init", "protocols") or {}
+        entries = _declared_actions(_tables(profile.get("units")) or [])
+        if entries and entries[-1][:2] == (unit, action):
+            return f"pyproject.toml:{number}"
+    return "pyproject.toml:1"
+
+
+def _has_factory_entry(
+    factory: str, entries: dict[str, object], modules: dict[str, ModuleInfo]
+) -> bool:
+    return any(
+        isinstance(value, str) and _resolve_factory(value, modules) == factory
+        for value in entries.values()
+    )
+
+
+def _registration_findings(
+    record: ProtocolRecord,
+    entries: dict[str, object],
+    modules: dict[str, ModuleInfo],
+    text: str,
+) -> list[str]:
+    target = entries.get(record.graph_name)
+    resolved = _resolve_factory(target, modules) if isinstance(target, str) else None
+    registered = target is not None or _has_factory_entry(
+        record.factory, entries, modules
+    )
+    findings = []
+    if record.state == "draft" and registered:
+        findings.append(
+            f"{record.location}: draft protocol {record.graph_name} is registered. "
+            "Correction: remove its axm.graphs entry until ready."
+        )
+    if record.state == "ready" and resolved != record.factory:
+        findings.append(
+            f"{record.location}: ready protocol {record.graph_name} "
+            "lacks its factory registration. "
+            f"Correction: register {record.factory} under axm.graphs."
+        )
+    if target is not None and resolved != record.factory:
+        findings.append(
+            _finding(
+                text,
+                str(target),
+                f"target {target!r} does not resolve to the protocol factory",
+                f"use {record.factory}",
+            )
+        )
+    return findings
+
+
+def _skeleton_findings(project: Path, modules: list[ModuleInfo]) -> list[str]:
+    return [
+        f"{_location(project, module, number)}: "
+        "ready protocol contains incomplete-skeleton. "
+        "Correction: implement the skeleton and remove its marker."
+        for module in modules
+        for number, line in enumerate(
+            module.path.read_text(encoding="utf-8").splitlines(), 1
+        )
+        if "# axm-init: incomplete-skeleton" in line
+    ]
+
+
+def _inspect_record(
+    project: Path, action_root: Path, package: PackageInfo, record: ProtocolRecord
+) -> None:
+    inspected = [
+        module for module in package.modules if module.path.is_relative_to(action_root)
+    ]
+    record.claims = [
+        claim for module in inspected for claim in _record_claims(project, module)
+    ]
+    if record.state == "ready":
+        record.skeleton_findings = _skeleton_findings(project, inspected)
+
+
+def protocol_inventory(project: Path) -> list[ProtocolRecord]:
+    """Inspect declared protocols without importing their modules or registries."""
+    context = _protocol_package(project)
+    if context is None:
+        return []
+    domain, root, package = context
+    text = (project / "pyproject.toml").read_text(encoding="utf-8")
+    data = cast("dict[str, object]", tomllib.loads(text))
+    profile = _nested(data, "tool", "axm-init", "protocols") or {}
+    entries = _nested(data, "project", "entry-points", "axm.graphs") or {}
+    modules = _module_index(root, package)
+    records = []
+    for unit, action, declaration in _declared_actions(
+        _tables(profile.get("units")) or []
+    ):
+        qualified = f"protocols_{domain}.{unit}.{action}.protocol"
+        record = ProtocolRecord(
+            graph_name=f"{domain}.{unit}.{action}",
+            state=str(declaration.get("state", "draft")),
+            location=_state_location(text, unit, action),
+            factory=f"{qualified}:build_protocol",
+        )
+        _inspect_record(project, root / unit / action, package, record)
+        record.registration_findings = _registration_findings(
+            record, entries, modules, text
+        )
+        records.append(record)
+    return records
+
+
+def protocol_collisions(
+    inventories: list[tuple[str, list[ProtocolRecord]]],
+) -> list[str]:
+    """Report collisions only among inspected declarations, per registry."""
+    claims: dict[tuple[str, str], set[str]] = {}
+    for member, records in inventories:
+        for record in records:
+            for registry, identity, location in record.claims:
+                claims.setdefault((registry, identity), set()).add(
+                    f"{member}: {location}"
+                )
+    return [
+        f"{registry} identifier {identity!r} collides: {', '.join(sorted(locations))}. "
+        "Correction: assign distinct identifiers in this registry."
+        for (registry, identity), locations in sorted(claims.items())
+        if len(locations) > 1
+    ]
+
+
+def check_protocol_registration(project: Path) -> CheckResult:
+    """Check declared state, local factory bindings and inspected collisions."""
+    records = protocol_inventory(project)
+    details = [
+        finding for record in records for finding in record.registration_findings
+    ]
+    details.extend(protocol_collisions([(project.name, records)]))
+    return _content_result("protocol_registration", details, applicable=bool(records))
+
+
+def check_protocol_draft(project: Path) -> CheckResult:
+    """Keep drafts informative and reject ready protocols containing skeletons."""
+    records = protocol_inventory(project)
+    details = [finding for record in records for finding in record.skeleton_findings]
+    return _content_result(
+        "protocol_draft", details, applicable=any(r.state == "ready" for r in records)
+    )
 
 
 def _protocol_inventory(pkg: PackageInfo) -> tuple[set[str], dict[str, set[str]]]:

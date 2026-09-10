@@ -61,6 +61,48 @@ snapshot, preflight, writes and rollback for the same canonical root; distinct
 roots remain concurrent. This does not provide cross-process coordination
 or durable crash recovery.
 
+## Check registration and readiness
+
+Generated actions start with `state = "draft"` in their
+`[[tool.axm-init.protocols.units.protocols]]` declaration. Keep a draft out of
+`[project.entry-points."axm.graphs"]`; its skeleton markers may remain while
+implementation is incomplete.
+
+To prepare an implemented action for the ready state:
+
+1. Complete its components and export `build_protocol` from its `protocol.py`.
+2. Remove `# axm-init: incomplete-skeleton` markers after implementing the
+   corresponding skeletons. Markers in a ready action's inspected Python
+   modules fail `protocols.protocol_draft`.
+3. Set that action's metadata state to `ready` and register its public factory
+   under the graph name. For `dev.work.exec`, add this entry to the package's
+   `pyproject.toml`:
+
+   ```toml
+   [project.entry-points."axm.graphs"]
+   "dev.work.exec" = "protocols_dev.work.exec.protocol:build_protocol"
+   ```
+
+4. Run the explicit category and inspect the localized corrections:
+
+   ```bash
+   axm init_check /path/to/package --category protocols --agent
+   ```
+
+For `protocols.protocol_registration`, repair missing or unresolved targets,
+remove premature draft registrations, and give conflicting declarations distinct
+identifiers within their registry. At a workspace root, the same command checks
+profiled members and reports cross-member collisions with member identities.
+No inspected module is imported, and this command does not promote declarations
+or modify registration metadata.
+
+Automated callers should inspect each entry in `ToolResult.data["protocols"]`.
+Use `state` for the declaration and `validated` / `executable` for the current
+static verdict: a ready declaration with a missing registration stays ready but
+has both flags false. Drafts always have both flags false. These flags are
+conservative across the checked category and do not prove successful runtime
+execution. See the [result reference](../reference/protocol-readiness.md).
+
 ## Check and repair ticket declarations
 
 After applying or editing a declaration, run:

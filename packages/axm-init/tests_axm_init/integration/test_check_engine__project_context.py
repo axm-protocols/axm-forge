@@ -312,6 +312,223 @@ def test_conserver_tous_les_echecs_de_categorie_des_membres(
                 ), (member_name, failure.name, detail)
 
 
+REGISTRATION_RULE = "protocols.protocol_registration"
+DRAFT_RULE = "protocols.protocol_draft"
+SKELETON_MARKER = "# axm-init: incomplete-skeleton"
+
+
+def _registration_project(
+    root: Path, *, state: str = "ready", action: str = "exec"
+) -> Path:
+    """Materialize a declared protocol using the public planner."""
+    root.mkdir(parents=True, exist_ok=True)
+    metadata_path = root / "pyproject.toml"
+    metadata = (
+        metadata_path.read_text(encoding="utf-8")
+        if metadata_path.exists()
+        else '[project]\nname = "protocols-demo"\nversion = "0.1.0"\n'
+    )
+    declaration = ProtocolScaffoldDecl(
+        domain="demo", unit="work", action=action, contracts=[], nodes=[]
+    )
+    plan = plan_protocol_scaffold(declaration, metadata, {})
+    metadata_path.write_text(
+        plan.metadata.replace('state = "draft"', f'state = "{state}"'),
+        encoding="utf-8",
+    )
+    for operation in plan.operations:
+        assert operation.content is not None
+        target = root / operation.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(operation.content, encoding="utf-8")
+    (root / f"src/protocols_demo/work/{action}/protocol.py").write_text(
+        "from __future__ import annotations\n"
+        "from axm_loom import protocol\n"
+        "__all__ = ['build_protocol']\n"
+        f"GRAPH_NAME = 'demo.work.{action}'\n"
+        "def build_protocol():\n"
+        f"    return protocol('demo.work.{action}', [])\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def _register_graph(root: Path, target: str) -> None:
+    """Declare a distribution entry point without loading its target."""
+    metadata = root / "pyproject.toml"
+    metadata.write_text(
+        metadata.read_text(encoding="utf-8")
+        + '\n[project.entry-points."axm.graphs"]\n'
+        + f'"demo.work.exec" = "{target}"\n',
+        encoding="utf-8",
+    )
+
+
+def _required_protocol_failure(project: Path, canonical: str) -> CheckResult:
+    """Require discovery and a behavioral failure of the named rule."""
+    checks = CheckEngine(project, category="protocols").run().checks
+    matches = [check for check in checks if check.name == canonical]
+    assert len(matches) == 1, [check.name for check in checks]
+    result = matches[0]
+    assert not result.passed
+    assert result.details
+    return result
+
+
+@pytest.mark.integration
+def test_refuser_enregistrement_incompatible_avec_etat(tmp_path: Path) -> None:
+    """AC1: distinguish registered draft and unregistered ready declarations."""
+    findings = []
+    for state in ("draft", "ready"):
+        project = _registration_project(tmp_path / state, state=state)
+        if state == "draft":
+            _register_graph(project, "protocols_demo.work.exec.protocol:build_protocol")
+        result = _required_protocol_failure(project, REGISTRATION_RULE)
+        assert any(
+            "pyproject.toml:" in detail
+            and "Correction:" in detail
+            and state in detail.lower()
+            for detail in result.details
+        ), result.details
+        findings.append(result.details)
+    assert findings[0] != findings[1]
+
+
+@pytest.mark.integration
+def test_refuser_cible_non_resoluble(tmp_path: Path) -> None:
+    """AC2: reject absent modules, absent symbols and non-factory bindings."""
+    targets = (
+        "protocols_demo.absent:build_protocol",
+        "protocols_demo.work.exec.protocol:absent",
+        "protocols_demo.work.exec.protocol:GRAPH_NAME",
+    )
+    for index, target in enumerate(targets):
+        project = _registration_project(tmp_path / str(index))
+        _register_graph(project, target)
+        result = _required_protocol_failure(project, REGISTRATION_RULE)
+        assert any(
+            "pyproject.toml:" in detail
+            and target in detail
+            and "build_protocol" in detail
+            and "Correction:" in detail
+            for detail in result.details
+        ), result.details
+
+
+@pytest.mark.integration
+def test_identifier_collisions_d_identifiants_inspectes(tmp_path: Path) -> None:
+    """AC3: identify both graph declarations locally and across members."""
+    local = _registration_project(tmp_path / "local")
+    _registration_project(local, action="create")
+    second = local / "src/protocols_demo/work/create/protocol.py"
+    second.write_text(
+        second.read_text(encoding="utf-8").replace(
+            "demo.work.create", "demo.work.exec"
+        ),
+        encoding="utf-8",
+    )
+    _register_graph(local, "protocols_demo.work.exec.protocol:build_protocol")
+    result = _required_protocol_failure(local, REGISTRATION_RULE)
+    details = "\n".join(result.details)
+    assert "work/exec/protocol.py:" in details
+    assert "work/create/protocol.py:" in details
+    assert "demo.work.exec" in details
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["members/*"]\n',
+        encoding="utf-8",
+    )
+    for name in ("one", "two"):
+        member = _registration_project(workspace / "members" / name)
+        metadata = member / "pyproject.toml"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8").replace(
+                'name = "protocols-demo"', f'name = "protocols-{name}"'
+            ),
+            encoding="utf-8",
+        )
+        _register_graph(member, "protocols_demo.work.exec.protocol:build_protocol")
+    result = _required_protocol_failure(workspace, REGISTRATION_RULE)
+    details = "\n".join(result.details)
+    assert "protocols-one" in details and "protocols-two" in details
+    assert "demo.work.exec" in details
+    assert "protocol.py:" in details
+
+
+@pytest.mark.integration
+def test_refuser_marqueur_dans_protocole_pret(tmp_path: Path) -> None:
+    """AC4: report the actual planner marker's source line and correction."""
+    project = _registration_project(tmp_path / "ready")
+    _register_graph(project, "protocols_demo.work.exec.protocol:build_protocol")
+    declaration = ProtocolScaffoldDecl(
+        domain="demo", unit="work", action="exec", contracts=[], nodes=[]
+    )
+    plan = plan_protocol_scaffold(declaration, "", {})
+    generated = next(
+        operation.content
+        for operation in plan.operations
+        if str(operation.path).endswith("/protocol.py")
+    )
+    assert generated is not None
+    marker = next(line for line in generated.splitlines() if SKELETON_MARKER in line)
+    relative = "src/protocols_demo/work/exec/protocol.py"
+    source = project / relative
+    source.write_text(source.read_text(encoding="utf-8") + marker + "\n")
+    location = _reference_location(project, relative, marker)
+    result = _required_protocol_failure(project, DRAFT_RULE)
+    assert any(
+        location in detail and "Correction:" in detail for detail in result.details
+    ), result.details
+
+
+@pytest.mark.integration
+def test_remonter_enregistrement_et_etat_sous_leurs_regles(tmp_path: Path) -> None:
+    """AC6: aggregate all four defects with canonical rule and member identity."""
+    root = tmp_path / "workspace"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["members/*"]\n',
+        encoding="utf-8",
+    )
+    for defect in ("draft", "missing", "target", "marker"):
+        member = _registration_project(
+            root / "members" / defect,
+            state="draft" if defect == "draft" else "ready",
+        )
+        metadata = member / "pyproject.toml"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8").replace(
+                'name = "protocols-demo"', f'name = "protocols-{defect}"'
+            ),
+            encoding="utf-8",
+        )
+        if defect != "missing":
+            target = "absent" if defect == "target" else "build_protocol"
+            _register_graph(member, f"protocols_demo.work.exec.protocol:{target}")
+        if defect == "marker":
+            source = member / "src/protocols_demo/work/exec/protocol.py"
+            source.write_text(
+                source.read_text(encoding="utf-8") + SKELETON_MARKER + "\n",
+                encoding="utf-8",
+            )
+    for canonical, names in (
+        (REGISTRATION_RULE, ("draft", "missing", "target")),
+        (DRAFT_RULE, ("marker",)),
+    ):
+        aggregated = _required_protocol_failure(root, canonical)
+        for name in names:
+            local_result = _required_protocol_failure(
+                root / "members" / name, canonical
+            )
+            for detail in local_result.details:
+                assert any(
+                    f"protocols-{name}" in item and detail in item
+                    for item in aggregated.details
+                ), aggregated.details
+
+
 TICKET_RULE = "protocols.protocol_ticket"
 TICKET_PATH = "src/protocols_demo/work/exec/ticket.py"
 TICKET_DEFECTS = ("missing-file", "unannounced", "contract", "graph")
