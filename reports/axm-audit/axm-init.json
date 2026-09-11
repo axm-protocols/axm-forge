@@ -6,6 +6,7 @@
     "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
     "QUALITY_COMPLEXITY: Complexity score: 100/100 (0 high-complexity functions)",
+    "QUALITY_TESTS: Test coverage: 94% (93/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
@@ -66,12 +67,6 @@
       "message": "1 god class(es) found",
       "text": "\u2022 scaffold.py:InitScaffoldTool 641L/14M",
       "fix_hint": "Split large classes into smaller, focused classes"
-    },
-    {
-      "rule_id": "QUALITY_TESTS",
-      "message": "Test coverage: 94% (1 test(s) failed)",
-      "text": "\u2022 cov 94% \u2192 100%\n\u2022 FAIL test_action_versions_consistent",
-      "fix_hint": "Fix failing tests"
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
