@@ -28,26 +28,9 @@ jobs:
       # and every tag is rejected.
       - uses: actions/checkout@v7
       - id: detect
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          [ -z "$TAG" ] && TAG="${{ inputs.tag }}"
-          PKG="${TAG%%/*}"
-          DIR="packages/$PKG"
-          if [ ! -f "$DIR/pyproject.toml" ]; then
-            echo "::error::No package for tag prefix '$PKG' (expected $DIR/pyproject.toml)"
-            exit 1
-          fi
-          echo "package=$PKG" >> "$GITHUB_OUTPUT"
-          echo "package-dir=$DIR" >> "$GITHUB_OUTPUT"
-          # A package declares its own destination. PyPI refuses the
-          # "Private ::" classifier prefix on upload, so this is a double
-          # safety net rather than the only one.
-          if grep -q "Private :: Do Not Upload" "$DIR/pyproject.toml"; then
-            echo "publishable=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::$PKG is declared private — build only, no upload"
-          else
-            echo "publishable=true" >> "$GITHUB_OUTPUT"
-          fi
+        uses: ./.github/actions/detect-package
+        with:
+          tag: ${{ inputs.tag }}
 
   test:
     name: Run Tests (${{ needs.detect-package.outputs.package }})

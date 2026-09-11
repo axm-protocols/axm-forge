@@ -16,23 +16,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Same detection as publish.yml, from the same composite action: a
+      # package states once, in its classifiers, whether it may be published.
       - name: Detect package from tag
         id: detect
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          PREFIX="${TAG%%/*}"
-          DIR="packages/$PREFIX"
-          # This job checks out the repository before detecting, so the
-          # package directory is readable here.
-          if [ ! -f "$DIR/pyproject.toml" ]; then
-            echo "::error::No package for tag prefix '$PREFIX' (expected $DIR/pyproject.toml)"
-            exit 1
-          fi
-          echo "package=$PREFIX" >> "$GITHUB_OUTPUT"
-          echo "package-dir=$DIR" >> "$GITHUB_OUTPUT"
-          echo "tag-prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/detect-package
+
+      # A private package gets no external publication at all — no PyPI upload
+      # and no public release either, since the generated notes would expose
+      # the very changelog the package is meant to keep in-house. The tag, the
+      # version and the tests still run; only the publication stops.
+      - name: Skip release for private package
+        if: steps.detect.outputs.publishable != 'true'
+        run: echo "::notice::${{ steps.detect.outputs.package }} is private — no GitHub Release"
 
       - name: Generate changelog
+        if: steps.detect.outputs.publishable == 'true'
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
@@ -40,12 +39,13 @@ jobs:
           args: >-
             --latest
             --strip header
-            --tag-pattern '${{ steps.detect.outputs.tag-prefix }}/v*'
+            --tag-pattern '${{ steps.detect.outputs.package }}/v*'
             --include-path '${{ steps.detect.outputs.package-dir }}/**'
         env:
           OUTPUT: CHANGELOG.md
 
       - name: Create GitHub Release
+        if: steps.detect.outputs.publishable == 'true'
         uses: softprops/action-gh-release@v3
         with:
           body: ${{ steps.git-cliff.outputs.content }}

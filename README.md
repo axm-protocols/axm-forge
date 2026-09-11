@@ -141,8 +141,17 @@ Packages use their full name as a Git tag prefix, for example
 pushing documentation to main does not publish a package version.
 
 The build and upload jobs have separate conditions. Consult the
-[publish workflow](.github/workflows/publish.yml) before a release; a
-`Private :: Do Not Upload` classifier prevents the upload job.
+[publish workflow](.github/workflows/publish.yml) before a release.
+
+A package declares once, through the `Private :: Do Not Upload`
+classifier, that it must never leave the monorepo. Both release
+workflows read that marker from the shared
+[detect-package action](.github/actions/detect-package/action.yml):
+the PyPI upload is withheld, and so is the GitHub Release, whose
+generated notes would otherwise publish the changelog the package is
+meant to keep in-house. Tagging, versioning and tests still run — only
+the publication stops. PyPI independently rejects the `Private ::`
+prefix on upload, so the classifier is a double safety net.
 
 ## License
 
