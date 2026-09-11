@@ -1,6 +1,10 @@
-# axm-ast
+<p align="center">
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
 
-**Read-only source analysis for agents: Python, plus optional TypeScript/TSX extraction.**
+<p align="center">
+  <strong>axm-ast — Read-only source analysis for Python and optional TypeScript/TSX</strong>
+</p>
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -13,6 +17,11 @@
 </p>
 
 ---
+
+uv run axm-ast helps developers and agents explore source code, find symbols and
+review the impact of changes without editing the analyzed files. It provides
+a standalone CLI, AXM tools and a Python API, with optional TypeScript/TSX
+extraction.
 
 ## Features
 
@@ -33,67 +42,85 @@
 
 ## Installation
 
+Requires Python 3.12 or newer. In a Python project managed by uv:
+
 ```bash
 uv add axm-ast
 ```
 
 ## Quick Start
 
+From the root of an existing Python project, after installation:
+
 ```bash
-# One-shot project context for AI agents
-axm-ast context src/mylib               # full context (all modules + dependency graph)
-axm-ast context src/mylib --depth 0     # compact top-5 overview
-axm-ast context src/mylib --depth 1     # sub-packages with aggregate counts
-
-# Describe a package at different detail levels
-axm-ast describe src/mylib
-axm-ast describe src/mylib --detail detailed
-axm-ast describe src/mylib --compress
-axm-ast describe src/mylib --detail toc --json               # table-of-contents
-axm-ast describe src/mylib --modules core,tools        # filter by module
-axm-ast describe src/mylib --detail toc --json --modules core # combined
-
-# Visualize import graph as Mermaid
-axm-ast graph src/mylib --format mermaid
-
-# Find all callers of a function
-axm-ast callers src/mylib --symbol my_function
-
-# Change impact analysis
-axm-ast impact src/mylib --symbol my_function
-
-# Workspace: cross-package analysis (auto-detected)
-axm-ast context /path/to/workspace   # all packages at once
-axm-ast callers /path/to/workspace --symbol ToolResult
-axm-ast graph /path/to/workspace --format mermaid
-axm-ast graph /path/to/workspace --format text
-
-# Detect dead code
-axm-ast dead-code src/mylib
-axm-ast dead-code src/mylib --json
-axm-ast dead-code src/mylib --include-tests  # also scan test modules as targets
-
-# Dump all project documentation in one shot
-axm-ast docs .
-axm-ast docs . --detail toc              # heading scan (~500 tokens)
-axm-ast docs . --detail summary          # headings + first sentences
-axm-ast docs . --pages architecture      # filter by page name
-axm-ast docs . --tree                    # tree only
-axm-ast docs . --json                    # JSON output
-
-# Structural diff between branches
-axm-ast diff main..feature src/mylib
-axm-ast diff main..feature src/mylib --json
-
-# Detect entry points and trace execution flows
-axm-ast flows src/mylib
-axm-ast flows src/mylib --trace main          # BFS flow from entry point
-axm-ast flows src/mylib --trace main --detail source  # include function source code
-axm-ast flows tests/ --trace test_foo --cross-module  # resolve sibling-package imports
-axm-ast flows src/mylib --trace main --json
+uv run axm-ast context . --depth 0
 ```
 
-### Example: `axm-ast context`
+This prints a compact project overview with the highest-ranked modules.
+The command reads your project without modifying its source files.
+
+## Usage
+
+### CLI examples
+
+Run these from your project environment; replace `src/mylib`, symbol names
+and Git refs with values from your project.
+
+```bash
+# One-shot project context for AI agents
+uv run axm-ast context src/mylib               # full context (all modules + dependency graph)
+uv run axm-ast context src/mylib --depth 0     # compact top-5 overview
+uv run axm-ast context src/mylib --depth 1     # sub-packages with aggregate counts
+
+# Describe a package at different detail levels
+uv run axm-ast describe src/mylib
+uv run axm-ast describe src/mylib --detail detailed
+uv run axm-ast describe src/mylib --compress
+uv run axm-ast describe src/mylib --detail toc --json               # table-of-contents
+uv run axm-ast describe src/mylib --modules core,tools        # filter by module
+uv run axm-ast describe src/mylib --detail toc --json --modules core # combined
+
+# Visualize import graph as Mermaid
+uv run axm-ast graph src/mylib --format mermaid
+
+# Find all callers of a function
+uv run axm-ast callers src/mylib --symbol my_function
+
+# Change impact analysis
+uv run axm-ast impact src/mylib --symbol my_function
+
+# Workspace: cross-package analysis (auto-detected)
+uv run axm-ast context /path/to/workspace   # all packages at once
+uv run axm-ast callers /path/to/workspace --symbol ToolResult
+uv run axm-ast graph /path/to/workspace --format mermaid
+uv run axm-ast graph /path/to/workspace --format text
+
+# Detect dead code
+uv run axm-ast dead-code src/mylib
+uv run axm-ast dead-code src/mylib --json
+uv run axm-ast dead-code src/mylib --include-tests  # also scan test modules as targets
+
+# Dump all project documentation in one shot
+uv run axm-ast docs .
+uv run axm-ast docs . --detail toc              # heading scan (~500 tokens)
+uv run axm-ast docs . --detail summary          # headings + first sentences
+uv run axm-ast docs . --pages architecture      # filter by page name
+uv run axm-ast docs . --tree                    # tree only
+uv run axm-ast docs . --json                    # JSON output
+
+# Structural diff between branches
+uv run axm-ast diff main..feature src/mylib
+uv run axm-ast diff main..feature src/mylib --json
+
+# Detect entry points and trace execution flows
+uv run axm-ast flows src/mylib
+uv run axm-ast flows src/mylib --trace main          # BFS flow from entry point
+uv run axm-ast flows src/mylib --trace main --detail source  # include function source code
+uv run axm-ast flows tests/ --trace test_foo --cross-module  # resolve sibling-package imports
+uv run axm-ast flows src/mylib --trace main --json
+```
+
+#### Example: `axm-ast context`
 
 ```
 📋 mylib
@@ -111,7 +138,7 @@ axm-ast flows src/mylib --trace main --json
   core.docs         ★★★☆☆  (discover_docs, build_docs_tree...)
 ```
 
-### Example: `axm-ast impact`
+#### Example: `axm-ast impact`
 
 ```
 💥 Impact analysis for 'analyze_package' — HIGH
@@ -123,7 +150,7 @@ axm-ast flows src/mylib --trace main --json
   📦 Re-exported in (5): axm_ast, cli, core, core.context, core.impact
 ```
 
-## CLI Commands
+### CLI Commands
 
 | Command | Description |
 |---|---|
@@ -143,7 +170,7 @@ axm-ast flows src/mylib --trace main --json
 
 Analysis commands support `--json`; `version` does not. Avoid combining it with text-only `--compress` or `impact --compact`. CLI and AXM tools have distinct defaults and response envelopes; see [MCP usage](docs/howto/mcp.md).
 
-## Python API
+### Python API
 
 ```python
 from pathlib import Path
@@ -173,13 +200,19 @@ pkg = get_package(Path("src/mylib"))  # validates the Python file fingerprint
 clear_cache()                    # force re-parse on next call
 ```
 
-## Scope and limitations
+### Scope and limitations
 
 The tools do not edit analyzed source. Structural diff creates and cleans temporary git worktrees. Workspace aggregation is explicit per tool, not a property of every `path` argument. Python call matching is syntactic; impact and dead-code findings require review.
 
 Install `uv add 'axm-ast[typescript]'` for `.ts`/`.tsx` extraction in a Node project root containing `package.json`. This checkout does not discover `.js`, `.jsx`, or `.svelte` files. The session cache watches Python files only; use fresh CLI processes for changed TypeScript sources. See [scope and languages](docs/howto/scope-and-languages.md).
 
-Start with the [runnable tutorial](docs/tutorials/quickstart.md), [Python API guide](docs/reference/api.md), or [AXM tool contracts](docs/reference/tools.md). The README is the repository entry point; `docs/index.md` is the MkDocs home page.
+## Documentation
+
+Start with the [runnable tutorial](docs/tutorials/quickstart.md), [Python API guide](docs/reference/api.md), or [AXM tool contracts](docs/reference/tools.md). The README is the repository entry point; [docs/index.md](docs/index.md) is the MkDocs home page.
+
+- [CLI reference](docs/reference/cli.md)
+- [Architecture](docs/explanation/architecture.md)
+- [Published documentation](https://forge.axm-protocols.io/ast/)
 
 ## Development
 
@@ -188,12 +221,13 @@ This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm
 ```bash
 git clone https://github.com/axm-protocols/axm-forge.git
 cd axm-forge
-uv sync --all-groups
+uv sync --all-packages --all-groups
 uv run --package axm-ast --directory packages/axm-ast pytest -x -q
 ```
 
-📖 **[Full documentation](https://forge.axm-protocols.io/ast/)**
+From `packages/axm-ast`, run `mkdocs build --strict` in an environment
+containing the package documentation dependencies to build its standalone site.
 
 ## License
 
-Apache-2.0 — © 2026 axm-protocols
+Licensed under Apache-2.0. See [LICENSE](LICENSE).
