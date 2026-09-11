@@ -24,13 +24,50 @@ It reports individual findings and a weighted 0–100 score when scored
 measurements exist. The score describes the checks that ran; it is not a
 production-readiness certificate.
 
-## Install and run
+## Features
 
-Requires Python 3.12+ and the target ecosystem's tooling.
+- **Framework-aware audits** — Python, Node.js/TypeScript, React and Svelte checks.
+- **Structured findings** — per-rule results and weighted scores through CLI,
+  MCP tools and the Python API.
+- **Test execution** — test verdicts, failures and optional per-case evidence.
+- **Python test-tree fixes** — preview reorganizations before applying changes.
+- **Documentation gate** — run a strict MkDocs build and report its findings.
+
+<a id="install-and-run"></a>
+
+## Installation
+
+Requires Python 3.12+ and the target ecosystem's tooling. In a uv-managed project:
 
 ```bash
 uv add axm-audit
+```
+
+The package installs the generic `axm` launcher as a dependency. Individual
+checks also need the tools for the target framework; see the
+[framework reference](docs/reference/frameworks.md).
+
+## Quick Start
+
+From the project you want to audit, run a focused lint check:
+
+```bash
 uv run axm audit . --category lint
+```
+
+The command reports the lint findings and any available score. To inspect
+structured results, add `--json-output` and read the `failed` list rather
+than treating a zero exit status as a passing quality gate.
+
+## Usage
+
+### CLI and MCP tools
+
+The package registers `audit`, `audit_test`, `audit_fix` and `doc_gate`
+under `axm.tools`. The generic `axm` CLI and AXM MCP server consume those
+entry points. `verify` belongs to `axm-mcp`, which must be installed separately.
+
+```bash
 uv run axm audit . --category lint --json-output
 uv run axm audit_test . --include-cases --json-output
 uv run axm audit_fix .
@@ -44,7 +81,7 @@ A successful command means the tool produced a result. In JSON, inspect
 `failed` for an audit, `verdict` for tests, and `count` for documentation
 findings. A grade A can coexist with failed checks.
 
-## Python API
+### Python API
 
 ```python
 from pathlib import Path
@@ -61,7 +98,9 @@ for check in result.checks:
 The public root exports are `audit_project`, `get_rules_for_category`,
 `AuditResult`, `CheckResult`, `Severity` and `__version__`.
 
-## Choose a workflow
+<a id="choose-a-workflow"></a>
+
+## Documentation
 
 - [First audit](docs/tutorials/getting-started.md)
 - [Categories and Python rules](docs/howto/categories.md)
@@ -74,18 +113,26 @@ The public root exports are `audit_project`, `get_rules_for_category`,
 - [Witness quality gate](docs/reference/witness.md)
 - [Python API](docs/reference/python-api.md)
 
-The package registers `audit`, `audit_test`, `audit_fix` and `doc_gate`
-under `axm.tools`. The generic `axm` CLI and AXM MCP server consume those
-entry points. `verify` belongs to `axm-mcp`, which must be installed separately.
+The [hosted documentation](https://forge.axm-protocols.io/audit/) starts at
+[docs/index.md](docs/index.md); this README is not copied into MkDocs.
 
-## Documentation and development
+<a id="documentation-and-development"></a>
+
+## Development
 
 This package belongs to the
 [axm-forge workspace](https://github.com/axm-protocols/axm-forge).
-The [hosted documentation](https://forge.axm-protocols.io/audit/) and
-`docs/index.md` are the site entry point; this README is not copied into MkDocs.
-The standalone site can be built from this package directory after installing
-the workspace's documentation dependencies:
+
+```bash
+git clone https://github.com/axm-protocols/axm-forge.git
+cd axm-forge
+uv sync --all-packages --all-groups
+uv run --package axm-audit --directory packages/axm-audit pytest
+```
+
+Running tests from the package directory selects its pytest configuration
+and `tests_axm_audit/` test root. The standalone site can be built from
+`packages/axm-audit` with the documentation dependencies installed:
 
 ```bash
 mkdocs build --strict --site-dir /tmp/axm-audit-site
@@ -96,4 +143,4 @@ site renders its own curated API page.
 
 ## License
 
-Apache-2.0 — © 2026 axm-protocols
+Licensed under Apache-2.0. See [LICENSE](LICENSE).
