@@ -3,7 +3,7 @@ site_description: AXM MCP Server — discovery shell with a compact facade over 
 site_url: https://forge.axm-protocols.io/axm-mcp/
 repo_url: https://github.com/axm-protocols/axm-forge
 repo_name: axm-protocols/axm-forge
-copyright: Copyright &copy; 2026 Gabriel Jarry
+copyright: Copyright &copy; 2026 axm-protocols
 docs_dir: docs
 
 theme:
