@@ -23,9 +23,12 @@
 transformations. It detects input formats, tries ordered strategies, and keeps
 candidates that reduce tokens or shorten text at equal token count.
 
-**[Full documentation](https://forge.axm-protocols.io/smelt/)** ·
-[Getting started](docs/tutorials/getting-started.md) ·
-[Python/tool contracts](docs/reference/contracts.md)
+## Features
+
+- Detect JSON, YAML, XML, TOML, CSV, Markdown and plain text.
+- Compact inputs with ordered strategies and configurable presets.
+- Analyze independent strategy savings without replacing the input text.
+- Count tokens and report the counter backend through Python and AXM tools.
 
 ## Installation
 
@@ -35,7 +38,9 @@ Requires Python 3.12+. In a uv project:
 uv add axm-smelt
 ```
 
-## Quick start
+## Quick Start
+
+After installation, run this example with `uv run python`:
 
 ```python
 import json
@@ -52,10 +57,16 @@ assert analysis.savings_pct == report.savings_pct
 print(count("hello world"))
 ```
 
+This prints compacted JSON, savings, independent strategy estimates and a
+count for `hello world`. The assertions verify this example's JSON values
+and the agreement between the default pipeline and its analysis.
+
 The Python surface also exports `SmeltReport`, `Format`, `CounterBackend`
 and `__version__`. Compaction returns new text; it does not overwrite a file.
 
-## AXM tools and CLI
+## Usage
+
+### AXM tools and CLI
 
 Three `axm.tools` registrations supply CLI, MCP and DAG access:
 
@@ -81,7 +92,7 @@ For MCP, install the package into the server environment and call
 `axm_call(name="smelt", arguments={...})` in façade mode.
 [Integration guide](docs/howto/mcp.md).
 
-## Strategies and fidelity
+### Strategies and fidelity
 
 | Preset | Intent |
 |---|---|
@@ -100,6 +111,18 @@ no dedicated compactor. Counts use tiktoken; Claude and unknown model names
 use an `o200k_base` proxy, not the target model's exact tokenizer or billing.
 The `smelt`/`check` pipelines always use `o200k_base`.
 
+## Documentation
+
+- [Published documentation](https://forge.axm-protocols.io/smelt/)
+- [Getting started](docs/tutorials/getting-started.md)
+- [Compact data](docs/howto/compact.md)
+- [Python/tool contracts](docs/reference/contracts.md)
+- [CLI reference](docs/reference/cli.md)
+- [Strategy behavior and fidelity](docs/explanation/strategies.md)
+
+The MkDocs home page is [docs/index.md](docs/index.md); it is separate from
+this README.
+
 ## Development
 
 This package belongs to the [axm-forge workspace](https://github.com/axm-protocols/axm-forge).
@@ -107,10 +130,10 @@ This package belongs to the [axm-forge workspace](https://github.com/axm-protoco
 ```bash
 git clone https://github.com/axm-protocols/axm-forge.git
 cd axm-forge
-uv sync --all-groups
+uv sync --all-packages --all-groups
 uv run --package axm-smelt --directory packages/axm-smelt pytest -x -q
 ```
 
 ## License
 
-Apache-2.0 — © 2026 axm-protocols
+Licensed under Apache-2.0. See [LICENSE](LICENSE).
