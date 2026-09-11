@@ -20,13 +20,19 @@
 
 ---
 
+`axm-init` scaffolds projects, checks their governance artefacts and reserves
+PyPI names. Its three AXMTools are available through the shared `axm` CLI
+and an MCP server with the package installed.
+
 ## Features
 
-- 🚀 **Scaffold** — Bootstrap production-grade Python projects, workspaces, and member packages
+- 🚀 **Scaffold** — Generate Python projects, workspaces and member packages; additional templates support Node/Svelte and research projects
 - 📋 **Check** — Score any project against the AXM gold standard (context-selected checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 
 ## Installation
+
+Requires Python 3.12 or newer. Install the shared CLI with this provider:
 
 ```bash
 uv tool install --with axm-init axm
@@ -43,19 +49,21 @@ axm init_scaffold my-project \
   --org axm-protocols \
   --author "Your Name" --email "you@example.com"
 
-# Check against AXM standards
-axm init_check
-# Score: 100/100 — Grade A 🏆
-
-# Reserve a name on PyPI
-axm init_reserve my-cool-lib --dry-run
+# Check the generated project against AXM standards
+axm init_check my-project
 ```
 
-## CLI Commands
+The first command creates `my-project`; the second reports its applicable
+checks, score and grade. The score depends on the generated files and the
+check context; scaffolding does not guarantee a perfect score.
 
-### `axm init_scaffold`
+## Usage
 
-Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
+### CLI Commands
+
+#### `axm init_scaffold`
+
+Scaffold a Python project with src layout, PEP 621 metadata, CI and docs.
 
 | Option | Short | Default | Description |
 |---|---|---|---|
@@ -74,7 +82,7 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 
 > **Note:** `--workspace` and `--member` are mutually exclusive.
 
-### `axm init_check`
+#### `axm init_check`
 
 Score a project against the context- and framework-selected AXM checks.
 
@@ -88,9 +96,13 @@ Score a project against the context- and framework-selected AXM checks.
 
 **Python categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`, `paper`, `experiment`. Node/React/Svelte use their own registries.
 
-### `axm init_reserve`
+#### `axm init_reserve`
 
-Reserve a package name on PyPI with a minimal placeholder.
+Reserve a package name on PyPI with a minimal placeholder. Preview without publishing:
+
+```bash
+axm init_reserve my-cool-lib --author "Your Name" --email "you@example.com" --dry-run
+```
 
 | Option | Short | Default | Description |
 |---|---|---|---|
@@ -107,7 +119,7 @@ Reserve a package name on PyPI with a minimal placeholder.
 See the [complete CLI reference](docs/reference/cli.md) for framework and protocol
 options, output schemas and exit policy. The generated CLI has no short aliases.
 
-## Workspace Support
+### Workspace Support
 
 `axm-init` detects five **project contexts** and adapts checks accordingly:
 
@@ -119,7 +131,7 @@ options, output schemas and exit policy. The generated CLI has no short aliases.
 | **PAPER** | Research markers | Paper form invariants |
 | **EXPERIMENT** | Root manifest mapping with contract_version and id | Experiment form invariants |
 
-### Per-Package Check Exclusions
+#### Per-Package Check Exclusions
 
 Workspace members can exclude inapplicable checks via `pyproject.toml`.
 Each entry is a prefix of a canonical check name — the
@@ -132,7 +144,7 @@ category:
 exclude = ["ci.ci_steps_executable", "tooling.makefile"]
 ```
 
-### Scaffold Modes
+#### Scaffold Modes
 
 ```bash
 # Standalone package (default)
@@ -145,19 +157,36 @@ axm init_scaffold my-workspace --workspace --org myorg --author A --email e@e.co
 axm init_scaffold --member my-lib --org myorg --author A --email e@e.com
 ```
 
-The `--member` flag auto-detects the workspace root, creates the package under `packages/<name>/`, and patches root files (Makefile, mkdocs.yml, pyproject.toml, CI workflows).
+The `--member` flag auto-detects the workspace root, creates the package under
+`packages/<name>/`, and attempts to patch root files (Makefile, mkdocs.yml,
+pyproject.toml, CI workflows). Inspect `skipped_root_files` and
+`failed_root_files` in the JSON result: a created member does not guarantee
+that every root integration succeeded.
 
-## CI Check Badge
+### CI Check Badge
 
-Projects scaffolded with `axm init_scaffold` include an automated **check badge** that updates on every push. The badge shows your score and grade using the AXM logo.
+Python project templates include an automated **check badge** workflow. It
+publishes score data to `gh-pages` after a successful workflow run on `main`.
 
 ```
 push → axm init_check → badge JSON → gh-pages → shields.io
 ```
 
-The badge is already in your README — just push to `main` and it appears after the first CI run.
+The README badge resolves once the workflow has published its JSON. Repository
+permissions and workflow execution must allow publication to `gh-pages`.
 
-**Existing projects** can add the badge too — copy `.github/workflows/axm-quality.yml` from a scaffolded project and add the badge markup. See the [howto guide](https://forge.axm-protocols.io/init/howto/check/#ci-badge) for details.
+**Existing projects** can add the badge too — copy `.github/workflows/axm-quality.yml` from a scaffolded project and add the badge markup. See the [howto guide](docs/howto/ci-badge.md) for details.
+
+## Documentation
+
+- [Getting started](docs/tutorials/getting-started.md)
+- [Scaffold a project](docs/howto/scaffold.md)
+- [Check project quality](docs/howto/check.md)
+- [Reserve a package name](docs/howto/reserve.md)
+- [Use via MCP](docs/howto/mcp.md) and [Python entry points](docs/reference/python-api.md)
+- [Published documentation](https://forge.axm-protocols.io/init/)
+
+The MkDocs home page is [docs/index.md](docs/index.md), separate from this README.
 
 ## Development
 
@@ -166,12 +195,13 @@ This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm
 ```bash
 git clone https://github.com/axm-protocols/axm-forge.git
 cd axm-forge
-uv sync --all-groups
+uv sync --all-packages --all-groups
 uv run --package axm-init --directory packages/axm-init pytest -x -q
 ```
 
-📖 **[Full documentation](https://forge.axm-protocols.io/init/)**
+With the docs dependencies installed, build the standalone documentation from
+`packages/axm-init` using `mkdocs build --strict`.
 
 ## License
 
-Apache-2.0 — © 2026 axm-protocols
+Licensed under Apache-2.0. See [LICENSE](LICENSE).
