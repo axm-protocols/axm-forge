@@ -2,7 +2,10 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    # Same single rule as publish.yml: the long tag convention makes the
+    # prefix the package directory, so no list to keep in sync.
+    tags:
+      - "*/v*"
 
 permissions:
   contents: write
@@ -12,20 +15,26 @@ jobs:
     name: Generate Changelog & Release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # Same detection as publish.yml, from the same composite action: a
+      # package states once, in its classifiers, whether it may be published.
       - name: Detect package from tag
         id: detect
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          PREFIX="${TAG%%/*}"
-          echo "tag-prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
-          # Default: single-package workspace
-          echo "package-dir=." >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/detect-package
+
+      # A private package gets no external publication at all — no PyPI upload
+      # and no public release either, since the generated notes would expose
+      # the very changelog the package is meant to keep in-house. The tag, the
+      # version and the build still work; only the publication stops.
+      - name: Skip release for private package
+        if: steps.detect.outputs.publishable != 'true'
+        run: echo "::notice::${{ steps.detect.outputs.package }} is private — no GitHub Release"
 
       - name: Generate changelog
+        if: steps.detect.outputs.publishable == 'true'
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
@@ -33,12 +42,13 @@ jobs:
           args: >-
             --latest
             --strip header
-            --tag-pattern '${{ steps.detect.outputs.tag-prefix }}/v*'
+            --tag-pattern '${{ steps.detect.outputs.package }}/v*'
             --include-path '${{ steps.detect.outputs.package-dir }}/**'
         env:
           OUTPUT: CHANGELOG.md
 
       - name: Create GitHub Release
+        if: steps.detect.outputs.publishable == 'true'
         uses: softprops/action-gh-release@v3
         with:
           body: ${{ steps.git-cliff.outputs.content }}

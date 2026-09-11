@@ -1,26 +1,78 @@
-name: Publish
+name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
-
-permissions:
-  id-token: write
+  push:
+    # One rule for every member: the long tag convention makes the prefix the
+    # package directory (my-core/v0.1.0 -> packages/my-core), so a new member
+    # needs no CI change — only a tag.
+    tags:
+      - "*/v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (dry run, nothing is published)"
+        required: true
 
 jobs:
-  publish:
+  detect-package:
+    name: Detect Package
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.detect.outputs.package }}
+      package-dir: ${{ steps.detect.outputs.package-dir }}
+      publishable: ${{ steps.detect.outputs.publishable }}
+    steps:
+      # The detection reads the repository: it checks that the tag prefix has a
+      # package directory, and reads that package's classifiers to decide where
+      # it may be published. Without a checkout the working directory is empty
+      # and every tag is rejected.
+      - uses: actions/checkout@v7
+      - id: detect
+        uses: ./.github/actions/detect-package
+        with:
+          tag: ${{ inputs.tag }}
+
+  test:
+    name: Run Tests (${{ needs.detect-package.outputs.package }})
+    needs: detect-package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v4
-      # Build every publishable workspace member into dist/ (root `uv build`
-      # builds nothing in a workspace). Adjust the glob if some members are
-      # not meant to be published.
-      - name: Build members
-        run: |
-          shopt -s nullglob
-          for pkg in packages/*/; do
-            name=$(basename "$pkg")
-            uv build --package "$name"
-          done
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - run: uv python install 3.12
+      - run: uv sync --all-packages --all-groups
+      - run: >-
+          uv run --package ${{ needs.detect-package.outputs.package }}
+          --directory ${{ needs.detect-package.outputs.package-dir }}
+          pytest --no-cov
+
+  publish:
+    name: Build and Publish (${{ needs.detect-package.outputs.package }})
+    runs-on: ubuntu-latest
+    needs: [detect-package, test]
+    # Two gates, both must open: the package must not declare itself private,
+    # and the run must come from a real tag push. A workflow_dispatch builds
+    # the artefact and stops there — the only way to rehearse this workflow
+    # without an irreversible upload.
+    if: >-
+      needs.detect-package.outputs.publishable == 'true'
+      && github.event_name == 'push'
+    environment:
+      name: pypi
+      url: https://pypi.org/project/${{ needs.detect-package.outputs.package }}/
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - run: uv python install 3.12
+      # --package is mandatory: a bare `uv build` in a workspace root builds
+      # the root project, so every tag would ship the same artefact under the
+      # wrong name.
+      - run: uv build --package ${{ needs.detect-package.outputs.package }}
       - uses: pypa/gh-action-pypi-publish@release/v1

@@ -14,8 +14,24 @@ lint:  ## Linter + format check
 format:  ## Auto-format code
 	uv run ruff format .
 
-type-check:  ## Run mypy across packages
-	uv run mypy packages/
+# Les packages sont DÉCOUVERTS depuis [tool.uv.workspace] members = ["packages/*"] :
+# ajouter un package ne demande aucune édition ici. Une liste en dur finit toujours
+# par diverger du workspace — c'est ainsi que des packages échappent au type-check
+# sans bruit.
+# Le répertoire de tests est DÉRIVÉ du nom du package (tests_<module>) : un renommage
+# ou un nouveau package ne laisse pas de chemin littéral orphelin.
+MYPY_PACKAGES := $(notdir $(patsubst %/,%,$(dir $(wildcard packages/*/pyproject.toml))))
+
+# Un mypy global (`mypy packages/`) ignorerait la config propre à chaque package :
+# chaque membre est vérifié avec son propre pyproject.toml, dans son environnement.
+type-check:  ## Run mypy per package
+	@echo "🔍 Running mypy per package..."
+	@for pkg in $(MYPY_PACKAGES); do \
+		tests="packages/$$pkg/tests_$$(echo $$pkg | tr - _)"; \
+		[ -d "$$tests" ] || { echo "❌ $$pkg: $$tests introuvable"; exit 1; }; \
+		uv run --package $$pkg mypy --config-file packages/$$pkg/pyproject.toml \
+			packages/$$pkg/src "$$tests" || exit 1; \
+	done
 
 audit:  ## Security audit
 	uv run pip-audit

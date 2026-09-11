@@ -12,7 +12,7 @@ jobs:
     name: Audit + Init + Badges
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
@@ -51,6 +51,35 @@ jobs:
                 > "$DIR/$NAME.json"
             fi
           }
+
+          write_error_badge() {
+            local DIR=$1 NAME=$2 LABEL=$3
+            mkdir -p "$DIR"
+            jq -n --arg l "$LABEL" \
+              '{schemaVersion:1, label:$l, message:"error", color:"red", style:"flat"}' \
+              > "$DIR/$NAME.json"
+          }
+
+          # Guard invoked BEFORE extracting a score: RESULT must be non-empty,
+          # valid JSON, carrying a numeric `.score`. On any failure it writes an
+          # explicit error badge and `exit 1` (fails the job) — it must never
+          # fall through to `jq '.score'` on empty input, which yields null and
+          # renders a confident "null%" badge hiding a broken toolchain.
+          require_valid_result() {
+            local RESULT=$1 DIR=$2 NAME=$3 LABEL=$4
+            if [ -z "$RESULT" ] || ! printf '%s' "$RESULT" | jq -e . >/dev/null 2>&1; then
+              echo "badge-helpers: RESULT is empty or not valid JSON" >&2
+              write_error_badge "$DIR" "$NAME" "$LABEL"
+              exit 1
+            fi
+            local SCORE
+            SCORE=$(printf '%s' "$RESULT" | jq -r '.score')
+            if ! printf '%s' "$SCORE" | grep -Eq '^-?[0-9]+(\.[0-9]+)?$'; then
+              echo "badge-helpers: .score is not numeric ('$SCORE')" >&2
+              write_error_badge "$DIR" "$NAME" "$LABEL"
+              exit 1
+            fi
+          }
           HELPERS
 
           # Pre-fetch the AXM logo once (valid URL; one logo for all badges)
@@ -83,8 +112,9 @@ jobs:
 
           for PKG_DIR in packages/*/; do
             PKG=$(basename "$PKG_DIR")
-            RESULT=$(uvx --from axm-audit axm audit "$PKG_DIR" --json-output) || true
+            RESULT=$(uvx --from axm --with axm-audit axm audit "$PKG_DIR" --json-output 2>/dev/null) || true
             echo "$RESULT" > "_publish/reports/axm-audit/$PKG.json"
+            require_valid_result "$RESULT" "_publish/badges/$PKG" "axm-audit" "axm-audit"
 
             SCORE=$(echo "$RESULT" | jq '.score')
             GRADE=$(echo "$RESULT" | jq -r '.grade')
@@ -130,10 +160,11 @@ jobs:
           COUNT=0
 
           for TARGET in . packages/*/; do
-            RESULT=$(uvx --from axm-init axm init_check "$TARGET" --json-output) || true
+            RESULT=$(uvx --from axm --with axm-init axm init_check "$TARGET" --json-output 2>/dev/null) || true
 
             if [ "$TARGET" = "." ]; then FNAME="root"; else FNAME=$(basename "$TARGET"); fi
             echo "$RESULT" > "_publish/reports/axm-init/$FNAME.json"
+            require_valid_result "$RESULT" "_publish/badges/$FNAME" "axm-init" "axm-init"
 
             SCORE=$(echo "$RESULT" | jq '.score')
             GRADE=$(echo "$RESULT" | jq -r '.grade')
