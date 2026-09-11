@@ -1,6 +1,9 @@
-# axm-forge
+<p align="center">
+  <img src="assets/logo.svg" alt="AXM Logo" width="180" />
+</p>
 
-**Developer tools and the SDK that connects them.**
+<h1 align="center">axm-forge</h1>
+<p align="center"><strong>Developer tools and the SDK that connects them.</strong></p>
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -11,10 +14,10 @@
   <a href="https://forge.axm-protocols.io"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
 </p>
 
-Analyse code, check quality, edit files and automate Git workflows through
-Python libraries, a CLI or MCP. Forge is a workspace of independent packages:
-choose the capability you need and install its provider alongside your client
-interface.
+AXM Forge is a uv workspace of independently versioned Python packages for
+code analysis, quality checks, editing, scaffolding and Git operations.
+Use the tools through an MCP client or the generic `axm` CLI; use the
+libraries directly when integrating them into Python applications.
 
 ## Start with your task
 
