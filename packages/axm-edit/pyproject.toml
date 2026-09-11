@@ -4,13 +4,13 @@ dynamic = ["version"]
 description = "AXM Edit — Atomic batch file editing for AI agents."
 readme = "README.md"
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
 keywords = ["batch-edit", "file-editing", "agent", "mcp", "refactoring"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",

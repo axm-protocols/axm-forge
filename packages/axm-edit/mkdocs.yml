@@ -4,7 +4,7 @@ site_url: https://forge.axm-protocols.io/edit/
 repo_url: https://github.com/axm-protocols/axm-forge
 repo_name: axm-protocols/axm-forge
 edit_uri: edit/main/packages/axm-edit/docs/
-copyright: Copyright &copy; 2026 Gabriel Jarry
+copyright: Copyright &copy; 2026 axm-protocols
 
 theme:
   name: material
