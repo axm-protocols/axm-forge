@@ -4,7 +4,12 @@ on:
   push:
     branches: [main]
 
+# Declaring any permission resets every other scope to `none`, so `contents`
+# has to be spelled out: without it the job cannot even check out its own
+# repository when that repository is private ("Repository not found" from
+# actions/checkout). python-project's docs.yml already gets this right.
 permissions:
+  contents: read
   pages: write
   id-token: write
 
@@ -13,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync
       - run: uv run mkdocs build
       - uses: actions/upload-pages-artifact@v3
