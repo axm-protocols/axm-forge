@@ -36,3 +36,52 @@ class TestCheckPyprojectUrls:
         r = check_pyproject_urls(tmp_path)
         assert r.passed is False
         assert "Documentation" in str(r.details) or "Issues" in str(r.details)
+
+    @staticmethod
+    def _write(tmp_path: Path, *, private: bool, homepage: str) -> Path:
+        classifiers = '"Private :: Do Not Upload"' if private else ""
+        (tmp_path / "pyproject.toml").write_text(
+            f'[project]\nname = "x"\nclassifiers = [{classifiers}]\n'
+            f"[project.urls]\n"
+            f'Homepage = "{homepage}"\n'
+            f'Documentation = "https://example.invalid/docs"\n'
+            f'Repository = "https://example.invalid/repo"\n'
+            f'Issues = "https://example.invalid/issues"\n'
+        )
+        return tmp_path
+
+    def test_private_package_rejects_pypi_url(self, tmp_path: Path) -> None:
+        """A private package advertises a distribution that will never exist."""
+        project = self._write(
+            tmp_path,
+            private=True,
+            homepage="https://pypi.org/project/x/",
+        )
+        r = check_pyproject_urls(project)
+        assert r.passed is False
+        assert "Homepage" in str(r.details)
+
+    @pytest.mark.parametrize(
+        ("private", "homepage"),
+        [
+            pytest.param(
+                False,
+                "https://pypi.org/project/x/",
+                id="published_package_may_link_pypi",
+            ),
+            pytest.param(
+                True,
+                "https://example.invalid/repo",
+                id="private_package_without_pypi_url",
+            ),
+        ],
+    )
+    def test_private_url_rule_stays_narrow(
+        self,
+        tmp_path: Path,
+        private: bool,
+        homepage: str,
+    ) -> None:
+        """Only the private+PyPI combination is a contradiction."""
+        project = self._write(tmp_path, private=private, homepage=homepage)
+        assert check_pyproject_urls(project).passed is True

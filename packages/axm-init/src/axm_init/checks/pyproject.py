@@ -74,6 +74,21 @@ def check_pyproject_urls(project: Path, data: TomlTable) -> CheckResult:
                 f"Add {', '.join(sorted(missing))} to [project.urls] in pyproject.toml."
             ),
         )
+    dangling = _private_pypi_urls(data, urls)
+    if dangling:
+        return CheckResult(
+            name="pyproject.urls",
+            category="pyproject",
+            passed=False,
+            weight=3,
+            message="Private package advertises a PyPI URL",
+            details=dangling,
+            fix=(
+                "A package carrying 'Private :: Do Not Upload' is never"
+                " uploaded, so its PyPI URL will never resolve. Point these"
+                " URLs at the repository, or drop the private classifier."
+            ),
+        )
     return CheckResult(
         name="pyproject.urls",
         category="pyproject",
@@ -83,6 +98,26 @@ def check_pyproject_urls(project: Path, data: TomlTable) -> CheckResult:
         details=[],
         fix="",
     )
+
+
+# A package states once, in its classifiers, that it must never leave the
+# monorepo; the release CI reads that same marker to withhold both the PyPI
+# upload and the GitHub Release. Advertising a pypi.org URL alongside it
+# describes a distribution that will never exist, and is the way a private
+# package silently drifts back to being treated as a published one.
+PRIVATE_CLASSIFIER = "Private :: Do Not Upload"
+
+
+def _private_pypi_urls(data: TomlTable, urls: Mapping[str, object]) -> list[str]:
+    """Report PyPI URLs declared by a package marked private."""
+    classifiers = section(data, "project").get("classifiers", [])
+    if not isinstance(classifiers, list) or PRIVATE_CLASSIFIER not in classifiers:
+        return []
+    return [
+        f"{key} points at PyPI: {value}"
+        for key, value in sorted(urls.items())
+        if isinstance(value, str) and "pypi.org" in value
+    ]
 
 
 @requires_toml(
