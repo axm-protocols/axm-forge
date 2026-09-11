@@ -11,6 +11,23 @@ updates:
       all-dependencies:
         patterns:
           - "*"
+    ignore:
+      # Un `ignore` est scopé à SON bloc directory : celui posé plus bas sur
+      # /packages/axm-ast ne protège que les PRs du groupe axm-ast. Le scan de
+      # la racine re-résout le uv.lock agrégé, y voit tree-sitter remonter via
+      # packages/axm-ast, et repropose la 0.26.0 dans le groupe
+      # all-dependencies — c'est ainsi qu'est née la PR #136 (38 crashs de
+      # workers xdist sur axm-ast, axm-audit et axm), 41 minutes APRÈS que la
+      # règle axm-ast eut été mergée. Tout garde-fou de version doit donc
+      # exister aux deux niveaux, sinon la protection par package est
+      # contournée par le groupe racine.
+      #
+      # Motif détaillé du blocage (use-after-free amont, py-tree-sitter#472) :
+      # voir le bloc /packages/axm-ast plus bas, source de vérité. Même portée
+      # volontairement étroite : la 0.26.0 SEULE, pour qu'une 0.26.1 porteuse
+      # du fix soit reproposée d'elle-même.
+      - dependency-name: tree-sitter
+        versions: ["0.26.0"]
 
   # ── Per published package: the pyproject CONSTRAINTS (the PyPI contract) ────
   # Each package is published independently to PyPI and is importable by third
