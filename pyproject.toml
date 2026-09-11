@@ -3,7 +3,8 @@ name = "axm-forge-workspace"
 version = "0.0.0"
 requires-python = ">=3.12"
 description = "AXM Forge workspace — axm-ast, axm-audit, axm-init, and axm-git under one roof"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 readme = "README.md"
 authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
 keywords = ["axm", "ast", "audit", "scaffolding", "git", "quality"]
@@ -12,7 +13,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: Apache Software License",
 ]
 
 [project.urls]
