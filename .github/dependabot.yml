@@ -41,6 +41,25 @@ updates:
       axm-ast:
         patterns:
           - "*"
+    ignore:
+      # tree-sitter 0.26.0 introduit un use-after-free : les getters Point.row /
+      # Point.column renvoient une référence EMPRUNTÉE (refonte de Point en
+      # sous-classe de tuple), l'int est libéré trop tôt et corrompt
+      # l'allocateur — SIGSEGV/SIGBUS dès qu'on lit un Point sur un fichier de
+      # plus de ~256 lignes (au-delà des ints immortels). Reproduit ici :
+      # 0.25.2 → EXIT=0 sur 360 000 lectures, 0.26.0 → EXIT=139 après 1 200.
+      # axm-ast est en plein dans le chemin du bug (23 lectures de
+      # start_point.row/end_point.row, 104 fichiers de plus de 256 lignes).
+      # Amont : tree-sitter/py-tree-sitter#472, corrigé le 2026-07-08 (PR #466)
+      # mais JAMAIS PUBLIÉ — 0.26.0 (2026-06-30) reste la dernière release PyPI.
+      #
+      # On ignore la 0.26.0 SEULE, pas la série 0.26.x : à la publication d'une
+      # 0.26.1 (qui portera le fix), Dependabot reproposera le bump de lui-même
+      # et le cap `<0.26` de packages/axm-ast/pyproject.toml pourra sauter.
+      # L'API et l'ABI des grammaires (LANGUAGE_VERSION 15, min 13) sont déjà
+      # compatibles : seul ce use-after-free bloque.
+      - dependency-name: tree-sitter
+        versions: ["0.26.0"]
   - package-ecosystem: uv
     directory: /packages/axm-audit
     schedule:
