@@ -19,22 +19,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Same detection as publish.yml, from the same composite action: a
-      # package states once, in its classifiers, whether it may be published.
+      # Same detection as publish.yml, from the same composite action. Only the
+      # package directory is used here: unlike PyPI, a GitHub Release is not a
+      # publication to the world. It inherits the repository's visibility, so on
+      # a private repo it is readable only by people who already have the code.
+      # `Private :: Do Not Upload` says where a package may be UPLOADED; it says
+      # nothing about writing down what changed between two tags.
       - name: Detect package from tag
         id: detect
         uses: ./.github/actions/detect-package
 
-      # A private package gets no external publication at all — no PyPI upload
-      # and no public release either, since the generated notes would expose
-      # the very changelog the package is meant to keep in-house. The tag, the
-      # version and the build still work; only the publication stops.
-      - name: Skip release for private package
-        if: steps.detect.outputs.publishable != 'true'
-        run: echo "::notice::${{ steps.detect.outputs.package }} is private — no GitHub Release"
-
       - name: Generate changelog
-        if: steps.detect.outputs.publishable == 'true'
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
@@ -48,7 +43,6 @@ jobs:
           OUTPUT: CHANGELOG.md
 
       - name: Create GitHub Release
-        if: steps.detect.outputs.publishable == 'true'
         uses: softprops/action-gh-release@v3
         with:
           body: ${{ steps.git-cliff.outputs.content }}
