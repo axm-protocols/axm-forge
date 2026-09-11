@@ -6,7 +6,6 @@
     "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
     "QUALITY_COMPLEXITY: Complexity score: 100/100 (0 high-complexity functions)",
-    "QUALITY_TESTS: Test coverage: 93% (93/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
@@ -16,7 +15,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 98% (169/173)",
+      "message": "Docstring coverage: 98% (175/179)",
       "text": "     \u2022 axm_init/models/protocol_scaffold.py: model_name, factory_name, factory_name, graph_name",
       "fix_hint": "Add docstrings to public functions"
     },
@@ -69,6 +68,12 @@
       "fix_hint": "Split large classes into smaller, focused classes"
     },
     {
+      "rule_id": "QUALITY_TESTS",
+      "message": "Test coverage: 94% (1 test(s) failed)",
+      "text": "\u2022 cov 94% \u2192 100%\n\u2022 FAIL test_action_versions_consistent",
+      "fix_hint": "Fix failing tests"
+    },
+    {
       "rule_id": "QUALITY_DEAD_CODE",
       "message": "Found 1 dead (unreferenced) symbol(s).",
       "text": "\u2022 _advance_past_marker /home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/adapters/workspace_patcher.py:192",
@@ -77,7 +82,7 @@
     {
       "rule_id": "DEPS_AUDIT",
       "message": "2 vulnerable package(s) found",
-      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+4\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+1",
+      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+5\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+3",
       "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
