@@ -46,6 +46,7 @@ from axm_edit.utils import is_binary, resolve_safe
 __all__ = [
     "check_anchors_on_disk",
     "check_create_targets",
+    "check_delete_then_create",
     "check_line_length",
     "check_rewrite_targets",
     "parse_rewrite_op",
@@ -60,6 +61,10 @@ _CREATE_ON_EXISTING_HINT = (
     "Target a free path, use a `replace`, or set `overwrite: true`: a "
     "`delete` followed by a `create` is NOT an atomic replacement — the "
     "batch can fail in between and leave the file gone."
+)
+_DELETE_THEN_CREATE_HINT = (
+    "Drop the `delete` and use a single `replace`, or rename the `create` "
+    "target: re-creating a deleted file discards its original content."
 )
 _ANCHOR_NOT_FOUND_HINT = (
     "Re-read the file and copy the anchor verbatim, whitespace included."
@@ -192,6 +197,46 @@ def check_create_targets(
                 hint=_CREATE_ON_EXISTING_HINT,
             )
         )
+    return diagnostics
+
+
+def check_delete_then_create(
+    operations: Sequence[FsOperation],
+) -> list[CheckDiagnostic]:
+    """Flag every ``create`` targeting a file an earlier operation deleted.
+
+    Reads no file: the rule only looks at how operations relate to one another
+    inside a single batch. Deleting a path then re-creating it discards the
+    original content, and the pair is not atomic — a failure in between leaves
+    the file gone. ``CREATE_ON_EXISTING`` cannot catch this, since by the time
+    the ``create`` runs the target no longer exists on disk.
+
+    Args:
+        operations: Operations in batch order (models or raw payloads).
+
+    Returns:
+        One ``DELETE_THEN_CREATE_SAME_FILE`` error per offending ``create``, in
+        batch order, else ``[]``.
+    """
+    diagnostics: list[CheckDiagnostic] = []
+    deleted: set[str] = set()
+    for index, op in enumerate(_parse(operations)):
+        if isinstance(op, DeleteOp):
+            deleted.add(op.file)
+        elif isinstance(op, CreateOp) and op.file in deleted:
+            diagnostics.append(
+                CheckDiagnostic(
+                    op_index=index,
+                    file=op.file,
+                    severity="error",
+                    code="DELETE_THEN_CREATE_SAME_FILE",
+                    message=(
+                        f"`create` targets {op.file!r}, deleted earlier in the "
+                        "same batch, losing its content."
+                    ),
+                    hint=_DELETE_THEN_CREATE_HINT,
+                )
+            )
     return diagnostics
 
 
@@ -427,6 +472,7 @@ def run_fs_checks(
     contents = _read_contents(root, parsed)
     diagnostics = [
         *check_create_targets(root, parsed),
+        *check_delete_then_create(parsed),
         *check_anchors_on_disk(root, parsed),
         *check_rewrite_targets(root, parsed),
         *_check_line_lengths(parsed, limit),

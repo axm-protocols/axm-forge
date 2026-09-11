@@ -7,7 +7,7 @@ replacement text and the resolved limit as arguments and touches no disk.
 from __future__ import annotations
 
 from axm_edit.core.precheck import run_static_checks
-from axm_edit.core.precheck_fs import check_line_length
+from axm_edit.core.precheck_fs import check_delete_then_create, check_line_length
 from axm_edit.models.operations import ReplaceOp
 
 
@@ -48,3 +48,38 @@ def test_edit_index_survives_the_raw_mapping_parse_layer() -> None:
 
     assert len(diagnostics) == 1
     assert diagnostics[0].edit_index == 1
+
+
+def test_create_after_delete_of_same_file_is_flagged() -> None:
+    """A file re-created after its delete loses its content, so it errors."""
+    operations = [
+        {"op": "delete", "file": "f.txt"},
+        {"op": "create", "file": "f.txt", "content": "new"},
+    ]
+
+    diagnostics = check_delete_then_create(operations)
+
+    assert len(diagnostics) == 1
+    assert diagnostics[0].code == "DELETE_THEN_CREATE_SAME_FILE"
+    assert diagnostics[0].severity == "error"
+    assert diagnostics[0].op_index == 1
+
+
+def test_create_and_delete_of_different_files_are_not_flagged() -> None:
+    """The rule pairs on the path, not on the mere presence of both ops."""
+    operations = [
+        {"op": "delete", "file": "a.txt"},
+        {"op": "create", "file": "b.txt", "content": "new"},
+    ]
+
+    assert check_delete_then_create(operations) == []
+
+
+def test_delete_after_create_is_not_flagged() -> None:
+    """Order matters: creating then deleting destroys nothing pre-existing."""
+    operations = [
+        {"op": "create", "file": "f.txt", "content": "new"},
+        {"op": "delete", "file": "f.txt"},
+    ]
+
+    assert check_delete_then_create(operations) == []

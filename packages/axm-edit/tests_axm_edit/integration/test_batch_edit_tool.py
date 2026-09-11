@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
+from axm_edit.core.preflight import collect_preflight_diagnostics
 from axm_edit.tools.batch_edit import BatchEditTool
-from axm_edit.tools.batch_edit_check import BatchEditCheckTool
 
 
 @pytest.fixture
@@ -957,12 +957,8 @@ def test_create_collision_hint_recovers_with_overwrite(tmp_path: Path) -> None:
     assert "overwrite: true" in ((refused.text or "") + (refused.error or ""))
     recovered_op = {**base_op, "overwrite": True}
 
-    checked = BatchEditCheckTool().execute(
-        path=str(tmp_path), operations=[recovered_op]
-    )
-    assert checked.success is True
-    assert checked.data is not None
-    assert checked.data["ok"] is True
+    # The preflight batch_edit runs internally now clears the corrected batch.
+    assert collect_preflight_diagnostics(tmp_path, [recovered_op]) == []
     applied = BatchEditTool().execute(
         path=str(tmp_path), operations=[recovered_op], lint=False
     )
@@ -981,10 +977,7 @@ def test_create_overwrite_authorization_is_per_operation(tmp_path: Path) -> None
         "overwrite": True,
     }
 
-    checked = BatchEditCheckTool().execute(path=str(tmp_path), operations=[allowed])
-    assert checked.success is True
-    assert checked.data is not None
-    assert checked.data["ok"] is True
+    assert collect_preflight_diagnostics(tmp_path, [allowed]) == []
     applied = BatchEditTool().execute(
         path=str(tmp_path), operations=[allowed], lint=False
     )
@@ -1002,12 +995,7 @@ def test_create_overwrite_authorization_is_per_operation(tmp_path: Path) -> None
     )
     for denied in denied_ops:
         before = target.read_bytes()
-        denied_check = BatchEditCheckTool().execute(
-            path=str(tmp_path), operations=[denied]
-        )
-        assert denied_check.success is True
-        assert denied_check.data is not None
-        assert denied_check.data["ok"] is False
+        assert collect_preflight_diagnostics(tmp_path, [denied]) != []
         assert target.read_bytes() == before
         denied_apply = BatchEditTool().execute(
             path=str(tmp_path), operations=[denied], lint=False
@@ -1030,10 +1018,7 @@ def test_create_overwrite_recovery_preserves_target_boundaries(
         "content": "new\n",
         "overwrite": True,
     }
-    checked = BatchEditCheckTool().execute(path=str(root), operations=[allowed_op])
-    assert checked.success is True
-    assert checked.data is not None
-    assert checked.data["ok"] is True
+    assert collect_preflight_diagnostics(root, [allowed_op]) == []
     applied = BatchEditTool().execute(
         path=str(root), operations=[allowed_op], lint=False
     )
@@ -1063,12 +1048,7 @@ def test_create_overwrite_recovery_preserves_target_boundaries(
     for forbidden in forbidden_ops:
         sentinel_before = sentinel.read_bytes()
         outside_before = outside.read_bytes()
-        denied_check = BatchEditCheckTool().execute(
-            path=str(root), operations=[forbidden]
-        )
-        assert denied_check.success is True
-        assert denied_check.data is not None
-        assert denied_check.data["ok"] is False
+        assert collect_preflight_diagnostics(root, [forbidden]) != []
         assert directory.is_dir()
         assert sentinel.read_bytes() == sentinel_before
         assert outside.read_bytes() == outside_before
@@ -1097,10 +1077,7 @@ def test_create_overwrite_revalidates_after_successful_check(tmp_path: Path) -> 
             "content": "new\n",
             "overwrite": True,
         }
-        checked = BatchEditCheckTool().execute(path=str(root), operations=[operation])
-        assert checked.success is True
-        assert checked.data is not None
-        assert checked.data["ok"] is True
+        assert collect_preflight_diagnostics(root, [operation]) == []
         assert target.read_bytes() == b"old\n"
 
         target.unlink()

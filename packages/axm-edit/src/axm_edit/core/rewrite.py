@@ -1,8 +1,8 @@
 """Pure classification of a whole-file rewrite target.
 
-The predicate below is the SINGLE source of truth shared by
-``batch_edit_check`` (dry-run diagnostics) and ``batch_edit`` (apply path), so
-the two tools can never drift apart on what a valid rewrite target is.  It is
+The predicate below is the SINGLE source of truth on what a valid rewrite
+target is, used by ``batch_edit``'s read-only preflight before it applies
+anything.  It is
 pure by construction: it takes already-observed facts (booleans and digests),
 never a ``Path``, and touches no filesystem.
 

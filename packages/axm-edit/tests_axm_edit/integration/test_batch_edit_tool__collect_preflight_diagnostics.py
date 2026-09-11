@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 
 from axm_edit.tools.batch_edit import BatchEditTool
-from axm_edit.tools.batch_edit_check import BatchEditCheckTool
 
 pytestmark = pytest.mark.integration
 
@@ -172,41 +171,3 @@ def test_valid_batch_applies_and_exposes_an_empty_report(project: Path) -> None:
     # Pre-existing payload keys keep their previous meaning.
     assert data["summary"] == {"modified": 1, "created": 1, "deleted": 0}
     assert data["applied"] >= 1
-
-
-def test_check_tool_and_batch_edit_agree_on_the_ordered_diagnostics(
-    project: Path,
-) -> None:
-    """AC5: both surfaces emit the same diagnostics, element by element."""
-    operations: list[dict[str, Any]] = [
-        {
-            "op": "replace",
-            "file": "mod.py",
-            "edits": [{"old": "value = 1", "new": "value = 2", "replace_all": True}],
-        },
-        {
-            "op": "replace",
-            "file": "other.py",
-            "edits": [{"old": "absent anchor", "new": "whatever"}],
-        },
-    ]
-
-    checked = BatchEditCheckTool().execute(path=str(project), operations=operations)
-    edited = BatchEditTool().execute(
-        path=str(project), operations=operations, lint=False
-    )
-
-    check_data = checked.data or {}
-    check_diagnostics = check_data.get("diagnostics")
-    if check_diagnostics is None:
-        check_diagnostics = (check_data.get("preflight") or {}).get("diagnostics")
-    assert check_diagnostics is not None, check_data
-
-    edit_data = edited.data or {}
-    preflight = edit_data.get("preflight")
-    assert preflight is not None, edit_data
-    edit_diagnostics = preflight["diagnostics"]
-
-    assert len(edit_diagnostics) == len(check_diagnostics)
-    for produced, expected in zip(edit_diagnostics, check_diagnostics, strict=True):
-        assert produced == expected

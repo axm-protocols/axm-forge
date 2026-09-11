@@ -56,9 +56,9 @@ class _LintOptions:
 def _preflight(root: Path, raw_ops: list[dict[str, object]]) -> PreflightReport:
     """Run the shared read-only preflight over the batch, as authored.
 
-    This is the exact core call ``batch_edit_check`` makes, so both surfaces
-    report the same diagnostics in the same order for one batch. Strictly
-    read-only: nothing is written, renamed or checkpointed here.
+    Every batch goes through it before anything is written: a blocking
+    diagnostic refuses the batch instead of applying it. Strictly read-only:
+    nothing is written, renamed or checkpointed here.
 
     Args:
         root: Project root the batch would be applied to.
