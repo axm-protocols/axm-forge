@@ -19,7 +19,17 @@ dependencies = [
     "axm-ast",
     "axm-echo",
     "axm-ingot",
-    "complexipy==8.0.1",  # pinned: 5.6.0 panics on UTF-8 in noqa comments (rohaquinlop/complexipy#186); native dep run via uvx, lock does not protect — Dependabot proposes bumps
+    # Pinné EXACT : complexipy fournit la couche cognitive du seuil Cog<15, et
+    # son score est un verdict d'audit — une version flottante ferait bouger la
+    # frontière sous les pieds de la CI. Dépendance native exécutable via uvx :
+    # le lock ne protège pas ce chemin, d'où le pin dans le pyproject.
+    # Tout bump doit être validé par une PARITÉ DE SCORES (même corpus avant /
+    # après, diff vide), pas sur la foi du changelog : le passage 6.2.0 → 8.0.1
+    # a été accepté sur 68 fonctions à 0 écart et 0 bascule de seuil. Le dernier
+    # changement d'algorithme réel est 6.0.0 (alignement SonarSource v1.7).
+    # (Historique : le pin est né du panic UTF-8 sur les commentaires noqa de
+    # 5.6.0 — rohaquinlop/complexipy#186 — corrigé depuis 5.6.1.)
+    "complexipy==8.0.1",
     "cyclopts>=4.21.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
