@@ -1,5 +1,5 @@
 {
-  "score": 90.2,
+  "score": 91.7,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -10,7 +10,8 @@
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
-    "QUALITY_DIFF_SIZE: Diff size: 110 lines changed (score 100/100)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_AUDIT: No known vulnerabilities",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
@@ -69,12 +70,6 @@
       "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=12 (C) cog=13 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "message": "2 vulnerable package(s) found",
-      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+5\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+3",
-      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "DEPS_HYGIENE",

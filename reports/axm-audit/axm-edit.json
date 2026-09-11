@@ -1,5 +1,5 @@
 {
-  "score": 94.5,
+  "score": 96.0,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -16,7 +16,8 @@
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
-    "QUALITY_DIFF_SIZE: Diff size: 110 lines changed (score 100/100)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: 1 dependency issue(s) found",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
@@ -58,12 +59,6 @@
     "TOOL_UV: uv found"
   ],
   "failed": [
-    {
-      "rule_id": "DEPS_AUDIT",
-      "message": "2 vulnerable package(s) found",
-      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+5\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+3",
-      "fix_hint": "Run: pip-audit --fix to remediate"
-    },
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
       "message": "6 integration/e2e test(s) named after source modules",

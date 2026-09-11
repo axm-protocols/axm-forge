@@ -1,19 +1,11 @@
 {
-  "score": 95,
+  "score": 98,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
-  "passed_count": 34,
+  "passed_count": 35,
   "failures": [
-    {
-      "name": "deps.dev_deps",
-      "message": "Dev group missing 1 dep(s)",
-      "details": [
-        "Missing: pytest-xdist"
-      ],
-      "fix": "Add pytest-xdist to [dependency-groups] dev."
-    },
     {
       "name": "docs.standalone_api_ref",
       "message": "nav declares reference/api/ but standalone build cannot resolve it \u2014 missing 2 item(s)",

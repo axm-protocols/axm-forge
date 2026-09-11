@@ -1,18 +1,9 @@
 {
-  "score": 97,
+  "score": 100,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
-  "passed_count": 35,
-  "failures": [
-    {
-      "name": "deps.dev_deps",
-      "message": "Dev group missing 1 dep(s)",
-      "details": [
-        "Missing: pytest-xdist"
-      ],
-      "fix": "Add pytest-xdist to [dependency-groups] dev."
-    }
-  ]
+  "passed_count": 36,
+  "failures": []
 }

@@ -1,5 +1,5 @@
 {
-  "score": 95.0,
+  "score": 96.5,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -9,7 +9,8 @@
     "QUALITY_TESTS: Test coverage: 94% (93/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
-    "QUALITY_DIFF_SIZE: Diff size: 110 lines changed (score 100/100)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: Clean dependencies (0 issues)",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
@@ -73,12 +74,6 @@
       "message": "Found 1 dead (unreferenced) symbol(s).",
       "text": "\u2022 _advance_past_marker /home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/adapters/workspace_patcher.py:192",
       "fix_hint": "Remove dead code or mark exported in __all__ if public API"
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "message": "2 vulnerable package(s) found",
-      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+5\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+3",
-      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",

@@ -1,5 +1,5 @@
 {
-  "score": 80.1,
+  "score": 81.6,
   "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -8,7 +8,8 @@
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
-    "QUALITY_DIFF_SIZE: Diff size: 110 lines changed (score 100/100)",
+    "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: Clean dependencies (0 issues)",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
@@ -78,12 +79,6 @@
       "message": "Test coverage: 89% (88/100)",
       "text": "\u2022 cov 89% \u2192 100%\n\u2022 FAIL tests_axm_ast/unit/core/backends/test_typescript.py\n\u2022 FAIL tests_axm_ast/unit/core/backends/test_typescript_calls.py\n\u2022 FAIL tests_axm_ast/unit/core/test_analyzer_node.py",
       "fix_hint": "Increase test coverage to >= 90%"
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "message": "2 vulnerable package(s) found",
-      "text": "\u2022 cryptography 48.0.1\u219249.0.0,50.0.0 PYSEC-2026-3554+5\n\u2022 pymdown-extensions 10.21.3\u219211.0.0,11.0.1 PYSEC-2026-3609+3",
-      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
