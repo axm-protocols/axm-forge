@@ -1,5 +1,5 @@
 {
-  "score": 96.0,
+  "score": 96.2,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -23,7 +23,7 @@
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
-    "PRACTICE_DOCSTRING: Docstring coverage: 100% (78/78)",
+    "PRACTICE_DOCSTRING: Docstring coverage: 100% (76/76)",
     "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
       "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
@@ -61,14 +61,14 @@
   "failed": [
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
-      "message": "6 integration/e2e test(s) named after source modules",
-      "text": "\u2022 anti-mirror: tests_axm_edit/e2e/test_batch_edit.py tests_axm_edit/e2e/test_batch_edit_check.py tests_axm_edit/e2e/test_file_bytes.py tests_axm_edit/e2e/test_search_files.py tests_axm_edit/e2e/test_write_file.py (+1 more)",
+      "message": "5 integration/e2e test(s) named after source modules",
+      "text": "\u2022 anti-mirror: tests_axm_edit/e2e/test_batch_edit.py tests_axm_edit/e2e/test_file_bytes.py tests_axm_edit/e2e/test_search_files.py tests_axm_edit/e2e/test_write_file.py tests_axm_edit/integration/test_lint.py",
       "fix_hint": "tests_axm_edit/e2e/test_batch_edit.py \u2192 rename to test_<scenario>.py describing what the test verifies (scenario-named, not source-mirrored)"
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "message": "8 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "text": "\u2022 [import] tests_axm_edit/integration/test_batch_apply__edit.py:8 axm_edit.core.engine._validate_replace (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:12 axm_edit.core.engine._not_found_error (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:210 axm_edit.core.engine._rewrite_error (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:229 axm_edit.core.engine._group_operations (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._apply_lint (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._parse_operations (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._render_op_lines (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit_check.py:8 axm_edit.tools.batch_edit_check._parse_check_operations (function)",
+      "message": "7 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_edit/integration/test_batch_apply__edit.py:8 axm_edit.core.engine._validate_replace (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:12 axm_edit.core.engine._not_found_error (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:210 axm_edit.core.engine._rewrite_error (function)\n\u2022 [import] tests_axm_edit/unit/core/test_engine.py:229 axm_edit.core.engine._group_operations (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._apply_lint (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._parse_operations (function)\n\u2022 [import] tests_axm_edit/unit/tools/test_batch_edit.py:19 axm_edit.tools.batch_edit._render_op_lines (function)",
       "fix_hint": "Re-export the symbol publicly or test via the public API"
     },
     {
