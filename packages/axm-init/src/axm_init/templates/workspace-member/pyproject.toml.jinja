@@ -55,7 +55,9 @@ dev = [
     "pytest-xdist>=3.8.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.16.4",
+    # Version exacte fixée une seule fois par [tool.uv].constraint-dependencies
+    # à la racine du workspace (résolution uv unique) : ici un range.
+    "ruff>=0.16",
     "mypy>=1.20.0",
     "prek>=0.4.4",
 ]

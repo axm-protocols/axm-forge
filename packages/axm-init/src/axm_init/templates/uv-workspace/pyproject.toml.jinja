@@ -23,7 +23,7 @@ bypass-selection = true
 [dependency-groups]
 dev = [
     "prek>=0.4.4",
-    "ruff==0.16.4",
+    "ruff>=0.16",
     "pytest>=9.0.3",
     "pytest-xdist>=3.8.0",
     "pytest-cov>=4.0",
@@ -37,6 +37,14 @@ docs = [
     "mkdocstrings[python]>=1.0.3",
     "mkdocs-gen-files>=0.5",
     "mkdocs-literate-nav>=0.6.3",
+]
+
+[tool.uv]
+constraint-dependencies = [
+    # ruff pilote le formatage : version EXACTE et UNIQUE pour tout le workspace
+    # (uv résout un environnement unique). Les membres portent un range `ruff>=0.16`,
+    # donc un bump = 1 PR Dependabot mergeable au lieu de N insolubles.
+    "ruff==0.16.6",
 ]
 
 [tool.uv.workspace]

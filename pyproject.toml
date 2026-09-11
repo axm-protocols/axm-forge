@@ -23,7 +23,7 @@ Documentation = "https://forge.axm-protocols.io"
 [dependency-groups]
 dev = [
     "prek>=0.4.9",
-    "ruff==0.16.6",
+    "ruff>=0.16",
     "pytest>=9.1.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
@@ -41,6 +41,11 @@ docs = [
 
 [tool.uv]
 constraint-dependencies = [
+    # ruff pilote le formatage : la version doit être EXACTE et UNIQUE pour tout
+    # le workspace (uv résout un environnement unique). Déclarée ici une seule fois,
+    # les membres portent un range `ruff>=0.16` : un bump = 1 PR Dependabot mergeable
+    # au lieu de 15 dont 14 insolubles par divergence de pin.
+    "ruff==0.16.6",
     "requests>=2.33.0",
     "pygments>=2.20.0",
 ]
