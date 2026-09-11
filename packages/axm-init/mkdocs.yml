@@ -25,6 +25,7 @@ nav:
     - Template Selection: reference/templates.md
     - Research Templates: reference/research-templates.md
     - Protocol Declarations: reference/protocol-scaffold.md
+    - Protocol Readiness: reference/protocol-readiness.md
     - Checks:
       - Catalogue: reference/checks/catalogue.md
       - wheel-doc-shipping: reference/checks/wheel-doc-shipping.md
