@@ -27,7 +27,7 @@ jobs:
       - name: Test {% raw %}${{ matrix.package }}{% endraw %}
         # `--package` is a `uv run` flag (selects the workspace member); it must
         # come before `pytest`, not be passed to pytest.
-        run: uv run --package {% raw %}${{ matrix.package }}{% endraw %} pytest -q --cov
+        run: uv run --package {% raw %}${{ matrix.package }}{% endraw %} pytest -q --cov -n auto
 
   lint:
     runs-on: ubuntu-latest

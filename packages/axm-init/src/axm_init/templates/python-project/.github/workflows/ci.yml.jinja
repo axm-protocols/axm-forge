@@ -45,4 +45,6 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install {% raw %}${{ matrix.python-version }}{% endraw %}
       - run: uv sync --all-groups
-      - run: uv run pytest --cov -q
+      # -n auto (pytest-xdist) posé ici, pas dans les addopts : le parallélisme
+      # est une propriété de l'exécution en CI, pas du contrat du paquet.
+      - run: uv run pytest --cov -q -n auto

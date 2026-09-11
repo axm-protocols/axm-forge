@@ -98,7 +98,12 @@ jobs:
           PACKAGE: ${{ matrix.package.name }}
           PACKAGE_DIR: ${{ matrix.package.path }}
           UV_PYTHON: ${{ matrix.python-version }}
-        run: uv run --package "$PACKAGE" --directory "$PACKAGE_DIR" pytest --cov
+        # -n auto (pytest-xdist) est posé ICI, pas dans les addopts des paquets :
+        # le parallélisme est une propriété de l'exécution en intégration, pas du
+        # contrat d'un paquet. Un seul point de vérité au lieu de 14, et surtout
+        # `pytest` reste séquentiel et déterministe en local — l'option qu'on
+        # désactive pour déboguer n'a rien à faire dans le défaut.
+        run: uv run --package "$PACKAGE" --directory "$PACKAGE_DIR" pytest --cov -n auto
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v7
