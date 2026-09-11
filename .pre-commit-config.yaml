@@ -95,6 +95,52 @@ repos:
         stages: [pre-commit]
         args: [packages/axm-smelt/src/, packages/axm-smelt/tests_axm_smelt/]
 
+      - id: mypy-config
+        name: mypy (axm-config)
+        entry: uv run --package axm-config mypy --config-file packages/axm-config/pyproject.toml
+        language: system
+        types: [python]
+        files: ^packages/axm-config/
+        pass_filenames: false
+        stages: [pre-commit]
+        args: [packages/axm-config/src/, packages/axm-config/tests_axm_config/]
+      - id: mypy-doctor
+        name: mypy (axm-doctor)
+        entry: uv run --package axm-doctor mypy --config-file packages/axm-doctor/pyproject.toml
+        language: system
+        types: [python]
+        files: ^packages/axm-doctor/
+        pass_filenames: false
+        stages: [pre-commit]
+        args: [packages/axm-doctor/src/, packages/axm-doctor/tests_axm_doctor/]
+      - id: mypy-echo
+        name: mypy (axm-echo)
+        entry: uv run --package axm-echo mypy --config-file packages/axm-echo/pyproject.toml
+        language: system
+        types: [python]
+        files: ^packages/axm-echo/
+        pass_filenames: false
+        stages: [pre-commit]
+        args: [packages/axm-echo/src/, packages/axm-echo/tests_axm_echo/]
+      - id: mypy-ingot
+        name: mypy (axm-ingot)
+        entry: uv run --package axm-ingot mypy --config-file packages/axm-ingot/pyproject.toml
+        language: system
+        types: [python]
+        files: ^packages/axm-ingot/
+        pass_filenames: false
+        stages: [pre-commit]
+        args: [packages/axm-ingot/src/, packages/axm-ingot/tests_axm_ingot/]
+      - id: mypy-vault
+        name: mypy (axm-vault)
+        entry: uv run --package axm-vault mypy --config-file packages/axm-vault/pyproject.toml
+        language: system
+        types: [python]
+        files: ^packages/axm-vault/
+        pass_filenames: false
+        stages: [pre-commit]
+        args: [packages/axm-vault/src/, packages/axm-vault/tests_axm_vault/]
+
       # Global cross-package type check — fires on PUSH only. Catches inter-package
       # type breakage that the per-package scoped hooks above cannot see (e.g. a
       # change in axm-ast that breaks axm-anvil which imports it). Reuses `make lint`

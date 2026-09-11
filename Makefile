@@ -44,10 +44,13 @@ test-smelt:  ## Run axm-smelt tests
 
 # 🛡️ Quality Gates
 
+# Les packages sont DÉCOUVERTS depuis [tool.uv.workspace] members = ["packages/*"],
+# comme le fait déjà .github/scripts/workspace_ci.py pour la matrice CI : ajouter un
+# package ne demande aucune édition ici. Une liste en dur finit toujours par diverger
+# du workspace — c'est ainsi que des packages échappent au type-check sans bruit.
 # Le répertoire de tests est DÉRIVÉ du nom du package (tests_axm_<pkg>, cf. 9688417b0) :
 # un renommage ou un nouveau package ne laisse pas de chemin littéral orphelin.
-MYPY_PACKAGES := axm axm-mcp axm-anvil axm-ast axm-audit axm-edit axm-init axm-git \
-                 axm-smelt axm-ingot axm-echo axm-config axm-vault axm-doctor
+MYPY_PACKAGES := $(notdir $(patsubst %/,%,$(dir $(wildcard packages/*/pyproject.toml))))
 
 lint:  ## Linter + type checker
 	uv run ruff check .
