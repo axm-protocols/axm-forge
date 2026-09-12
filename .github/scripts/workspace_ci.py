@@ -55,12 +55,21 @@ def discover(root: Path) -> list[dict[str, object]]:
         for test_path in tests:
             if Path(test_path).is_absolute() or ".." in Path(test_path).parts:
                 raise ValueError(f"Test path must stay inside {name}: {test_path}")
+        # A member states for itself whether the Linux CI can run its tests.
+        # axm-mlx and axm-train need Apple Silicon: over there their conftests
+        # skip every module and the job then fails the coverage gate at 0%, so
+        # running them proves nothing. Declared per package rather than in a
+        # central list, because the reason belongs with the package that has it.
+        ci_skip = data.get("tool", {}).get("axm-ci", {}).get("skip", False)
+        if not isinstance(ci_skip, bool):
+            raise TypeError(f"[tool.axm-ci].skip must be a boolean in {name}")
         members.append(
             {
                 "name": name,
                 "path": relative,
                 "tests": tests,
                 "dependencies": requirements,
+                "ci_skip": ci_skip,
             }
         )
     return sorted(members, key=lambda item: str(item["name"]))
@@ -145,7 +154,10 @@ def main() -> None:
         )
         event = json.loads(event_path.read_text()) if event_path else {}
         changed = _changed_paths(root, event)
-    selected = select(members, changed)
+    # `all` keeps every member: the quality workflow scores them all, including
+    # the ones this platform cannot test. `packages` drives the test matrix, so
+    # the members that declared [tool.axm-ci] skip = true are dropped from it.
+    selected = [m for m in select(members, changed) if not m["ci_skip"]]
     result = {"all": members, "packages": selected, "any": bool(selected)}
     print(json.dumps(result))
     if output := os.getenv("GITHUB_OUTPUT"):

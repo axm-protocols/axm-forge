@@ -107,6 +107,44 @@ def test_new_member_is_discovered_without_workflow_edits(tmp_path: Path) -> None
     ]
 
 
+def test_member_opting_out_leaves_the_matrix_but_stays_in_all(
+    tmp_path: Path,
+) -> None:
+    """A package the platform cannot test drops from `packages`, not from `all`.
+
+    The quality workflow scores every member, including those whose tests need
+    hardware this runner lacks; only the test matrix skips them.
+    """
+    _workspace(tmp_path)
+    optout = tmp_path / "libs/optout"
+    optout.mkdir()
+    (optout / "pyproject.toml").write_text(
+        '[project]\nname="demo-optout"\n\n[tool.axm-ci]\nskip = true\n'
+    )
+
+    result = _run(tmp_path, ["libs/optout/pyproject.toml"])
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert "demo-optout" in [m["name"] for m in payload["all"]]
+    assert "demo-optout" not in [m["name"] for m in payload["packages"]]
+
+
+def test_non_boolean_ci_skip_fails_closed(tmp_path: Path) -> None:
+    """A malformed opt-out is an error, never a silently ignored member."""
+    _workspace(tmp_path)
+    bad = tmp_path / "libs/bad"
+    bad.mkdir()
+    (bad / "pyproject.toml").write_text(
+        '[project]\nname="demo-bad"\n\n[tool.axm-ci]\nskip = "yes"\n'
+    )
+
+    result = _run(tmp_path, ["libs/bad/pyproject.toml"])
+
+    assert result.returncode != 0
+    assert "must be a boolean" in result.stderr
+
+
 @pytest.mark.parametrize("base", ["0" * 40, "f" * 40])
 def test_missing_history_runs_every_member(tmp_path: Path, base: str) -> None:
     _workspace(tmp_path)
