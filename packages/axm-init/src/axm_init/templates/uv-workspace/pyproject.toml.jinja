@@ -40,6 +40,10 @@ docs = [
 ]
 
 [tool.uv]
+# Pinned so setup-uv reads the version from here instead of querying the network
+# for "latest" on every job: that lookup is a per-job point of failure, and a
+# workspace runs it once per matrix leg.
+required-version = ">=0.9"
 constraint-dependencies = [
     # ruff pilote le formatage : version EXACTE et UNIQUE pour tout le workspace
     # (uv résout un environnement unique). Les membres portent un range `ruff>=0.16`,

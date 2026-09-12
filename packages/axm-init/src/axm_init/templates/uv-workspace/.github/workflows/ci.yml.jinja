@@ -7,27 +7,59 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  changes:
+    name: Detect workspace packages
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: {{ python_matrix }}
-        # PLACEHOLDER: replace `placeholder` with your real package names
-        # (one entry per publishable member under packages/), e.g.
-        #   package: [my-core, my-cli]
-        package:
-          - placeholder  # placeholder: fill in your packages/* member names
+    outputs:
+      packages: {% raw %}${{ steps.matrix.outputs.packages }}{% endraw %}
+      all: {% raw %}${{ steps.matrix.outputs.all }}{% endraw %}
+      any: {% raw %}${{ steps.matrix.outputs.any }}{% endraw %}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/workspace-matrix
+        id: matrix
+
+  test:
+    name: Test {% raw %}${{ matrix.package.name }}{% endraw %} (Python {% raw %}${{ matrix.python-version }}{% endraw %})
+    runs-on: ubuntu-latest
+    needs: changes
+    if: {% raw %}needs.changes.outputs.any == 'true'{% endraw %}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Discovered from the uv workspace, never listed here: adding a package
+        # needs no CI edit. A member whose tests cannot run on this platform
+        # opts out in its own pyproject with [tool.axm-ci] skip = true.
+        package: {% raw %}${{ fromJSON(needs.changes.outputs.packages) }}{% endraw %}
+        python-version: {{ python_matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - name: Set up Python {% raw %}${{ matrix.python-version }}{% endraw %}
         run: uv python install {% raw %}${{ matrix.python-version }}{% endraw %}
       - name: Install dependencies
-        run: uv sync
-      - name: Test {% raw %}${{ matrix.package }}{% endraw %}
-        # `--package` is a `uv run` flag (selects the workspace member); it must
-        # come before `pytest`, not be passed to pytest.
-        run: uv run --package {% raw %}${{ matrix.package }}{% endraw %} pytest -q --cov -n auto
+        run: uv sync --all-packages --all-groups
+      - name: Test {% raw %}${{ matrix.package.name }}{% endraw %}
+        # `--package` and `--directory` are `uv run` flags (they select the
+        # workspace member); they must come before `pytest`, not be passed to it.
+        env:
+          PACKAGE: {% raw %}${{ matrix.package.name }}{% endraw %}
+          PACKAGE_DIR: {% raw %}${{ matrix.package.path }}{% endraw %}
+        run: uv run --package "$PACKAGE" --directory "$PACKAGE_DIR" pytest -q --cov -n auto
+      # Uploaded from the matrix leg that produced it, on one Python version
+      # only: a separate job re-running the suite to emit a global coverage.xml
+      # would repeat work these legs have already done.
+      - name: Upload coverage
+        if: {% raw %}matrix.python-version == '3.12'{% endraw %}
+        uses: codecov/codecov-action@v7
+        with:
+          files: {% raw %}${{ matrix.package.path }}{% endraw %}/coverage.xml
+          flags: {% raw %}${{ matrix.package.name }}{% endraw %}
+          fail_ci_if_error: false
 
   lint:
     runs-on: ubuntu-latest

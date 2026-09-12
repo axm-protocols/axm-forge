@@ -79,16 +79,23 @@ def test_workspace_ci_pytest_invocation_valid(rendered_workspace: Path) -> None:
     assert pkg_line.index("--package") < pkg_line.index("pytest"), pkg_line
 
 
-def test_workspace_ci_matrix_is_documented_placeholder(
+def test_workspace_ci_matrix_is_discovered_not_hand_written(
     rendered_workspace: Path,
 ) -> None:
-    """AC2: the package matrix is an obvious documented placeholder, not silent."""
+    """AC2: the package matrix comes from the workspace, never from a literal.
+
+    A hand-written list is the failure this replaces: it goes stale silently,
+    and a scaffold shipped one placeholder entry that ran against a package
+    nobody had named yet.
+    """
     ci = (rendered_workspace / ".github" / "workflows" / "ci.yml").read_text()
-    assert "placeholder" in ci.lower()
-    # A comment must flag it so the user knows to fill it in.
-    assert any("#" in ln and "placeholder" in ln.lower() for ln in ci.splitlines()), (
-        "placeholder matrix must be documented with a comment"
-    )
+
+    assert "placeholder" not in ci.lower()
+    assert "fromJSON(needs.changes.outputs.packages)" in ci
+    assert (rendered_workspace / ".github/scripts/workspace_ci.py").is_file()
+    assert (
+        rendered_workspace / ".github/actions/workspace-matrix/action.yml"
+    ).is_file()
 
 
 @pytest.mark.slow

@@ -138,6 +138,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Scaffolded CI scripts, not library code: workspace_ci.py writes its
+# member inventory to stdout for the GitHub Action to read, so print is
+# the interface, and it shells out to git with a fixed argv.
+"src/axm_init/templates/*/.github/scripts/*" = ["T201", "S603", "S607"]
 "tests_axm_init/*" = ["S101", "S105", "S106", "S108", "PLR2004", "BLE001"]
 "src/axm_init/checks/*" = ["PLR2004", "BLE001"]
 "src/axm_init/adapters/*" = ["BLE001", "PLR2004"]

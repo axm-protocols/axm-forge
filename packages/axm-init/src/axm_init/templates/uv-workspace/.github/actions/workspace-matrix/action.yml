@@ -1,0 +1,23 @@
+name: Workspace matrix
+description: Resolve uv members once and select affected packages and their dependants.
+outputs:
+  all:
+    description: All current workspace member metadata
+    value: ${{ steps.matrix.outputs.all }}
+  packages:
+    description: Affected member metadata
+    value: ${{ steps.matrix.outputs.packages }}
+  any:
+    description: Whether affected members exist
+    value: ${{ steps.matrix.outputs.any }}
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v7
+    - id: matrix
+      shell: bash
+      # --with pulls axm-ingot from PyPI: a fresh workspace has no reason to
+      # vendor it, and the script only needs resolve_workspace.
+      run: >-
+        uv run --no-project --python 3.12 --with axm-ingot
+        python .github/scripts/workspace_ci.py
