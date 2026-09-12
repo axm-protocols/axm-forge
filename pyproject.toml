@@ -40,6 +40,11 @@ docs = [
 ]
 
 [tool.uv]
+# Pinned so setup-uv resolves the version from this file instead of querying
+# the network for "latest" on every job: that lookup took the CI down on
+# 2026-09-11 ("Error: fetch failed" from raw.githubusercontent.com), and a
+# workspace this size runs it twenty-odd times per push.
+required-version = ">=0.9"
 constraint-dependencies = [
     # ruff pilote le formatage : la version doit être EXACTE et UNIQUE pour tout
     # le workspace (uv résout un environnement unique). Déclarée ici une seule fois,
