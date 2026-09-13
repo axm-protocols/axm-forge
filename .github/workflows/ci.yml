@@ -67,8 +67,12 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
       - run: uv sync --all-packages --all-groups
+      # Blocking, deliberately. It was warn-only "until all transitive CVEs have
+      # upstream fixes"; pip-audit reports this workspace clean today, so the
+      # bypass protects nothing and would hide the next one. A vulnerability
+      # with genuinely no upstream fix gets named here (`--ignore-vuln PYSEC-…`),
+      # as a dated decision rather than a blanket switch.
       - run: uv run pip-audit
-        continue-on-error: true  # warn-only until all transitive CVEs have upstream fixes
 
   test:
     env:
