@@ -31,7 +31,10 @@ members = [
     "axm-vault",
 ]
 constraints = [
+    { name = "mypy", specifier = "==2.3.1" },
+    { name = "prek", specifier = "==0.5.2" },
     { name = "pygments", specifier = ">=2.20.0" },
+    { name = "pytest", specifier = "==9.1.1" },
     { name = "requests", specifier = ">=2.33.0" },
     { name = "ruff", specifier = "==0.16.6" },
 ]
@@ -178,9 +181,9 @@ provides-extras = ["all", "audit", "bib", "init", "mcp"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.20.0" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -237,8 +240,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.3.0" },
-    { name = "prek", specifier = ">=0.4.12" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
@@ -303,10 +306,10 @@ provides-extras = ["typescript"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -377,10 +380,10 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.9.3" },
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-json-report", specifier = ">=1.5" },
@@ -451,8 +454,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
@@ -505,8 +508,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
@@ -565,8 +568,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
@@ -617,10 +620,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -662,10 +665,10 @@ docs = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.2.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.10.1" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.1.0" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -717,10 +720,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -758,8 +761,8 @@ docs = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
@@ -825,10 +828,10 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "axm-doctor", editable = "packages/axm-doctor" },
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.7.3" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -970,9 +973,9 @@ provides-extras = ["all", "anvil", "ast", "audit", "bib", "edit", "forge", "git"
 dev = [
     { name = "axm-ast", editable = "packages/axm-ast" },
     { name = "axm-edit", editable = "packages/axm-edit" },
-    { name = "mypy", specifier = ">=1.19" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
@@ -1027,10 +1030,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "mypy", specifier = ">=2.3.1" },
     { name = "pip-audit", specifier = ">=2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
-    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "prek", specifier = ">=0.5.2" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
@@ -1094,8 +1097,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = ">=2.2.0" },
-    { name = "prek", specifier = ">=0.4.9" },
+    { name = "mypy", specifier = ">=2.3.1" },
+    { name = "prek", specifier = ">=0.5.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-mock", specifier = ">=3.15.1" },

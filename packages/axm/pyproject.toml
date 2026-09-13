@@ -61,13 +61,13 @@ managed = true
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.1.1",
     "pytest-xdist>=3.8.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "ruff>=0.16",
-    "mypy>=1.20.0",
-    "prek>=0.4.9",
+    "mypy>=2.3.1",
+    "prek>=0.5.2",
 ]
 docs = [
     "mkdocs-material>=9.0",

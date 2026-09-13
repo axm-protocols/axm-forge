@@ -22,12 +22,12 @@ Documentation = "https://forge.axm-protocols.io"
 
 [dependency-groups]
 dev = [
-    "prek>=0.4.9",
+    "prek>=0.5.2",
     "ruff>=0.16",
-    "pytest>=9.1.0",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "mypy>=2.2.0",
+    "mypy>=2.3.1",
     "pip-audit>=2.10.1",
     "pytest-xdist>=3.8.0",
 ]
@@ -46,11 +46,20 @@ docs = [
 # workspace this size runs it twenty-odd times per push.
 required-version = ">=0.9"
 constraint-dependencies = [
-    # ruff pilote le formatage : la version doit être EXACTE et UNIQUE pour tout
-    # le workspace (uv résout un environnement unique). Déclarée ici une seule fois,
-    # les membres portent un range `ruff>=0.16` : un bump = 1 PR Dependabot mergeable
+    # Les quatre outils dont la version EST le verdict de CI : lint, formatage,
+    # typage, hooks et runner de tests. uv résout un environnement unique pour
+    # tout le workspace, donc la version exacte est fixée ici une seule fois et
+    # les membres ne portent qu'un plancher. Un bump = 1 PR Dependabot mergeable
     # au lieu de 15 dont 14 insolubles par divergence de pin.
+    #
+    # Sans cette contrainte les planchers dérivent en silence : mesuré le
+    # 2026-09-13, mypy était déclaré `>=1.19`, `>=1.20.0`, `>=2.2.0` et `>=2.3.0`
+    # selon les membres — quatre contrats différents pour une seule version
+    # réellement installée, dont un écart de version majeure.
     "ruff==0.16.6",
+    "mypy==2.3.1",
+    "pytest==9.1.1",
+    "prek==0.5.2",
     "requests>=2.33.0",
     "pygments>=2.20.0",
 ]
