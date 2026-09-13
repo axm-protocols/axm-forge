@@ -92,7 +92,7 @@ dev = [
     "pytest-mock>=3.15.1",
     "ruff>=0.16",
     "mypy>=2.3.1",
-    "prek>=0.5.2",
+    "prek>=0.5.3",
     "types-pyyaml>=6.0.12.20250915",
     "types-jsonschema>=4.26.0.20260202",
     # test-only: the shared-mode e2e suite drives real write tools through the

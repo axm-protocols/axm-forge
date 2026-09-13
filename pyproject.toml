@@ -22,7 +22,7 @@ Documentation = "https://forge.axm-protocols.io"
 
 [dependency-groups]
 dev = [
-    "prek>=0.5.2",
+    "prek>=0.5.3",
     "ruff>=0.16",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
@@ -59,7 +59,7 @@ constraint-dependencies = [
     "ruff==0.16.6",
     "mypy==2.3.1",
     "pytest==9.1.1",
-    "prek==0.5.2",
+    "prek==0.5.3",
     "requests>=2.33.0",
     "pygments>=2.20.0",
 ]
