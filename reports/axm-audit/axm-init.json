@@ -1,11 +1,10 @@
 {
-  "score": 96.5,
+  "score": 93.5,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_COMPLEXITY: Complexity score: 100/100 (0 high-complexity functions)",
     "QUALITY_TESTS: Test coverage: 94% (93/100)",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -17,7 +16,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 98% (175/179)",
+      "message": "Docstring coverage: 98% (178/182)",
       "text": "     \u2022 axm_init/models/protocol_scaffold.py: model_name, factory_name, factory_name, graph_name",
       "fix_hint": "Add docstrings to public functions"
     },
@@ -68,6 +67,12 @@
       "message": "1 god class(es) found",
       "text": "\u2022 scaffold.py:InitScaffoldTool 641L/14M",
       "fix_hint": "Split large classes into smaller, focused classes"
+    },
+    {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
+      "text": "\u2022 axm_init/templates/uv-workspace/.github/scripts/workspace_ci.py:select cc=16 (C) cog=23 [cc+cog]\n\u2022 axm_init/templates/uv-workspace/.github/scripts/workspace_ci.py:discover cc=14 (C) cog=22 [cc+cog]",
+      "fix_hint": "Refactor complex functions into smaller units"
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
