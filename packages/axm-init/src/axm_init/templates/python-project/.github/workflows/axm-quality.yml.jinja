@@ -50,6 +50,34 @@ jobs:
                 > "$DIR/$NAME.json"
             fi
           }
+          write_error_badge() {
+            local DIR=$1 NAME=$2 LABEL=$3
+            mkdir -p "$DIR"
+            jq -n --arg l "$LABEL" \
+              '{schemaVersion:1, label:$l, message:"error", color:"red", style:"flat"}' \
+              > "$DIR/$NAME.json"
+          }
+
+          # Guard invoked BEFORE extracting a score: RESULT must be non-empty,
+          # valid JSON, carrying a numeric `.score`. On any failure it writes an
+          # explicit error badge and exits 1 rather than falling through to a
+          # bogus "null%" badge -- which is exactly how a broken audit command
+          # stayed invisible across the whole ecosystem for three months.
+          require_valid_result() {
+            local RESULT=$1 DIR=$2 NAME=$3 LABEL=$4
+            if [ -z "$RESULT" ] || ! printf '%s' "$RESULT" | jq -e . >/dev/null 2>&1; then
+              echo "badge-helpers: RESULT is empty or not valid JSON" >&2
+              write_error_badge "$DIR" "$NAME" "$LABEL"
+              exit 1
+            fi
+            local SCORE
+            SCORE=$(printf '%s' "$RESULT" | jq -r '.score')
+            if ! printf '%s' "$SCORE" | grep -Eq '^-?[0-9]+(\.[0-9]+)?$'; then
+              echo "badge-helpers: .score is not numeric ('$SCORE')" >&2
+              write_error_badge "$DIR" "$NAME" "$LABEL"
+              exit 1
+            fi
+          }
           HELPERS
 
           # Pre-fetch the AXM logo once (valid URL; one logo for both badges)
@@ -75,7 +103,8 @@ jobs:
         id: audit
         run: |
           source /tmp/badge-helpers.sh
-          RESULT=$(uvx --from axm-audit axm audit . --json-output) || true
+          RESULT=$(uvx --from axm --with axm-audit axm audit . --json-output) || true
+          require_valid_result "$RESULT" "_publish/badges" "axm-audit" "axm-audit"
           SCORE=$(echo "$RESULT" | jq '.score')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
           write_badge "_publish/badges" "axm-audit" "axm-audit" "$SCORE" /tmp/axm-logo.svg
@@ -86,7 +115,8 @@ jobs:
         id: check
         run: |
           source /tmp/badge-helpers.sh
-          RESULT=$(uvx --from axm-init axm init_check . --json-output) || true
+          RESULT=$(uvx --from axm --with axm-init axm init_check . --json-output) || true
+          require_valid_result "$RESULT" "_publish/badges" "axm-init" "axm-init"
           SCORE=$(echo "$RESULT" | jq '.score')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
           write_badge "_publish/badges" "axm-init" "axm-init" "$SCORE" /tmp/axm-logo.svg
