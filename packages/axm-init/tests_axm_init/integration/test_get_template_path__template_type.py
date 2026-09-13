@@ -106,7 +106,6 @@ class TestWorkspaceTemplateStructure:
             "docs.yml",
             "release.yml",
             "axm-quality.yml.jinja",
-            "pre-commit-autoupdate.yml",
         ]:
             assert (ci / name).exists(), f"Missing CI workflow: {name}"
 
@@ -258,13 +257,27 @@ class TestPrekMigration:
             pytest.param(TemplateType.WORKSPACE, id="workspace"),
         ],
     )
-    def test_dependabot_references_prek(self, template: TemplateType) -> None:
-        """AC5: dependabot.yml (when present) references prek, not pre-commit."""
+    def test_dependabot_does_not_invoke_precommit(self, template: TemplateType) -> None:
+        """AC5: dependabot.yml never invokes the abandoned pre-commit TOOL.
+
+        The bare string ``pre-commit`` stopped being a useful marker: prek reads
+        the very same ``.pre-commit-config.yaml``, and Dependabot names
+        ``pre-commit`` the ECOSYSTEM that tracks the ``rev:`` of that format —
+        it only parses the YAML and queries each hook repository for new tags,
+        never running either tool. Forbidding the substring would forbid naming
+        the file we actually use. Only invocations of the abandoned tool are.
+        """
         path = Path(get_template_path(template)) / ".github" / "dependabot.yml"
         if not path.is_file():
             pytest.skip("no dependabot.yml in this template")
         content = path.read_text()
-        assert "pre-commit" not in content
+        for invocation in (
+            "pip install pre-commit",
+            "pre-commit run",
+            "pre-commit autoupdate",
+            "pre-commit install",
+        ):
+            assert invocation not in content
 
     @pytest.mark.parametrize(
         "template",
@@ -273,13 +286,19 @@ class TestPrekMigration:
             pytest.param(TemplateType.WORKSPACE, id="workspace"),
         ],
     )
-    def test_autoupdate_workflow_uses_prek(self, template: TemplateType) -> None:
-        """AC5: pre-commit-autoupdate.yml uses prek autoupdate via uv tool install."""
-        content = _read(template, ".github", "workflows", "pre-commit-autoupdate.yml")
-        assert "uv tool install prek" in content
-        assert "prek autoupdate" in content
-        assert "pip install pre-commit" not in content
-        assert "pre-commit autoupdate" not in content
+    def test_no_autoupdate_cron_workflow(self, template: TemplateType) -> None:
+        """The hook `rev:` is tracked by Dependabot, not by a scheduled workflow.
+
+        A `prek autoupdate` cron duplicated what the `pre-commit` Dependabot
+        ecosystem does natively since 2026-03-10 — and did it worse: no
+        changelog in the PR, and no branch cleanup, which left orphaned
+        branches behind on every workspace that shipped it. axm-forge never
+        carried one. The scaffold must not recreate it beside the ecosystem
+        block now declared in dependabot.yml.
+        """
+        workflows = Path(get_template_path(template)) / ".github" / "workflows"
+        assert not (workflows / "pre-commit-autoupdate.yml").exists()
+        assert not (workflows / "prek-autoupdate.yml").exists()
 
     @pytest.mark.parametrize(
         "template",

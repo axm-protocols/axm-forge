@@ -172,3 +172,30 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # ── pre-commit hooks: the `rev:` of .pre-commit-config.yaml ────────────────
+  # Écosystème `pre-commit` (Dependabot GA 2026-03-10) : il lit le fichier,
+  # interroge le dépôt de chaque hook et propose le bump de `rev:`, changelog
+  # inclus. Ces révisions n'étaient suivies par AUCUN des blocs ci-dessus —
+  # ni `uv` (le hook télécharge son propre binaire, hors du lock), ni
+  # `github-actions`. Elles dérivaient donc en silence.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      pre-commit-hooks:
+        patterns:
+          - "*"
+    ignore:
+      # ruff est déclaré à DEUX endroits qui doivent rester égaux : ce `rev:`
+      # et `[tool.uv].constraint-dependencies`. Dependabot ne connaît que le
+      # premier : sa PR formaterait en local avec une version pendant que la CI
+      # vérifierait avec l'autre, et `ruff format --check` étant bloquant, la
+      # divergence se paierait au push suivant.
+      #
+      # Même portée étroite que l'`ignore` tree-sitter plus haut : on exclut ce
+      # seul hook, pas l'écosystème. Les deux autres (pre-commit-hooks,
+      # conventional-pre-commit) n'ont pas ce couplage et restent suivis.
+      # Le bump de ruff se fait donc à la main, les deux sites ensemble.
+      - dependency-name: astral-sh/ruff-pre-commit

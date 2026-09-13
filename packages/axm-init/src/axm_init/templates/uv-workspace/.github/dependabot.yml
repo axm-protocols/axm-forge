@@ -21,3 +21,24 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # pre-commit ecosystem (Dependabot GA 2026-03-10): reads
+  # .pre-commit-config.yaml, queries each hook's repository and proposes the
+  # `rev:` bump with its changelog. Those revisions are tracked by NEITHER
+  # block above -- a hook downloads its own binary, outside the lock.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      pre-commit-hooks:
+        patterns:
+          - "*"
+    ignore:
+      # ruff is declared in TWO places that must stay equal: this `rev:` and
+      # `[tool.uv].constraint-dependencies`. Dependabot only knows the first,
+      # so its PR would format locally with one version while CI checks with
+      # the other -- and `ruff format --check` is blocking. Bump both sites
+      # together, by hand. Narrow on purpose: the other hooks have no such
+      # coupling and stay tracked.
+      - dependency-name: astral-sh/ruff-pre-commit
