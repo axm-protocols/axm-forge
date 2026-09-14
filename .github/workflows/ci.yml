@@ -108,10 +108,3 @@ jobs:
         # `pytest` reste séquentiel et déterministe en local — l'option qu'on
         # désactive pour déboguer n'a rien à faire dans le défaut.
         run: uv run --package "$PACKAGE" --directory "$PACKAGE_DIR" pytest --cov -n auto
-      - name: Upload coverage
-        if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v7
-        with:
-          files: ${{ matrix.package.path }}/coverage.xml
-          flags: ${{ matrix.package.name }}
-          fail_ci_if_error: false
