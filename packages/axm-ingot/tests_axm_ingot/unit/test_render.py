@@ -106,12 +106,13 @@ def test_render_result_renders_scalar_only_payload_in_arrow_form() -> None:
 
 def test_render_result_never_raises_on_arbitrary_object() -> None:
     out = render_result("t", object())
-    assert isinstance(out, str)
+    assert out.startswith("t")
+    assert "\n" not in out
 
     cyclic: dict[str, object] = {}
     cyclic["self"] = cyclic
     result = render_result("t", cyclic)
-    assert isinstance(result, str)
+    assert result == "t"
 
 
 def test_record_table_emits_lossless_header_and_value_rows() -> None:
