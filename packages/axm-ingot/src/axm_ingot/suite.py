@@ -55,28 +55,36 @@ def _direct_suite_dirs(root: Path) -> tuple[Path, ...]:
     return ()
 
 
-def _configured_suite_dirs(root: Path) -> tuple[Path, ...]:
-    """Read existing, project-owned pytest ``testpaths`` from pyproject.toml."""
+def _raw_testpaths(root: Path) -> list[object]:
     try:
         data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
-        return ()
+        return []
     tool = data.get("tool")
     pytest_cfg = tool.get("pytest") if isinstance(tool, dict) else None
     ini = pytest_cfg.get("ini_options") if isinstance(pytest_cfg, dict) else None
     raw_paths = ini.get("testpaths") if isinstance(ini, dict) else None
-    values = raw_paths if isinstance(raw_paths, list) else []
+    return raw_paths if isinstance(raw_paths, list) else []
+
+
+def _owned_dir(root: Path, resolved_root: Path, raw: object) -> Path | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = (root / raw).resolve()
+    try:
+        candidate.relative_to(resolved_root)
+    except ValueError:
+        return None
+    return candidate if candidate.is_dir() else None
+
+
+def _configured_suite_dirs(root: Path) -> tuple[Path, ...]:
+    """Read existing, project-owned pytest ``testpaths`` from pyproject.toml."""
     owned: list[Path] = []
     resolved_root = root.resolve()
-    for raw in values:
-        if not isinstance(raw, str) or not raw.strip():
-            continue
-        candidate = (root / raw).resolve()
-        try:
-            candidate.relative_to(resolved_root)
-        except ValueError:
-            continue
-        if candidate.is_dir() and candidate not in owned:
+    for raw in _raw_testpaths(root):
+        candidate = _owned_dir(root, resolved_root, raw)
+        if candidate is not None and candidate not in owned:
             owned.append(candidate)
     return tuple(owned)
 

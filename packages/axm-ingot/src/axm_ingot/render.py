@@ -68,6 +68,31 @@ def labeled_block(label: str, lines: Sequence[str | None]) -> str:
     return "\n".join([label, *body])
 
 
+def _build_matrix(
+    rows: Sequence[Sequence[object]],
+    headers: Sequence[object] | None,
+) -> list[list[str]]:
+    matrix: list[list[str]] = []
+    if headers is not None:
+        matrix.append([_cell(h) for h in headers])
+    matrix.extend([_cell(c) for c in row] for row in rows)
+    if not matrix:
+        return matrix
+    ncols = max(len(row) for row in matrix)
+    for row in matrix:
+        row.extend([""] * (ncols - len(row)))
+    return matrix
+
+
+def _render_rows(matrix: list[list[str]]) -> list[str]:
+    ncols = len(matrix[0])
+    widths = [max(len(row[col]) for row in matrix) for col in range(ncols)]
+    return [
+        _COL_SEP.join(row[col].ljust(widths[col]) for col in range(ncols)).rstrip()
+        for row in matrix
+    ]
+
+
 def compact_table(
     rows: Sequence[Sequence[object]],
     headers: Sequence[object] | None = None,
@@ -77,21 +102,10 @@ def compact_table(
     Tolerates ragged rows (short rows are padded) and arbitrarily wide cells.
     ``None`` cells render as empty, never as the literal ``"None"``.
     """
-    matrix: list[list[str]] = []
-    if headers is not None:
-        matrix.append([_cell(h) for h in headers])
-    matrix.extend([_cell(c) for c in row] for row in rows)
+    matrix = _build_matrix(rows, headers)
     if not matrix:
         return ""
-    ncols = max(len(row) for row in matrix)
-    for row in matrix:
-        row.extend([""] * (ncols - len(row)))
-    widths = [max(len(row[col]) for row in matrix) for col in range(ncols)]
-    out = []
-    for row in matrix:
-        line = _COL_SEP.join(row[col].ljust(widths[col]) for col in range(ncols))
-        out.append(line.rstrip())
-    return "\n".join(out)
+    return "\n".join(_render_rows(matrix))
 
 
 def truncate(text: str, limit: int) -> str:
