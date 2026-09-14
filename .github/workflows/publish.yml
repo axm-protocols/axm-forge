@@ -36,6 +36,15 @@ jobs:
     name: Run Tests (${{ needs.detect-package.outputs.package }})
     needs: detect-package
     runs-on: ubuntu-latest
+    # Same gate as the publish job below: this suite exists to protect an
+    # upload, so it is pointless when there will be no upload. Without the
+    # condition it ran on every tag of a private package — measured on the
+    # first two tags of axm-nexus, 72 s for axm-dag and 53 s for axm-loom,
+    # siblings cloned included, to then skip Build and Publish. `ci.yml`
+    # already tested this code on the commit the tag points at.
+    if: >-
+      needs.detect-package.outputs.publishable == 'true'
+      && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v7
         with:
