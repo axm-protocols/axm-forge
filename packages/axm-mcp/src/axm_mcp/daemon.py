@@ -8,7 +8,7 @@ from hashlib import blake2s
 
 from axm_config import current_profile
 
-from axm_mcp.settings import resolve_http_port, resolve_pid_file
+from axm_mcp.settings import health_url, resolve_http_port, resolve_pid_file
 
 __all__ = ["daemon_descriptor"]
 
@@ -41,7 +41,11 @@ def daemon_descriptor() -> Mapping[str, Mapping[str, object]]:
     if explicit_port is not None:
         environment["AXM_MCP_PORT"] = explicit_port
 
-    probe = {"kind": "http", "url": f"http://127.0.0.1:{port}"}
+    #: The liveness path, not the bare origin: the server answers `/` with 404,
+    #: which a supervisor reads as unresponsive. It then reports a live server
+    #: as stopped and its caller starts a second one, which dies on the address
+    #: already in use.
+    probe = {"kind": "http", "url": health_url("127.0.0.1", port)}
     service: dict[str, object] = {
         "argv": ["axm-mcp", "serve", "--port", str(port)],
         "pid_file": str(pid_file),

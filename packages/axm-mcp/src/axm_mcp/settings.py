@@ -9,13 +9,30 @@ from typing import Literal
 from axm_config import current_profile, get, profile_root
 
 __all__ = [
+    "HEALTH_PATH",
     "NonProductionPortError",
+    "health_url",
     "resolve_http_port",
     "resolve_pid_file",
     "resolve_serve_mode",
 ]
 
+#: Path the server answers a liveness check on. Declared here rather than at the
+#: route, because three places must agree on it: the route that serves it, the
+#: ``status`` CLI that polls it, and the daemon descriptor that publishes it to
+#: the supervisor. They did not: the descriptor advertised the bare origin,
+#: which the server answers with 404, so a supervisor probing that URL read a
+#: live server as stopped — and its caller then tried to start a second one.
+#: A module the others already import, and that imports nothing of its own,
+#: keeps the descriptor free of the serving stack it must not pull in.
+HEALTH_PATH = "/health"
+
 type ServeMode = Literal["shared", "dedicated"]
+
+
+def health_url(host: str, port: int) -> str:
+    """Build the liveness URL a supervisor or the CLI should poll."""
+    return f"http://{host}:{port}{HEALTH_PATH}"
 
 
 class NonProductionPortError(ValueError):

@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse
 import axm_mcp.wrapping as _wrapping
 from axm_mcp.cli import DEFAULT_PORT
 from axm_mcp.mcp_app import mcp
+from axm_mcp.settings import HEALTH_PATH
 
 __all__ = ["DEFAULT_PORT", "health_check", "serve"]
 
@@ -28,7 +29,7 @@ class SharedModeNotArmedError(RuntimeError):
     """Raised when shared serving lacks a per-session contract resolver."""
 
 
-@mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
+@mcp.custom_route(HEALTH_PATH, methods=["GET"])  # type: ignore[untyped-decorator]
 async def health_check(request: Request) -> JSONResponse:
     """Return server health with registered tool count.
 

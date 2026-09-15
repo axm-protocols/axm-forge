@@ -7,6 +7,7 @@ from typing import Protocol, cast
 import pytest
 
 from axm_mcp.settings import (
+    HEALTH_PATH,
     NonProductionPortError,
     resolve_http_port,
     resolve_pid_file,
@@ -58,8 +59,12 @@ def test_http_probe_uses_active_profile_port(
 
     assert isinstance(probe, dict)
     assert probe["kind"] == "http"
-    assert probe["url"].endswith(f":{resolve_http_port()}")
-    assert probe["url"].endswith(":9500")
+    #: The port is no longer the tail of the URL — the liveness path follows it.
+    #: Asserting `endswith(port)` pinned the bare origin, which is exactly the
+    #: URL the server answers with 404; the two assertions below would have gone
+    #: red on the fix rather than on a regression.
+    assert probe["url"] == f"http://127.0.0.1:{resolve_http_port()}{HEALTH_PATH}"
+    assert probe["url"] == f"http://127.0.0.1:9500{HEALTH_PATH}"
 
 
 def test_environment_propagates_profile_and_explicit_port(
