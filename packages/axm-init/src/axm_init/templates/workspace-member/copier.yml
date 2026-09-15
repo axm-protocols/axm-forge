@@ -46,6 +46,12 @@ workspace_name:
   type: str
   help: "Parent workspace name (for URLs)"
 
+private:
+  type: bool
+  help: "Prevent publication to PyPI"
+  # Safe default: removing one classifier is reversible; an accidental PyPI upload is not.
+  default: true
+
 # =============================================================================
 # Computed values
 # =============================================================================

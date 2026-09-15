@@ -44,6 +44,36 @@ def generated_project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return destination
 
 
+@pytest.fixture(scope="module")
+def generated_workspace_member(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    destination = tmp_path_factory.mktemp("generated-member") / "generated-member"
+    result = CopierAdapter().copy(
+        CopierConfig(
+            template_path=get_template_path(TemplateType.MEMBER),
+            destination=destination,
+            data={
+                "member_name": "generated-member",
+                "workspace_name": "generated-workspace",
+                "org": "example-org",
+                "author_name": "Example Author",
+                "author_email": "author@example.com",
+            },
+            trust_template=True,
+            skip_tasks=True,
+        )
+    )
+    assert result.success, result.message
+    return destination
+
+
+def _classifiers(project: Path) -> list[str]:
+    with (project / "pyproject.toml").open("rb") as stream:
+        pyproject = tomllib.load(stream)
+    classifiers = pyproject["project"]["classifiers"]
+    assert isinstance(classifiers, list)
+    return classifiers
+
+
 def _mirror_exemptions(project: Path) -> list[str]:
     with (project / "pyproject.toml").open("rb") as stream:
         pyproject = tomllib.load(stream)
@@ -88,3 +118,33 @@ def test_generated_seed_version_test_documents_mirror_exemption(
     normalized = docstring.lower()
     assert "mirror" in normalized
     assert "exempt" in normalized
+
+
+@pytest.mark.integration
+def test_workspace_member_default_is_private(
+    generated_workspace_member: Path,
+) -> None:
+    """AC1: the workspace-member default prepends the private classifier."""
+    assert _classifiers(generated_workspace_member) == [
+        "Private :: Do Not Upload",
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Typing :: Typed",
+    ]
+
+
+@pytest.mark.integration
+def test_standalone_project_default_is_private(generated_project: Path) -> None:
+    """AC2: the standalone-project default prepends the private classifier."""
+    assert _classifiers(generated_project) == [
+        "Private :: Do Not Upload",
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Typing :: Typed",
+        "License :: OSI Approved :: Apache Software License",
+    ]

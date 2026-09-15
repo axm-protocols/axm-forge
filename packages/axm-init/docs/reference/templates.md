@@ -36,6 +36,15 @@ The [research template contract](research-templates.md) describes paper and
 experiment answers and generated files. The [scaffold command](scaffold.md)
 lists the public flags. Do not assume every Copier answer is a public flag.
 
+## Private-package default
+
+The Python `standalone` and `member` templates expose a Boolean Copier answer
+named `private`. It defaults to `true`. With that default, the generated
+`project.classifiers` list starts with the exact classifier
+`Private :: Do Not Upload`; all existing classifiers retain their order after
+it. Setting `private` to `false` omits only that leading classifier. The
+workspace-root and research templates are unaffected.
+
 ## Workspace patch results
 
 After member creation, `patch_all` returns `PatchReport` with `patched`,

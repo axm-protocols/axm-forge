@@ -189,21 +189,6 @@ def _detect_yaml_indent(lines: list[str], default: str = "          ") -> str:
     return default
 
 
-def _advance_past_marker(lines: list[str], list_marker: str | None) -> int:
-    """Return the first index to start scanning from (after the marker line).
-
-    If *list_marker* is ``None``, returns ``0`` so the whole buffer is scanned.
-    If the marker is never found, returns ``len(lines)`` so the outer loop
-    yields no items.
-    """
-    if list_marker is None:
-        return 0
-    for i, line in enumerate(lines):
-        if list_marker in line:
-            return i + 1
-    return len(lines)
-
-
 def _yaml_marker_offset(line: str, list_marker: str | None) -> int | None:
     if list_marker is None:
         return None

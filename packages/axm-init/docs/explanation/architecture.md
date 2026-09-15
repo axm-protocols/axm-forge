@@ -168,6 +168,7 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | Hexagonal architecture | Testable core, swappable adapters |
 | Pydantic models | Structured validation and serialization |
 | Copier for project scaffolding | Jinja2 templates, supports project updates |
+| Private Python packages by default | A private marker is reversible by removing one classifier; an unintended PyPI upload is irreversible, so standalone and member templates choose the safe failure mode |
 | Plans for protocol scaffolding | The deterministic plan is authoritative for preview and application; a canonical-root lock covers snapshot, preflight, writes and rollback so compatible concurrent declarations cannot overwrite one another, without serializing distinct roots |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Independent check functions | Each check takes a project path and returns a CheckResult; filesystem access remains explicit in tests |

@@ -64,6 +64,12 @@ python_min_version:
     - "3.13"
   default: "3.12"
 
+private:
+  type: bool
+  help: "Prevent publication to PyPI"
+  # Safe default: removing one classifier is reversible; an accidental PyPI upload is not.
+  default: true
+
 # =============================================================================
 # Computed values (hidden from user)
 # =============================================================================

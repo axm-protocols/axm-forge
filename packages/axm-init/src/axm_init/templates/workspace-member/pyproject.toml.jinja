@@ -7,6 +7,9 @@ license = "{{ license }}"
 requires-python = ">=3.12"
 authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
 classifiers = [
+{% if private %}
+    "Private :: Do Not Upload",
+{% endif -%}
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     {%- if license == "Apache-2.0" %}
