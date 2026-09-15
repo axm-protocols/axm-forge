@@ -7,9 +7,9 @@ license = { text = "{{ license }}" }
 requires-python = ">={{ python_min_version }}"
 authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
 classifiers = [
-{% if private %}
+    {%- if private %}
     "Private :: Do Not Upload",
-{% endif -%}
+    {%- endif %}
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
