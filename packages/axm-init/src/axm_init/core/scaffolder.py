@@ -29,7 +29,8 @@ def build_member_data(
     scaffold_data: Mapping[str, str],
     *,
     license_holder: str | None = None,
-) -> dict[str, str]:
+    private: bool | None = None,
+) -> dict[str, object]:
     """Build copier template variables for a workspace member scaffold.
 
     Args:
@@ -38,13 +39,14 @@ def build_member_data(
         scaffold_data: Caller identity fields — ``org``, ``author_name``,
             ``author_email``, ``license`` and optionally ``description``.
         license_holder: Explicit LICENSE holder; falls back to ``org``.
+        private: Publication guard forwarded to Copier when provided.
 
     Returns:
         The template-variable dict passed verbatim to copier. Identical inputs
         yield a byte-identical dict whatever the calling interface.
     """
     org = scaffold_data["org"]
-    return {
+    data: dict[str, object] = {
         "member_name": member_name,
         "workspace_name": workspace_name,
         "description": scaffold_data.get("description") or _DEFAULT_MEMBER_DESCRIPTION,
@@ -54,6 +56,9 @@ def build_member_data(
         "author_name": scaffold_data["author_name"],
         "author_email": scaffold_data["author_email"],
     }
+    if private is not None:
+        data["private"] = private
+    return data
 
 
 def resolve_workspace_root(target_path: Path) -> Path | None:

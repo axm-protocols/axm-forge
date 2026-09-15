@@ -1,5 +1,6 @@
 """Split from ``test_scaffold_tool_error_paths_and_member.py``."""
 
+import tomllib
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -529,3 +530,61 @@ def test_protocol_mode_previews_action_only_protocol_in_existing_unit(
     assert result.success is True, result.error
     assert result.data is not None
     assert result.data["preview"] is True
+
+
+@pytest.mark.integration
+def test_public_workspace_member_omits_private_classifier(tmp_path: Path) -> None:
+    """AC1: private=False rend le membre public avec ses classifiers ordonnés."""
+    workspace_root = tmp_path / "workspace"
+    workspace = _scaffold_without_tasks(
+        workspace_root,
+        name="public-workspace",
+        workspace=True,
+    )
+    assert workspace.success is True, workspace.error
+
+    member = _scaffold_without_tasks(
+        workspace_root,
+        member="public-member",
+        private=False,
+    )
+
+    assert member.success is True, member.error
+    pyproject = workspace_root / "packages" / "public-member" / "pyproject.toml"
+    rendered = pyproject.read_text(encoding="utf-8")
+    project = tomllib.loads(rendered)["project"]
+    assert "Private :: Do Not Upload" not in rendered
+    assert project["classifiers"] == [
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Typing :: Typed",
+    ]
+
+
+@pytest.mark.integration
+def test_public_standalone_project_omits_private_classifier(tmp_path: Path) -> None:
+    """AC2: private=False rend le projet public avec ses classifiers ordonnés."""
+    project_root = tmp_path / "public-project"
+
+    result = _scaffold_without_tasks(
+        project_root,
+        name="public-project",
+        private=False,
+    )
+
+    assert result.success is True, result.error
+    pyproject = project_root / "pyproject.toml"
+    rendered = pyproject.read_text(encoding="utf-8")
+    project = tomllib.loads(rendered)["project"]
+    assert "Private :: Do Not Upload" not in rendered
+    assert project["classifiers"] == [
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Typing :: Typed",
+        "License :: OSI Approved :: Apache Software License",
+    ]

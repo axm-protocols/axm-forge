@@ -41,6 +41,7 @@ This scaffolds a production-grade Python project with:
 | `--license` | | `Apache-2.0` | License (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | *--org* | License holder |
 | `--description` | | | One-line description |
+| `--private` / `--no-private` | | `True` | Keep the generated package private, or explicitly make it publishable |
 | `--workspace` | | `False` | Scaffold a UV workspace instead |
 | `--member` | | | Scaffold a member sub-package with this name |
 | `--framework` | | `python` | `python`, `node`, `svelte`; use non-Python only for standalone projects |
@@ -87,13 +88,38 @@ The `--member` flag:
 
 > **Note:** `--workspace` and `--member` are mutually exclusive.
 
-### 6. Research and protocol scaffolds
+### 6. Scaffold a public package
+
+Standalone projects and workspace members are private by default: their
+`pyproject.toml` contains the `Private :: Do Not Upload` classifier. This safe
+default avoids an irreversible accidental PyPI publication.
+
+Pass `--no-private` explicitly when the generated distribution is intended for
+publication:
+
+```bash
+axm init_scaffold public-project --no-private \
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+The same option applies to a member scaffold:
+
+```bash
+axm init_scaffold --member public-lib --no-private \
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+In both cases, the generated classifier list keeps its development status,
+Python versions, typing and license metadata, but omits
+`Private :: Do Not Upload`.
+
+### 7. Research and protocol scaffolds
 
 - [Scaffold a paper and its experiments](scaffold-research.md)
 - [Create, preview and apply protocol declarations](scaffold-protocols.md)
 - [Scaffold Node or Svelte projects](scaffold-web.md)
 
-### 7. Check PyPI availability
+### 8. Check PyPI availability
 
 ```bash
 axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
@@ -101,7 +127,7 @@ axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
 
-### 8. JSON output
+### 9. JSON output
 
 ```bash
 axm init_scaffold my-project --org myorg --author A --email e@e.com --json-output

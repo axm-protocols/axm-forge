@@ -272,6 +272,7 @@ class _ScaffoldContext:
     name: str | None
     description: str
     license_holder: str | None
+    private: bool
     framework: Framework
     workspace: bool
     member: str | None
@@ -351,6 +352,7 @@ class InitScaffoldTool:
             str,
             str,
             bool,
+            bool,
             str | None,
             str | None,
             Framework,
@@ -378,6 +380,13 @@ class InitScaffoldTool:
         license_type: str = _str("license", "Apache-2.0")
         license_holder: str | None = _opt_str("license_holder")
         description: str = _str("description")
+        private_raw = kwargs.get("private")
+        if not isinstance(private_raw, bool):
+            return ToolResult(
+                success=False,
+                error=f"'private' must be a boolean, got {type(private_raw).__name__}",
+            )
+        private: bool = private_raw
         workspace_raw = kwargs.get("workspace", False)
         if not isinstance(workspace_raw, bool):
             return ToolResult(
@@ -418,6 +427,7 @@ class InitScaffoldTool:
             email,
             license_type,
             description,
+            private,
             workspace,
             member,
             license_holder,
@@ -432,7 +442,8 @@ class InitScaffoldTool:
         description: str,
         meta: _ProjectMeta,
         license_holder: str | None,
-    ) -> dict[str, str]:
+        private: bool,
+    ) -> dict[str, object]:
         """Build template data dict for workspace or standalone scaffold."""
         name_key = "workspace_name" if workspace else "package_name"
         default_desc = (
@@ -446,6 +457,7 @@ class InitScaffoldTool:
             "license_holder": license_holder or meta.org,
             "author_name": meta.author_name,
             "author_email": meta.author_email,
+            "private": private,
         }
 
     def execute(
@@ -459,6 +471,8 @@ class InitScaffoldTool:
         license: str = "Apache-2.0",
         license_holder: str | None = None,
         description: str = "",
+        # Safe default: removing one classifier is reversible; a PyPI upload is not.
+        private: bool = True,
         workspace: bool = False,
         member: str | None = None,
         framework: str = Framework.PYTHON.value,
@@ -483,6 +497,7 @@ class InitScaffoldTool:
                 license: License type.
                 license_holder: License holder (defaults to org).
                 description: Project description.
+                private: If True, prevent publication to PyPI.
                 workspace: If True, scaffold a UV workspace.
                 member: Member package name to scaffold inside a workspace.
                 framework: Target framework (python, node, svelte).
@@ -502,6 +517,7 @@ class InitScaffoldTool:
             "license": license,
             "license_holder": license_holder,
             "description": description,
+            "private": private,
             "workspace": workspace,
             "member": member,
             "framework": framework,
@@ -556,6 +572,7 @@ class InitScaffoldTool:
             email,
             license_type,
             description,
+            private,
             workspace,
             member,
             license_holder,
@@ -596,6 +613,7 @@ class InitScaffoldTool:
             name=name,
             description=description,
             license_holder=license_holder,
+            private=private,
             framework=framework,
             workspace=workspace,
             member=member,
@@ -631,6 +649,7 @@ class InitScaffoldTool:
                 "description": ctx.description,
             },
             license_holder=ctx.license_holder,
+            private=ctx.private,
         )
         request = ctx.protocol_request
         if not member_result.success or request is None:
@@ -666,6 +685,7 @@ class InitScaffoldTool:
                     description=ctx.description,
                     meta=ctx.meta,
                     license_holder=ctx.license_holder,
+                    private=ctx.private,
                 ),
                 trust_template=True,
             )
@@ -888,6 +908,7 @@ class InitScaffoldTool:
         *,
         scaffold_data: dict[str, str],
         license_holder: str | None = None,
+        private: bool | None = None,
     ) -> ToolResult:
         """Scaffold a member sub-package inside an existing workspace.
 
@@ -896,6 +917,7 @@ class InitScaffoldTool:
             member_name: Name of the new member package.
             scaffold_data: Template variables (org, author, email, etc.).
             license_holder: Explicit LICENSE holder; falls back to ``org``.
+            private: Publication guard forwarded to Copier when provided.
 
         Returns:
             ToolResult with member scaffold results.
@@ -920,6 +942,7 @@ class InitScaffoldTool:
             read_workspace_name(workspace_root),
             scaffold_data,
             license_holder=license_holder,
+            private=private,
         )
 
         copier_adapter = CopierAdapter()
