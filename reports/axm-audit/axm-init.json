@@ -1,11 +1,12 @@
 {
-  "score": 93.5,
+  "score": 93.6,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
-    "ARCH_COUPLING: Coupling: 2 module(s) above threshold (-6 pts)",
+    "ARCH_COUPLING: Coupling: 3 module(s) above threshold (-9 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
     "QUALITY_TESTS: Test coverage: 94% (93/100)",
+    "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
@@ -65,7 +66,7 @@
     {
       "rule_id": "ARCH_GOD_CLASS",
       "message": "1 god class(es) found",
-      "text": "\u2022 scaffold.py:InitScaffoldTool 641L/14M",
+      "text": "\u2022 scaffold.py:InitScaffoldTool 668L/14M",
       "fix_hint": "Split large classes into smaller, focused classes"
     },
     {
@@ -73,12 +74,6 @@
       "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "text": "\u2022 axm_init/templates/uv-workspace/.github/scripts/workspace_ci.py:select cc=16 (C) cog=23 [cc+cog]\n\u2022 axm_init/templates/uv-workspace/.github/scripts/workspace_ci.py:discover cc=14 (C) cog=22 [cc+cog]",
       "fix_hint": "Refactor complex functions into smaller units"
-    },
-    {
-      "rule_id": "QUALITY_DEAD_CODE",
-      "message": "Found 1 dead (unreferenced) symbol(s).",
-      "text": "\u2022 _advance_past_marker /home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/adapters/workspace_patcher.py:192",
-      "fix_hint": "Remove dead code or mark exported in __all__ if public API"
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",

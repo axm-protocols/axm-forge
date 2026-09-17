@@ -19,7 +19,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 97% (74/76)",
+      "message": "Docstring coverage: 97% (75/77)",
       "text": "     \u2022 axm_mcp/mcp_app.py: streamable_http_app\n     \u2022 axm_mcp/facade/catalog.py: signature_target",
       "fix_hint": "Add docstrings to public functions"
     },
@@ -68,7 +68,7 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "message": "Complexity score: 70/100 (3 high-complexity functions)",
-      "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=12 (C) cog=13 [cc]",
+      "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=13 (C) cog=14 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
