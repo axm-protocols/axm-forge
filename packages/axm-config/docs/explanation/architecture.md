@@ -8,7 +8,7 @@
 | `profile` | Active profile selection and transport overlay. |
 | `store` | TOML namespace reads, migration and file replacement. |
 | `resolver` | Validated keys, precedence, model loading and execution policies. |
-| `paths` | Typed runtime values, defaults and configured path guards. |
+| `paths` | Typed runtime values, defaults, configured path guards and the profile's service ports. |
 | `doctor` | Provenance report without returning values. |
 | `isolation` | Candidate profile paths and lexical containment. |
 | `tools` | AXMTool diagnostic boundaries. |
@@ -82,6 +82,30 @@ before the swap helper are not covered by its cleanup guarantee.
 - `AXM_HOME`, typed accessor fallback and the isolation diagnostic do not share
   the store's home semantics. The [profile guide](../howto/profiles.md) details
   these boundaries rather than promising blanket isolation.
+
+## Who owns a listening point
+
+A profile already owned every on-disk root a consumer needs, but not a port. So
+each service re-implemented the same refusal: outside production, demand an
+environment variable or a CLI option, else raise. That pushes onto every caller
+a decision the profile can take, and duplicates one fallback rule across
+packages that never talk to each other.
+
+`paths.service_port` inverts that ownership. The production numbers are
+*adopted* -- written here as literals rather than imported, because the services
+carrying them today live in other repositories; duplicating the constant once is
+the price of moving the decision, and they drop their copy afterwards. Outside
+production the value is derived from the profile name with `hashlib`, never the
+builtin `hash()`, whose per-process `PYTHONHASHSEED` salt would rebind a service
+to a different port at every restart.
+
+Two boundaries keep this honest. The derived number is only the `default`
+argument handed to `get_int`, so `env > file > default` is untouched and
+production resolves byte for byte as before -- the same additive guarantee the
+path accessors make. And this module computes a number: it opens no socket,
+reserves nothing and cannot prove the port is free. Distinctness between two
+services of one profile holds by construction; between two profile names it
+rests on a digest, so it is likely rather than guaranteed.
 
 ## Security and secrets boundary
 

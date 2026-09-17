@@ -51,6 +51,35 @@ whereas the actual production resolver has no profile root.
 not resolve symlinks or `..` segments. Supply normalized paths when using it
 directly, and do not treat its result as a filesystem security audit.
 
+## Run two installations side by side
+
+An application installed under its own profile needs a listening point, not only
+state directories. Ask the profile for one instead of demanding it from the
+operator:
+
+```python
+from axm_config import service_port
+
+port = service_port("mcp")  # 9427 in production, profile-derived otherwise
+```
+
+Nothing has to be configured. Under `AXM_PROFILE=alpha` the number is derived
+from the profile name, is the same on every restart, and differs from the one
+the same service gets under `AXM_PROFILE=beta`. Production is untouched: it
+still resolves the adopted default.
+
+Pin a port explicitly when you must; the usual precedence applies.
+
+```bash
+AXM_PROFILE=alpha AXM_NETWORK_MCP_PORT=5555 my-service
+```
+
+`service_port` returns a number; it binds nothing and does not check that the
+port is free. Two different profile names are unlikely to collide, but nothing
+prevents it, so a deployment that cannot tolerate a clash should still configure
+the value. See [runtime settings](../reference/runtime-settings.md) for the
+registered services.
+
 ## AXM_HOME is not a store override
 
 `axm_home`, `NamespaceStore`, `get`, `set_`, `load` and profile storage

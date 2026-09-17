@@ -68,6 +68,12 @@ The [profile guide](../howto/profiles.md) explains their different semantics.
   repository/profile guards. An unconfigured caller fallback is returned
   unchanged unless it is one of the registered profile-relative defaults.
 
+`service_port(service)` resolves the active profile's TCP listening point for a
+registered service id (`mcp`, `orison_web`) in the `network` namespace. It takes
+one positional argument and no `default=`: the registry supplies the production
+number, a named profile derives one deterministically from its name, and an
+unknown id raises `ConfigError` naming it before any resolution.
+
 See [runtime settings](runtime-settings.md) for each wrapper and default.
 
 ## Execution policies

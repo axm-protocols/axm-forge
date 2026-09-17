@@ -32,6 +32,7 @@ working installation into a failing one, breaking the additive guarantee above.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 import tomllib
@@ -53,6 +54,7 @@ __all__ = [
     "inference_origin",
     "protocols_dir",
     "quality_dir",
+    "service_port",
     "sessions_root",
     "tickets_db",
     "warden_autostart",
@@ -382,3 +384,72 @@ def warden_socket(*, default: Path | None = None) -> Path:
     """
     fallback = default if default is not None else Path.home() / ".axm" / "warden.sock"
     return get_path("warden_socket", default=fallback)
+
+
+_NETWORK_NAMESPACE = "network"
+
+#: The adopted production listening points, owned here rather than by each
+#: service. The two literals are the ports the downstream packages ship today;
+#: they are *adopted*, not imported -- those packages live in other git repos
+#: and drop their own copy in later work.
+_SERVICE_PORTS: dict[str, int] = {
+    "mcp": 9427,
+    "orison_web": 8840,
+}
+
+#: The band non-production profiles draw from: registered, non-privileged, and
+#: clear of the ephemeral range so a derived port cannot collide with one the
+#: kernel hands out on its own.
+_PORT_BAND_START = 20000
+_PORT_BAND_END = 49151
+
+
+def _derive_service_port(profile: str, service: str) -> int:
+    """Derive the port ``service`` listens on under ``profile``.
+
+    The profile name alone picks a *block* of the band, and the service's rank
+    in the registry is the offset inside that block. Two services of one
+    profile are therefore distinct by construction rather than by luck, while
+    two profile names land on different blocks unless their digests collide.
+
+    The digest is :mod:`hashlib`, never the builtin ``hash()``: the latter is
+    salted per process by ``PYTHONHASHSEED``, so a restart would rebind the
+    service to a different port.
+    """
+    services = sorted(_SERVICE_PORTS)
+    width = len(services)
+    offset = services.index(service)
+    blocks = (_PORT_BAND_END - _PORT_BAND_START + 1) // width
+    digest = hashlib.blake2b(profile.encode("utf-8"), digest_size=8).digest()
+    block = int.from_bytes(digest, "big") % blocks
+    return _PORT_BAND_START + block * width + offset
+
+
+def service_port(service: str) -> int:
+    """The TCP port ``service`` listens on for the active state profile.
+
+    A listening point is a profile-owned resource exactly like the state roots
+    above, so the decision belongs here instead of being pushed onto every
+    caller as "configure a port or I refuse to start".
+
+    Production is frozen: with nothing configured the adopted default is
+    returned unchanged, so an existing installation reconfigures nothing. Under
+    a non-production profile the fallback is derived from the profile name, so
+    two installations on one machine do not fight over a port. Either way the
+    value is only the ``default`` handed to :func:`get_int`, which keeps the
+    resolver's ``env > file > default`` precedence intact.
+
+    Raises :class:`ConfigError` naming ``service`` when it is not registered,
+    before any resolution is attempted.
+    """
+    adopted = _SERVICE_PORTS.get(service)
+    if adopted is None:
+        known = ", ".join(sorted(_SERVICE_PORTS))
+        msg = f"unknown service id {service!r}: expected one of {known}"
+        raise ConfigError(msg)
+
+    if profile_root() is None:
+        fallback = adopted
+    else:
+        fallback = _derive_service_port(current_profile(), service)
+    return get_int(f"{service}_port", fallback, namespace=_NETWORK_NAMESPACE)

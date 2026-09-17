@@ -336,3 +336,29 @@ def test_inference_origin_is_exported_at_package_top_level() -> None:
     """AC4: inference_origin belongs to the callable package-level API."""
     assert "inference_origin" in axm_config.__all__
     assert callable(axm_config.inference_origin)
+
+
+def test_derive_service_port_is_stable_for_one_profile_and_service() -> None:
+    """AC3: the derivation repeats itself and stays out of privileged ports."""
+    first = paths._derive_service_port("alpha", "mcp")
+    second = paths._derive_service_port("alpha", "mcp")
+
+    assert isinstance(first, int)
+    assert first == second
+    assert 1024 <= first <= 65535
+
+
+def test_derive_service_port_separates_two_profiles_for_one_service() -> None:
+    """AC4: two profile names never collapse onto the same listening point."""
+    alpha = paths._derive_service_port("alpha", "mcp")
+    beta = paths._derive_service_port("beta", "mcp")
+
+    assert alpha != beta
+
+
+def test_derive_service_port_separates_two_services_in_one_profile() -> None:
+    """AC5: two services of one profile are distinct by construction."""
+    mcp = paths._derive_service_port("alpha", "mcp")
+    orison_web = paths._derive_service_port("alpha", "orison_web")
+
+    assert mcp != orison_web

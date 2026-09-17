@@ -47,6 +47,35 @@ resolution rather than being passed as a lower-priority default.
 For example, `AXM_WARDEN_MAX_CONCURRENT` overrides `[warden] max_concurrent`.
 These values configure consumers; reading them does not launch a process.
 
+## Network listening points
+
+| Helper | Namespace/key | Production built-in default | Named-profile unconfigured default |
+|---|---|---|---|
+| `service_port("mcp")` | `network.mcp_port` | `9427` | Derived from the profile name |
+| `service_port("orison_web")` | `network.orison_web_port` | `8840` | Derived from the profile name |
+
+`service_port(service)` takes one positional service id and accepts no
+`default=` keyword: the registry above *is* the default. In production, with
+nothing configured, the adopted number is returned unchanged.
+
+Under a named profile the unconfigured fallback is derived rather than refused.
+The profile name selects a block of `[20000, 49151]` (registered, non-privileged
+and clear of the ephemeral range) through a `hashlib.blake2b` digest, and the
+service's rank in the registry is the offset inside that block. The digest is
+stable across processes and machines, so a restart resolves the same number;
+two services of one profile are distinct by construction; two profile names
+differ unless their digests collide, which is not prevented.
+
+The derived number is supplied only as the `default` argument of `get_int`, so
+precedence is the usual one: `AXM_NETWORK_MCP_PORT=5555` outranks both the
+adopted `9427` and any derived value, and `[network] mcp_port` in the selected
+profile file sits between the two. An unregistered service id raises
+`ConfigError` naming it, before any resolution is attempted.
+
+These helpers return a number. They bind no socket, reserve nothing and do not
+check availability. Only services listening on TCP are registered; the warden
+binds a Unix socket and appears under [Paths](#paths) instead.
+
 ## Inference
 
 | Helper | Namespace/key | Default |
