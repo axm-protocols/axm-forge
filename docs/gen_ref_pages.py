@@ -44,8 +44,16 @@ for pkg_dir in sorted(packages_dir.iterdir()):
             continue
         identifier = ".".join(parts)
         full_doc_path = Path("reference", doc_path)
+        # This catalog is exhaustive, not authoritative: packages that ship a
+        # hand-written `reference/api/` page own the contract for their public
+        # surface. Skipping the local inventory keeps every module browsable
+        # here while leaving those pages the single anchor a cross-reference
+        # can resolve to — otherwise an inter-package reference (say a class
+        # inheriting from another package's) sees two candidates and warns.
         with mkdocs_gen_files.open(full_doc_path, "w") as fd:
             fd.write(f"::: {identifier}\n")
+            fd.write("    options:\n")
+            fd.write("      skip_local_inventory: true\n")
         mkdocs_gen_files.set_edit_path(full_doc_path, path)
         pages.append((identifier, doc_path))
 
