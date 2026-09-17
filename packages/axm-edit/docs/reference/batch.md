@@ -10,7 +10,6 @@
 | `lint_diff` | `True` | Include detected post-lint mutations |
 | `lint_diff_max_ratio` | `0.5` | Diff-size / post-lint-file-size threshold |
 
-`batch_edit_check` takes only `path` and `operations`.
 `batch_rollback` takes `path` and the full `checkpoint` string.
 Use exact parameter names: extra tool kwargs may be ignored rather than rejected.
 
@@ -79,9 +78,9 @@ specific operation to replace an existing regular file inside `path`:
 The permission is local to that operation; omitting `overwrite` or setting it to
 `false` on a later create restores the default refusal. Both tools reject
 directories and targets that resolve outside the project root, including a
-symbolic link to an external file. `batch_edit_check` is read-only, and
-`batch_edit` repeats preflight and validation before writing, so changing a
-checked file into a directory or an external symbolic link causes apply to fail.
+symbolic link to an external file. `batch_edit` runs preflight and validation
+before writing, so a target that became a directory or an external symbolic
+link causes apply to fail.
 
 ```json
 {"op": "delete", "file": "notes/obsolete.txt"}

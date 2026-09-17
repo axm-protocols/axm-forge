@@ -30,10 +30,8 @@ existing regular file and replacing its current contents unconditionally is
 acceptable:
 
 1. Add `"overwrite": true` to that create operation; do not add a global flag.
-2. Pass the complete batch to `batch_edit_check` and require `blocking` to be
-   `false`. The check does not modify the file.
-3. Without changing the filesystem or payload, pass the same batch to
-   `batch_edit` and verify both its success result and the final file contents.
+2. Pass the complete batch to `batch_edit` and verify both its success result
+   and the final file contents.
 
 ```json
 {

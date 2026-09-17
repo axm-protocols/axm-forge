@@ -11,7 +11,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from axm_edit.tools.batch_edit import BatchEditTool
-from axm_edit.tools.batch_edit_check import BatchEditCheckTool
 
 with TemporaryDirectory() as directory:
     target = Path(directory) / "notes.md"
@@ -23,8 +22,6 @@ with TemporaryDirectory() as directory:
         "content": "# Ready\n\nReviewed.\n",
         "checksum": sha256(original).hexdigest(),
     }]
-    checked = BatchEditCheckTool().execute(path=directory, operations=operations)
-    assert checked.success and not checked.data["blocking"]
     result = BatchEditTool().execute(
         path=directory, operations=operations, lint=False,
     )
@@ -36,9 +33,8 @@ with TemporaryDirectory() as directory:
 `file_bytes` also returns the SHA-256 digest of bytes on disk. Do not hash the
 line-numbered output of `read_file`.
 
-Use `checksum` in wire payloads shared with `batch_edit_check`.
-`batch_edit` additionally accepts `expected_checksum` and normalizes it;
-the check tool does not perform that normalization. Do not send both keys.
+Use `checksum` in wire payloads. `batch_edit` additionally accepts
+`expected_checksum` and normalizes it. Do not send both keys.
 The Python `RewriteOp` model uses `expected_checksum` and is imported from
 `axm_edit.models.operations`, not the root package.
 

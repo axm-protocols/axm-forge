@@ -8,7 +8,7 @@ requires Python 3.12+ and creates its own disposable files.
 ```bash
 uv add axm-edit
 axm batch_edit --help
-axm batch_edit_check --help
+axm batch_rollback --help
 ```
 
 The CLI comes from `axm`. The example below calls the same tool classes directly
@@ -21,7 +21,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from axm_edit.tools.batch_edit import BatchEditTool
-from axm_edit.tools.batch_edit_check import BatchEditCheckTool
 from axm_edit.tools.batch_rollback import BatchRollbackTool
 from axm_edit.tools.read_file import ReadFileTool
 
@@ -35,11 +34,6 @@ with TemporaryDirectory() as directory:
         ]},
         {"op": "create", "file": "notes/review.txt", "content": "Ready.\n"},
     ]
-
-    check = BatchEditCheckTool().execute(path=directory, operations=operations)
-    assert check.success, check.error
-    assert not check.data["blocking"], check.data["diagnostics"]
-    assert target.read_text() == "mode = draft\n"  # Check did not write.
 
     applied = BatchEditTool().execute(
         path=directory, operations=operations, lint=False,

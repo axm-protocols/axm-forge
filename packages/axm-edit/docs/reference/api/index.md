@@ -52,11 +52,6 @@ in particular, process execution uses no implicit shell.
       members: [execute]
       show_source: false
 
-::: axm_edit.tools.batch_edit_check.BatchEditCheckTool
-    options:
-      members: [execute]
-      show_source: false
-
 ::: axm_edit.tools.batch_rollback.BatchRollbackTool
     options:
       members: [execute]

@@ -80,7 +80,6 @@ that rollback restored their prior state. Success produces no output.
 
 | Need | Tool |
 |---|---|
-| Validate a proposed batch without writing | `batch_edit_check` |
 | Apply whole-line edits and file operations | `batch_edit` |
 | Undo using a retained structured snapshot | `batch_rollback` |
 | Read, search or list project files | `read_file`, `search_files`, `list_dir` |

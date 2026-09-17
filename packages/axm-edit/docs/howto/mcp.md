@@ -12,7 +12,7 @@ The following is a JSON argument object for `axm_call`, not Python syntax:
 
 ```json
 {
-  "name": "batch_edit_check",
+  "name": "batch_edit",
   "arguments": {
     "path": "/project",
     "operations": [
@@ -52,7 +52,7 @@ These commands inspect help and do not modify files:
 
 ```bash
 axm batch_edit --help
-axm batch_edit_check --help
+axm batch_edit --help
 axm write_file --help
 axm run_command --help
 ```
@@ -73,5 +73,5 @@ axm batch_edit --path /project --no-lint --json-output \
 
 Retain that JSON output privately if you need the checkpoint; it contains
 the original target-file bytes. A CLI exit code of zero reflects tool
-execution success. For `batch_edit_check`, `file_bytes` and
+execution success. For `batch_edit`, `file_bytes` and
 `run_command`, inspect their own verdict fields too.

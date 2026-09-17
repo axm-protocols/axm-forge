@@ -9,7 +9,6 @@ The MCP server discovers installed entry points in its own environment.
 | Tool | Class (under `axm_edit.tools`) | Contract |
 |---|---|---|
 | `batch_edit` | `batch_edit.BatchEditTool` | [Apply a batch](batch.md) |
-| `batch_edit_check` | `batch_edit_check.BatchEditCheckTool` | [Read-only preflight](batch.md#preflight-result) |
 | `batch_rollback` | `batch_rollback.BatchRollbackTool` | [Restore a snapshot](../howto/rollback.md) |
 | `read_file` | `read_file.ReadFileTool` | [Read text](filesystem.md#read_file) |
 | `write_file` | `write_file.WriteFileTool` | [Write text](filesystem.md#write_file) |
@@ -42,7 +41,6 @@ directory; the [tutorial](../tutorials/getting-started.md) creates a fixture.
 
 | Tool | Fields to inspect after execution succeeds |
 |---|---|
-| `batch_edit_check` | `blocking`, `error_count`, `warning_count`; `ok` is false for any diagnostic |
 | `batch_edit` | `lint_errors`, `warnings`, and final files; lint is not a success gate |
 | `file_bytes` | `verdict` and `encoding_ok` |
 | `run_command` | `exit_code` and `timed_out` |

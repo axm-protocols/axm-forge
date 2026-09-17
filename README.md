@@ -26,7 +26,7 @@ libraries directly when integrating them into Python applications.
 | Understand a project or find a symbol | [axm-ast](packages/axm-ast/docs/index.md): `ast_context`, `ast_search`, `ast_inspect` |
 | Audit a package or run its tests | [axm-audit](packages/axm-audit/docs/index.md): `audit`, `audit_test` |
 | Combine audit and governance checks over MCP | [axm-mcp](packages/axm-mcp/docs/howto/verify.md): `verify` |
-| Validate and apply a batch of edits | [axm-edit](packages/axm-edit/docs/index.md): `batch_edit_check`, `batch_edit` |
+| Validate and apply a batch of edits | [axm-edit](packages/axm-edit/docs/index.md): `batch_edit`, `batch_rollback` |
 | Move, rename or extract Python symbols | [axm-anvil](packages/axm-anvil/docs/index.md): `anvil_move`, `anvil_rename`, `anvil_extract` |
 | Scaffold a project and check its conventions | [axm-init](packages/axm-init/docs/index.md): `init_scaffold`, `init_check` |
 | Review repository state and commit changes | [axm-git](packages/axm-git/docs/index.md): `git_preflight`, `git_commit` |
