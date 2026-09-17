@@ -38,7 +38,6 @@ be reviewed against the installed version before integration.
 | `axm_mcp.verify.verify_project` | Aggregate using a supplied provider mapping; no global pass boolean |
 | `axm_mcp.web_fetch.fetch_page` | Async optional-backend fetch; result is a dictionary |
 | `axm_mcp.session_contracts.SessionContractRegistry` | In-memory bind/resolve/release/explicit purge; expiry is not automatic |
-| `axm_mcp.settings.NonProductionPortError` | Missing explicit environment port in non-production descriptor resolution |
 | `axm_mcp.server.SharedModeNotArmedError` | Lower-level shared serving requested without a resolver |
 | `axm_mcp.session_contracts.UnboundSessionError` | Missing session identity or contract |
 | `axm_mcp.session_contracts.WriteContractHeaderError` | Invalid strict contract-header payload |

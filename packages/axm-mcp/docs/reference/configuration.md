@@ -19,12 +19,16 @@ live reload. For a shared policy, read [the contract and its limits](shared-cont
 |---|---|---|
 | CLI PID file | `~/.axm/mcp-server.pid` | Under the axm-config profile root, named `mcp-server.pid` |
 | CLI port | `9427`, or `--port` | Also `9427`, or `--port` |
-| Daemon descriptor port | `AXM_MCP_PORT`, otherwise `9427` | Requires `AXM_MCP_PORT`; missing value raises `NonProductionPortError` |
+| Daemon descriptor port | `AXM_MCP_PORT`, otherwise `9427` | `AXM_MCP_PORT`, otherwise a port derived from the profile name in the 20000-49151 band |
 | Supervisor service ID | `io.axm.mcp` | Deterministic profile-derived suffix |
 
-Different PID files do not prevent two profiles from selecting the same port.
-Choose explicit, distinct ports when starting more than one instance, and
-pass the same port to `status`.
+`resolve_http_port()` is the single seam, and it decides nothing itself: it
+delegates to `axm_config.service_port("mcp")`, which keeps `9427` under
+production and derives a distinct, restart-stable port per profile elsewhere.
+Two profiles therefore no longer land on the same descriptor port. The CLI
+still defaults to `9427` whatever the profile, so choose explicit, distinct
+`--port` values when starting more than one instance that way, and pass the
+same port to `status`.
 
 The `axm.daemons` entry point calls `daemon_descriptor()`. It returns a
 launch plan whose argv includes `serve --port N`, whose environment

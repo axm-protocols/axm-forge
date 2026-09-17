@@ -4,11 +4,11 @@ import importlib
 from collections.abc import Mapping
 from typing import Protocol, cast
 
+import axm_config
 import pytest
 
 from axm_mcp.settings import (
     HEALTH_PATH,
-    NonProductionPortError,
     resolve_http_port,
     resolve_pid_file,
 )
@@ -79,15 +79,20 @@ def test_environment_propagates_profile_and_explicit_port(
     assert environment == {"AXM_PROFILE": "dev", "AXM_MCP_PORT": "9500"}
 
 
-def test_dev_profile_without_port_is_rejected(
+def test_dev_descriptor_publishes_profile_resolved_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC4: preserve the settings refusal when a dev port is unspecified."""
+    """AC3: dev with nothing set publishes the profile-resolved port."""
     monkeypatch.setenv("AXM_PROFILE", "dev")
     monkeypatch.delenv("AXM_MCP_PORT", raising=False)
 
-    with pytest.raises(NonProductionPortError):
-        _daemon_module().daemon_descriptor()
+    service = _only_service()
+
+    port = axm_config.service_port("mcp")
+    assert service["argv"] == ["axm-mcp", "serve", "--port", str(port)]
+    probe = service["probe"]
+    assert isinstance(probe, dict)
+    assert probe["url"] == f"http://127.0.0.1:{port}{HEALTH_PATH}"
 
 
 def test_dev_profile_publishes_hashed_service_id(

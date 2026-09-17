@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Literal
 
-from axm_config import current_profile, get, profile_root
+from axm_config import get, profile_root, service_port
 
 __all__ = [
     "HEALTH_PATH",
-    "NonProductionPortError",
     "health_url",
     "resolve_http_port",
     "resolve_pid_file",
@@ -35,10 +33,6 @@ def health_url(host: str, port: int) -> str:
     return f"http://{host}:{port}{HEALTH_PATH}"
 
 
-class NonProductionPortError(ValueError):
-    """Raised when a non-production profile has no explicit MCP HTTP port."""
-
-
 def resolve_pid_file() -> Path:
     """Resolve the MCP server PID file for the active profile."""
     root = profile_root()
@@ -48,16 +42,16 @@ def resolve_pid_file() -> Path:
 
 
 def resolve_http_port() -> int:
-    """Resolve the MCP HTTP port, requiring an override outside production."""
-    override = os.environ.get("AXM_MCP_PORT")
-    if override is not None:
-        return int(override)
+    """Resolve the MCP HTTP port for the active state profile.
 
-    profile = current_profile()
-    if profile != "production":
-        msg = f"profile {profile!r} requires the AXM_MCP_PORT environment variable"
-        raise NonProductionPortError(msg)
-    return 9427
+    A listening point is a profile-owned resource, so the decision belongs to
+    :func:`axm_config.service_port`: it keeps the adopted 9427 under
+    production, derives a per-profile port elsewhere, and still honours the
+    historical ``AXM_MCP_PORT`` variable through its alias registry. Reading
+    that variable here as well would race that precedence instead of
+    deferring to it.
+    """
+    return service_port("mcp")
 
 
 def resolve_serve_mode(explicit: str | None = None) -> ServeMode:

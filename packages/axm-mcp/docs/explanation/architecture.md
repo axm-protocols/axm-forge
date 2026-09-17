@@ -37,6 +37,24 @@ environment-backed write contract when present; shared HTTP resolves a
 contract by MCP session identity. The header-binding mechanism and its
 limitations are described in [shared contracts](../reference/shared-contracts.md).
 
+### Port ownership
+
+A listening point is a profile-owned resource, so `resolve_http_port()` does
+not decide one. It delegates to `axm_config.service_port("mcp")`, the single
+seam every port path in this package funnels through. Production keeps the
+adopted `9427` unchanged; any other profile gets a port derived from the
+profile name in the 20000-49151 band, deterministic across restarts so two
+installations on one machine do not fight over a socket; and the historical
+`AXM_MCP_PORT` variable is still honoured, through that resolver's alias
+registry rather than by a read performed here.
+
+That last point is the reason this package reads no port variable of its own:
+a concurrent local read would short-circuit the upstream
+`environment > file > default` precedence instead of deferring to it. The
+consequence for an operator is that a self-contained installation running
+under its own profile starts without anyone supplying a port, where the
+previous local decision refused outside production.
+
 ## Execution and data
 
 Direct tools and catalog calls are constructed using `build_wrappers`.

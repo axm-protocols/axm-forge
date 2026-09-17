@@ -76,16 +76,21 @@ def test_dev_profile_uses_distinct_profile_pid_path(
     assert dev_pid != production_pid
 
 
-def test_dev_profile_without_port_override_is_refused(
+def test_dev_profile_without_port_resolves_service_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC4: dev without AXM_MCP_PORT raises the typed refusal error."""
+    """AC1: dev without AXM_MCP_PORT delegates to the axm-config port."""
     monkeypatch.setenv("AXM_PROFILE", "dev")
     monkeypatch.delenv("AXM_MCP_PORT", raising=False)
     settings = importlib.import_module("axm_mcp.settings")
-    error_type = settings.NonProductionPortError
 
-    with pytest.raises(error_type) as exc_info:
-        settings.resolve_http_port()
+    assert settings.resolve_http_port() == axm_config.service_port("mcp")
+    assert settings.resolve_http_port() != 9427
 
-    assert "AXM_MCP_PORT" in str(exc_info.value)
+
+def test_non_production_port_refusal_left_the_surface() -> None:
+    """AC2: the typed non-production refusal is gone from the settings API."""
+    settings = importlib.import_module("axm_mcp.settings")
+
+    assert hasattr(settings, "NonProductionPortError") is False
+    assert "NonProductionPortError" not in settings.__all__
