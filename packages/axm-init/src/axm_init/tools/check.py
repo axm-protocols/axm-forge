@@ -60,9 +60,11 @@ class InitCheckTool:
         """Check a project against the AXM gold standard.
 
         Args:
-            **kwargs: Keyword arguments.
-                path: Path to project root.
-                category: Optional category filter.
+            path: Path to project root.
+            category: Optional category filter.
+            json_output: If True, render the structured report.
+            agent: If True, render the structured report for agents.
+            verbose: If True, include per-check detail in the rendered text.
 
         Returns:
             ToolResult with check scores and details.

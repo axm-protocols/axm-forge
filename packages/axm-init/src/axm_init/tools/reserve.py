@@ -121,11 +121,11 @@ class InitReserveTool:
         """Reserve a package name on PyPI.
 
         Args:
-            **kwargs: Keyword arguments.
-                name: Package name to reserve.
-                author: Author name for the placeholder package.
-                email: Author email for the placeholder package.
-                dry_run: If True, skip the actual publish step.
+            name: Package name to reserve.
+            author: Author name for the placeholder package.
+            email: Author email for the placeholder package.
+            dry_run: If True, skip the actual publish step.
+            json_output: If True, render the structured report.
 
         Returns:
             ToolResult with reservation status.

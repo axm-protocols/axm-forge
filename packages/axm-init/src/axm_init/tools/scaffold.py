@@ -494,22 +494,29 @@ class InitScaffoldTool:
         """Initialize a new Python project.
 
         Args:
-            **kwargs: Keyword arguments.
-                path: Path to initialize project.
-                name: Project name (defaults to directory name).
-                org: GitHub org or username.
-                author: Author name.
-                email: Author email.
-                license: License type.
-                license_holder: License holder (defaults to org).
-                description: Project description.
-                private: If True, prevent publication to PyPI.
-                workspace: If True, scaffold a UV workspace.
-                member: Member package name to scaffold inside a workspace.
-                framework: Target framework (python, node, svelte).
-                kind: Explicit scaffold kind — one of ``SCAFFOLD_KINDS``
-                    (standalone, workspace, member, paper, experiment,
-                    protocol_unit, protocol).
+            path: Path to initialize project.
+            name: Project name (defaults to directory name).
+            org: GitHub org or username.
+            author: Author name.
+            email: Author email.
+            license: License type.
+            license_holder: License holder (defaults to org).
+            description: Project description.
+            private: If True, prevent publication to PyPI.
+            workspace: If True, scaffold a UV workspace.
+            member: Member package name to scaffold inside a workspace.
+            framework: Target framework (python, node, svelte).
+            kind: Explicit scaffold kind — one of ``SCAFFOLD_KINDS``
+                (standalone, workspace, member, paper, experiment,
+                protocol_unit, protocol).
+            check_pypi: If True, check name availability on PyPI.
+            json_output: If True, render the structured report.
+            profile: Protocol profile to scaffold.
+            domain: Protocol domain to scaffold.
+            unit: Protocol unit to scaffold.
+            protocols: Protocol definitions, as objects or a JSON string.
+            preview: If True, report the planned protocol scaffold
+                without writing it.
 
         Returns:
             ToolResult with created files list.
