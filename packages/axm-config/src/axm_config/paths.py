@@ -36,6 +36,7 @@ import hashlib
 import os
 import sys
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
@@ -73,9 +74,14 @@ PATHS_NAMESPACE = "paths"
 _MISSING = object()
 
 
-def _resolve_configured(namespace: str, key: str) -> object:
+def _resolve_configured(
+    namespace: str,
+    key: str,
+    *,
+    env_aliases: Sequence[str] = (),
+) -> object:
     """Resolve a value, honoring an explicitly isolated AXM home."""
-    configured = resolve(namespace, key, _MISSING)
+    configured = resolve(namespace, key, _MISSING, env_aliases=env_aliases)
     if configured is not _MISSING:
         return configured
 
@@ -164,9 +170,10 @@ def get_int(
     default: int,
     *,
     namespace: str = PATHS_NAMESPACE,
+    env_aliases: Sequence[str] = (),
 ) -> int:
     """Resolve a configured integer while preserving an untouched default."""
-    configured = _resolve_configured(namespace, key)
+    configured = _resolve_configured(namespace, key, env_aliases=env_aliases)
     if configured is _MISSING:
         return default
     if type(configured) is int:
@@ -425,6 +432,10 @@ def _derive_service_port(profile: str, service: str) -> int:
     return _PORT_BAND_START + block * width + offset
 
 
+_SERVICE_PORT_ENV_ALIASES: dict[str, tuple[str, ...]] = {"mcp": ("AXM_MCP_PORT",)}
+"""Historical environment variables still honoured, per service id."""
+
+
 def service_port(service: str) -> int:
     """The TCP port ``service`` listens on for the active state profile.
 
@@ -439,6 +450,11 @@ def service_port(service: str) -> int:
     value is only the ``default`` handed to :func:`get_int`, which keeps the
     resolver's ``env > file > default`` precedence intact.
 
+    A service may also carry historical environment variables, registered in
+    ``_SERVICE_PORT_ENV_ALIASES``: they are consulted after the derived name
+    and before any configured value, so an installation still exporting the
+    legacy variable keeps binding the port it always bound.
+
     Raises :class:`ConfigError` naming ``service`` when it is not registered,
     before any resolution is attempted.
     """
@@ -452,4 +468,9 @@ def service_port(service: str) -> int:
         fallback = adopted
     else:
         fallback = _derive_service_port(current_profile(), service)
-    return get_int(f"{service}_port", fallback, namespace=_NETWORK_NAMESPACE)
+    return get_int(
+        f"{service}_port",
+        fallback,
+        namespace=_NETWORK_NAMESPACE,
+        env_aliases=_SERVICE_PORT_ENV_ALIASES.get(service, ()),
+    )

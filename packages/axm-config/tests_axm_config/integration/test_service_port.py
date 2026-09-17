@@ -119,3 +119,62 @@ def test_an_unknown_service_id_is_a_typed_configuration_error(
         paths.service_port("nope")
 
     assert "nope" in str(exc_info.value)
+
+
+def test_the_historical_alias_drives_the_production_port(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: under production, AXM_MCP_PORT alone selects the mcp port."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, profile.DEFAULT_PROFILE)
+    monkeypatch.delenv(resolver._env_name("network", "mcp_port"), raising=False)
+    monkeypatch.setenv("AXM_MCP_PORT", "7777")
+
+    assert paths.service_port("mcp") == 7777
+
+
+def test_the_historical_alias_outranks_the_profile_allocation(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: outside production the historical variable still outranks it."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, "alpha")
+    monkeypatch.delenv(resolver._env_name("network", "mcp_port"), raising=False)
+    monkeypatch.setenv("AXM_MCP_PORT", "7777")
+
+    assert paths.service_port("mcp") == 7777
+
+
+def test_the_historical_alias_outranks_a_configured_file_value(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the historical variable sits above the configuration file."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, profile.DEFAULT_PROFILE)
+    (isolated_home / "config.toml").write_text(
+        "[network]\nmcp_port = 6666\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv(resolver._env_name("network", "mcp_port"), raising=False)
+    monkeypatch.setenv("AXM_MCP_PORT", "7777")
+
+    assert paths.service_port("mcp") == 7777
+
+
+def test_the_derived_environment_name_outranks_the_historical_alias(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: get_int takes a keyword-only alias tuple, consulted last."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, "alpha")
+    monkeypatch.setenv(resolver._env_name("network", "mcp_port"), "5555")
+    monkeypatch.setenv("AXM_MCP_PORT", "7777")
+
+    resolved = paths.get_int(
+        "mcp_port",
+        9427,
+        namespace="network",
+        env_aliases=("AXM_MCP_PORT",),
+    )
+
+    assert resolved == 5555

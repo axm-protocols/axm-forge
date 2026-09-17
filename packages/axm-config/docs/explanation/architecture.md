@@ -107,6 +107,27 @@ reserves nothing and cannot prove the port is free. Distinctness between two
 services of one profile holds by construction; between two profile names it
 rests on a digest, so it is likely rather than guaranteed.
 
+## Why a historical variable still wins
+
+Moving the decision here also renamed the variable: `network.mcp_port` derives
+`AXM_NETWORK_MCP_PORT`, while installations in the field export `AXM_MCP_PORT`.
+Reading only the derived name would silently ignore a choice the operator made
+explicitly -- the trap already paid once for the warden socket, between its
+historical and its derived name. A service id may therefore carry historical
+variable names, and `resolve` consults them as a layer of its own.
+
+That layer's position is the whole design. Above the derived name, an alias
+would shadow the canonical variable. Below the file layer -- which is what
+bolting the lookup on around `resolve` produces, since one call collapses the
+environment and file layers -- a stale configured value would outrank a
+variable the operator just posed. So the alias sits strictly between the two,
+under every profile rather than in production only.
+
+The split is deliberate: the alias list is data at the call site
+(`paths`' service registry), the precedence is mechanism in the resolution
+layer. The parameter is keyword-only and defaults to an empty tuple, so no
+other accessor and no existing caller changes behaviour.
+
 ## Security and secrets boundary
 
 This is plaintext **non-sensitive** configuration. Keep passwords, API keys and

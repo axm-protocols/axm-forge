@@ -55,7 +55,7 @@ The [profile guide](../howto/profiles.md) explains their different semantics.
 ## Typed values and runtime helpers
 
 `get_path(key, default, *, namespace=PATHS_NAMESPACE)`,
-`get_int(key, default, *, namespace=PATHS_NAMESPACE)`,
+`get_int(key, default, *, namespace=PATHS_NAMESPACE, env_aliases=())`,
 `get_bool(key, default, *, namespace=PATHS_NAMESPACE)` and
 `get_str(key, default, *, namespace=PATHS_NAMESPACE)` share the additional
 `AXM_HOME` fallback. `PATHS_NAMESPACE == "paths"`.
@@ -68,11 +68,19 @@ The [profile guide](../howto/profiles.md) explains their different semantics.
   repository/profile guards. An unconfigured caller fallback is returned
   unchanged unless it is one of the registered profile-relative defaults.
 
+`get_int` alone accepts `env_aliases`: a keyword-only sequence of historical
+environment variable names, consulted after the derived
+`AXM_<NAMESPACE>_<KEY>` and before any file value, the first one set winning.
+It defaults to an empty tuple, so every other accessor and every existing call
+site resolves unchanged.
+
 `service_port(service)` resolves the active profile's TCP listening point for a
 registered service id (`mcp`, `orison_web`) in the `network` namespace. It takes
 one positional argument and no `default=`: the registry supplies the production
 number, a named profile derives one deterministically from its name, and an
-unknown id raises `ConfigError` naming it before any resolution.
+unknown id raises `ConfigError` naming it before any resolution. A registered id
+may also carry historical variable names: `mcp` honours `AXM_MCP_PORT` below the
+derived `AXM_NETWORK_MCP_PORT`; `orison_web` carries none.
 
 See [runtime settings](runtime-settings.md) for each wrapper and default.
 

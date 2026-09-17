@@ -49,10 +49,10 @@ These values configure consumers; reading them does not launch a process.
 
 ## Network listening points
 
-| Helper | Namespace/key | Production built-in default | Named-profile unconfigured default |
-|---|---|---|---|
-| `service_port("mcp")` | `network.mcp_port` | `9427` | Derived from the profile name |
-| `service_port("orison_web")` | `network.orison_web_port` | `8840` | Derived from the profile name |
+| Helper | Namespace/key | Historical variable | Production built-in default | Named-profile unconfigured default |
+|---|---|---|---|---|
+| `service_port("mcp")` | `network.mcp_port` | `AXM_MCP_PORT` | `9427` | Derived from the profile name |
+| `service_port("orison_web")` | `network.orison_web_port` | none | `8840` | Derived from the profile name |
 
 `service_port(service)` takes one positional service id and accepts no
 `default=` keyword: the registry above *is* the default. In production, with
@@ -69,7 +69,14 @@ differ unless their digests collide, which is not prevented.
 The derived number is supplied only as the `default` argument of `get_int`, so
 precedence is the usual one: `AXM_NETWORK_MCP_PORT=5555` outranks both the
 adopted `9427` and any derived value, and `[network] mcp_port` in the selected
-profile file sits between the two. An unregistered service id raises
+profile file sits between the two.
+
+A service whose registry row names a historical variable inserts exactly one
+extra layer. `AXM_MCP_PORT` is read after the derived `AXM_NETWORK_MCP_PORT`
+and before any configured value, under every profile, so the full order for
+`mcp` is `AXM_NETWORK_MCP_PORT` > `AXM_MCP_PORT` > `[network] mcp_port` >
+adopted or derived number. A service with no historical variable, such as
+`orison_web`, resolves exactly as before. An unregistered service id raises
 `ConfigError` naming it, before any resolution is attempted.
 
 These helpers return a number. They bind no socket, reserve nothing and do not

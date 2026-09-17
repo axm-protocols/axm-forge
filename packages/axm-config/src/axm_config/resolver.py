@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict
@@ -139,18 +140,34 @@ def _env_name(ns: str, key: str) -> str:
     return f"AXM_{ns_part}_{key.upper()}"
 
 
-def resolve(ns: str, key: str, default: object = None) -> object:
+def resolve(
+    ns: str,
+    key: str,
+    default: object = None,
+    *,
+    env_aliases: Sequence[str] = (),
+) -> object:
     """Resolve ``key`` in ``ns`` with ``env > file > default`` precedence.
 
     Validates ``ns`` and ``key`` at this boundary (covers :func:`get` and
     :func:`load`), then returns the env value (raw ``str``) if set, else the
     file value from the namespace store, else ``default``.
+
+    ``env_aliases`` names historical environment variables kept alive for
+    installations that still set them. They are consulted **after** the
+    derived name and **before** the file layer, so a legacy variable that is
+    explicitly posed still outranks a configured value while never shadowing
+    the canonical name.
     """
     validate_segment(ns, kind="namespace")
     validate_segment(key, kind="key")
     env_value = os.environ.get(_env_name(ns, key), _MISSING)
     if env_value is not _MISSING:
         return env_value
+    for alias in env_aliases:
+        alias_value = os.environ.get(alias, _MISSING)
+        if alias_value is not _MISSING:
+            return alias_value
     return _get_file_value(ns, key, default)
 
 

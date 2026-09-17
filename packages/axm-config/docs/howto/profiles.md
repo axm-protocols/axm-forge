@@ -74,6 +74,12 @@ Pin a port explicitly when you must; the usual precedence applies.
 AXM_PROFILE=alpha AXM_NETWORK_MCP_PORT=5555 my-service
 ```
 
+An installation that already exports the historical `AXM_MCP_PORT` keeps working
+as is: it is read after `AXM_NETWORK_MCP_PORT` and before any configured
+`[network] mcp_port`, under every profile. There is nothing to migrate; prefer
+the derived name for new deployments, and set only one of the two, since the
+derived name wins when both are present.
+
 `service_port` returns a number; it binds nothing and does not check that the
 port is free. Two different profile names are unlikely to collide, but nothing
 prevents it, so a deployment that cannot tolerate a clash should still configure
