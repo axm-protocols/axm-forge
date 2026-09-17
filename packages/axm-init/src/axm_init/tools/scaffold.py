@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, replace
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -458,6 +459,11 @@ class InitScaffoldTool:
             "author_name": meta.author_name,
             "author_email": meta.author_email,
             "private": private,
+            # Jinja has no date filter and copier exposes none, so a template
+            # cannot compute this itself: supplied here so a scaffolded
+            # wrangler.toml pins the Workers runtime current at creation time
+            # rather than a date frozen in the template.
+            "compatibility_date": date.today().isoformat(),
         }
 
     def execute(

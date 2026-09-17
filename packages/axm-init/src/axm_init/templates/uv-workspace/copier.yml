@@ -6,6 +6,9 @@ _templates_suffix: .jinja
 _exclude:
   - "licences"
   - "copier.yml"
+  # wrangler.toml configures the Cloudflare worker that serves the docs; it is
+  # meaningless when the site is published to GitHub Pages.
+  - "{% if docs_hosting != 'cloudflare' %}wrangler.toml{% endif %}"
 
 # =============================================================================
 # Questions
@@ -55,6 +58,26 @@ python_min_version:
     - "3.13"
   default: "3.12"
 
+# GitHub Pages is the default because it is self-sufficient: the generated
+# workflow needs no secret and publishes on the first push. Cloudflare is the
+# convention across the existing AXM workspaces, but it requires
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as repository secrets plus a
+# DNS record — choosing it here generates wrangler.toml and the deploy step,
+# and the job fails until those secrets exist.
+docs_hosting:
+  type: str
+  help: "Where the documentation site is published"
+  choices:
+    GitHub Pages (no secrets needed): github-pages
+    Cloudflare Workers (needs CLOUDFLARE_* secrets): cloudflare
+  default: github-pages
+
+docs_domain:
+  type: str
+  help: "Public docs domain (Cloudflare only), e.g. learning.axm-protocols.io"
+  default: "{{ workspace_name }}.example.com"
+  when: "{{ docs_hosting == 'cloudflare' }}"
+
 # =============================================================================
 # Computed values
 # =============================================================================
@@ -67,6 +90,15 @@ year:
 license_folder:
   type: str
   default: "{% if license == 'MIT' %}mit{% elif license == 'Apache-2.0' %}apache-2.0{% else %}eupl{% endif %}"
+  when: false
+
+# Pins the Workers runtime semantics for the generated wrangler.toml. Supplied
+# by InitScaffoldTool (Jinja has no date filter and copier exposes none), so a
+# workspace is born on the runtime current at its creation rather than on a
+# date frozen in this template. The fallback keeps a bare `copier copy` usable.
+compatibility_date:
+  type: str
+  default: "2026-01-01"
   when: false
 
 python_matrix:

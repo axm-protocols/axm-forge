@@ -1,5 +1,5 @@
 site_name: "{{ workspace_name }}"
-site_url: "https://{{ org }}.github.io/{{ workspace_name }}"
+site_url: "{% if docs_hosting == 'cloudflare' %}https://{{ docs_domain }}{% else %}https://{{ org }}.github.io/{{ workspace_name }}{% endif %}"
 repo_url: "https://github.com/{{ org }}/{{ workspace_name }}"
 repo_name: {{ org }}/{{ workspace_name }}
 
@@ -25,6 +25,11 @@ theme:
     - search.highlight
     - content.code.copy
 
+# `monorepo` merges each member's nav into this site but does NOT run the
+# plugins that member declares, so the members' own gen-files never fires here
+# and nothing would emit the pages their `reference/api/` nav entries point
+# at. docs/gen_ref_pages.py regenerates them for the aggregated build, at the
+# very path each member uses standalone. Adding a member needs no edit here.
 plugins:
   - search
   - monorepo
@@ -33,6 +38,8 @@ plugins:
         - docs/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
+  # No `paths:` here: the members are installed into the environment by
+  # `uv sync --all-packages`, so mkdocstrings imports them by name.
   - mkdocstrings:
       handlers:
         python:

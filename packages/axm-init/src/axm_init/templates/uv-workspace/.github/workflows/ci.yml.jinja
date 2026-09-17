@@ -52,7 +52,11 @@ jobs:
         run: uv run --package "$PACKAGE" --directory "$PACKAGE_DIR" pytest -q --cov -n auto
       # Uploaded from the matrix leg that produced it, on one Python version
       # only: a separate job re-running the suite to emit a global coverage.xml
-      # would repeat work these legs have already done.
+      # would repeat work these legs have already done — and would fail doing
+      # it. Such a job used to live here; it ran `pytest packages/` from the
+      # workspace root on a bare `uv sync`, which installs no member, so every
+      # test died on ModuleNotFoundError and dragged coverage under the gate.
+      # Tests are invoked per-member with `--directory`, never from the root.
       - name: Upload coverage
         if: {% raw %}matrix.python-version == '3.12'{% endraw %}
         uses: codecov/codecov-action@v7
@@ -66,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
-      - run: uv sync
+      - run: uv sync --all-packages --all-groups
       - name: Ruff check
         run: uv run ruff check packages/
       - name: Ruff format
@@ -77,19 +81,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
-      - run: uv sync
+      # --all-packages: a bare sync installs no workspace member, so pip-audit
+      # would audit the root's own dependencies and none of the members'.
+      - run: uv sync --all-packages --all-groups
       - name: pip-audit
         run: uv run pip-audit
-
-  coverage:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
-      - run: uv sync
-      - name: Run coverage
-        run: uv run pytest packages/ --cov --cov-report=xml
-      - uses: codecov/codecov-action@v4
-        with:
-          file: coverage.xml

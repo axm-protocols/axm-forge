@@ -103,7 +103,9 @@ class TestWorkspaceTemplateStructure:
         for name in [
             "ci.yml.jinja",
             "publish.yml",
-            "docs.yml",
+            # Templated, not static: its body branches on `docs_hosting`
+            # (GitHub Pages by default, Cloudflare on request).
+            "docs.yml.jinja",
             "release.yml",
             "axm-quality.yml.jinja",
         ]:
@@ -125,6 +127,96 @@ class TestWorkspaceTemplateStructure:
         ci = ws_template / ".github" / "workflows" / "ci.yml.jinja"
         content = ci.read_text()
         assert "--package" in content
+
+    def test_ci_has_no_root_level_pytest_job(self, ws_template: Path) -> None:
+        """No job may run the suite from the workspace root.
+
+        A `coverage` job used to do exactly that (`pytest packages/` after a
+        bare `uv sync`). A bare sync installs no member, so every test failed
+        on ModuleNotFoundError and coverage fell under the gate — a red CI on
+        a freshly scaffolded, otherwise correct workspace.
+        """
+        content = (ws_template / ".github" / "workflows" / "ci.yml.jinja").read_text()
+        # Commands only: the comment explaining why this job is gone names the
+        # very invocation it forbids.
+        commands = [
+            line for line in content.splitlines() if not line.lstrip().startswith("#")
+        ]
+        assert not [line for line in commands if "pytest packages/" in line]
+
+    def test_ci_syncs_all_packages(self, ws_template: Path) -> None:
+        """Every job installs the members before acting on them.
+
+        A bare `uv sync` resolves the root only: ruff would lint sources whose
+        dependencies are absent and pip-audit would audit none of the members'
+        dependencies.
+        """
+        content = (ws_template / ".github" / "workflows" / "ci.yml.jinja").read_text()
+        sync_lines = [
+            line.strip()
+            for line in content.splitlines()
+            if "uv sync" in line and not line.strip().startswith("#")
+        ]
+        assert sync_lines, "expected at least one uv sync step"
+        assert all("--all-packages" in line for line in sync_lines), sync_lines
+
+    def test_docs_workflow_syncs_members_and_docs_group(
+        self, ws_template: Path
+    ) -> None:
+        """The docs build needs both flags, and each one alone fails.
+
+        `--group docs` installs mkdocs itself; `--all-packages` keeps the
+        members importable, since mkdocstrings imports each one to render its
+        API reference.
+        """
+        content = (ws_template / ".github" / "workflows" / "docs.yml.jinja").read_text()
+        sync_lines = [line for line in content.splitlines() if "uv sync" in line]
+        assert sync_lines, "expected a uv sync step"
+        for line in sync_lines:
+            assert "--all-packages" in line, line
+            assert "--group docs" in line, line
+
+    def test_docs_workflow_offers_both_hosts(self, ws_template: Path) -> None:
+        """GitHub Pages is the default; Cloudflare is opt-in.
+
+        Pages needs no secret, so a scaffolded workspace publishes on its
+        first push. Cloudflare matches the existing AXM workspaces but
+        requires CLOUDFLARE_* secrets, so it stays a deliberate choice.
+        """
+        content = (ws_template / ".github" / "workflows" / "docs.yml.jinja").read_text()
+        assert "docs_hosting == 'cloudflare'" in content
+        assert "upload-pages-artifact" in content
+        assert "wrangler-action" in content
+
+    def test_root_ref_generator_writes_member_api_paths(
+        self, ws_template: Path
+    ) -> None:
+        """The root generator emits pages where each member's nav expects them.
+
+        `monorepo` merges the members' nav but does not run their plugins, so
+        the root regenerates their reference. It must write under
+        `<member>/reference/api/`: an earlier version wrote to
+        `reference/<module>/`, producing pages no nav referenced plus a
+        "not found in the documentation files" warning per member.
+        """
+        content = (ws_template / "docs" / "gen_ref_pages.py").read_text()
+        # Both the module pages and the literate-nav SUMMARY must carry the
+        # member prefix and the `api` segment. Asserting on the file as a
+        # whole would let one of the two regress unnoticed while the other
+        # keeps the string alive.
+        page_line = next(
+            line
+            for line in content.splitlines()
+            if "full_doc_path = " in line and "with_suffix" not in line
+        )
+        assert '"reference", "api"' in page_line, page_line
+        assert "pkg_dir.name" in page_line, page_line
+
+        summary_line = next(
+            line for line in content.splitlines() if "summary = " in line
+        )
+        assert '"reference", "api"' in summary_line, summary_line
+        assert "pkg_dir.name" in summary_line, summary_line
 
 
 class TestMemberTemplateStructure:
