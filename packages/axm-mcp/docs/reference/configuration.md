@@ -18,17 +18,21 @@ live reload. For a shared policy, read [the contract and its limits](shared-cont
 | Resource | Production | Other AXM_PROFILE |
 |---|---|---|
 | CLI PID file | `~/.axm/mcp-server.pid` | Under the axm-config profile root, named `mcp-server.pid` |
-| CLI port | `9427`, or `--port` | Also `9427`, or `--port` |
+| CLI port | `--port`, otherwise `AXM_MCP_PORT`, otherwise `9427` | `--port`, otherwise `AXM_MCP_PORT`, otherwise a port derived from the profile name in the 20000-49151 band |
 | Daemon descriptor port | `AXM_MCP_PORT`, otherwise `9427` | `AXM_MCP_PORT`, otherwise a port derived from the profile name in the 20000-49151 band |
 | Supervisor service ID | `io.axm.mcp` | Deterministic profile-derived suffix |
 
 `resolve_http_port()` is the single seam, and it decides nothing itself: it
 delegates to `axm_config.service_port("mcp")`, which keeps `9427` under
 production and derives a distinct, restart-stable port per profile elsewhere.
-Two profiles therefore no longer land on the same descriptor port. The CLI
-still defaults to `9427` whatever the profile, so choose explicit, distinct
-`--port` values when starting more than one instance that way, and pass the
-same port to `status`.
+Two profiles therefore no longer land on the same port, and the CLI now
+funnels through that same seam: `serve`, `status` and `install` take
+`--port` as an optional value and resolve it per call when it is absent,
+instead of binding a constant at import time. Two instances started under
+distinct `AXM_PROFILE` values pick distinct ports on their own, and a
+`status` run under the same profile reaches the one `serve` bound — no
+explicit `--port` needed on either side. Supplying `--port` still overrides
+the resolution verbatim.
 
 The `axm.daemons` entry point calls `daemon_descriptor()`. It returns a
 launch plan whose argv includes `serve --port N`, whose environment
@@ -60,10 +64,11 @@ The launchd installer has one fixed label and plist path; it is not the
 profile-aware AXM supervisor descriptor. Do not use repeated `install` calls
 as a way to create one launchd service per profile.
 
-The port written into the plist follows the caller. `axm-mcp install` always
-supplies one explicitly: `--port`, otherwise its own `9427` default. Called
-from Python, `lifecycle.install(port=None)` and `generate_plist(port=None)`
-leave the decision to `resolve_http_port()` — `9427` under production, the
+The port written into the plist follows the caller. `axm-mcp install`
+supplies one explicitly only when `--port` is given; without it the command
+resolves the port itself before delegating. Called from Python,
+`lifecycle.install(port=None)` and `generate_plist(port=None)`
+leave that same decision to `resolve_http_port()` — `9427` under production, the
 profile-derived port elsewhere, and `AXM_MCP_PORT` honoured through the
 resolver's alias registry. The resolution happens per call, so it reflects
 the profile active at install time rather than a value frozen at import.

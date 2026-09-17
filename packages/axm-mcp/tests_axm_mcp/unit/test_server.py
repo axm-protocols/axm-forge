@@ -8,43 +8,57 @@ from unittest.mock import patch
 import pytest
 
 from axm_mcp import server, wrapping
-from axm_mcp.server import DEFAULT_PORT, serve
+from axm_mcp.server import serve
 
-# ──────────────────────── Unit tests ──────────────────────────
+# The adopted production listening point, restated as a literal: this module
+# owns no port constant of its own and imports none.
+_PRODUCTION_PORT = 9427
+
+# ──────────────────────── Unit tests ─────────────────────────
 
 
-def test_default_port_single_source() -> None:
-    """P2-6: ``server.DEFAULT_PORT`` is the SAME object as ``cli.DEFAULT_PORT``
-    — one source of truth, so plist and server can never drift apart.
-    """
-    from axm_mcp import cli
+class TestServerPortOwnership:
+    """The server module decides no listening point of its own."""
 
-    assert server.DEFAULT_PORT is cli.DEFAULT_PORT
+    def test_no_port_constant_and_minimal_public_surface(self) -> None:
+        """AC2: the duplicated constant is gone and ``__all__`` names exactly
+        the health-check route and the server start function.
+        """
+        assert not hasattr(server, "DEFAULT_PORT")
+        assert sorted(server.__all__) == ["health_check", "serve"]
 
 
 class TestServeCallsMcpRun:
     """AC1: serve() starts a Streamable HTTP server."""
 
-    def test_serve_calls_mcp_run_http(self) -> None:
+    def test_serve_calls_mcp_run_http(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """serve() delegates to mcp.run(transport='streamable-http')."""
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         with patch("axm_mcp.server.mcp") as mock_mcp:
             serve()
             mock_mcp.run.assert_called_once_with(
-                transport="streamable-http", host="127.0.0.1", port=DEFAULT_PORT
+                transport="streamable-http",
+                host="127.0.0.1",
+                port=_PRODUCTION_PORT,
             )
 
-    def test_serve_path_enables_http_mode(self, _restore_http_mode: None) -> None:
+    def test_serve_path_enables_http_mode(
+        self, _restore_http_mode: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """AC4: the real HTTP serve path sets ``wrapping._HTTP_MODE`` to True.
 
         Drives ``server.serve`` (reached in production via ``cli.serve``) with
         only ``mcp.run`` mocked. The flag is NOT patched: we assert the wiring
         actually flips it before ``mcp.run`` is entered.
         """
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         wrapping._HTTP_MODE = False  # start from the stdio default, no patching
         with patch("axm_mcp.server.mcp") as mock_mcp:
             server.serve()
         mock_mcp.run.assert_called_once_with(
-            transport="streamable-http", host="127.0.0.1", port=DEFAULT_PORT
+            transport="streamable-http", host="127.0.0.1", port=_PRODUCTION_PORT
         )
         assert wrapping._HTTP_MODE is True
 
@@ -75,13 +89,34 @@ def test_shared_mode_requires_armed_session_resolver() -> None:
 
 
 class TestServeDefaultPort:
-    """AC3: default port is 9427."""
+    """AC3: the listening point comes from the shared resolution seam."""
 
-    def test_serve_default_port(self) -> None:
-        """Port defaults to 9427 when no args and no env var."""
+    def test_serve_default_port(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Port defaults to 9427 under the production profile."""
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         with patch("axm_mcp.server.mcp") as mock_mcp:
             serve()
-            assert mock_mcp.run.call_args.kwargs["port"] == DEFAULT_PORT
+            assert mock_mcp.run.call_args.kwargs["port"] == _PRODUCTION_PORT
+
+    def test_dev_profile_binds_resolved_service_port(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC3: dev profile, nothing set — serve binds service_port('mcp').
+
+        Under a non-production profile the shared seam derives a per-profile
+        listening point, so a profile-isolated installation starts with no
+        human-supplied port instead of falling back to the adopted 9427.
+        """
+        from axm_config import service_port
+
+        monkeypatch.setenv("AXM_PROFILE", "dev")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
+
+        with patch("axm_mcp.server.mcp") as mock_mcp:
+            serve()
+
+        assert mock_mcp.run.call_args.kwargs["port"] == service_port("mcp")
 
 
 class TestServeEnvPort:
@@ -150,7 +185,7 @@ class TestHealthEndpoint:
         assert body["tools_count"] == 3
 
 
-# ──────────────────────── Functional tests ────────────────────
+# ─────────────────────── Functional tests ────────────────
 
 
 class TestStdioStillWorks:
@@ -168,7 +203,7 @@ class TestStdioStillWorks:
         mock_mcp.run.assert_called_once_with()
 
 
-# ──────────────────────── Edge cases ──────────────────────────
+# ──────────────────────── Edge cases ─────────────────────────
 
 
 class TestEdgeCases:
@@ -189,13 +224,12 @@ class TestEdgeCases:
         with pytest.raises(ValueError, match="port"):
             serve(port=-1)
 
-    def test_missing_env_var_uses_default(self) -> None:
+    def test_missing_env_var_uses_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When AXM_MCP_PORT is not set, default 9427 is used."""
-        with (
-            patch("axm_mcp.server.mcp") as mock_mcp,
-            patch.dict(os.environ, {}, clear=False),
-        ):
-            # Ensure AXM_MCP_PORT is not set
-            os.environ.pop("AXM_MCP_PORT", None)
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
+        with patch("axm_mcp.server.mcp") as mock_mcp:
             serve()
-            assert mock_mcp.run.call_args.kwargs["port"] == DEFAULT_PORT
+            assert mock_mcp.run.call_args.kwargs["port"] == _PRODUCTION_PORT

@@ -21,11 +21,13 @@ from typing import Annotated
 import cyclopts
 import httpx
 
-from axm_mcp.settings import resolve_pid_file, resolve_serve_mode
+from axm_mcp.settings import (
+    resolve_http_port,
+    resolve_pid_file,
+    resolve_serve_mode,
+)
 
 __all__ = ["app", "main"]
-
-DEFAULT_PORT = 9427
 
 app = cyclopts.App(
     name="axm-mcp",
@@ -123,7 +125,7 @@ def remove_pid_file() -> None:
 def serve(
     *,
     host: Annotated[str, cyclopts.Parameter(help="Bind address.")] = "127.0.0.1",
-    port: Annotated[int, cyclopts.Parameter(help="Bind port.")] = DEFAULT_PORT,
+    port: Annotated[int | None, cyclopts.Parameter(help="Bind port.")] = None,
     shared: Annotated[
         bool | None, cyclopts.Parameter(help="Require per-session write contracts.")
     ] = None,
@@ -136,6 +138,9 @@ def serve(
     removes the file when it still contains *our* PID — so a failed start does
     not delete the legitimate server's PID file.
     """
+    if port is None:
+        port = resolve_http_port()
+
     explicit_mode = None if shared is None else ("shared" if shared else "dedicated")
     try:
         serve_mode = resolve_serve_mode(explicit_mode)
@@ -195,9 +200,12 @@ def serve(
 def status(
     *,
     host: Annotated[str, cyclopts.Parameter(help="Server host.")] = "127.0.0.1",
-    port: Annotated[int, cyclopts.Parameter(help="Server port.")] = DEFAULT_PORT,
+    port: Annotated[int | None, cyclopts.Parameter(help="Server port.")] = None,
 ) -> None:
     """Check whether the MCP server is running."""
+    if port is None:
+        port = resolve_http_port()
+
     url = f"http://{host}:{port}/health"
     try:
         resp = httpx.get(url, timeout=3)
@@ -254,7 +262,7 @@ def stop() -> None:
 @app.command
 def install(
     *,
-    port: Annotated[int, cyclopts.Parameter(help="Server port.")] = DEFAULT_PORT,
+    port: Annotated[int | None, cyclopts.Parameter(help="Server port.")] = None,
     binary: Annotated[
         Path | None,
         cyclopts.Parameter(help="Explicit binary path for the plist."),
@@ -262,6 +270,9 @@ def install(
 ) -> None:
     """Install the MCP server as a launchd service."""
     from axm_mcp import lifecycle
+
+    if port is None:
+        port = resolve_http_port()
 
     lifecycle.install(port, binary=binary)
 

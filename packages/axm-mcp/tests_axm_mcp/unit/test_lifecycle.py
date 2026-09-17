@@ -320,9 +320,14 @@ class TestCLIInstall:
         ids=["default_port", "binary_flag"],
     )
     def test_cli_install_delegates(
-        self, argv: list[str], expected_binary: Path | None
+        self,
+        argv: list[str],
+        expected_binary: Path | None,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """axm-mcp install delegates to lifecycle.install with parsed args."""
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         with (
             patch("axm_mcp.lifecycle.install") as mock_install,
             patch("sys.argv", argv),

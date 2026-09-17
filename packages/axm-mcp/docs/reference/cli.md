@@ -10,21 +10,26 @@ not add `axm verify` or `axm web_fetch` to the generic AXM CLI.
 | Command | Parameters | Behavior |
 |---|---|---|
 | `axm-mcp` | none | Run MCP over stdio until the client closes the connection |
-| `axm-mcp serve` | `--host` (`127.0.0.1`), `--port` (`9427`), `--shared / --no-shared` | Run Streamable HTTP at `/mcp`, with `/health` |
-| `axm-mcp status` | `--host` (`127.0.0.1`), `--port` (`9427`) | HTTP GET to `/health`, timeout 3 seconds |
+| `axm-mcp serve` | `--host` (`127.0.0.1`), `--port` (profile-resolved), `--shared / --no-shared` | Run Streamable HTTP at `/mcp`, with `/health` |
+| `axm-mcp status` | `--host` (`127.0.0.1`), `--port` (profile-resolved) | HTTP GET to `/health`, timeout 3 seconds |
 | `axm-mcp stop` | none | Send SIGTERM to the active profile's recorded process |
-| `axm-mcp install` | `--port` (`9427`), `--binary PATH` | Write and load the macOS launchd service |
+| `axm-mcp install` | `--port` (profile-resolved), `--binary PATH` | Write and load the macOS launchd service |
 | `axm-mcp uninstall` | none | Unload the launchd service and remove its plist |
 
 Every subcommand accepts `--help`. There is no `--version` flag.
 
 ### serve
 
-`--port` must be between 1 and 65535. **Pass the port explicitly**:
-the CLI passes its default `9427` to the server even when `AXM_MCP_PORT`
-is set. `status` and `install` also default to `9427`. The environment
-variable is used by the lower-level server API when no port is provided and
-by the AXM daemon descriptor; these are different entry points.
+`--port` must be between 1 and 65535. Omitting it is now the normal case:
+`serve`, `status` and `install` each take `--port` as an optional value and
+resolve it **at call time** through `resolve_http_port()` — `9427` under the
+production profile, a port derived from the profile name in the 20000-49151
+band elsewhere, and `AXM_MCP_PORT` when that variable is set, honoured
+through the resolver's alias registry rather than by a read in this package.
+An explicit `--port` always wins verbatim; the resolution only supplies a
+value nobody chose. The CLI, the lower-level server API and the AXM daemon
+descriptor now read that same seam, so they can no longer disagree about
+where the server listens.
 
 The serving policy resolves explicit `--no-shared` → `AXM_MCP_SERVE_MODE`
 → `[mcp] serve_mode` in AXM configuration → `dedicated`.
@@ -86,7 +91,7 @@ by MCP results and are not a server CLI exit code.
 | `AXM_DISABLE_TOOLS` | Comma-separated, whitespace-trimmed names/globs excluded **before loading** installed `axm.tools` entry points |
 | `AXM_MCP_SERVE_MODE` | `shared` or `dedicated`; outranks the configuration file |
 | `AXM_PROFILE` | Selects the profile-scoped PID path; unset means `production` |
-| `AXM_MCP_PORT` | Used by the daemon descriptor and lower-level port resolution; does not override the CLI's `--port` default |
+| `AXM_MCP_PORT` | Reaches every port path through `resolve_http_port()`: it supplies the port of `serve`, `status`, `install`, the server API and the daemon descriptor when none was given, and is outranked by an explicit `--port` |
 | `AXM_MCP_SHARED` | Internal registration switch set by `serve`; do not set it independently of the serving policy |
 
 Disabling discovered entries does not disable the server's built-in

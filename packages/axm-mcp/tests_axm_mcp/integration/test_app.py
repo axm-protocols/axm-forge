@@ -34,11 +34,28 @@ def _serve_ok(args: list[str]) -> None:
 class TestServeCommand:
     """AC1/AC2: serve subcommand delegates to server.serve."""
 
-    def test_cli_serve_delegates(self, tmp_pid_file: Path) -> None:
+    def test_cli_serve_delegates(
+        self, tmp_pid_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """serve command calls server.serve with default args."""
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         with patch("axm_mcp.server.serve") as mock_serve:
             _serve_ok(["serve"])
             mock_serve.assert_called_once_with(host="127.0.0.1", port=_DEFAULT_PORT)
+
+    def test_cli_serve_delegates_resolved_port(
+        self, tmp_pid_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC4: serve with no --port delegates the resolved listening point.
+
+        The historical ``AXM_MCP_PORT`` names 9500, so the command must hand
+        that number to the server start function instead of binding an
+        import-time constant of its own.
+        """
+        monkeypatch.setenv("AXM_MCP_PORT", "9500")
+        with patch("axm_mcp.server.serve") as mock_serve:
+            _serve_ok(["serve"])
+            mock_serve.assert_called_once_with(host="127.0.0.1", port=9500)
 
     def test_cli_serve_custom_port(self, tmp_pid_file: Path) -> None:
         """serve --port 8080 passes port to server.serve."""

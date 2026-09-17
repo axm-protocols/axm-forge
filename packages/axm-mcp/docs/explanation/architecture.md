@@ -55,14 +55,17 @@ consequence for an operator is that a self-contained installation running
 under its own profile starts without anyone supplying a port, where the
 previous local decision refused outside production.
 
-The launchd side funnels through that same seam rather than duplicating it:
+Every port path funnels through that same seam rather than duplicating it.
 `generate_plist()` and `lifecycle.install()` take `port: int | None = None`
 and call `resolve_http_port()` when the caller supplied nothing, at render
-time instead of binding a constant at import time. An explicit port still
+time instead of binding a constant at import time. The `serve`, `status` and
+`install` CLI commands now do the same, and `server.serve()` resolves there
+too instead of re-reading `AXM_MCP_PORT` for its own account — a concurrent
+local read would short-circuit the upstream precedence the paragraph above
+defers to. No `DEFAULT_PORT` constant survives anywhere in the package, so
+exactly one value decides where the service listens. An explicit port still
 wins verbatim — the resolution only supplies a value nobody chose, it never
-pre-empts a choice. The `axm-mcp install` command still passes its own
-`9427` default explicitly, so the profile-derived port reaches a plist
-through the Python API, not yet through that CLI flag.
+pre-empts a choice.
 
 ## Execution and data
 

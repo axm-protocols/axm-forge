@@ -22,10 +22,12 @@ in other environments are not discovered.
 axm-mcp serve --host 127.0.0.1 --port 9427 --no-shared
 ```
 
-This selects the dedicated policy explicitly. **Use `--port`**, including
-when your shell has `AXM_MCP_PORT`: the CLI's default is fixed at 9427.
-For multiple profiles/processes, choose distinct ports and PID profiles;
-see [configuration](../reference/configuration.md).
+This selects the dedicated policy explicitly. `--port` is optional: omitted,
+it resolves to `9427` under the production profile, to `AXM_MCP_PORT` when
+your shell sets it, and to a profile-derived port otherwise; supplying it
+overrides that resolution verbatim. For several processes, run them under
+distinct `AXM_PROFILE` values — they then pick distinct ports and PID files
+on their own; see [configuration](../reference/configuration.md).
 
 Dedicated HTTP can serve multiple clients, but it does not require a separate
 write contract from each. For cooperative per-session scopes, use the

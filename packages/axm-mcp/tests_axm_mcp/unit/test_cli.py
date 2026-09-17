@@ -13,7 +13,6 @@ import pytest
 
 from axm_mcp import cli, wrapping
 from axm_mcp.cli import (
-    DEFAULT_PORT,
     app,
     is_axm_mcp_process,
     is_process_alive,
@@ -21,6 +20,11 @@ from axm_mcp.cli import (
 )
 
 # ──────────────────────── Helpers ──────────────────────────
+
+
+# The adopted production listening point, restated as a literal: this module
+# owns no port constant of its own and imports none.
+_PRODUCTION_PORT = 9427
 
 
 def _run_cli(args: list[str]) -> None:
@@ -130,13 +134,17 @@ class TestDefaultStdio:
 class TestCliServeEnablesHttp:
     """The full ``cli.serve`` chain flips the HTTP mode flag."""
 
-    def test_cli_serve_enables_http_mode(self, _restore_http_mode: None) -> None:
+    def test_cli_serve_enables_http_mode(
+        self, _restore_http_mode: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """AC1, AC4: the full ``cli.serve`` chain enables HTTP mode.
 
         Covers the production chain cli.serve -> server.serve -> mcp.run with
         ``mcp.run`` mocked. PID file side effects are tolerated (real tmp I/O).
         The flag is asserted, never patched.
         """
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         wrapping._HTTP_MODE = False
         with (
             patch("axm_mcp.server.mcp") as mock_mcp,
@@ -146,7 +154,7 @@ class TestCliServeEnablesHttp:
         ):
             cli.serve()
         mock_mcp.run.assert_called_once_with(
-            transport="streamable-http", host="127.0.0.1", port=DEFAULT_PORT
+            transport="streamable-http", host="127.0.0.1", port=_PRODUCTION_PORT
         )
         assert wrapping._HTTP_MODE is True
 
@@ -311,3 +319,63 @@ class TestStopCommand:
         mock_remove.assert_called_once_with()
         err = capsys.readouterr().err
         assert err.strip() != ""
+
+
+# ──────────────────────── port resolution ──────────────────────────
+
+
+class TestCliPortOwnership:
+    """The cli module decides no listening point of its own."""
+
+    def test_module_has_no_default_port_constant(self) -> None:
+        """AC1: the duplicated port constant is gone from the cli module."""
+        assert not hasattr(cli, "DEFAULT_PORT")
+
+
+class TestStatusResolvedPort:
+    """status polls the resolved listening point."""
+
+    def test_status_polls_resolved_then_explicit_port(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC5: no --port polls the resolved port; --port 8080 wins verbatim.
+
+        ``AXM_MCP_PORT`` names 9500, so the first poll must target it rather
+        than an import-time constant; the second call attests the unchanged
+        precedence of an explicitly supplied port.
+        """
+        monkeypatch.setenv("AXM_MCP_PORT", "9500")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "ok", "tools_count": 7}
+
+        with patch("axm_mcp.cli.httpx.get", return_value=mock_resp) as mock_get:
+            _run_cli(["status"])
+            _run_cli(["status", "--port", "8080"])
+
+        urls = [call.args[0] for call in mock_get.call_args_list]
+        assert urls == [
+            "http://127.0.0.1:9500/health",
+            "http://127.0.0.1:8080/health",
+        ]
+
+
+class TestInstallResolvedPort:
+    """install forwards the resolved listening point to the installer."""
+
+    def test_install_forwards_resolved_then_explicit_port(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC6: no --port forwards the resolved port; --port 8080 is verbatim.
+
+        ``AXM_MCP_PORT`` names 9500, so the first delegation must carry it;
+        the second call attests the unchanged precedence of an explicit port.
+        """
+        monkeypatch.setenv("AXM_MCP_PORT", "9500")
+
+        with patch("axm_mcp.lifecycle.install") as mock_install:
+            _run_cli(["install"])
+            _run_cli(["install", "--port", "8080"])
+
+        ports = [call.args[0] for call in mock_install.call_args_list]
+        assert ports == [9500, 8080]

@@ -7,7 +7,6 @@ conversations.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 
 from axm.tools.write_scope import WriteContract
@@ -15,11 +14,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 import axm_mcp.wrapping as _wrapping
-from axm_mcp.cli import DEFAULT_PORT
 from axm_mcp.mcp_app import mcp
-from axm_mcp.settings import HEALTH_PATH
+from axm_mcp.settings import HEALTH_PATH, resolve_http_port
 
-__all__ = ["DEFAULT_PORT", "health_check", "serve"]
+__all__ = ["health_check", "serve"]
 
 _MIN_PORT = 1
 _MAX_PORT = 65535
@@ -53,7 +51,10 @@ def serve(
 
     Args:
         host: Bind address (default 127.0.0.1).
-        port: Bind port. Falls back to AXM_MCP_PORT env var, then 9427.
+        port: Bind port. When omitted, the package's shared resolution
+            seam decides it for the active state profile — the historical
+            ``AXM_MCP_PORT`` still wins there, through the upstream alias
+            registry rather than a local read that would race it.
     """
     if shared and session_resolver is None:
         raise SharedModeNotArmedError(
@@ -61,8 +62,7 @@ def serve(
         )
 
     if port is None:
-        env_port = os.environ.get("AXM_MCP_PORT")
-        port = int(env_port) if env_port else DEFAULT_PORT
+        port = resolve_http_port()
 
     if not (_MIN_PORT <= port <= _MAX_PORT):
         msg = f"Invalid port {port}: must be between {_MIN_PORT} and {_MAX_PORT}"
