@@ -8,8 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from axm_mcp.cli import DEFAULT_PORT
 from axm_mcp.plist_template import PLIST_TEMPLATE
+from axm_mcp.settings import resolve_http_port
 
 __all__ = ["find_binary", "generate_plist", "install", "uninstall"]
 
@@ -53,19 +53,20 @@ def find_binary() -> Path:
     return resolved
 
 
-def generate_plist(port: int = DEFAULT_PORT, *, binary: Path | None = None) -> str:
+def generate_plist(port: int | None = None, *, binary: Path | None = None) -> str:
     """Render the launchd plist with the current binary path."""
     bin_path = binary or find_binary()
     return PLIST_TEMPLATE.format(
         bin_path=bin_path,
-        port=port,
+        port=resolve_http_port() if port is None else port,
         log_dir=LOG_DIR,
     )
 
 
-def install(port: int = DEFAULT_PORT, *, binary: Path | None = None) -> None:
+def install(port: int | None = None, *, binary: Path | None = None) -> None:
     """Generate the plist, write it, and load it via launchctl."""
-    plist_content = generate_plist(port, binary=binary)
+    resolved_port = resolve_http_port() if port is None else port
+    plist_content = generate_plist(resolved_port, binary=binary)
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -93,7 +94,7 @@ def install(port: int = DEFAULT_PORT, *, binary: Path | None = None) -> None:
         print(f"Failed to load service: {exc.stderr.strip()}", file=sys.stderr)  # noqa: T201
         raise SystemExit(1) from exc
 
-    print(f"Service installed and loaded (port {port})")  # noqa: T201
+    print(f"Service installed and loaded (port {resolved_port})")  # noqa: T201
 
 
 def uninstall() -> None:

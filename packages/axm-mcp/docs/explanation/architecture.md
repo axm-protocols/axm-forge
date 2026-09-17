@@ -55,6 +55,15 @@ consequence for an operator is that a self-contained installation running
 under its own profile starts without anyone supplying a port, where the
 previous local decision refused outside production.
 
+The launchd side funnels through that same seam rather than duplicating it:
+`generate_plist()` and `lifecycle.install()` take `port: int | None = None`
+and call `resolve_http_port()` when the caller supplied nothing, at render
+time instead of binding a constant at import time. An explicit port still
+wins verbatim — the resolution only supplies a value nobody chose, it never
+pre-empts a choice. The `axm-mcp install` command still passes its own
+`9427` default explicitly, so the profile-derived port reaches a plist
+through the Python API, not yet through that CLI flag.
+
 ## Execution and data
 
 Direct tools and catalog calls are constructed using `build_wrappers`.

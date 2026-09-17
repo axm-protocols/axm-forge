@@ -56,8 +56,12 @@ class TestPlistTemplate:
 class TestGeneratePlist:
     """Cover generate_plist() in lifecycle.py."""
 
-    def test_renders_with_defaults(self, tmp_path: Path) -> None:
+    def test_renders_with_defaults(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Plist contains correct binary path and default port."""
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.delenv("AXM_MCP_PORT", raising=False)
         fake_global = tmp_path / "axm-mcp"
         with (
             patch("axm_mcp.lifecycle._GLOBAL_BIN", fake_global),
@@ -93,6 +97,21 @@ class TestGeneratePlist:
 
         plist = generate_plist(binary=Path("/opt/custom/bin/axm-mcp"))
         assert "/opt/custom/bin/axm-mcp" in plist
+
+    def test_renders_resolved_port_when_port_omitted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC1: no port given renders the profile-resolved listening point."""
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.setenv("AXM_MCP_PORT", "9500")
+
+        from axm_mcp import lifecycle
+        from axm_mcp.settings import resolve_http_port
+
+        plist = lifecycle.generate_plist(binary=Path("/opt/custom/bin/axm-mcp"))
+
+        assert "9500" in plist
+        assert str(resolve_http_port()) in plist
 
 
 class TestInstall:
@@ -158,6 +177,34 @@ class TestInstall:
 
             with pytest.raises(SystemExit):
                 install()
+
+    def test_writes_resolved_port_when_port_omitted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: install() with no port writes the resolved listening point."""
+        monkeypatch.setenv("AXM_PROFILE", "production")
+        monkeypatch.setenv("AXM_MCP_PORT", "9500")
+
+        def which_side_effect(name: str) -> str:
+            return f"/usr/local/bin/{name}"
+
+        with (
+            patch("axm_mcp.lifecycle.shutil.which", side_effect=which_side_effect),
+            patch("axm_mcp.lifecycle.PLIST_PATH") as mock_plist_path,
+            patch("axm_mcp.lifecycle.LOG_DIR"),
+            patch("axm_mcp.lifecycle.subprocess.run"),
+            patch("axm_mcp.lifecycle.os.getuid", return_value=501),
+        ):
+            mock_plist_path.parent = MagicMock()
+
+            from axm_mcp import lifecycle
+            from axm_mcp.settings import resolve_http_port
+
+            lifecycle.install()
+
+            written = mock_plist_path.write_text.call_args[0][0]
+            assert "9500" in written
+            assert str(resolve_http_port()) in written
 
 
 class TestUninstall:
@@ -243,6 +290,16 @@ class TestFindBinary:
 
             with pytest.raises(SystemExit):
                 find_binary()
+
+
+class TestLifecyclePortOwnership:
+    """The launchd side owns no port constant of its own."""
+
+    def test_module_has_no_default_port_constant(self) -> None:
+        """AC3: the duplicated port constant is gone from lifecycle."""
+        from axm_mcp import lifecycle
+
+        assert not hasattr(lifecycle, "DEFAULT_PORT")
 
 
 # ──────────────────────── CLI integration tests ────────────────────────

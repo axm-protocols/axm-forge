@@ -60,6 +60,16 @@ The launchd installer has one fixed label and plist path; it is not the
 profile-aware AXM supervisor descriptor. Do not use repeated `install` calls
 as a way to create one launchd service per profile.
 
+The port written into the plist follows the caller. `axm-mcp install` always
+supplies one explicitly: `--port`, otherwise its own `9427` default. Called
+from Python, `lifecycle.install(port=None)` and `generate_plist(port=None)`
+leave the decision to `resolve_http_port()` — `9427` under production, the
+profile-derived port elsewhere, and `AXM_MCP_PORT` honoured through the
+resolver's alias registry. The resolution happens per call, so it reflects
+the profile active at install time rather than a value frozen at import.
+The `Service installed and loaded (port ...)` confirmation names that same
+resolved port.
+
 Without `--binary`, discovery prefers an existing
 `~/.local/bin/axm-mcp`, then PATH. It checks that preferred file exists,
 not that it is the environment you intended or has your optional tools.
