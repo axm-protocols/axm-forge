@@ -38,6 +38,7 @@ class TemplateType(StrEnum):
     MEMBER = "member"
     PAPER = "paper"
     EXPERIMENT = "experiment"
+    LEARNING = "learning"
 
 
 # Template directory per (template_type, framework). Python keeps its existing
@@ -49,6 +50,7 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
     (TemplateType.MEMBER, Framework.PYTHON): "workspace-member",
     (TemplateType.PAPER, Framework.PYTHON): "paper-submodule",
     (TemplateType.EXPERIMENT, Framework.PYTHON): "experiment",
+    (TemplateType.LEARNING, Framework.PYTHON): "learning-profile",
     (TemplateType.STANDALONE, Framework.NODE): "node-project",
     (TemplateType.STANDALONE, Framework.SVELTE): "svelte-project",
 }

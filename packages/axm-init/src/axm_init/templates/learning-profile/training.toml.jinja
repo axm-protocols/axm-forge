@@ -1,0 +1,47 @@
+[recipe_ref]
+distribution = "{{ module_name }}"
+version = "0.1.0"
+entry_point = "{{ module_name }}.learning.recipe:SyntheticRecipe"
+contract_version = 1
+
+[run]
+run_id = "{{ domain }}-synthetic"
+
+[data.identity]
+name = "{{ domain }}-synthetic"
+version = "1"
+
+[data.loader]
+target = "{{ module_name }}.learning.recipe:SyntheticRecipe"
+params = { seed = 17 }
+
+[data.splits.train]
+fractions = { train = 0.8, val = 0.2 }
+
+[model.identity]
+name = "synthetic-linear"
+version = "1"
+
+[model.factory]
+target = "torch.nn:Linear"
+params = { in_features = 4, out_features = 1 }
+
+[objective]
+direction = "minimize"
+
+[objective.loss.factory]
+target = "torch.nn:MSELoss"
+
+[schedule]
+max_steps = 20
+
+[optimizer.optimizer]
+target = "torch.optim:SGD"
+params = { lr = 0.05 }
+
+[[metrics]]
+name = "mse"
+direction = "minimize"
+
+[metrics.factory]
+target = "torchmetrics:MeanSquaredError"

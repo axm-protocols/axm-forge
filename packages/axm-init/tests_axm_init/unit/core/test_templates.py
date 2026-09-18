@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from axm_init.core.framework import Framework
 from axm_init.core.templates import TemplateType, get_template_path
 
 
@@ -47,6 +48,17 @@ class TestExperimentTemplateTypeUnit:
     def test_experiment_member_is_listed(self) -> None:
         # AC1: EXPERIMENT is a first-class member of the template-type enum.
         assert "experiment" in {member.value for member in TemplateType}
+
+
+class TestLearningTemplateTypeUnit:
+    """Learning template dispatch contracts."""
+
+    def test_learning_template_resolves_to_profile_directory(self) -> None:
+        """AC1: LEARNING resolves to the bundled Python learning profile."""
+        path = get_template_path(TemplateType.LEARNING, Framework.PYTHON)
+
+        assert path.name == "learning-profile"
+        assert path.parent.name == "templates"
 
 
 # --- tests.* override relaxation tests ---

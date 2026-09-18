@@ -1,0 +1,16 @@
+"""Unit contracts for the generated synthetic recipe."""
+
+from __future__ import annotations
+
+import torch
+
+from {{ module_name }}.learning.recipe import SyntheticRecipe
+
+
+def test_synthetic_recipe_replays_from_its_seed() -> None:
+    """The generated recipe fabricates deterministic in-process data."""
+    first_features, first_targets = next(SyntheticRecipe(seed=23).train_batches())
+    second_features, second_targets = next(SyntheticRecipe(seed=23).train_batches())
+
+    assert torch.equal(first_features, second_features)
+    assert torch.equal(first_targets, second_targets)

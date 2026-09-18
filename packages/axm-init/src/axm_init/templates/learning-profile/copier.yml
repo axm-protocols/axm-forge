@@ -1,0 +1,12 @@
+_templates_suffix: .jinja
+_skip_if_exists:
+  - src/*/learning/recipe.py
+  - tests_*/unit/test_recipe.py
+
+module_name:
+  type: str
+  help: Python import name of the project receiving the learning profile
+
+domain:
+  type: str
+  help: Short name of the learning domain used in generated identifiers

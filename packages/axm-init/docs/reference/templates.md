@@ -11,11 +11,33 @@ fallback.
 | python | member | workspace-member |
 | python | paper | paper-submodule |
 | python | experiment | experiment |
+| python | learning | learning-profile |
 | node | standalone | node-project |
 | svelte | standalone | svelte-project |
 
 The `protocols` profile adds metadata and declaration planning/application to
 Python packages; it is not another framework template.
+
+## Learning overlay
+
+`TemplateType.LEARNING` with `Framework.PYTHON` selects `learning-profile`.
+This is a Copier overlay for an existing Python project, not a complete project
+template: it does not render `pyproject.toml`, a README, a licence or workspace
+metadata. Its required answers are `module_name` (the Python import name) and
+`domain` (the short learning-domain identifier).
+
+A render produces exactly:
+
+- `training.toml` and `study.toml`;
+- `src/<module_name>/learning/{__init__,recipe,tool}.py`;
+- `tests_<module_name>/unit/test_recipe.py`.
+
+The generated recipe fabricates deterministic data in memory, while the tool
+module delegates training to the delivered `axm-fit` engine. Reapplying the
+overlay preserves `src/*/learning/recipe.py` and
+`tests_*/unit/test_recipe.py`; the configuration files remain template-owned.
+The scaffold command does not route a public learning option yet, so selecting
+this overlay currently requires the Python template API and Copier adapter.
 
 ## Tool routing
 
