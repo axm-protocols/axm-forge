@@ -33,7 +33,7 @@ direction = "minimize"
 target = "torch.nn:MSELoss"
 
 [schedule]
-max_steps = 20
+max_steps = 4
 
 [optimizer.optimizer]
 target = "torch.optim:SGD"
@@ -44,4 +44,4 @@ name = "mse"
 direction = "minimize"
 
 [metrics.factory]
-target = "torchmetrics:MeanSquaredError"
+target = "torch.nn:MSELoss"

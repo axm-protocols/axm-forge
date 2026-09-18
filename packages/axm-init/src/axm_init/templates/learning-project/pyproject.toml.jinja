@@ -11,11 +11,9 @@ requires-python = ">=3.12"
 license = "{{ license }}"
 authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
 dependencies = [
-    "axm",
-    "axm-fit",
-    "axm-learning",
-    "torch",
-    "torchmetrics",
+    "axm==0.9.0",
+    "numpy==2.5.3",
+    "torch==2.14.0",
 ]
 {% if private %}
 classifiers = ["Private :: Do Not Upload"]

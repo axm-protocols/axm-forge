@@ -126,8 +126,30 @@ The target contains `training.toml`, `study.toml`, a deterministic recipe at
 `src/learning_lab/recipe.py`, the registered training tool at
 `src/learning_lab/tools/train.py`, and
 `tests_learning_lab/unit/test_recipe.py`. Its `pyproject.toml` declares the
-learning domain under `[tool.axm-init.learning]` and registers the training
-AXMTool under `[project.entry-points."axm.tools"]`.
+learning domain under `[tool.axm-init.learning]`, registers the training
+AXMTool under `[project.entry-points."axm.tools"]`, and pins its three direct
+runtime dependencies (`axm`, `numpy`, and `torch`) to exact versions.
+
+Install the pinned environment, then run the generated entry point:
+
+```bash
+cd learning-lab
+uv sync
+uv run python -m learning_lab.tools.train
+```
+
+The default profile performs four real optimisation updates over synthetic data
+generated deterministically in memory. The training process neither downloads a
+dataset nor reads a machine-local cache; only environment installation may use
+the network. A successful run ends with one machine-readable line:
+
+```text
+FINAL_LOSS=<finite float>
+```
+
+Change `schedule.max_steps` in `training.toml` when you need a longer run. The
+same entry point is available through the registered `learning_lab_train`
+AXMTool.
 
 To create the same learning package as a member of an existing UV workspace,
 run from the workspace root (or one of its members) and supply `--member`:
