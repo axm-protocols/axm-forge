@@ -94,7 +94,9 @@ The built-in uv plan currently pins 0.8.4; a plan is not a latest-version lookup
 - Reports contain metadata, not credential values. Detection can launch
   subprocesses and invoke provider probes; read-only does not mean no I/O.
 - Doctor owns no credential store. `provision_missing()` plans groups;
-  confirmed execution delegates writes and prompts to vault.
+  confirmed execution delegates writes and prompts to vault. `provide_secret()`
+  writes a value the caller already holds through vault without a TTY, and
+  attests it by re-resolving the catalog rather than by the write returning.
 
 ## Documentation
 

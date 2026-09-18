@@ -10,7 +10,7 @@ request–response AXM tools.
 | detect | PATH/version, declared auth probes, config signals |
 | install | Describe plans, execute only with confirmation |
 | credentials | Convert vault provenance into typed rows |
-| orchestrate | Identify missing credentials and delegate setup |
+| orchestrate | Identify missing credentials, delegate setup and caller writes |
 | cli | Human reports and bootstrap confirmation |
 | tools | env_doctor and auth_status ToolResult responses |
 
@@ -43,6 +43,12 @@ Dry-run provisioning reads the live catalog/provenance without writing.
 Confirmed calls can install or delegate credential writes. Post-checks improve
 reporting but do not provide rollback or transactional isolation.
 
+A caller-supplied write (`provide_secret`) needs no TTY and still leaves the
+store to vault: it delegates to `vault_set`, which owns sensitivity routing and
+the environment-only refusal. Its outcome is attested by re-resolving the
+catalog rather than by the write returning, so a write that persisted nothing
+is reported as a failure instead of a false success.
+
 The read-only tools return values through MCP, generic CLI and DAG nodes.
 The dedicated cyclopts CLI provides a human check command and interactive
 bootstrap. Doctor implements no daemon or background service.
@@ -57,11 +63,13 @@ bootstrap. Doctor implements no daemon or background service.
 - Strict includes optional missing secrets and ignores config and undetermined
   auth. Its success is not a complete session-readiness guarantee.
 - Non-TTY bootstrap skips installs but can still print/read a secrets prompt;
-  confirmed provisioning then refuses without TTY.
+  confirmed provisioning then refuses without TTY. provide_secret is the
+  non-interactive path and does not reroute or weaken that refusal.
 - Bootstrap can exit 0 after printed install/provision failures. It does not
   log in, repair git configuration or roll back changes.
-- Structured missing rows preserve accounts; setup hints, CLI secret labels
-  and still_missing strings omit them.
+- Structured missing rows preserve accounts; setup hints, CLI secret labels and
+  provision_missing's still_missing strings omit them. ProvideResult reports
+  account-aware coordinates.
 - Custom install plans are not limited to registry commands or URLs.
   HTTPS/status/size checks are not signature verification.
 

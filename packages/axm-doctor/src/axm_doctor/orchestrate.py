@@ -21,12 +21,15 @@ from axm_vault import load_catalog
 from axm_vault.doctor import doctor_data
 from axm_vault.setup import run_setup
 from axm_vault.store import KeyringStore
+from axm_vault.tools import VaultSetTool
 from pydantic import BaseModel
 
 __all__ = [
     "MissingSecret",
+    "ProvideResult",
     "ProvisionResult",
     "missing_secrets",
+    "provide_secret",
     "provision_missing",
 ]
 
@@ -75,6 +78,29 @@ class ProvisionResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
 
 #: Segment count of an instance-qualified coordinate: group, instance, name.
 _INSTANCE_SEGMENTS = 3
+
+
+class ProvideResult(BaseModel, frozen=True):  # type: ignore[explicit-any]
+    """Outcome of :func:`provide_secret`, value-free by construction.
+
+    Carries only the coordinates of the credential, the storage ``target``
+    vault reported (prefixed ``keyring:`` or ``config:``) and the attestation.
+    ``stored`` is True ONLY when a post-write re-resolution of the catalog no
+    longer reports the coordinate missing: a delegated write that raised
+    nothing is not proof, exactly as for :class:`ProvisionResult`.
+    ``still_missing`` lists the coordinates left unresolved after the call and
+    ``reason`` names why nothing was stored (vault's refusal, or a coordinate
+    that stayed unresolved). The supplied value NEVER appears here — the model
+    deliberately declares no field able to hold it.
+    """
+
+    stored: bool
+    group: str
+    name: str
+    instance: str | None = None
+    target: str | None = None
+    still_missing: list[str] = []
+    reason: str | None = None
 
 
 def _is_served(
@@ -188,4 +214,85 @@ def provision_missing(*, confirm: bool = False) -> ProvisionResult:
         groups=groups,
         still_missing=still_missing,
         reason=reason if still_missing else None,
+    )
+
+
+def _missing_coordinates() -> list[str]:
+    """Re-resolve the catalog and return the coordinates still missing.
+
+    Each coordinate is composed by :meth:`~axm_vault.store.KeyringStore.username`,
+    the canonical form used throughout this module: it percent-escapes every
+    segment and carries the account identity, so two distinct accounts of a
+    multi-instance group can never collapse onto the same entry.
+    """
+    return [
+        KeyringStore.username(secret.group, secret.name, secret.instance)
+        for secret in missing_secrets()
+    ]
+
+
+def _stored_target(data: Mapping[str, object]) -> str | None:
+    """Return the storage target vault reported, or ``None`` when absent."""
+    target = data.get("stored")
+    return target if isinstance(target, str) else None
+
+
+def provide_secret(
+    *,
+    group: str,
+    name: str,
+    value: str,
+    instance: str | None = None,
+) -> ProvideResult:
+    """Store a caller-supplied credential value, attested by a re-resolution.
+
+    The third provisioning capability, beside :func:`missing_secrets` (what is
+    missing) and :func:`provision_missing` (ask a human at a terminal): here
+    the caller already HOLDS the value. ``sys.stdin`` is never consulted, so
+    the call works behind a web server or in a packaged app with no shell.
+
+    The write is delegated to vault's ``vault_set`` tool, which owns the
+    sensitivity routing (SECRET to the keyring, CONFIG to axm-config,
+    NONSENSITIVE refused as environment-only); doctor never stores a
+    credential itself. A delegated write that did not fail is NOT proof the
+    credential now resolves — exactly as in :func:`provision_missing`, truth
+    comes from re-resolving the catalog afterwards, so a write that persisted
+    nothing is reported as a failure rather than as a false green.
+
+    Args:
+        group: The credential group id, as declared by the vault catalog.
+        name: The credential name within that group.
+        value: The value handed to the storage layer. It is never logged,
+            never returned and never placed on the result.
+        instance: The account identity within a multi-instance group.
+
+    Returns:
+        A value-free :class:`ProvideResult` whose ``stored`` is True only when
+        the post-write re-resolution no longer reports the coordinate missing.
+    """
+    coordinate = KeyringStore.username(group, name, instance)
+    outcome = VaultSetTool().execute(
+        group=group, name=name, value=value, instance=instance
+    )
+    if not outcome.success:
+        refusal = outcome.error or f"vault refused to store {coordinate}"
+        return ProvideResult(
+            stored=False,
+            group=group,
+            name=name,
+            instance=instance,
+            still_missing=_missing_coordinates(),
+            reason=refusal,
+        )
+    still_missing = _missing_coordinates()
+    stored = coordinate not in still_missing
+    reason = None if stored else f"{coordinate} is still unresolved after the write"
+    return ProvideResult(
+        stored=stored,
+        group=group,
+        name=name,
+        instance=instance,
+        target=_stored_target(outcome.data),
+        still_missing=still_missing,
+        reason=reason,
     )

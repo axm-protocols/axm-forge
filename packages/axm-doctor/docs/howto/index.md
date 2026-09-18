@@ -6,6 +6,8 @@ Choose the task you need to accomplish.
   structured reports and explicitly map a tool node's outputs.
 - [Bootstrap a machine](bootstrap.md): review install plans, apply confirmed
   changes and inspect post-checks.
+- [Provide a credential without a terminal](provide-credentials.md): write a
+  value the caller already holds and check the attested outcome.
 - [Python contracts](../reference/python.md): inspect provenance without
   credential values, handle account coordinates and understand failures.
 

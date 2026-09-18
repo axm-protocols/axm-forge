@@ -11,6 +11,7 @@ nav:
       - howto/index.md
       - Preflight an agent or DAG: howto/preflight.md
       - Bootstrap a machine: howto/bootstrap.md
+      - Provide a credential without a terminal: howto/provide-credentials.md
   - Reference:
       - CLI and MCP: reference/cli.md
       - Python contracts: reference/python.md

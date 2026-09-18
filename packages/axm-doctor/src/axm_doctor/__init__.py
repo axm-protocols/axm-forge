@@ -41,8 +41,10 @@ if TYPE_CHECKING:
     )
     from axm_doctor.orchestrate import (
         MissingSecret,
+        ProvideResult,
         ProvisionResult,
         missing_secrets,
+        provide_secret,
         provision_missing,
     )
     from axm_doctor.tools import AuthStatusTool, EnvDoctorTool
@@ -60,6 +62,7 @@ __all__ = [
     "InstallPlan",
     "InstallResult",
     "MissingSecret",
+    "ProvideResult",
     "ProvisionResult",
     "ToolState",
     "ToolStatus",
@@ -70,6 +73,7 @@ __all__ = [
     "detect_tool",
     "install_command",
     "missing_secrets",
+    "provide_secret",
     "provision_missing",
     "run_install",
 ]
@@ -98,8 +102,10 @@ _LAZY: dict[str, str] = {
     "install_command": "install",
     "run_install": "install",
     "MissingSecret": "orchestrate",
+    "ProvideResult": "orchestrate",
     "ProvisionResult": "orchestrate",
     "missing_secrets": "orchestrate",
+    "provide_secret": "orchestrate",
     "provision_missing": "orchestrate",
     "AuthStatusTool": "tools",
     "EnvDoctorTool": "tools",

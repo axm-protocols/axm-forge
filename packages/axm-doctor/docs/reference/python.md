@@ -110,6 +110,32 @@ return early with a reason and without re-scan. Other errors can propagate.
 Earlier groups may already have changed; no rollback exists. still_missing
 uses group.name strings and omits account identity.
 
+## Caller-supplied credential values
+
+`provide_secret(*, group, name, value, instance=None)` stores a value the
+caller already holds. It never reads `sys.stdin`, so it works behind a web
+server or in a packaged application with no shell. The write is delegated to
+vault's `vault_set`, which routes by declared sensitivity: SECRET to the OS
+keyring, CONFIG to axm-config, NONSENSITIVE refused as environment-only.
+
+| ProvideResult field | Type / default |
+| --- | --- |
+| stored | bool, required |
+| group, name | str, required |
+| instance | str or None, default None |
+| target | str or None, default None |
+| still_missing | list[str], default [] |
+| reason | str or None, default None |
+
+`target` is vault's reported destination, prefixed `keyring:` or `config:`, and
+stays None when nothing was stored. `stored` comes from a post-write rescan of
+the catalog, never from the delegated write merely returning: a write that
+persisted nothing yields stored=False with the coordinate in still_missing and
+named in reason. A refusal (NONSENSITIVE, unknown group or name) yields
+stored=False with vault's message as reason. Unlike ProvisionResult, these
+still_missing strings are canonical account-aware coordinates. No field can
+hold the supplied value and the call logs none.
+
 ## Tools
 
 EnvDoctorTool and AuthStatusTool expose zero-argument execute() methods.

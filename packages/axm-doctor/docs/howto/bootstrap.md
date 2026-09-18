@@ -36,6 +36,9 @@ confirmation prompt. Closed stdin is treated as a decline; piped text can be
 read. Even if confirmed through that prompt, `provision_missing(confirm=True)`
 refuses vault setup without a TTY and returns a reason.
 
+A caller that already holds the values does not need that prompt at all: see
+[Provide a credential without a terminal](provide-credentials.md).
+
 Do not use bootstrap as an unattended provisioning engine. Use the read-only
 tools for automation and leave application to a separately controlled step.
 
