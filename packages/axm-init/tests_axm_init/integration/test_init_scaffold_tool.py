@@ -588,3 +588,69 @@ def test_public_standalone_project_omits_private_classifier(tmp_path: Path) -> N
         "Typing :: Typed",
         "License :: OSI Approved :: Apache Software License",
     ]
+
+
+def _scaffold_learning(tmp_path: Path) -> tuple[Path, ToolResult]:
+    target = tmp_path / "learning-lab"
+    result = _scaffold_without_tasks(
+        target,
+        name="learning-lab",
+        kind="learning",
+    )
+    return target, result
+
+
+@pytest.mark.integration
+def test_learning_scaffold_reports_template_profile_and_mode(tmp_path: Path) -> None:
+    """AC3: standalone learning reports its template, profile and mode."""
+    _target, result = _scaffold_learning(tmp_path)
+
+    assert result.success is True, result.error
+    assert result.data is not None
+    assert result.data["template"] == "learning"
+    assert result.data["profile"] == "learning"
+    assert result.data["mode"] == "standalone"
+
+
+@pytest.mark.integration
+def test_learning_scaffold_writes_learning_artifacts(tmp_path: Path) -> None:
+    """AC4: the learning scaffold renders every required training artefact."""
+    target, result = _scaffold_learning(tmp_path)
+
+    assert result.success is True, result.error
+    expected = {
+        "pyproject.toml",
+        "training.toml",
+        "study.toml",
+        "src/learning_lab/recipe.py",
+        "src/learning_lab/tools/train.py",
+        "tests_learning_lab/unit/test_recipe.py",
+    }
+    missing = sorted(path for path in expected if not (target / path).is_file())
+    assert missing == []
+
+
+@pytest.mark.integration
+def test_learning_pyproject_declares_nonempty_domain(tmp_path: Path) -> None:
+    """AC5: generated metadata declares a non-empty learning domain."""
+    target, result = _scaffold_learning(tmp_path)
+    assert result.success is True, result.error
+
+    metadata = tomllib.loads((target / "pyproject.toml").read_text(encoding="utf-8"))
+    profile = metadata["tool"]["axm-init"]["learning"]
+    assert isinstance(profile["domain"], str)
+    assert profile["domain"].strip()
+
+
+@pytest.mark.integration
+def test_learning_pyproject_declares_training_tool_entry_point(
+    tmp_path: Path,
+) -> None:
+    """AC6: generated metadata exposes the rendered training AXMTool."""
+    target, result = _scaffold_learning(tmp_path)
+    assert result.success is True, result.error
+
+    metadata = tomllib.loads((target / "pyproject.toml").read_text(encoding="utf-8"))
+    entry_points = metadata["project"]["entry-points"]["axm.tools"]
+    targets = [str(value).split(":", 1)[0] for value in entry_points.values()]
+    assert "learning_lab.tools.train" in targets

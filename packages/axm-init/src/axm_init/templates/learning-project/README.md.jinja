@@ -1,0 +1,14 @@
+# {{ package_name }}
+
+{{ description }}
+
+This project contains a deterministic training recipe, an AXM training tool,
+and versioned training and study configurations.
+
+## Train
+
+```bash
+axm {{ module_name }}_train --config-path training.toml
+```
+
+Edit `training.toml` for one run and `study.toml` for bounded optimisation.

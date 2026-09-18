@@ -341,6 +341,7 @@ class TestScaffoldDeclaredKinds:
             "member",
             "paper",
             "experiment",
+            "learning",
             "protocol_unit",
             "protocol",
         }
@@ -361,5 +362,40 @@ def test_unknown_kind_reports_the_exact_complete_seven_mode_set() -> None:
     assert result.success is False
     assert result.error == (
         "Unknown kind 'unknown' — expected one of standalone, workspace, member, "
-        "paper, experiment, protocol_unit, protocol"
+        "paper, experiment, learning, protocol_unit, protocol"
     )
+
+
+def test_read_kind_accepts_declared_learning_kind(
+    tmp_path: Path,
+) -> None:
+    """AC1: learning is declared and reaches scaffolding after `_read_kind`."""
+    from axm_init.tools.scaffold import _read_kind
+
+    parsed = _read_kind({"kind": "learning"})
+    assert parsed == "learning"
+    assert parsed in InitScaffoldTool().kinds
+
+    mock_result = MagicMock(
+        success=True,
+        files_created=[],
+        message="Project scaffolded via Copier",
+    )
+    with (
+        patch("axm_init.adapters.copier.CopierAdapter") as mock_copier_cls,
+        patch(
+            "axm_init.core.templates.get_template_path",
+            return_value=Path("/fake/learning-project"),
+        ),
+    ):
+        mock_copier_cls.return_value.copy.return_value = mock_result
+        result = InitScaffoldTool().execute(
+            path=str(tmp_path),
+            name="learning-lab",
+            kind=parsed,
+            org="org",
+            author="Author",
+            email="author@example.com",
+        )
+
+    assert result.success is True, result.error

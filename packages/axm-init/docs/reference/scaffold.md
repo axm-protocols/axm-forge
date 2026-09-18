@@ -20,7 +20,7 @@ axm init_scaffold [OPTIONS] [PATH]
 | `--description` | | string | `""` | Project description |
 | `--workspace` | | bool | `False` | Scaffold a UV workspace instead of a standalone package |
 | `--member` | | string | `None` | Scaffold a member sub-package with this name |
-| `--kind` | | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `protocol_unit`, `protocol` |
+| `--kind` | | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `--framework` | | string | `python` | `python`, `node`, `svelte`; non-Python templates support standalone only |
 | `--profile` | | string | `None` | `protocols` profile for Python |
 | `--domain` | | string | `None` | Required with protocol profile |
@@ -39,7 +39,7 @@ axm init_scaffold [OPTIONS] [PATH]
 - `--check-pypi` with taken name → exit code 1
 - `--member` outside a workspace → exit code 1
 - `--kind` outside the declared set (`standalone`, `workspace`, `member`,
-  `paper`, `experiment`, `protocol_unit`, `protocol`) → exit code 1
+  `paper`, `experiment`, `learning`, `protocol_unit`, `protocol`) → exit code 1
 - `--kind experiment` on a directory that is not a detected paper → exit code 1,
   and nothing is written under that directory
 
@@ -125,6 +125,22 @@ Every entry of that `files` list is named relative to the payload's own `path`
 entry always resolves on disk — `manifest.yaml`, `inputs/SOURCES.md`, … The
 `paper` kind follows the same rule against the paper root it reports.
 
+
+## Learning example
+
+```bash
+axm init_scaffold learning-lab --kind learning \
+  --org axm-protocols --author "Your Name" --email "you@example.com"
+```
+
+The learning kind is standalone and selects the bundled `learning-project`
+template. It creates `training.toml`, `study.toml`,
+`src/learning_lab/recipe.py`, `src/learning_lab/tools/train.py` and
+`tests_learning_lab/unit/test_recipe.py`. The structured result adds
+`profile="learning"`, `mode="standalone"`, `distribution` and `root` to the
+ordinary `project_name`, `template` and `files` fields. The generated
+`pyproject.toml` declares `[tool.axm-init.learning]` and an `axm.tools` entry
+point for `learning_lab.tools.train:TrainingTool`.
 
 ## Protocol and framework contracts
 

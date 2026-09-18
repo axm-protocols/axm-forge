@@ -11,33 +11,39 @@ fallback.
 | python | member | workspace-member |
 | python | paper | paper-submodule |
 | python | experiment | experiment |
-| python | learning | learning-profile |
+| python | learning | learning-project |
 | node | standalone | node-project |
 | svelte | standalone | svelte-project |
 
 The `protocols` profile adds metadata and declaration planning/application to
 Python packages; it is not another framework template.
 
-## Learning overlay
+## Learning project and compatibility overlay
 
-`TemplateType.LEARNING` with `Framework.PYTHON` selects `learning-profile`.
-This is a Copier overlay for an existing Python project, not a complete project
-template: it does not render `pyproject.toml`, a README, a licence or workspace
-metadata. Its required answers are `module_name` (the Python import name) and
-`domain` (the short learning-domain identifier).
+`TemplateType.LEARNING` with `Framework.PYTHON` selects `learning-project`.
+The template has two explicit modes over the same learning contract.
 
-A render produces exactly:
+The public `init_scaffold --kind learning` route selects `standalone`. It renders
+`pyproject.toml`, `README.md`, `training.toml`, `study.toml`, the deterministic
+`src/<module_name>/recipe.py`, the AXMTool at
+`src/<module_name>/tools/train.py`, and its seed unit test. Generated metadata
+contains `[tool.axm-init.learning]` with a non-empty `domain`, plus an
+`axm.tools` entry point targeting `<module_name>.tools.train:TrainingTool`.
+The result reports `template="learning"`, `profile="learning"` and
+`mode="standalone"`.
+
+Direct Copier consumers remain compatible through the default `overlay` mode.
+Passing `module_name` and `domain` without a standalone package answer renders
+exactly:
 
 - `training.toml` and `study.toml`;
 - `src/<module_name>/learning/{__init__,recipe,tool}.py`;
 - `tests_<module_name>/unit/test_recipe.py`.
 
-The generated recipe fabricates deterministic data in memory, while the tool
-module delegates training to the delivered `axm-fit` engine. Reapplying the
-overlay preserves `src/*/learning/recipe.py` and
-`tests_*/unit/test_recipe.py`; the configuration files remain template-owned.
-The scaffold command does not route a public learning option yet, so selecting
-this overlay currently requires the Python template API and Copier adapter.
+The overlay preserves `src/*/learning/recipe.py` and
+`tests_*/unit/test_recipe.py` when reapplied; its configuration files remain
+template-owned. The standalone route sets its mode explicitly, so adding the
+public kind does not change existing overlay calls.
 
 ## Tool routing
 

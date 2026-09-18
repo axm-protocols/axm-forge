@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "{{ package_name }}"
+version = "0.1.0"
+description = "{{ description }}"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "{{ license }}"
+authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
+dependencies = [
+    "axm",
+    "axm-fit",
+    "axm-learning",
+    "torch",
+    "torchmetrics",
+]
+{% if private %}
+classifiers = ["Private :: Do Not Upload"]
+{% endif %}
+
+[project.entry-points."axm.tools"]
+{{ module_name }}_train = "{{ module_name }}.tools.train:TrainingTool"
+
+[tool.axm-init.learning]
+schema_version = 1
+domain = "{{ domain }}"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ module_name }}"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests_{{ module_name }}"]
+addopts = ["--import-mode=importlib"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests_{{ module_name }}"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_explicit = true
+
+[[tool.mypy.overrides]]
+module = ["tests_{{ module_name }}.*"]
+disallow_incomplete_defs = false

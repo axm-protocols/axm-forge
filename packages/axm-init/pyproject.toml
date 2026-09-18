@@ -61,7 +61,10 @@ version-file = "src/axm_init/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/axm_init"]
-include = ["src/axm_init/templates/learning-profile/**"]
+include = [
+    "src/axm_init/templates/learning-profile/**",
+    "src/axm_init/templates/learning-project/**",
+]
 
 [tool.hatch.build.targets.wheel.force-include]
 "docs/index.md" = "axm_init/docs/index.md"

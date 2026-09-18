@@ -55,9 +55,10 @@ class TestLearningTemplateTypeUnit:
 
     def test_learning_template_resolves_to_profile_directory(self) -> None:
         """AC1: LEARNING resolves to the bundled Python learning profile."""
+        assert TemplateType("learning") is TemplateType.LEARNING
         path = get_template_path(TemplateType.LEARNING, Framework.PYTHON)
 
-        assert path.name == "learning-profile"
+        assert path.name == "learning-project"
         assert path.parent.name == "templates"
 
 

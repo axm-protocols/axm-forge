@@ -38,6 +38,7 @@ SCAFFOLD_KINDS: tuple[str, ...] = (
     "member",
     "paper",
     "experiment",
+    "learning",
     "protocol_unit",
     "protocol",
 )
@@ -64,6 +65,8 @@ def _apply_kind_flags(
         return True, member
     if kind == "member":
         return workspace, member or name
+    if kind == "learning":
+        return False, None
     return workspace, member
 
 
@@ -508,7 +511,7 @@ class InitScaffoldTool:
             framework: Target framework (python, node, svelte).
             kind: Explicit scaffold kind — one of ``SCAFFOLD_KINDS``
                 (standalone, workspace, member, paper, experiment,
-                protocol_unit, protocol).
+                learning, protocol_unit, protocol).
             check_pypi: If True, check name availability on PyPI.
             json_output: If True, render the structured report.
             profile: Protocol profile to scaffold.
@@ -686,20 +689,27 @@ class InitScaffoldTool:
         from axm_init.core.templates import TemplateType, get_template_path
 
         template_type = (
-            TemplateType.WORKSPACE if ctx.workspace else TemplateType.STANDALONE
+            TemplateType.LEARNING
+            if ctx.kind == "learning"
+            else TemplateType.WORKSPACE
+            if ctx.workspace
+            else TemplateType.STANDALONE
         )
+        template_data = self._build_template_data(
+            project_name=ctx.project_name,
+            workspace=ctx.workspace,
+            description=ctx.description,
+            meta=ctx.meta,
+            license_holder=ctx.license_holder,
+            private=ctx.private,
+        )
+        if template_type is TemplateType.LEARNING:
+            template_data["learning_mode"] = "standalone"
         result = CopierAdapter().copy(
             CopierConfig(
                 template_path=get_template_path(template_type, ctx.framework),
                 destination=ctx.target_path,
-                data=self._build_template_data(
-                    project_name=ctx.project_name,
-                    workspace=ctx.workspace,
-                    description=ctx.description,
-                    meta=ctx.meta,
-                    license_holder=ctx.license_holder,
-                    private=ctx.private,
-                ),
+                data=template_data,
                 trust_template=True,
             )
         )
@@ -711,7 +721,16 @@ class InitScaffoldTool:
             "files": files,
         }
         request = ctx.protocol_request
-        if result.success and request is not None:
+        if result.success and template_type is TemplateType.LEARNING:
+            result_data.update(
+                {
+                    "profile": "learning",
+                    "mode": "standalone",
+                    "distribution": ctx.project_name,
+                    "root": str(ctx.target_path),
+                }
+            )
+        elif result.success and request is not None:
             register_protocol_profile(ctx.target_path, request.domain)
             result_data.update(
                 {

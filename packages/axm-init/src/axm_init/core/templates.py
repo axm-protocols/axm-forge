@@ -50,7 +50,7 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
     (TemplateType.MEMBER, Framework.PYTHON): "workspace-member",
     (TemplateType.PAPER, Framework.PYTHON): "paper-submodule",
     (TemplateType.EXPERIMENT, Framework.PYTHON): "experiment",
-    (TemplateType.LEARNING, Framework.PYTHON): "learning-profile",
+    (TemplateType.LEARNING, Framework.PYTHON): "learning-project",
     (TemplateType.STANDALONE, Framework.NODE): "node-project",
     (TemplateType.STANDALONE, Framework.SVELTE): "svelte-project",
 }

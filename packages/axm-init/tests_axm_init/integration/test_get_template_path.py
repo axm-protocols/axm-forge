@@ -1,6 +1,8 @@
 """Split from ``test_scaffold_template_rendering.py``."""
 
-from axm_init.core.templates import get_template_path
+import pytest
+
+from axm_init.core.templates import TemplateType, get_template_path
 
 
 class TestGetTemplatePathIntegration:
@@ -17,3 +19,13 @@ def test_standalone_is_default() -> None:
     path = get_template_path()
     assert path.name == "python-project"
     assert path.is_dir()
+
+
+@pytest.mark.integration
+def test_learning_template_resolves_to_copier_directory() -> None:
+    """AC2: the learning template is a real bundled Copier directory."""
+    path = get_template_path(TemplateType.LEARNING)
+
+    assert path.name == "learning-project"
+    assert path.is_dir()
+    assert (path / "copier.yml").is_file()

@@ -1,0 +1,72 @@
+# Copier configuration for a standalone AXM learning project.
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+_skip_if_exists:
+  - src/*/learning/recipe.py
+  - tests_*/unit/test_recipe.py
+_exclude:
+  - "copier.yml"
+  - "__pycache__"
+  - "*.py[co]"
+  - ".mypy_cache"
+  - ".ruff_cache"
+  - ".pytest_cache"
+  - ".DS_Store"
+  - "{% if learning_mode == 'overlay' %}README.md{% endif %}"
+  - "{% if learning_mode == 'overlay' %}pyproject.toml{% endif %}"
+  - "{% if learning_mode == 'overlay' %}src/*/__init__.py{% endif %}"
+  - "{% if learning_mode == 'overlay' %}src/*/recipe.py{% endif %}"
+  - "{% if learning_mode == 'overlay' %}src/*/tools{% endif %}"
+  - "{% if learning_mode == 'standalone' %}src/*/learning{% endif %}"
+
+learning_mode:
+  type: str
+  default: "overlay"
+  choices:
+    - overlay
+    - standalone
+  when: false
+
+package_name:
+  type: str
+  help: "Package name (lowercase, hyphens allowed)"
+  default: ""
+  validator: "{% if package_name and not package_name | regex_search('^[a-z][a-z0-9-]*$') %}Invalid package name - use lowercase letters, numbers, and hyphens{% endif %}"
+
+description:
+  type: str
+  default: "A reproducible AXM learning project"
+
+license:
+  type: str
+  default: "Apache-2.0"
+
+license_holder:
+  type: str
+  default: ""
+
+org:
+  type: str
+  default: ""
+
+author_name:
+  type: str
+  default: ""
+
+author_email:
+  type: str
+  default: ""
+
+private:
+  type: bool
+  default: true
+
+module_name:
+  type: str
+  default: "{{ package_name | replace('-', '_') }}"
+  when: false
+
+domain:
+  type: str
+  default: "{{ module_name }}"
+  when: false

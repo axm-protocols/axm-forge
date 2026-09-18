@@ -45,7 +45,7 @@ This scaffolds a production-grade Python project with:
 | `--workspace` | | `False` | Scaffold a UV workspace instead |
 | `--member` | | | Scaffold a member sub-package with this name |
 | `--framework` | | `python` | `python`, `node`, `svelte`; use non-Python only for standalone projects |
-| `--kind` | | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `protocol_unit`, `protocol` |
+| `--kind` | | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `--profile` | | | Optional package profile; `protocols` is supported for Python |
 | `--domain` | | | Protocol domain, required with `--profile protocols` |
 | `--unit` | | | Protocol unit, required when declarations are supplied |
@@ -113,13 +113,33 @@ In both cases, the generated classifier list keeps its development status,
 Python versions, typing and license metadata, but omits
 `Private :: Do Not Upload`.
 
-### 7. Research and protocol scaffolds
+### 7. Scaffold a standalone learning project
+
+Use the learning kind for a fresh training or optimisation package:
+
+```bash
+axm init_scaffold learning-lab --kind learning \
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+The target contains `training.toml`, `study.toml`, a deterministic recipe at
+`src/learning_lab/recipe.py`, the registered training tool at
+`src/learning_lab/tools/train.py`, and
+`tests_learning_lab/unit/test_recipe.py`. Its `pyproject.toml` declares the
+learning domain under `[tool.axm-init.learning]` and registers the training
+AXMTool under `[project.entry-points."axm.tools"]`.
+
+`learning` is a standalone project kind. To apply the compatibility overlay to
+an existing package, use the Python template API described in
+[Template selection](../reference/templates.md#learning-project-and-compatibility-overlay).
+
+### 8. Research and protocol scaffolds
 
 - [Scaffold a paper and its experiments](scaffold-research.md)
 - [Create, preview and apply protocol declarations](scaffold-protocols.md)
 - [Scaffold Node or Svelte projects](scaffold-web.md)
 
-### 8. Check PyPI availability
+### 9. Check PyPI availability
 
 ```bash
 axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
@@ -127,7 +147,7 @@ axm init_scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
 
-### 9. JSON output
+### 10. JSON output
 
 ```bash
 axm init_scaffold my-project --org myorg --author A --email e@e.com --json-output
@@ -146,5 +166,5 @@ Outputs structured JSON for CI/automation use.
 | `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
 | Existing destination content | Copier can encounter conflicts with existing files | Prefer a fresh destination and inspect the result before reusing one |
 | `... is not a paper` | `--kind experiment` outside a detected paper | Scaffold the paper first (`--kind paper`), or point the path at the paper root |
-| `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment`, `protocol_unit`, `protocol` |
+| `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |
