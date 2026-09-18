@@ -13,6 +13,7 @@ on disk plus the process environment -- hence the integration level.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -178,3 +179,56 @@ def test_the_derived_environment_name_outranks_the_historical_alias(
     )
 
     assert resolved == 5555
+
+
+def test_naming_the_active_profile_matches_the_unnamed_call(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: naming the active profile is the unnamed call, byte for byte."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, "alpha")
+
+    named = paths.service_port("mcp", profile="alpha")
+
+    assert isinstance(named, int)
+    assert named == paths.service_port("mcp")
+
+
+def test_naming_an_inactive_profile_leaves_the_process_profile_intact(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a named profile answers for itself without becoming active."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, "alpha")
+    when_alpha_is_active = paths.service_port("mcp")
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, profile.DEFAULT_PROFILE)
+
+    assert paths.service_port("mcp", profile="alpha") == when_alpha_is_active
+    assert os.environ[profile.PROFILE_ENV_VAR] == profile.DEFAULT_PROFILE
+
+
+def test_two_named_profiles_share_no_listening_point(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the two port sets are disjoint, neither profile ever activated."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, profile.DEFAULT_PROFILE)
+    services = ("mcp", "orison_web")
+
+    alpha = {paths.service_port(name, profile="alpha") for name in services}
+    beta = {paths.service_port(name, profile="beta") for name in services}
+
+    assert len(alpha) == len(services)
+    assert alpha.isdisjoint(beta)
+    assert os.environ[profile.PROFILE_ENV_VAR] == profile.DEFAULT_PROFILE
+
+
+def test_a_configured_value_preempts_a_named_profile_allocation(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: naming a profile still only supplies get_int's default."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, profile.DEFAULT_PROFILE)
+    monkeypatch.setenv(resolver._env_name("network", "mcp_port"), "5555")
+
+    assert paths.service_port("mcp", profile="alpha") == 5555

@@ -107,6 +107,18 @@ reserves nothing and cannot prove the port is free. Distinctness between two
 services of one profile holds by construction; between two profile names it
 rests on a digest, so it is likely rather than guaranteed.
 
+Ownership also implies the question can be asked *about* a profile, not only
+from inside it. The state roots already took a `profile=` keyword, so the port
+that did not was the asymmetry: deciding before launch whether two installations
+would collide meant exporting `AXM_PROFILE` -- changing the profile of the whole
+querying process to learn one number, and defeating a read-only report on the
+way. `service_port` therefore resolves through `profile_root_for(requested)`
+exactly as the path accessors do, a pure computation that neither consults nor
+mutates the active selection. Keeping the two families on one spelling --
+keyword-only, named `profile`, `None` meaning the active profile -- is
+deliberate: a divergence between a state location and a listening point would be
+the next defect to explain.
+
 ## Why a historical variable still wins
 
 Moving the decision here also renamed the variable: `network.mcp_port` derives

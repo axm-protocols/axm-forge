@@ -64,9 +64,17 @@ These values configure consumers; reading them does not launch a process.
 | `service_port("mcp")` | `network.mcp_port` | `AXM_MCP_PORT` | `9427` | Derived from the profile name |
 | `service_port("orison_web")` | `network.orison_web_port` | none | `8840` | Derived from the profile name |
 
-`service_port(service)` takes one positional service id and accepts no
-`default=` keyword: the registry above *is* the default. In production, with
-nothing configured, the adopted number is returned unchanged.
+`service_port(service, *, profile=None)` takes one positional service id and
+accepts no `default=` keyword: the registry above *is* the default. In
+production, with nothing configured, the adopted number is returned unchanged.
+
+Like the state helpers above, it also takes a keyword-only `profile=`.
+`service_port("mcp", profile="alpha")` answers for that profile without
+exporting `AXM_PROFILE`; `profile="production"` returns the adopted number,
+since the default profile owns no root; `profile=None` (the default) keeps the
+active-profile behaviour unchanged. The requested profile selects only the
+derived fallback, so the precedence below is unaffected, and resolving it is a
+pure read: `AXM_PROFILE` is neither consulted for the decision nor written.
 
 Under a named profile the unconfigured fallback is derived rather than refused.
 The profile name selects a block of `[20000, 49151]` (registered, non-privileged

@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import cast
 
 from axm_config.home import axm_home_path, resolve_safe
-from axm_config.profile import current_profile, profile_root, profile_root_for
+from axm_config.profile import current_profile, profile_root_for
 from axm_config.resolver import ConfigError, resolve
 
 __all__ = [
@@ -477,7 +477,7 @@ _SERVICE_PORT_ENV_ALIASES: dict[str, tuple[str, ...]] = {"mcp": ("AXM_MCP_PORT",
 """Historical environment variables still honoured, per service id."""
 
 
-def service_port(service: str) -> int:
+def service_port(service: str, *, profile: str | None = None) -> int:
     """The TCP port ``service`` listens on for the active state profile.
 
     A listening point is a profile-owned resource exactly like the state roots
@@ -496,6 +496,11 @@ def service_port(service: str) -> int:
     and before any configured value, so an installation still exporting the
     legacy variable keeps binding the port it always bound.
 
+    ``profile`` names the profile the question is asked for, exactly like
+    :func:`get_path` and the state roots above: ``None`` means the active
+    profile, and naming another one is a pure read -- it neither consults nor
+    mutates the process-wide profile selection.
+
     Raises :class:`ConfigError` naming ``service`` when it is not registered,
     before any resolution is attempted.
     """
@@ -505,10 +510,11 @@ def service_port(service: str) -> int:
         msg = f"unknown service id {service!r}: expected one of {known}"
         raise ConfigError(msg)
 
-    if profile_root() is None:
+    requested = _requested_profile(profile)
+    if profile_root_for(requested) is None:
         fallback = adopted
     else:
-        fallback = _derive_service_port(current_profile(), service)
+        fallback = _derive_service_port(requested, service)
     return get_int(
         f"{service}_port",
         fallback,

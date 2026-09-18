@@ -87,8 +87,8 @@ profile-relative convention and the containment guard for the *requested*
 profile instead of the active one. `None` (the default) means the active
 profile, so every existing call site resolves unchanged; `"production"` owns no
 root and therefore returns the caller default unprefixed. The six state
-accessors forward the same keyword. Nothing is created and `AXM_PROFILE` is
-neither read for the decision nor written.
+accessors and `service_port` forward the same keyword. Nothing is created and
+`AXM_PROFILE` is neither read for the decision nor written.
 
 `get_int` alone accepts `env_aliases`: a keyword-only sequence of historical
 environment variable names, consulted after the derived
@@ -96,13 +96,21 @@ environment variable names, consulted after the derived
 It defaults to an empty tuple, so every other accessor and every existing call
 site resolves unchanged.
 
-`service_port(service)` resolves the active profile's TCP listening point for a
-registered service id (`mcp`, `orison_web`) in the `network` namespace. It takes
-one positional argument and no `default=`: the registry supplies the production
-number, a named profile derives one deterministically from its name, and an
-unknown id raises `ConfigError` naming it before any resolution. A registered id
-may also carry historical variable names: `mcp` honours `AXM_MCP_PORT` below the
-derived `AXM_NETWORK_MCP_PORT`; `orison_web` carries none.
+`service_port(service, *, profile=None)` resolves a profile's TCP listening
+point for a registered service id (`mcp`, `orison_web`) in the `network`
+namespace. It takes one positional argument and no `default=`: the registry
+supplies the production number, a named profile derives one deterministically
+from its name, and an unknown id raises `ConfigError` naming it before any
+resolution. A registered id may also carry historical variable names: `mcp`
+honours `AXM_MCP_PORT` below the derived `AXM_NETWORK_MCP_PORT`; `orison_web`
+carries none.
+
+`profile` is the same keyword-only name the state accessors take, with the same
+meaning: `None` means the active profile, so every existing call site resolves
+unchanged, and a named one is answered through `profile_root_for` without
+reading or writing `AXM_PROFILE`. `"production"` owns no root and therefore
+returns the adopted number. The requested profile selects only the derived value
+handed to `get_int` as its `default`, so a configured port still outranks it.
 
 See [runtime settings](runtime-settings.md) for each wrapper and default.
 

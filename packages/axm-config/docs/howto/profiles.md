@@ -81,9 +81,11 @@ tickets_db(profile="scratch")      # ~/.axm/profiles/scratch/tickets/tickets.db
 ```
 
 `tickets_db`, `warden_socket`, `warden_log_path`, `sessions_root`, `quality_dir`
-and `protocols_dir` all take that keyword, and so does the generic
-`get_path(key, default, *, profile=...)`. Three properties make the answer safe
-to print in a read-only report:
+and `protocols_dir` all take that keyword, and so do the generic
+`get_path(key, default, *, profile=...)` and `service_port(service, *,
+profile=...)` -- see [below](#check-for-a-clash-before-launching) for the
+listening points. Three properties make the answer safe to print in a read-only
+report:
 
 - nothing is created, neither `~/.axm` nor the profile directory;
 - `AXM_PROFILE` is neither read for the decision nor written, so a concurrent
@@ -132,6 +134,31 @@ port is free. Two different profile names are unlikely to collide, but nothing
 prevents it, so a deployment that cannot tolerate a clash should still configure
 the value. See [runtime settings](../reference/runtime-settings.md) for the
 registered services.
+
+### Check for a clash before launching
+
+Asking what another installation would bind no longer requires switching the
+current process over to its profile:
+
+```python
+from axm_config import service_port
+
+service_port("mcp", profile="alpha")        # alpha's port, asked from production
+service_port("orison_web", profile="beta")  # beta's port, same process
+```
+
+`AXM_PROFILE` is neither read for the decision nor written, so one process can
+enumerate every candidate in a single pass -- and compare the two profiles'
+listening points, which have no number in common -- while a concurrent
+resolution under the active profile stays unaffected. Omit the keyword and
+resolution is byte-for-byte the active-profile behaviour above;
+`profile="production"` returns the adopted number.
+
+The named profile supplies only the derived fallback, so a configured value
+still wins for it exactly as for the active one: with `AXM_NETWORK_MCP_PORT`
+exported, every profile answers that number, and the comparison above tells you
+nothing about a clash. Clear the port variables before comparing derived
+allocations.
 
 ## AXM_HOME is not a store override
 
