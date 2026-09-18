@@ -113,7 +113,7 @@ In both cases, the generated classifier list keeps its development status,
 Python versions, typing and license metadata, but omits
 `Private :: Do Not Upload`.
 
-### 7. Scaffold a standalone learning project
+### 7. Scaffold a learning project or workspace member
 
 Use the learning kind for a fresh training or optimisation package:
 
@@ -129,8 +129,21 @@ The target contains `training.toml`, `study.toml`, a deterministic recipe at
 learning domain under `[tool.axm-init.learning]` and registers the training
 AXMTool under `[project.entry-points."axm.tools"]`.
 
-`learning` is a standalone project kind. To apply the compatibility overlay to
-an existing package, use the Python template API described in
+To create the same learning package as a member of an existing UV workspace,
+run from the workspace root (or one of its members) and supply `--member`:
+
+```bash
+axm init_scaffold --kind learning --member learning-lab \
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+This renders the learning tree under `packages/learning-lab/`, patches the
+workspace root files, and reports `mode="member"`, the member distribution,
+the member directory as `root`, and the non-empty `patched_root_files` list.
+The standalone learning route remains unchanged.
+
+To apply only the compatibility overlay to an existing package, use the Python
+template API described in
 [Template selection](../reference/templates.md#learning-project-and-compatibility-overlay).
 
 ### 8. Research and protocol scaffolds

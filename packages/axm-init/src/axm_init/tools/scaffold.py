@@ -66,7 +66,7 @@ def _apply_kind_flags(
     if kind == "member":
         return workspace, member or name
     if kind == "learning":
-        return False, None
+        return False, member
     return workspace, member
 
 
@@ -666,6 +666,7 @@ class InitScaffoldTool:
             },
             license_holder=ctx.license_holder,
             private=ctx.private,
+            learning=ctx.kind == "learning",
         )
         request = ctx.protocol_request
         if not member_result.success or request is None:
@@ -941,6 +942,7 @@ class InitScaffoldTool:
         scaffold_data: dict[str, str],
         license_holder: str | None = None,
         private: bool | None = None,
+        learning: bool = False,
     ) -> ToolResult:
         """Scaffold a member sub-package inside an existing workspace.
 
@@ -976,10 +978,19 @@ class InitScaffoldTool:
             license_holder=license_holder,
             private=private,
         )
+        if learning:
+            data.update(
+                {
+                    "package_name": member_name.replace("_", "-"),
+                    "learning_mode": "standalone",
+                }
+            )
 
         copier_adapter = CopierAdapter()
         copier_config = CopierConfig(
-            template_path=get_template_path(TemplateType.MEMBER),
+            template_path=get_template_path(
+                TemplateType.LEARNING if learning else TemplateType.MEMBER
+            ),
             destination=member_dir,
             data=data,
             trust_template=True,
@@ -995,19 +1006,29 @@ class InitScaffoldTool:
         report = patch_all(workspace_root, member_name)
 
         files = [str(f) for f in result.files_created]
+        result_data: dict[str, object] = {
+            "member": member_name,
+            "path": str(member_dir),
+            "files": files,
+            "patched_root_files": report.patched,
+            "skipped_root_files": report.skipped,
+            "failed_root_files": report.failed,
+        }
+        if learning:
+            result_data.update(
+                {
+                    "profile": "learning",
+                    "mode": "member",
+                    "distribution": member_name,
+                    "root": str(member_dir),
+                }
+            )
         return ToolResult(
             success=True,
-            data={
-                "member": member_name,
-                "path": str(member_dir),
-                "files": files,
-                "patched_root_files": report.patched,
-                "skipped_root_files": report.skipped,
-                "failed_root_files": report.failed,
-            },
+            data=result_data,
             text=_render_scaffold_text(
                 label=member_name,
-                kind="member",
+                kind="learning" if learning else "member",
                 files=files,
                 path=str(member_dir),
                 report=report,

@@ -19,9 +19,11 @@ import shutil
 from pathlib import Path
 
 import pytest
+from axm.tools.base import ToolResult
 from copier import run_copy
 
 from axm_init.core.templates import TemplateType, get_template_path
+from axm_init.tools.scaffold import InitScaffoldTool
 
 pytestmark = pytest.mark.integration
 
@@ -55,6 +57,73 @@ def rendered_workspace(tmp_path_factory: pytest.TempPathFactory) -> Path:
     target = tmp_path_factory.mktemp("fresh_ws")
     _render(target, skip_tasks=True)
     return target
+
+
+@pytest.fixture(scope="module")
+def learning_member_scaffold(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> tuple[Path, str, ToolResult]:
+    """Render a workspace and exercise the public learning-member flow once."""
+    workspace_root = tmp_path_factory.mktemp("learning_member_ws")
+    _render(workspace_root, skip_tasks=True)
+    member = "learning_member"
+    result = InitScaffoldTool().execute(
+        str(workspace_root),
+        member=member,
+        kind="learning",
+        org="test-org",
+        author="Test Author",
+        email="test@test.com",
+    )
+    return workspace_root, member, result
+
+
+def test_learning_member_lands_under_packages_with_artefacts(
+    learning_member_scaffold: tuple[Path, str, ToolResult],
+) -> None:
+    """AC1: a learning member lands under packages with all learning artefacts."""
+    workspace_root, member, result = learning_member_scaffold
+    member_root = workspace_root / "packages" / member
+    expected = (
+        member_root / "pyproject.toml",
+        member_root / "training.toml",
+        member_root / "study.toml",
+        member_root / "src" / member / "recipe.py",
+        member_root / "src" / member / "tools" / "train.py",
+        member_root / f"tests_{member}" / "unit" / "test_recipe.py",
+    )
+
+    assert result.success is True
+    assert not [path for path in expected if not path.is_file()]
+
+
+def test_learning_member_result_reports_member_identity(
+    learning_member_scaffold: tuple[Path, str, ToolResult],
+) -> None:
+    """AC2: the result identifies member mode, distribution, and member root."""
+    workspace_root, member, result = learning_member_scaffold
+    member_root = workspace_root / "packages" / member
+
+    assert result.success is True
+    assert result.data is not None
+    assert result.data["mode"] == "member"
+    assert result.data["distribution"] == member
+    assert result.data["root"] == str(member_root)
+
+
+def test_learning_member_reports_patched_workspace_root_files(
+    learning_member_scaffold: tuple[Path, str, ToolResult],
+) -> None:
+    """AC3: the result exposes the non-empty workspace-root patch report."""
+    workspace_root, member, result = learning_member_scaffold
+    member_root = workspace_root / "packages" / member
+
+    assert result.success is True
+    assert result.data is not None
+    assert result.data.get("root") == str(member_root)
+    patched = result.data.get("patched_root_files")
+    assert isinstance(patched, list)
+    assert patched
 
 
 def test_workspace_publish_builds_members(rendered_workspace: Path) -> None:

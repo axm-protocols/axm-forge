@@ -23,14 +23,20 @@ Python packages; it is not another framework template.
 `TemplateType.LEARNING` with `Framework.PYTHON` selects `learning-project`.
 The template has two explicit modes over the same learning contract.
 
-The public `init_scaffold --kind learning` route selects `standalone`. It renders
-`pyproject.toml`, `README.md`, `training.toml`, `study.toml`, the deterministic
-`src/<module_name>/recipe.py`, the AXMTool at
+The public `init_scaffold --kind learning` route selects `standalone` when no
+member is supplied. It renders `pyproject.toml`, `README.md`, `training.toml`,
+`study.toml`, the deterministic `src/<module_name>/recipe.py`, the AXMTool at
 `src/<module_name>/tools/train.py`, and its seed unit test. Generated metadata
 contains `[tool.axm-init.learning]` with a non-empty `domain`, plus an
 `axm.tools` entry point targeting `<module_name>.tools.train:TrainingTool`.
 The result reports `template="learning"`, `profile="learning"` and
 `mode="standalone"`.
+
+With `--member <name>` inside a UV workspace, the same template renders the
+complete learning package under `packages/<name>/`. The result instead reports
+`profile="learning"`, `mode="member"`, `distribution=<name>` and the member
+directory as `root`; workspace patch outcomes remain available through the
+root-file result fields.
 
 Direct Copier consumers remain compatible through the default `overlay` mode.
 Passing `module_name` and `domain` without a standalone package answer renders
@@ -48,10 +54,11 @@ public kind does not change existing overlay calls.
 ## Tool routing
 
 The ordinary standalone/workspace branch passes the selected framework to the
-template lookup. The current member branch always chooses the Python member
-template; research branches use their research templates. Use Node/Svelte only
-for standalone creation. The tool accepts Python, Node and Svelte; React is a
-check-detection framework, not a scaffold option.
+template lookup. A regular member chooses the Python member template, while a
+learning member chooses the Python learning template; research branches use
+their research templates. Use Node/Svelte only for standalone creation. The
+tool accepts Python, Node and Svelte; React is a check-detection framework, not
+a scaffold option.
 
 ## Copier versus tool options
 
