@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "UNSCOPED_EXECUTION_TOOLS",
     "_HTTP_MODE",
     "_WrapperCtx",
     "_build_plain_wrapper",
@@ -224,6 +225,9 @@ def _flatten_exception(name: str, exc: Exception) -> dict[str, object]:
     return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
+UNSCOPED_EXECUTION_TOOLS: frozenset[str] = frozenset({"run_command"})
+
+
 def _write_refusal(
     ctx: _WrapperCtx,
     tool_input: dict[str, object],
@@ -237,6 +241,19 @@ def _write_refusal(
         if not ctx.shared_mode:
             raise
         contract = None
+
+    if (
+        ctx.shared_mode
+        and contract is not None
+        and ctx.name in UNSCOPED_EXECUTION_TOOLS
+    ):
+        return {
+            "success": False,
+            "error": (
+                f"{ctx.name} is forbidden while a write contract is in force: "
+                "its filesystem effects cannot be scoped"
+            ),
+        }
 
     decision = decide_write_access(contract, ctx.name, tool_input)
     if decision.allowed:

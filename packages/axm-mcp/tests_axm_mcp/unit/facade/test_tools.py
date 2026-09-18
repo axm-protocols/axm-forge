@@ -38,6 +38,15 @@ class _WriteFileProbe:
         return ToolResult(success=True, text=content)
 
 
+class _RunCommandProbe:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def execute(self, *, command: str) -> ToolResult:
+        self.calls.append(command)
+        return ToolResult(success=True, text=f"ran: {command}")
+
+
 def _call_text(server: MCPServer, tool: str, **arguments: object) -> str:
     """Drive a facade tool through MCPServer and return its rendered text."""
     result = asyncio.run(server.call_tool(tool, arguments))
@@ -108,6 +117,49 @@ def test_shared_facade_refuses_out_of_scope_path_without_executing_tool() -> Non
     assert "success: False" in rendered
     assert "error:" in rendered and "/scope_b" in rendered
     assert probe.calls == []
+
+
+def test_axm_call_refuses_run_command_only_for_contract_bound_session() -> None:
+    """AC2: axm_call contrasts bound refusal with unbound execution."""
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    registry.bind(
+        "sess-a",
+        WriteContract.from_mapping(
+            {"execution_root": "/scope_a", "allowed_prefixes": ["/scope_a"]}
+        ),
+    )
+    probe = _RunCommandProbe()
+
+    def facade_server(session_id: str) -> MCPServer:
+        catalog = ToolCatalog(
+            {"run_command": cast(ToolEntry, probe)},
+            shared_mode=True,
+            write_contract_resolver=lambda: registry.resolve(session_id),
+        )
+        mcp = MCPServer(f"shared-facade-{session_id}")
+        register_facade(mcp, catalog)
+        return mcp
+
+    command = "touch /scope_b/x"
+    refused = _call_text(
+        facade_server("sess-a"),
+        "axm_call",
+        name="run_command",
+        arguments={"command": command},
+    )
+    calls_after_bound = list(probe.calls)
+    allowed = _call_text(
+        facade_server("sess-unbound"),
+        "axm_call",
+        name="run_command",
+        arguments={"command": command},
+    )
+
+    assert "success: False" in refused
+    assert "run_command" in refused
+    assert calls_after_bound == []
+    assert allowed == f"ran: {command}"
+    assert probe.calls == [command]
 
 
 def test_call_unknown_tool_returns_error(server: MCPServer) -> None:

@@ -37,6 +37,17 @@ environment-backed write contract when present; shared HTTP resolves a
 contract by MCP session identity. Authority travels with that contract: a bound
 session is restricted to its perimeter, while an unbound session is the local
 operator and runs without a write perimeter. No default contract is fabricated.
+
+A bound shared session also cannot invoke a capability whose filesystem effects
+cannot be derived from its payload. That policy is deliberately separate from
+the catalog of ordinary mutation tools: adding command execution to that catalog
+would only validate declared paths while leaving the command free to touch
+anything. `UNSCOPED_EXECUTION_TOOLS` therefore identifies `run_command` as an
+unscopable capability and the wrapper refuses it before the normal write-scope
+decision. The refusal is keyed on both shared mode and the presence of a
+contract, so it does not change dedicated mode or the unbound local-operator
+case.
+
 The header-binding mechanism and its limitations are described in
 [shared contracts](../reference/shared-contracts.md).
 

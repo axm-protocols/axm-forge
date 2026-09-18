@@ -44,14 +44,26 @@ wrapper applies this rule identically whether resolution returns `None` or raise
 `UnboundSessionError`. The actual write decision is delegated to
 `axm.tools.write_scope`; its coverage depends on the tool name and payload.
 
+### Unscoped execution
+
+`run_command` belongs to `UNSCOPED_EXECUTION_TOOLS`: its filesystem effects
+cannot be inferred from its `command` payload. The common wrapper therefore
+refuses it before consulting the ordinary write-scope decision when, and only
+when, shared mode is active and the emitting session has a non-null contract.
+The refusal is identical through `build_wrappers` and the facade's `axm_call`
+route. A shared session without a bound contract remains the local operator and
+can execute it; dedicated mode is unchanged.
+
 ## Scope of the guarantee
 
 This is a cooperative write perimeter for trusted callers, **not
 authentication or an operating-system sandbox**. The server does not verify
 that a client is entitled to the prefixes it declares, and it does not sign
-or authorize header declarations. Read access, subprocess effects, external
-services and unclassified tools are not made safe merely by assigning a
-filesystem prefix. Keep the service on a trusted boundary.
+or authorize header declarations. A bound session cannot dispatch
+`run_command`, but other tools may still produce subprocess effects that their
+payload does not reveal. Read access, external services and unclassified
+capabilities are not made safe merely by assigning a filesystem prefix. Keep
+the service on a trusted boundary.
 
 Current implementation limits:
 

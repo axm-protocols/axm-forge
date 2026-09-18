@@ -869,6 +869,42 @@ def test_shared_wrapper_resolves_contract_for_each_emitting_session() -> None:
     assert calls == [request]
 
 
+def test_shared_wrapper_refuses_run_command_only_with_bound_contract() -> None:
+    """AC1: shared run_command is refused only for a contract-bound session."""
+    calls: list[dict[str, object]] = []
+
+    def recorder(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"success": True}
+
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    registry.bind("sess-a", _contract("/scope_a", "/scope_a"))
+    command = {"command": "touch /scope_b/x"}
+    bound_wrapper = build_wrappers(
+        "run_command",
+        recorder,
+        shared_mode=True,
+        write_contract_resolver=lambda: registry.resolve("sess-a"),
+    )[0]
+    unbound_wrapper = build_wrappers(
+        "run_command",
+        recorder,
+        shared_mode=True,
+        write_contract_resolver=lambda: registry.resolve("sess-unbound"),
+    )[0]
+
+    refused = bound_wrapper(**command)
+    calls_after_bound = list(calls)
+    allowed = unbound_wrapper(**command)
+
+    assert isinstance(refused, dict)
+    assert refused["success"] is False
+    assert "run_command" in str(refused["error"])
+    assert calls_after_bound == []
+    assert allowed == {"success": True}
+    assert calls == [command]
+
+
 def test_shared_wrapper_executes_read_for_unbound_session() -> None:
     """AC1: an unbound shared session executes a non-mutating tool."""
     """AC2: shared mode refuses a session with no attached perimeter."""
