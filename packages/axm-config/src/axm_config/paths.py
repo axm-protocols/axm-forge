@@ -450,6 +450,7 @@ class _ServiceDecl(NamedTuple):
 _SERVICES: dict[str, _ServiceDecl] = {
     "mcp": _ServiceDecl(slot=0, adopted=9427),
     "orison_web": _ServiceDecl(slot=1, adopted=8840),
+    "orison_dev": _ServiceDecl(slot=2, adopted=8841),
 }
 
 #: The band non-production profiles draw from: registered, non-privileged, and

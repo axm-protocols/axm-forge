@@ -25,6 +25,7 @@ pytestmark = pytest.mark.integration
 _PORT_ENV_VARS = (
     "AXM_NETWORK_MCP_PORT",
     "AXM_NETWORK_ORISON_WEB_PORT",
+    "AXM_NETWORK_ORISON_DEV_PORT",
     "AXM_MCP_PORT",
 )
 
@@ -232,6 +233,65 @@ def test_a_configured_value_preempts_a_named_profile_allocation(
     monkeypatch.setenv(resolver._env_name("network", "mcp_port"), "5555")
 
     assert paths.service_port("mcp", profile="alpha") == 5555
+
+
+def test_the_interface_dev_server_obtains_a_profile_owned_listening_point(
+    isolated_home: Path,
+) -> None:
+    """AC1: the declared dev server receives alpha's next service slot."""
+    assert paths.service_port("orison_dev", profile="alpha") == 37282
+
+
+def test_production_serves_the_dev_server_its_adopted_literal(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: production returns the dev server's adopted literal unchanged."""
+    monkeypatch.setenv(profile.PROFILE_ENV_VAR, profile.DEFAULT_PROFILE)
+
+    assert paths.service_port("orison_dev") == 8841
+
+
+def test_the_dev_server_shares_no_port_with_existing_services(
+    isolated_home: Path,
+) -> None:
+    """AC3: alpha assigns the dev server a port distinct from both peers."""
+    existing_ports = {
+        paths.service_port("mcp", profile="alpha"),
+        paths.service_port("orison_web", profile="alpha"),
+    }
+
+    assert paths.service_port("orison_dev", profile="alpha") not in existing_ports
+
+
+def test_two_profiles_do_not_share_the_dev_server_port(
+    isolated_home: Path,
+) -> None:
+    """AC4: alpha and beta assign distinct ports to the dev server."""
+    alpha = paths.service_port("orison_dev", profile="alpha")
+    beta = paths.service_port("orison_dev", profile="beta")
+
+    assert alpha != beta
+
+
+def test_declaring_the_dev_server_preserves_the_complete_port_table(
+    isolated_home: Path,
+) -> None:
+    """AC5: the new declaration preserves both profiles' complete table."""
+    expected = {
+        "alpha": {"mcp": 37280, "orison_web": 37281, "orison_dev": 37282},
+        "beta": {"mcp": 48736, "orison_web": 48737, "orison_dev": 48738},
+    }
+
+    resolved = {
+        profile_name: {
+            service: paths.service_port(service, profile=profile_name)
+            for service in service_ports
+        }
+        for profile_name, service_ports in expected.items()
+    }
+
+    assert resolved == expected
 
 
 def test_declared_services_resolve_to_fixed_block_ports(

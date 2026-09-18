@@ -97,13 +97,14 @@ It defaults to an empty tuple, so every other accessor and every existing call
 site resolves unchanged.
 
 `service_port(service, *, profile=None)` resolves a profile's TCP listening
-point for a registered service id (`mcp`, `orison_web`) in the `network`
+point for a registered service id (`mcp`, `orison_web`, `orison_dev`) in the `network`
 namespace. It takes one positional argument and no `default=`: the registry
 supplies the production number, a named profile derives one deterministically
 from its name, and an unknown id raises `ConfigError` naming it before any
 resolution. A registered id may also carry historical variable names: `mcp`
 honours `AXM_MCP_PORT` below the derived `AXM_NETWORK_MCP_PORT`; `orison_web`
-carries none.
+and `orison_dev` carry none. The adopted production ports are 9427 for `mcp`,
+8840 for `orison_web`, and 8841 for `orison_dev`.
 
 `profile` is the same keyword-only name the state accessors take, with the same
 meaning: `None` means the active profile, so every existing call site resolves

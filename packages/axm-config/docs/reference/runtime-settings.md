@@ -63,6 +63,7 @@ These values configure consumers; reading them does not launch a process.
 |---|---|---|---|---|
 | `service_port("mcp")` | `network.mcp_port` | `AXM_MCP_PORT` | `9427` | Derived from the profile name |
 | `service_port("orison_web")` | `network.orison_web_port` | none | `8840` | Derived from the profile name |
+| `service_port("orison_dev")` | `network.orison_dev_port` | none | `8841` | Derived from the profile name |
 
 `service_port(service, *, profile=None)` takes one positional service id and
 accepts no `default=` keyword: the registry above *is* the default. In
@@ -79,8 +80,9 @@ pure read: `AXM_PROFILE` is neither consulted for the decision nor written.
 Under a named profile the unconfigured fallback is derived rather than refused.
 The profile name selects a block of `[20000, 49151]` (registered, non-privileged
 and clear of the ephemeral range) through a `hashlib.blake2b` digest, and the
-service's rank in the registry is the offset inside that block. The digest is
-stable across processes and machines, so a restart resolves the same number;
+service's append-only declared slot is the offset inside that block. Adding a
+service therefore never relocates an existing one. The digest is stable across
+processes and machines, so a restart resolves the same number;
 two services of one profile are distinct by construction; two profile names
 differ unless their digests collide, which is not prevented.
 
@@ -94,7 +96,7 @@ extra layer. `AXM_MCP_PORT` is read after the derived `AXM_NETWORK_MCP_PORT`
 and before any configured value, under every profile, so the full order for
 `mcp` is `AXM_NETWORK_MCP_PORT` > `AXM_MCP_PORT` > `[network] mcp_port` >
 adopted or derived number. A service with no historical variable, such as
-`orison_web`, resolves exactly as before. An unregistered service id raises
+`orison_web` or `orison_dev`, resolves exactly as before. An unregistered service id raises
 `ConfigError` naming it, before any resolution is attempted.
 
 These helpers return a number. They bind no socket, reserve nothing and do not
