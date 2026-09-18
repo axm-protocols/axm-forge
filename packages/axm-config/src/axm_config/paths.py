@@ -40,8 +40,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
-from axm_config.home import axm_home, resolve_safe
-from axm_config.profile import current_profile, profile_root
+from axm_config.home import axm_home_path, resolve_safe
+from axm_config.profile import current_profile, profile_root, profile_root_for
 from axm_config.resolver import ConfigError, resolve
 
 __all__ = [
@@ -104,6 +104,13 @@ def _resolve_configured(
     return cast(object, section.get(key, _MISSING))
 
 
+def _requested_profile(profile: str | None) -> str:
+    """Return ``profile`` when one is requested, else the active profile."""
+    if profile is None:
+        return current_profile()
+    return profile
+
+
 _PROFILE_RELATIVE_PATHS = {
     (PATHS_NAMESPACE, "sessions_root"): Path("sessions"),
     (PATHS_NAMESPACE, "quality_dir"): Path("quality"),
@@ -118,6 +125,7 @@ def get_path(
     default: Path,
     *,
     namespace: str = PATHS_NAMESPACE,
+    profile: str | None = None,
 ) -> Path:
     """Resolve ``key`` in ``[paths]`` as a normalised :class:`~pathlib.Path`.
 
@@ -133,8 +141,9 @@ def get_path(
     writing runtime state somewhere unintended.
     """
     configured = _resolve_configured(namespace, key)
+    requested = _requested_profile(profile)
+    root = profile_root_for(requested)
     if configured is _MISSING:
-        root = profile_root()
         relative = _PROFILE_RELATIVE_PATHS.get((namespace, key))
         if root is not None and relative is not None:
             return root / relative
@@ -152,13 +161,11 @@ def get_path(
         msg = f"invalid path for {namespace}.{key}: {exc}"
         raise ConfigError(msg) from exc
 
-    root = profile_root()
     if root is not None:
         resolved_root = root.expanduser().resolve()
         if not resolved.is_relative_to(resolved_root):
-            profile = current_profile()
             msg = (
-                f"invalid path for {namespace}.{key}: profile {profile!r} "
+                f"invalid path for {namespace}.{key}: profile {requested!r} "
                 f"requires containment under {resolved_root}, got {resolved}"
             )
             raise ConfigError(msg)
@@ -268,7 +275,11 @@ def inference_model() -> str:
     )
 
 
-def sessions_root(*, default: Path | None = None) -> Path:
+def sessions_root(
+    *,
+    default: Path | None = None,
+    profile: str | None = None,
+) -> Path:
     """The loom sessions root -- where runs write manifests, traces, artifacts.
 
     Declared identically in ``axm-loom``, ``axm-knowledge`` and ``axm-orison``
@@ -278,19 +289,27 @@ def sessions_root(*, default: Path | None = None) -> Path:
     active non-production profile instead owns the unconfigured state root.
     """
     fallback = default if default is not None else Path.home() / "axm" / "sessions"
-    return get_path("sessions_root", default=fallback)
+    return get_path("sessions_root", default=fallback, profile=profile)
 
 
-def quality_dir(*, default: Path | None = None) -> Path:
+def quality_dir(
+    *,
+    default: Path | None = None,
+    profile: str | None = None,
+) -> Path:
     """The quality-trace directory written by ``axm-audit`` / ``axm-init``."""
     fallback = default if default is not None else Path.home() / "axm" / "quality"
-    return get_path("quality_dir", default=fallback)
+    return get_path("quality_dir", default=fallback, profile=profile)
 
 
-def protocols_dir(*, default: Path | None = None) -> Path:
+def protocols_dir(
+    *,
+    default: Path | None = None,
+    profile: str | None = None,
+) -> Path:
     """The legacy YAML protocol directory read by the engine and briefings."""
     fallback = default if default is not None else Path.home() / "axm" / "protocols"
-    return get_path("protocols_dir", default=fallback)
+    return get_path("protocols_dir", default=fallback, profile=profile)
 
 
 _WARDEN_NAMESPACE = "warden"
@@ -360,25 +379,47 @@ def warden_binary_path(*, default: Path | None = None) -> Path:
     return get_path("binary_path", fallback, namespace=_WARDEN_NAMESPACE)
 
 
-def warden_log_path(*, default: Path | None = None) -> Path:
+def warden_log_path(
+    *,
+    default: Path | None = None,
+    profile: str | None = None,
+) -> Path:
     """Return the configured or AXM-home-relative warden log path."""
-    fallback = default if default is not None else axm_home() / "warden.log"
-    return get_path("log_path", fallback, namespace=_WARDEN_NAMESPACE)
+    fallback = default if default is not None else axm_home_path() / "warden.log"
+    return get_path(
+        "log_path",
+        fallback,
+        namespace=_WARDEN_NAMESPACE,
+        profile=profile,
+    )
 
 
-def tickets_db(*, default: Path | None = None) -> Path:
+def tickets_db(
+    *,
+    default: Path | None = None,
+    profile: str | None = None,
+) -> Path:
     """Return the ticket database path for the active state profile."""
-    active_root = profile_root()
+    active_root = profile_root_for(_requested_profile(profile))
     if default is not None:
         fallback = default
     elif active_root is None:
         fallback = Path.home() / "axm" / "tickets" / "tickets.db"
     else:
         fallback = active_root / "tickets" / "tickets.db"
-    return get_path("db_path", default=fallback, namespace="tickets")
+    return get_path(
+        "db_path",
+        default=fallback,
+        namespace="tickets",
+        profile=profile,
+    )
 
 
-def warden_socket(*, default: Path | None = None) -> Path:
+def warden_socket(
+    *,
+    default: Path | None = None,
+    profile: str | None = None,
+) -> Path:
     """The warden control-plane socket bound by ``axm-warden serve``.
 
     Note the precedence a consumer must preserve. Callers layer an *explicit
@@ -390,7 +431,7 @@ def warden_socket(*, default: Path | None = None) -> Path:
     rest.
     """
     fallback = default if default is not None else Path.home() / ".axm" / "warden.sock"
-    return get_path("warden_socket", default=fallback)
+    return get_path("warden_socket", default=fallback, profile=profile)
 
 
 _NETWORK_NAMESPACE = "network"

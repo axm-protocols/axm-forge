@@ -14,9 +14,21 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-__all__ = ["AXM_DIR_MODE", "axm_home", "resolve_safe"]
+__all__ = ["AXM_DIR_MODE", "axm_home", "axm_home_path", "resolve_safe"]
 
 AXM_DIR_MODE = 0o700
+
+
+def axm_home_path() -> Path:
+    """Return the resolved ``~/.axm`` path without touching the filesystem.
+
+    Pure computation, the read-only counterpart of :func:`axm_home`: it never
+    creates the directory nor tightens its permissions, so merely *describing*
+    or resolving a location (a report, a path lookup) no longer materialises
+    the home. Every code path that actually persists state keeps calling
+    :func:`axm_home`.
+    """
+    return (Path.home() / ".axm").resolve()
 
 
 def axm_home() -> Path:
@@ -25,7 +37,7 @@ def axm_home() -> Path:
     Idempotent: a pre-existing directory with looser permissions is tightened
     back to ``0700``. Permission calls degrade gracefully on non-POSIX systems.
     """
-    home = (Path.home() / ".axm").resolve()
+    home = axm_home_path()
     home.mkdir(mode=AXM_DIR_MODE, parents=True, exist_ok=True)
     if os.name == "posix":
         os.chmod(home, AXM_DIR_MODE)

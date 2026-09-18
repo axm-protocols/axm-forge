@@ -5,7 +5,7 @@ Non-sensitive runtime config under ~/.axm (env>file>default)
 
 from __future__ import annotations
 
-from axm_config.home import axm_home, resolve_safe
+from axm_config.home import axm_home, axm_home_path, resolve_safe
 from axm_config.isolation import ProfileIsolation, is_isolated, profile_isolation
 from axm_config.paths import (
     PATHS_NAMESPACE,
@@ -34,6 +34,7 @@ from axm_config.profile import (
     profile_config_path,
     profile_env,
     profile_root,
+    profile_root_for,
 )
 from axm_config.resolver import (
     ConfigError,
@@ -62,6 +63,7 @@ __all__ = [
     "ProfileIsolationTool",
     "UnsafeHomeError",
     "axm_home",
+    "axm_home_path",
     "current_profile",
     "delete",
     "delete_execution_policy",
@@ -82,6 +84,7 @@ __all__ = [
     "profile_env",
     "profile_isolation",
     "profile_root",
+    "profile_root_for",
     "protocols_dir",
     "quality_dir",
     "resolve_safe",

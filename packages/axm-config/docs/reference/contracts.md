@@ -42,11 +42,19 @@ exception is normalized by the Python layer.
 ## Home and profiles
 
 `axm_home()` resolves and creates `~/.axm`, tightening POSIX permissions to
-`0700`. It does not itself call `resolve_safe`; the store applies that guard
-after home creation. No general `AXM_HOME` override exists.
+`0700`. It does not itself call `resolve_safe`; the store applies that guard to
+its own resolved home. No general `AXM_HOME` override exists.
+
+`axm_home_path()` returns the same resolved `~/.axm` path and creates nothing.
+It is the read-only counterpart: path resolution and the store's read path go
+through it, while every code path that persists state still calls `axm_home()`.
 
 `current_profile()`, `profile_root()`, `profile_config_path()` and
 `profile_env()` select and propagate the active profile.
+`profile_root_for(profile)` answers the same question for an arbitrary profile:
+`None` for `production`, `axm_home_path() / "profiles" / <profile>` otherwise,
+whatever `AXM_PROFILE` holds. It creates nothing, ignores `AXM_HOME` and still
+raises `ConfigError` on an invalid name.
 `profile_isolation(profile=None)` returns `ProfileIsolation`
 (`profile`, `profile_root`, `paths`, `isolated`, `escapes`).
 `is_isolated(root, paths)` returns `(bool, sorted_escape_names)`.
@@ -54,7 +62,7 @@ The [profile guide](../howto/profiles.md) explains their different semantics.
 
 ## Typed values and runtime helpers
 
-`get_path(key, default, *, namespace=PATHS_NAMESPACE)`,
+`get_path(key, default, *, namespace=PATHS_NAMESPACE, profile=None)`,
 `get_int(key, default, *, namespace=PATHS_NAMESPACE, env_aliases=())`,
 `get_bool(key, default, *, namespace=PATHS_NAMESPACE)` and
 `get_str(key, default, *, namespace=PATHS_NAMESPACE)` share the additional
@@ -67,6 +75,14 @@ The [profile guide](../howto/profiles.md) explains their different semantics.
 - Configured paths accept str/Path, expand `~`, resolve and enforce the
   repository/profile guards. An unconfigured caller fallback is returned
   unchanged unless it is one of the registered profile-relative defaults.
+
+`get_path` alone accepts `profile`: a keyword-only profile name applying the
+profile-relative convention and the containment guard for the *requested*
+profile instead of the active one. `None` (the default) means the active
+profile, so every existing call site resolves unchanged; `"production"` owns no
+root and therefore returns the caller default unprefixed. The six state
+accessors forward the same keyword. Nothing is created and `AXM_PROFILE` is
+neither read for the decision nor written.
 
 `get_int` alone accepts `env_aliases`: a keyword-only sequence of historical
 environment variable names, consulted after the derived

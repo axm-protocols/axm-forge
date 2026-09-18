@@ -24,7 +24,7 @@ from tempfile import NamedTemporaryFile
 
 import tomli_w
 
-from axm_config.home import axm_home, resolve_safe
+from axm_config.home import axm_home, axm_home_path, resolve_safe
 
 __all__ = ["CONFIG_FILENAME", "NAMESPACE_FILE_MODE", "NamespaceStore"]
 
@@ -42,7 +42,7 @@ def _safe_home() -> Path:
     from axm_config.resolver import UnsafeHomeError
 
     try:
-        return resolve_safe(axm_home())
+        return resolve_safe(axm_home_path())
     except ValueError as exc:
         raise UnsafeHomeError(str(exc)) from exc
 
@@ -291,6 +291,7 @@ class NamespaceStore:
         moved onto ``config.toml`` via :func:`os.replace`; the resulting file
         is chmod ``0600``.
         """
+        axm_home()
         path = self._config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = tomli_w.dumps(config).encode("utf-8")

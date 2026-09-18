@@ -137,6 +137,29 @@ The provenance doctor does not return values but does parse file contents.
 The store resolves its home, refuses git-repository ancestry and enforces that
 its resolved file paths stay below that home. This is containment under the base
 home, not a symlink-proof boundary between sibling profiles; avoid treating
-profile directory symlinks as isolation. `axm_home()` can create/chmod the
-directory before the store rejects it. `resolve_safe` is a path check, not a
-lock against filesystem changes between check and use.
+profile directory symlinks as isolation. On a write, `axm_home()` can still
+create/chmod the directory before the store rejects it; a read creates nothing.
+`resolve_safe` is a path check, not a lock against filesystem changes between
+check and use.
+
+## Why reading a location never creates the home
+
+Computing a location and persisting state are two different rights, and the
+package used to conflate them: the warden-log fallback and the store's read path
+both went through `axm_home()`, so merely *reading* configuration materialised
+`~/.axm`. A read-only consumer -- a report describing what a profile would use,
+a doctor, a dry run -- could not describe a location without creating it.
+
+The split therefore lives in the layer that owns it. `axm_home_path()` computes,
+`axm_home()` creates and tightens to `0700`; every read path resolves through the
+first, and the store's write path calls the second before staging its temp file.
+That call is not redundant with the ordinary `mkdir` next to it: dropping it
+would create a fresh home with the ambient umask instead of `0700`, silently
+weakening the permissions of the file that holds the whole configuration.
+
+The named profile root follows the same rule. `profile_root_for(profile)`, and
+the `profile=` keyword the path accessors forward to `get_path`, answer for any
+profile without touching `AXM_PROFILE` and without creating a directory, so a
+report can describe several profiles in one pass. The convention stays rooted at
+`Path.home() / ".axm"`: `AXM_HOME` keeps selecting only the compatibility
+`config.toml`, never this layout.

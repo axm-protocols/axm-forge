@@ -21,9 +21,11 @@ selected file and its profile-local legacy files. A missing named-profile file
 does not fall back to production. Environment overrides are shared between
 profiles unless the launching process scopes them.
 
-`axm_home()` creates/tightens `~/.axm` to mode `0700` on POSIX.
-Path helpers and store reads can call it. The named profile directory is created
-on first write, with normal `mkdir`/umask permissions under that private parent.
+`axm_home()` creates/tightens `~/.axm` to mode `0700` on POSIX, and only the
+code that persists state calls it: a path helper or a store *read* resolves the
+location through `axm_home_path()` and creates nothing. The home is therefore
+materialised on first write, and the named profile directory with it, with
+normal `mkdir`/umask permissions under that private parent.
 `axm-config path` prints the base home, not the selected config file.
 
 ## Propagate the selection
@@ -50,6 +52,37 @@ whereas the actual production resolver has no profile root.
 `is_isolated(root, paths)` is a lexical `Path.is_relative_to` check; it does
 not resolve symlinks or `..` segments. Supply normalized paths when using it
 directly, and do not treat its result as a filesystem security audit.
+
+## Ask what another profile would use
+
+Reading a location for a profile you are not running under no longer requires
+exporting `AXM_PROFILE` in the current process:
+
+```python
+from axm_config import profile_root_for, sessions_root, tickets_db
+
+profile_root_for("scratch")        # ~/.axm/profiles/scratch
+profile_root_for("production")     # None -- the default profile owns no root
+sessions_root(profile="scratch")   # ~/.axm/profiles/scratch/sessions
+tickets_db(profile="scratch")      # ~/.axm/profiles/scratch/tickets/tickets.db
+```
+
+`tickets_db`, `warden_socket`, `warden_log_path`, `sessions_root`, `quality_dir`
+and `protocols_dir` all take that keyword, and so does the generic
+`get_path(key, default, *, profile=...)`. Three properties make the answer safe
+to print in a read-only report:
+
+- nothing is created, neither `~/.axm` nor the profile directory;
+- `AXM_PROFILE` is neither read for the decision nor written, so a concurrent
+  resolution in the same process is unaffected;
+- unlike `profile_isolation`, configured overrides *are* honoured, and a
+  configured value escaping the requested root raises `ConfigError` naming that
+  profile rather than the active one.
+
+`profile="production"` is the deliberate exception: the default profile owns no
+root, so the caller default is returned unprefixed, exactly as a production
+resolution does. Omit the keyword entirely and resolution is byte-for-byte the
+active-profile behaviour described above.
 
 ## Run two installations side by side
 

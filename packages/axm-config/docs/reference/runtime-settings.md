@@ -27,11 +27,21 @@ including outside the profile. Arbitrary `get_path` keys also retain their
 fallback. Configured values, including a configured executable, must resolve
 inside the active profile root and outside git repositories.
 
+Every state helper above except `warden_binary_path` also accepts a keyword-only
+`profile=`. `sessions_root(profile="scratch")` answers for that profile without
+exporting `AXM_PROFILE`; `profile="production"` returns the caller default
+unprefixed, since the default profile owns no root; `profile=None` (the default)
+keeps the active-profile behaviour unchanged. The containment guard then applies
+to the *requested* profile's root, and the `ConfigError` names that profile.
+`get_path(key, default, *, profile=...)` takes the same keyword.
+
 The `protocols_dir` accessor remains a compatibility path setting. Its presence
 does not restore the decommissioned YAML engine or removed hooks.
 
 These functions return paths; they do not create sessions, databases, sockets or
-start the warden. Calls may create/tighten the base AXM home while resolving.
+start the warden, and resolving one creates nothing at all: the locations are
+computed through the non-creating `axm_home_path()`, so reading configuration
+never materialises `~/.axm`.
 An explicit consumer command argument should remain above configuration
 resolution rather than being passed as a lower-priority default.
 

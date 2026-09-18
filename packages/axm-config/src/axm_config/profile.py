@@ -4,7 +4,7 @@ import os
 import re
 from pathlib import Path
 
-from axm_config.home import axm_home
+from axm_config.home import axm_home_path
 from axm_config.resolver import ConfigError
 
 __all__ = [
@@ -14,6 +14,7 @@ __all__ = [
     "profile_config_path",
     "profile_env",
     "profile_root",
+    "profile_root_for",
 ]
 
 PROFILE_ENV_VAR = "AXM_PROFILE"
@@ -38,17 +39,30 @@ def current_profile() -> str:
 
 def profile_root() -> Path | None:
     """Return the isolated state root, or None for production."""
-    profile = current_profile()
-    if profile == DEFAULT_PROFILE:
+    return profile_root_for(current_profile())
+
+
+def profile_root_for(profile: str) -> Path | None:
+    """Return the state root of ``profile``, or None for the default one.
+
+    The named counterpart of :func:`profile_root`: it answers for an arbitrary
+    profile instead of the active one, so a caller can ask what a profile
+    *would* use without mutating ``AXM_PROFILE``. Pure computation -- the root
+    hangs below :func:`axm_home_path`, so no directory is created, and the
+    deliberate asymmetry is preserved: ``AXM_HOME`` only selects the
+    ``config.toml`` that is read, never this convention.
+    """
+    validated = validate_profile_name(profile)
+    if validated == DEFAULT_PROFILE:
         return None
-    return axm_home() / "profiles" / profile
+    return axm_home_path() / "profiles" / validated
 
 
 def profile_config_path() -> Path:
     """Return the config store path for the active profile."""
     root = profile_root()
     if root is None:
-        return axm_home() / "config.toml"
+        return axm_home_path() / "config.toml"
     return root / "config.toml"
 
 

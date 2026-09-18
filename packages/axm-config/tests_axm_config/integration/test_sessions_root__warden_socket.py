@@ -80,3 +80,23 @@ def test_profile_root_overrides_caller_default(dev_profile_root: Path) -> None:
 
     assert result.is_relative_to(dev_profile_root)
     assert result != outside
+
+
+@pytest.mark.integration
+def test_runtime_paths_answer_for_a_named_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5: sessions and socket answer for scratch with no active profile."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("AXM_HOME", raising=False)
+    monkeypatch.delenv("AXM_PROFILE", raising=False)
+    for key in _PROFILE_PATH_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+
+    sessions = axm_config.sessions_root(profile="scratch")
+    socket_path = axm_config.warden_socket(profile="scratch")
+
+    scratch_root = axm_config.axm_home_path() / "profiles" / "scratch"
+    assert sessions == scratch_root / "sessions"
+    assert socket_path == scratch_root / "warden.sock"

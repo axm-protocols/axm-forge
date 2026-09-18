@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import axm_config
 from axm_config import paths
 
 
@@ -66,3 +67,17 @@ def test_tickets_db_honours_the_active_profile_store(
     result = paths.tickets_db()
 
     assert result == configured.resolve()
+
+
+@pytest.mark.integration
+def test_tickets_db_answers_for_a_named_profile(
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC5: the ticket store answers for scratch with no active profile."""
+    monkeypatch.delenv("AXM_PROFILE", raising=False)
+
+    result = paths.tickets_db(profile="scratch")
+
+    scratch_root = axm_config.axm_home_path() / "profiles" / "scratch"
+    assert result == scratch_root / "tickets" / "tickets.db"
