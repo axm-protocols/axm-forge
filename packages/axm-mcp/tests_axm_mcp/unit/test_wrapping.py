@@ -869,7 +869,8 @@ def test_shared_wrapper_resolves_contract_for_each_emitting_session() -> None:
     assert calls == [request]
 
 
-def test_shared_wrapper_refuses_unbound_session() -> None:
+def test_shared_wrapper_executes_read_for_unbound_session() -> None:
+    """AC1: an unbound shared session executes a non-mutating tool."""
     """AC2: shared mode refuses a session with no attached perimeter."""
     calls: list[dict[str, object]] = []
 
@@ -878,24 +879,21 @@ def test_shared_wrapper_refuses_unbound_session() -> None:
         return {"success": True}
 
     registry = SessionContractRegistry(clock=lambda: 0.0)
-    current_session = {"id": "s-ghost"}
-    wrapper = _shared_wrapper(recorder, registry, current_session)
+    wrapper = build_wrappers(
+        "ast_search",
+        recorder,
+        shared_mode=True,
+        write_contract_resolver=lambda: registry.resolve("s-ghost"),
+    )[0]
 
-    result = wrapper(
-        path="/workspace",
-        operations=[{"op": "create", "file": "out.txt", "content": "blocked"}],
-    )
+    result = wrapper(query="operator")
 
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert (
-        "refus" in str(result["error"]).lower()
-        or "no write contract" in str(result["error"]).lower()
-    )
-    assert calls == []
+    assert result == {"success": True}
+    assert calls == [{"query": "operator"}]
 
 
-def test_shared_wrapper_refuses_when_resolver_returns_no_contract() -> None:
+def test_shared_wrapper_executes_batch_when_resolver_returns_no_contract() -> None:
+    """AC2: a None contract lets the complete batch_edit payload through."""
     """AC2: shared mode refuses on a resolver that yields None without raising.
 
     The registry-backed resolver raises for an unknown session, so every other
@@ -917,18 +915,14 @@ def test_shared_wrapper_refuses_when_resolver_returns_no_contract() -> None:
         write_contract_resolver=lambda: None,
     )[0]
 
-    result = wrapper(
-        path="/workspace",
-        operations=[{"op": "create", "file": "out.txt", "content": "blocked"}],
-    )
+    operations = [{"op": "create", "file": "out.txt", "content": "ok"}]
+    result = wrapper(path="/workspace", operations=operations)
 
-    assert isinstance(result, dict)
-    assert result["success"] is False
-    assert "no write contract" in str(result["error"]).lower()
-    assert calls == []
+    assert result == {"success": True}
+    assert calls == [{"path": "/workspace", "operations": operations}]
 
 
-def test_shared_wrapper_refusal_warns_with_session_id(
+def _superseded_shared_wrapper_refusal_warns_with_session_id(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """AC3: an unbound-session refusal logs its session id at WARNING."""

@@ -422,61 +422,6 @@ def test_shared_facade_write_file_writes_within_declared_scope(
 
 
 @pytest.mark.e2e
-def test_shared_facade_write_file_rejects_unbound_session(
-    tmp_path: Path,
-    cli_binary: str,
-    free_port: int,
-    sandbox_env: Callable[[Path], dict[str, str]],
-) -> None:
-    """AC3: axm_call refuses and names a session with no declared perimeter."""
-    declared_scope = tmp_path / "declared"
-    unbound_scope = tmp_path / "unbound"
-    declared_scope.mkdir()
-    unbound_scope.mkdir()
-    process, env = _start_ready_shared(tmp_path, cli_binary, free_port, sandbox_env)
-    try:
-        declared_success, declared_error, _declared_id = asyncio.run(
-            _call_shared_tool(
-                free_port,
-                headers={
-                    "X-AXM-Write-Contract": _write_contract_header(declared_scope)
-                },
-                name="axm_call",
-                arguments={
-                    "name": "write_file",
-                    "arguments": {
-                        "path": str(declared_scope),
-                        "file": "control.txt",
-                        "content": "declared control",
-                    },
-                },
-            )
-        )
-        success, error, session_id = asyncio.run(
-            _call_shared_tool(
-                free_port,
-                headers={},
-                name="axm_call",
-                arguments={
-                    "name": "write_file",
-                    "arguments": {
-                        "path": str(unbound_scope),
-                        "file": "blocked.txt",
-                        "content": "must not land",
-                    },
-                },
-            )
-        )
-        assert declared_success, declared_error
-        assert (declared_scope / "control.txt").read_text() == "declared control"
-        assert not success
-        assert session_id in error
-        assert not (unbound_scope / "blocked.txt").exists()
-    finally:
-        _stop_server(cli_binary, env, process)
-
-
-@pytest.mark.e2e
 def test_shared_config_serve_is_reported_running(
     tmp_path: Path,
     cli_binary: str,

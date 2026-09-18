@@ -258,6 +258,15 @@ class _WriteFileProbe:
         return ToolResult(success=True, text=f"wrote {path}/{file}: {content}")
 
 
+class _BatchEditProbe:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def execute(self, *, path: str, operations: list[dict[str, object]]) -> ToolResult:
+        self.calls.append({"path": path, "operations": operations})
+        return ToolResult(success=True, text="executed")
+
+
 def _registered_text(server: MCPServer, tool: str, **arguments: object) -> str:
     result = asyncio.run(server.call_tool(tool, arguments))
     blocks = getattr(result, "content", None)
@@ -352,6 +361,40 @@ def test_direct_and_facade_paths_return_the_same_write_refusal(
     )
 
     assert _write_decision(direct) == _write_decision(facade)
+
+
+def test_unbound_batch_edit_executes_through_direct_and_facade_doors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: an unbound batch_edit reaches the tool through both public doors."""
+    registry = _session_registry()
+    server = MCPServer("shared-unbound")
+    probe = _BatchEditProbe()
+    tools = {"batch_edit": cast(ToolEntry, probe)}
+    monkeypatch.setattr(mcp_app, "mcp", server)
+    monkeypatch.setattr(mcp_app, "_SHARED_MODE", True)
+    monkeypatch.setattr(mcp_app, "session_contract_registry", registry)
+    monkeypatch.setattr(mcp_app, "current_session_id", lambda: "sess-ghost")
+    mcp_app._register_direct(tools)
+    catalog = ToolCatalog(
+        tools,
+        shared_mode=True,
+        write_contract_resolver=mcp_app._resolve_session_contract,
+    )
+    register_facade(server, catalog)
+    arguments: dict[str, object] = {
+        "path": "/workspace",
+        "operations": [{"op": "create", "file": "out.txt", "content": "ok"}],
+    }
+
+    direct = _registered_text(server, "batch_edit", **arguments)
+    facade = _registered_text(
+        server, "axm_call", name="batch_edit", arguments=arguments
+    )
+
+    assert probe.calls == [arguments, arguments]
+    assert "success: False" not in direct
+    assert "success: False" not in facade
 
 
 def test_facade_mode_hides_cold_tool(

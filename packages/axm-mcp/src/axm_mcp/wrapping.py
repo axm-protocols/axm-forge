@@ -233,17 +233,10 @@ def _write_refusal(
 
     try:
         contract = ctx.write_contract_resolver()
-    except UnboundSessionError as exc:
+    except UnboundSessionError:
         if not ctx.shared_mode:
             raise
-        reason = str(exc)
-        logger.warning("Refusing write tool %s: %s", ctx.name, reason)
-        return {"success": False, "error": reason}
-
-    if contract is None and ctx.shared_mode:
-        reason = f"shared mode refused {ctx.name}: no write contract is attached"
-        logger.warning("Refusing write tool %s: %s", ctx.name, reason)
-        return {"success": False, "error": reason}
+        contract = None
 
     decision = decide_write_access(contract, ctx.name, tool_input)
     if decision.allowed:

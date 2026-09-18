@@ -37,10 +37,11 @@ do not create a binding. Invalid declarations are ignored by the middleware;
 an existing binding is not revoked by a malformed replacement.
 
 Both catalog calls and direct hot-path calls resolve the contract at call
-time. An unbound session is refused by the wrapper **even for a read-only
-wrapped tool**, because resolution happens before tool classification.
-The unwrapped facade discovery tools and `list_tools` remain available for
-finding contracts. The actual write decision is delegated to
+time. A session carrying a contract is restricted to that contract's perimeter.
+An unbound session carries no contract and is therefore treated as the local
+operator: wrapped reads and mutations execute without a write perimeter. The
+wrapper applies this rule identically whether resolution returns `None` or raises
+`UnboundSessionError`. The actual write decision is delegated to
 `axm.tools.write_scope`; its coverage depends on the tool name and payload.
 
 ## Scope of the guarantee
@@ -68,8 +69,9 @@ Current implementation limits:
   wired to automatic MCP session closure. Transport closure is not proof of
   registry removal.
 - Dedicated mode falls back to the process's environment-backed AXM write
-  contract; without a contract it permits calls. A shared server never
-  substitutes that default for a missing session contract on its armed paths.
+  contract and still propagates `UnboundSessionError` from an explicit resolver.
+  Shared mode converts that error to the no-contract operator case. Neither mode
+  fabricates or substitutes a default perimeter when no contract is in force.
 
 [Concurrency](../explanation/architecture.md#concurrency) describes in-process
 serialization, which is separate from authorization and atomic writes.

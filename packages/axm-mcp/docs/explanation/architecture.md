@@ -34,8 +34,11 @@ durable sessions or cache persistence across process restarts.
 
 Serving policy is independent of transport: dedicated HTTP uses an
 environment-backed write contract when present; shared HTTP resolves a
-contract by MCP session identity. The header-binding mechanism and its
-limitations are described in [shared contracts](../reference/shared-contracts.md).
+contract by MCP session identity. Authority travels with that contract: a bound
+session is restricted to its perimeter, while an unbound session is the local
+operator and runs without a write perimeter. No default contract is fabricated.
+The header-binding mechanism and its limitations are described in
+[shared contracts](../reference/shared-contracts.md).
 
 ### Port ownership
 

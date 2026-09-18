@@ -120,6 +120,42 @@ class TestConcurrentProtocolCheck:
 
 
 @pytest.mark.asyncio
+async def test_unbound_registered_batch_edit_creates_requested_file(
+    tmp_path: Path,
+) -> None:
+    """AC4: an unbound registered batch_edit writes under its supplied root."""
+    from axm.tools.base import ToolResult
+
+    from axm_mcp.session_contracts import SessionContractRegistry
+
+    class FilesystemBatchEdit:
+        def execute(
+            self, *, path: str, operations: list[dict[str, object]]
+        ) -> ToolResult:
+            operation = operations[0]
+            target = Path(path) / str(operation["file"])
+            target.write_text(str(operation["content"]), encoding="utf-8")
+            return ToolResult(success=True, text="written")
+
+    registry = SessionContractRegistry(clock=lambda: 0.0)
+    mock_mcp = MagicMock()
+    register_one(
+        mock_mcp,
+        "batch_edit",
+        FilesystemBatchEdit(),
+        registration=(True, lambda: registry.resolve("s-ghost")),
+    )
+    wrapper = mock_mcp.tool.return_value.call_args[0][0]
+
+    await wrapper(
+        path=str(tmp_path),
+        operations=[{"op": "create", "file": "out.txt", "content": "ok"}],
+    )
+
+    assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "ok"
+
+
+@pytest.mark.asyncio
 async def test_registered_shared_wrapper_isolates_real_session_perimeters(
     tmp_path: Path,
 ) -> None:
