@@ -63,7 +63,7 @@ The underlying `axm_config.doctor.config_doctor_data(namespace=None)` and
 ## profile_isolation
 
 ```bash
-AXM_HOME=/tmp/axm-profile-example axm profile_isolation --profile scratch
+axm profile_isolation --profile scratch
 ```
 
 MCP façade: `axm_call(name="profile_isolation", arguments={"profile": "scratch"})`.
@@ -77,8 +77,11 @@ The data contains string paths under `tickets_db`, `warden_socket`,
 Unlike the Python `ProfileIsolation` model, tool data omits `profile_root`
 and `escapes`.
 
-This is a side-effect-free calculation of candidate paths, not an audit of
-actual configured consumers. Read the [profile limits](../howto/profiles.md).
+The six paths are resolved through the state accessors for the requested
+profile, so configured overrides and the `env > file > default` precedence are
+reflected in the report. It stays side-effect-free: nothing is created, and
+`isolated` is `false` for the default profile, which owns no profile root.
+Read the [profile limits](../howto/profiles.md).
 
 The generic `axm` CLI discovers installed `axm.tools` entry points; command
 availability depends on the environment. Neither `axm.commands` nor the

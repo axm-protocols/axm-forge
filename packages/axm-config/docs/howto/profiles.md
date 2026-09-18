@@ -36,19 +36,32 @@ environment and does not carry other AXM overrides. Avoid changing process-globa
 `os.environ` concurrently to switch profiles: the selection is not a per-request
 or thread-local context.
 
-## Interpret the diagnostic correctly
+## Read the isolation report
 
 ```bash
-AXM_HOME=/tmp/axm-profile-example axm profile_isolation --profile scratch
+axm profile_isolation --profile scratch
 ```
 
-This calculation creates no directories. It constructs paths for tickets,
-warden socket/log, sessions, quality and protocols under
-`AXM_HOME/profiles/scratch` (or `~/.axm/profiles/scratch` without `AXM_HOME`).
+The report answers through the resolver instead of recomposing a convention:
+its six entries are `tickets_db`, `warden_socket`, `warden_log_path`,
+`sessions_root`, `quality_dir` and `protocols_dir` called with the requested
+profile, so `env > file > default` and the containment guard apply exactly as
+they do at runtime. A configured `[paths] sessions_root` is therefore the value
+printed, not a convention-derived sibling. The calculation still creates
+nothing: it resolves through the non-creating `axm_home_path()` and never calls
+`axm_home()`. `profile_root` names the convention root
+`<axm home>/profiles/<name>` for the requested profile, rooted at `~/.axm`:
+`AXM_HOME` selects only the compatibility `config.toml` that is read, never
+this layout.
 
-It does **not** consult configured path overrides or prove what consumers use.
-Even `profile_isolation("production")` constructs `profiles/production`,
-whereas the actual production resolver has no profile root.
+`isolated` and `escapes` are derived from those reported paths by
+`is_isolated(root, paths)` -- every location not contained by `profile_root` is
+named in the sorted `escapes` list. Run the diagnostic without a profile and
+the default one reports `isolated: false` with all six locations listed as
+escapes: `profile_root_for("production")` is `None`, the resolver places nothing
+under `profiles/production`, and the report now says so instead of announcing a
+profile tree nobody writes to. Production state is deliberately shared; that
+answer is the truth, not a regression.
 `is_isolated(root, paths)` is a lexical `Path.is_relative_to` check; it does
 not resolve symlinks or `..` segments. Supply normalized paths when using it
 directly, and do not treat its result as a filesystem security audit.
@@ -75,9 +88,10 @@ to print in a read-only report:
 - nothing is created, neither `~/.axm` nor the profile directory;
 - `AXM_PROFILE` is neither read for the decision nor written, so a concurrent
   resolution in the same process is unaffected;
-- unlike `profile_isolation`, configured overrides *are* honoured, and a
-  configured value escaping the requested root raises `ConfigError` naming that
-  profile rather than the active one.
+- configured overrides *are* honoured, and a configured value escaping the
+  requested root raises `ConfigError` naming that profile rather than the active
+  one. `profile_isolation` reports exactly these values, because it calls these
+  same accessors.
 
 `profile="production"` is the deliberate exception: the default profile owns no
 root, so the caller default is returned unprefixed, exactly as a production

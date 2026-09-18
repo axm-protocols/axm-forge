@@ -56,9 +56,15 @@ through it, while every code path that persists state still calls `axm_home()`.
 whatever `AXM_PROFILE` holds. It creates nothing, ignores `AXM_HOME` and still
 raises `ConfigError` on an invalid name.
 `profile_isolation(profile=None)` returns `ProfileIsolation`
-(`profile`, `profile_root`, `paths`, `isolated`, `escapes`).
-`is_isolated(root, paths)` returns `(bool, sorted_escape_names)`.
-The [profile guide](../howto/profiles.md) explains their different semantics.
+(`profile`, `profile_root`, `paths`, `isolated`, `escapes`). Each of the six
+`paths` entries is the matching state accessor called with that profile, so the
+report and the runtime resolve identically, configured overrides included.
+`profile_root` is the convention root `axm_home_path() / "profiles" / <profile>`
+and stays a plain `Path` even for `production`, which owns no root and therefore
+reports `isolated=False` with its six locations as `escapes`. Nothing is
+created. `is_isolated(root, paths)` returns `(bool, sorted_escape_names)` over
+those reported paths.
+The [profile guide](../howto/profiles.md) shows how to read the report.
 
 ## Typed values and runtime helpers
 

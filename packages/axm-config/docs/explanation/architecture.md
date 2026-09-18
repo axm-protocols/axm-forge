@@ -10,7 +10,7 @@
 | `resolver` | Validated keys, precedence, model loading and execution policies. |
 | `paths` | Typed runtime values, defaults, configured path guards and the profile's service ports. |
 | `doctor` | Provenance report without returning values. |
-| `isolation` | Candidate profile paths and lexical containment. |
+| `isolation` | Resolver-backed profile locations and lexical containment. |
 | `tools` | AXMTool diagnostic boundaries. |
 | `cli` | Cyclopts request/response commands calling the central functions. |
 
@@ -79,9 +79,9 @@ before the swap helper are not covered by its cleanup guarantee.
   is corrected; the dedicated policy deletion uses `replace_section`.
 - The process environment selects the profile at each call; global environment
   changes are not safe per-thread profile contexts.
-- `AXM_HOME`, typed accessor fallback and the isolation diagnostic do not share
-  the store's home semantics. The [profile guide](../howto/profiles.md) details
-  these boundaries rather than promising blanket isolation.
+- `AXM_HOME` and the typed accessor fallback do not share the store's home
+  semantics. The [profile guide](../howto/profiles.md) details these boundaries
+  rather than promising blanket isolation.
 
 ## Who owns a listening point
 
@@ -163,3 +163,27 @@ profile without touching `AXM_PROFILE` and without creating a directory, so a
 report can describe several profiles in one pass. The convention stays rooted at
 `Path.home() / ".axm"`: `AXM_HOME` keeps selecting only the compatibility
 `config.toml`, never this layout.
+
+## Why the isolation report asks the resolver
+
+A report consulted before overwriting the state of a running service has to
+answer with the locations that service actually uses. The diagnostic used to
+recompose its own tree under `<home>/profiles/<name>`, which made it wrong in
+two directions at once: it ignored configured overrides, and it tested
+containment against a root it had just built, so the verdict was true by
+construction. For the default profile -- where the resolver deliberately places
+nothing under a profile directory -- it announced a profile tree and declared
+the state isolated with an empty escape list.
+
+`isolation` therefore owns no path convention of its own. Its six entries are
+the six state accessors called with the requested profile, so one resolution
+path is shared by the runtime and by the report, and `AXM_HOME` keeps its narrow
+meaning here too. Because the report is read-only it resolves through
+`axm_home_path()` and never through `axm_home()`: describing a location still
+creates nothing. `isolated` and `escapes` stay derived from the reported paths
+through `is_isolated` rather than computed in parallel, so correcting the paths
+mechanically corrects the verdict -- there is no second truth to maintain.
+
+The visible consequence is the point of the change. The default profile is now
+reported as *not* isolated, with its six locations named as escapes, because it
+owns no root. A report still calling it isolated would be the defect intact.

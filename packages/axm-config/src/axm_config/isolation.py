@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from pathlib import Path
 
 from pydantic import BaseModel
 
+from axm_config.home import axm_home_path
+from axm_config.paths import (
+    protocols_dir,
+    quality_dir,
+    sessions_root,
+    tickets_db,
+    warden_log_path,
+    warden_socket,
+)
 from axm_config.profile import current_profile, validate_profile_name
 
 __all__ = ["ProfileIsolation", "is_isolated", "profile_isolation"]
@@ -39,9 +47,8 @@ def profile_isolation(profile: str | None = None) -> ProfileIsolation:
     selected_profile = (
         validate_profile_name(profile) if profile is not None else current_profile()
     )
-    home = _home_path()
-    root = home / "profiles" / selected_profile
-    paths = _profile_paths(root)
+    root = axm_home_path() / "profiles" / selected_profile
+    paths = _profile_paths(selected_profile)
     isolated, escapes = is_isolated(root, paths)
     return ProfileIsolation(
         profile=selected_profile,
@@ -52,19 +59,12 @@ def profile_isolation(profile: str | None = None) -> ProfileIsolation:
     )
 
 
-def _home_path() -> Path:
-    configured = os.environ.get(_HOME_ENV_VAR)
-    if configured is not None:
-        return Path(configured).expanduser().resolve()
-    return (Path.home() / ".axm").resolve()
-
-
-def _profile_paths(root: Path) -> dict[str, Path]:
+def _profile_paths(profile: str) -> dict[str, Path]:
     return {
-        "tickets_db": root / "tickets" / "tickets.db",
-        "warden_socket": root / "warden.sock",
-        "warden_log": root / "warden.log",
-        "sessions_root": root / "sessions",
-        "quality_dir": root / "quality",
-        "protocols_dir": root / "protocols",
+        "tickets_db": tickets_db(profile=profile),
+        "warden_socket": warden_socket(profile=profile),
+        "warden_log": warden_log_path(profile=profile),
+        "sessions_root": sessions_root(profile=profile),
+        "quality_dir": quality_dir(profile=profile),
+        "protocols_dir": protocols_dir(profile=profile),
     }

@@ -27,7 +27,7 @@ overrides, TOML persistence, typed settings and named profiles. Resolution follo
 - `get`, `get_file`, `set_`, `delete` and `load` provide resolution and model binding.
 - Typed accessors share runtime paths, warden settings and inference defaults.
 - Execution-policy helpers persist complete backend/model pairs and analysis overrides.
-- `config_doctor` reports provenance; `profile_isolation` computes candidate state paths.
+- `config_doctor` reports provenance; `profile_isolation` reports the resolved state paths.
 
 <a id="install"></a>
 
@@ -71,8 +71,9 @@ uv run axm profile_isolation --profile scratch
 ```
 
 `config_doctor` reports where settings come from without returning their values.
-`profile_isolation` calculates candidate paths; it does not audit the actual
-configuration of every consumer. See the [CLI and tool contracts](docs/reference/cli.md).
+`profile_isolation` reports the state paths the resolver would use for a profile,
+honouring configured overrides and creating nothing. See the
+[CLI and tool contracts](docs/reference/cli.md).
 
 ### Python configuration
 
