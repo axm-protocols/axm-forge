@@ -232,3 +232,23 @@ def test_a_configured_value_preempts_a_named_profile_allocation(
     monkeypatch.setenv(resolver._env_name("network", "mcp_port"), "5555")
 
     assert paths.service_port("mcp", profile="alpha") == 5555
+
+
+def test_declared_services_resolve_to_fixed_block_ports(
+    isolated_home: Path,
+) -> None:
+    """AC2: isolated profiles resolve the stable golden service-port table."""
+    expected = {
+        "alpha": {"mcp": 37280, "orison_web": 37281},
+        "beta": {"mcp": 48736, "orison_web": 48737},
+    }
+
+    resolved = {
+        profile_name: {
+            service: paths.service_port(service, profile=profile_name)
+            for service in service_ports
+        }
+        for profile_name, service_ports in expected.items()
+    }
+
+    assert resolved == expected

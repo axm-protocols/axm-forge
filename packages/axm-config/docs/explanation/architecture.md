@@ -97,7 +97,9 @@ carrying them today live in other repositories; duplicating the constant once is
 the price of moving the decision, and they drop their copy afterwards. Outside
 production the value is derived from the profile name with `hashlib`, never the
 builtin `hash()`, whose per-process `PYTHONHASHSEED` salt would rebind a service
-to a different port at every restart.
+to a different port at every restart. The available band is cut into fixed
+16-slot blocks, and each service's offset is its explicitly declared slot.
+Declaring another service therefore cannot move an existing service's port.
 
 Two boundaries keep this honest. The derived number is only the `default`
 argument handed to `get_int`, so `env > file > default` is untouched and

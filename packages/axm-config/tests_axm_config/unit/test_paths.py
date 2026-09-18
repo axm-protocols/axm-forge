@@ -362,3 +362,22 @@ def test_derive_service_port_separates_two_services_in_one_profile() -> None:
     orison_web = paths._derive_service_port("alpha", "orison_web")
 
     assert mcp != orison_web
+
+
+def test_declared_services_keep_their_slots_in_fixed_width_blocks() -> None:
+    """AC1: declared slots stay fixed in every 16-port profile block."""
+    expected_slots = {"mcp": 0, "orison_web": 1}
+
+    for profile_name in ("alpha", "beta"):
+        for service, expected_slot in expected_slots.items():
+            port = paths._derive_service_port(profile_name, service)
+
+            assert (port - 20000) % 16 == expected_slot
+
+
+def test_derive_service_port_rejects_a_service_without_a_slot() -> None:
+    """AC3: a missing declared slot raises ConfigError naming the service."""
+    with pytest.raises(ConfigError) as exc_info:
+        paths._derive_service_port("alpha", "nope")
+
+    assert "nope" in str(exc_info.value)

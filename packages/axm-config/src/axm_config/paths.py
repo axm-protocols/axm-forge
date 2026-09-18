@@ -38,7 +38,7 @@ import sys
 import tomllib
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import NamedTuple, cast
 
 from axm_config.home import axm_home_path, resolve_safe
 from axm_config.profile import current_profile, profile_root_for
@@ -436,13 +436,20 @@ def warden_socket(
 
 _NETWORK_NAMESPACE = "network"
 
+
 #: The adopted production listening points, owned here rather than by each
 #: service. The two literals are the ports the downstream packages ship today;
 #: they are *adopted*, not imported -- those packages live in other git repos
 #: and drop their own copy in later work.
-_SERVICE_PORTS: dict[str, int] = {
-    "mcp": 9427,
-    "orison_web": 8840,
+class _ServiceDecl(NamedTuple):
+    slot: int
+    adopted: int
+
+
+# Slots are explicit and unique; once assigned, they are never renumbered or reused.
+_SERVICES: dict[str, _ServiceDecl] = {
+    "mcp": _ServiceDecl(slot=0, adopted=9427),
+    "orison_web": _ServiceDecl(slot=1, adopted=8840),
 }
 
 #: The band non-production profiles draw from: registered, non-privileged, and
@@ -450,27 +457,30 @@ _SERVICE_PORTS: dict[str, int] = {
 #: kernel hands out on its own.
 _PORT_BAND_START = 20000
 _PORT_BAND_END = 49151
+_PORT_BLOCK_SLOTS = 16
 
 
 def _derive_service_port(profile: str, service: str) -> int:
     """Derive the port ``service`` listens on under ``profile``.
 
-    The profile name alone picks a *block* of the band, and the service's rank
-    in the registry is the offset inside that block. Two services of one
-    profile are therefore distinct by construction rather than by luck, while
-    two profile names land on different blocks unless their digests collide.
+    The profile name alone picks a fixed-width *block* of the band, and the
+    service's declared slot is the offset inside that block. Two services of
+    one profile are therefore distinct by construction rather than by luck,
+    while two profile names land on different blocks unless their digests collide.
 
     The digest is :mod:`hashlib`, never the builtin ``hash()``: the latter is
     salted per process by ``PYTHONHASHSEED``, so a restart would rebind the
     service to a different port.
     """
-    services = sorted(_SERVICE_PORTS)
-    width = len(services)
-    offset = services.index(service)
-    blocks = (_PORT_BAND_END - _PORT_BAND_START + 1) // width
+    decl = _SERVICES.get(service)
+    if decl is None:
+        msg = f"unknown service id {service!r}: no slot declared"
+        raise ConfigError(msg)
+
+    blocks = (_PORT_BAND_END - _PORT_BAND_START + 1) // _PORT_BLOCK_SLOTS
     digest = hashlib.blake2b(profile.encode("utf-8"), digest_size=8).digest()
     block = int.from_bytes(digest, "big") % blocks
-    return _PORT_BAND_START + block * width + offset
+    return _PORT_BAND_START + block * _PORT_BLOCK_SLOTS + decl.slot
 
 
 _SERVICE_PORT_ENV_ALIASES: dict[str, tuple[str, ...]] = {"mcp": ("AXM_MCP_PORT",)}
@@ -504,15 +514,15 @@ def service_port(service: str, *, profile: str | None = None) -> int:
     Raises :class:`ConfigError` naming ``service`` when it is not registered,
     before any resolution is attempted.
     """
-    adopted = _SERVICE_PORTS.get(service)
-    if adopted is None:
-        known = ", ".join(sorted(_SERVICE_PORTS))
+    decl = _SERVICES.get(service)
+    if decl is None:
+        known = ", ".join(sorted(_SERVICES))
         msg = f"unknown service id {service!r}: expected one of {known}"
         raise ConfigError(msg)
 
     requested = _requested_profile(profile)
     if profile_root_for(requested) is None:
-        fallback = adopted
+        fallback = decl.adopted
     else:
         fallback = _derive_service_port(requested, service)
     return get_int(
