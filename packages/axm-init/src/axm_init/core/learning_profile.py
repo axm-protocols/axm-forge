@@ -112,12 +112,28 @@ def merge_learning_metadata(metadata: str, domain: str, module_name: str) -> str
     return dumps(document)
 
 
-def declared_learning_domain(root: Path) -> str | None:
+def declared_learning_domain(
+    root: Path,
+    requested_domain: str | None = None,
+) -> str | None:
     """Return the learning domain declared by the project at *root*, if any."""
-    metadata_path = root / "pyproject.toml"
-    if not metadata_path.is_file():
-        return None
-    return _learning_domain(metadata_path.read_text(encoding="utf-8"))
+    canonical_root = root.resolve()
+    with _target_root_lock(canonical_root):
+        metadata_path = canonical_root / "pyproject.toml"
+        if not metadata_path.is_file():
+            return None
+        existing_domain = _learning_domain(metadata_path.read_text(encoding="utf-8"))
+        if (
+            requested_domain is not None
+            and existing_domain is not None
+            and existing_domain != requested_domain
+        ):
+            msg = (
+                "learning profile domain conflict: "
+                f"existing {existing_domain!r}, requested {requested_domain!r}"
+            )
+            raise ValueError(msg)
+        return existing_domain
 
 
 def register_learning_profile(root: Path, domain: str, module_name: str) -> None:

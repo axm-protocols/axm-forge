@@ -47,7 +47,7 @@ This scaffolds a production-grade Python project with:
 | `--framework` | | `python` | `python`, `node`, `svelte`; use non-Python only for standalone projects |
 | `--kind` | | | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `--profile` | | | Optional package profile; `protocols` is supported for Python |
-| `--domain` | | | Protocol domain, required with `--profile protocols` |
+| `--domain` | | | Learning domain with `--kind learning`; protocol domain with `--profile protocols` |
 | `--unit` | | | Protocol unit, required when declarations are supplied |
 | `--protocols` | | | JSON list of action-only protocol payloads; `--domain` and `--unit` supply their shared identity |
 | `--preview` | | `False` | Plan protocol files without changing the target |
@@ -151,28 +151,32 @@ Change `schedule.max_steps` in `training.toml` when you need a longer run. The
 same entry point is available through the registered `learning_lab_train`
 AXMTool.
 
-To pick up template updates later, re-run the identical standalone learning
-command against the same target. When its `pyproject.toml` still declares the
-same learning domain, `init_scaffold` reconciles the project: it re-renders
-`training.toml` from the current template while restoring
-`src/learning_lab/recipe.py` byte for byte. This lets you refresh template-owned
-configuration without losing edits to the user-owned recipe. A different
-project name or learning domain is not treated as a reconciliation; use a fresh
-target for that migration.
+The learning domain defaults to the generated module name. Pass `--domain` when
+the training domain needs a different stable identity. To pick up template
+updates later, re-run the same learning command against the same target with the
+same domain. `init_scaffold` then re-renders template-owned files such as
+`training.toml` while restoring `src/learning_lab/recipe.py` byte for byte.
+
+Requesting a different domain is rejected before rendering. The error names the
+declared and requested domains, and both the training configuration and recipe
+remain unchanged. Use a fresh target for a domain migration.
 
 To create the same learning package as a member of an existing UV workspace,
 run from the workspace root (or one of its members) and supply `--member`:
 
 ```bash
 axm init_scaffold --kind learning --member learning-lab \
+  --domain forecasting \
   --org myorg --author "Your Name" --email "you@example.com"
 ```
 
 This renders the learning tree under `packages/learning-lab/`, patches the
 workspace root files, and reports `mode="member"`, the member distribution,
 the member directory as `root`, and the non-empty `patched_root_files` list.
-Existing learning members remain one-shot scaffolds; reconciliation applies only
-to the standalone learning form described above.
+Re-running the command with the same domain reconciles the existing learning
+member and preserves its edited `src/learning_lab/recipe.py` bytes. Changing
+only `--domain` is rejected before Copier runs; the error names both domains and
+leaves `training.toml` and the recipe byte-identical.
 
 To apply only the compatibility overlay to an existing package, use the Python
 template API described in
@@ -207,9 +211,9 @@ Outputs structured JSON for CI/automation use.
 | `Missing required option --org` | Required flag not provided | Pass `--org`, `--author`, and `--email` explicitly |
 | `--workspace and --member are mutually exclusive` | Both flags given | Use only one of `--workspace` or `--member` |
 | `Not inside a UV workspace` | `--member` used outside workspace | Run from a workspace directory |
-| `Member 'X' already exists` | Duplicate member name | Choose a different member name |
+| `Member 'X' already exists` | Duplicate non-learning member, or learning member without a matching declared domain | Choose another name; matching-domain learning members may be reconciled |
 | `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
-| Existing destination content | Copier can encounter conflicts with existing files | For the same standalone learning domain, re-run the identical learning command to reconcile it; otherwise use a fresh destination |
+| Existing destination content | Copier can encounter conflicts with existing files | For the same standalone or member learning domain, re-run the identical learning command to reconcile it; otherwise use a fresh destination |
 | `... is not a paper` | `--kind experiment` outside a detected paper | Scaffold the paper first (`--kind paper`), or point the path at the paper root |
 | `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |

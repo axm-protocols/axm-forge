@@ -282,6 +282,7 @@ class _ScaffoldContext:
     workspace: bool
     member: str | None
     kind: str | None
+    learning_domain: str | None
     meta: _ProjectMeta
     protocol_request: ProtocolScaffoldRequest | None
 
@@ -603,9 +604,16 @@ class InitScaffoldTool:
             kind, workspace=workspace, member=member, name=name
         )
 
+        learning_domain = (
+            _opt_str_option(protocol_options, "domain") if kind == "learning" else None
+        )
         protocol_request = prepare_protocol_request(
             profile=_opt_str_option(protocol_options, "profile"),
-            domain=_opt_str_option(protocol_options, "domain"),
+            domain=(
+                None
+                if kind == "learning"
+                else _opt_str_option(protocol_options, "domain")
+            ),
             unit=_opt_str_option(protocol_options, "unit"),
             protocols=_protocols_option(protocol_options),
             preview=bool(protocol_options.get("preview", False)),
@@ -635,6 +643,7 @@ class InitScaffoldTool:
             workspace=workspace,
             member=member,
             kind=kind,
+            learning_domain=learning_domain,
             meta=_ProjectMeta(
                 org=org,
                 license_type=license_type,
@@ -668,6 +677,7 @@ class InitScaffoldTool:
             license_holder=ctx.license_holder,
             private=ctx.private,
             learning=ctx.kind == "learning",
+            learning_domain=ctx.learning_domain,
         )
         request = ctx.protocol_request
         if not member_result.success or request is None:
@@ -697,14 +707,15 @@ class InitScaffoldTool:
             if ctx.workspace
             else TemplateType.STANDALONE
         )
-        recipe_path = (
-            ctx.target_path / "src" / ctx.project_name.replace("-", "_") / "recipe.py"
+        module_name = ctx.project_name.replace("-", "_")
+        requested_learning_domain = ctx.learning_domain or module_name
+        recipe_path = ctx.target_path / "src" / module_name / "recipe.py"
+        declared_domain = (
+            declared_learning_domain(ctx.target_path, requested_learning_domain)
+            if template_type is TemplateType.LEARNING
+            else None
         )
-        reconcile_learning = (
-            template_type is TemplateType.LEARNING
-            and declared_learning_domain(ctx.target_path)
-            == ctx.project_name.replace("-", "_")
-        )
+        reconcile_learning = declared_domain == requested_learning_domain
         recipe_bytes = (
             recipe_path.read_bytes()
             if reconcile_learning and recipe_path.is_file()
@@ -719,7 +730,12 @@ class InitScaffoldTool:
             private=ctx.private,
         )
         if template_type is TemplateType.LEARNING:
-            template_data["learning_mode"] = "standalone"
+            template_data.update(
+                {
+                    "learning_mode": "standalone",
+                    "domain": requested_learning_domain,
+                }
+            )
         result = CopierAdapter().copy(
             CopierConfig(
                 template_path=get_template_path(template_type, ctx.framework),
@@ -960,6 +976,7 @@ class InitScaffoldTool:
         license_holder: str | None = None,
         private: bool | None = None,
         learning: bool = False,
+        learning_domain: str | None = None,
     ) -> ToolResult:
         """Scaffold a member sub-package inside an existing workspace.
 
@@ -982,12 +999,29 @@ class InitScaffoldTool:
             return ToolResult(success=False, error="Not inside a UV workspace")
 
         member_dir = workspace_root / "packages" / member_name
-        if member_dir.exists():
+        module_name = member_name.replace("-", "_")
+        requested_learning_domain = learning_domain or module_name
+        reconcile_learning = False
+        if member_dir.exists() and learning:
+            try:
+                reconcile_learning = (
+                    declared_learning_domain(member_dir, requested_learning_domain)
+                    == requested_learning_domain
+                )
+            except ValueError as exc:
+                return ToolResult(success=False, error=str(exc))
+        if member_dir.exists() and not reconcile_learning:
             return ToolResult(
                 success=False,
                 error=f"Member '{member_name}' already exists at {member_dir}",
             )
 
+        recipe_path = member_dir / "src" / module_name / "recipe.py"
+        recipe_bytes = (
+            recipe_path.read_bytes()
+            if reconcile_learning and recipe_path.is_file()
+            else None
+        )
         data = build_member_data(
             member_name,
             read_workspace_name(workspace_root),
@@ -1000,6 +1034,7 @@ class InitScaffoldTool:
                 {
                     "package_name": member_name.replace("_", "-"),
                     "learning_mode": "standalone",
+                    "domain": requested_learning_domain,
                 }
             )
 
@@ -1011,8 +1046,11 @@ class InitScaffoldTool:
             destination=member_dir,
             data=data,
             trust_template=True,
+            overwrite=reconcile_learning,
         )
         result = copier_adapter.copy(copier_config)
+        if recipe_bytes is not None:
+            recipe_path.write_bytes(recipe_bytes)
 
         if not result.success:
             return ToolResult(

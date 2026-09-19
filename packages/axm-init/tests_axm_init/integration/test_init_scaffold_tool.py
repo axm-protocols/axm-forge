@@ -694,3 +694,80 @@ def test_learning_rerun_refreshes_training_configuration(tmp_path: Path) -> None
     refreshed = training.read_text(encoding="utf-8")
     assert marker not in refreshed
     assert 'entry_point = "learning_lab.recipe:SyntheticRecipe"' in refreshed
+
+
+@pytest.mark.integration
+def test_learning_member_rerun_reconciles_same_domain_and_preserves_recipe(
+    tmp_path: Path,
+) -> None:
+    """AC1: a same-domain member re-run succeeds and preserves recipe bytes."""
+    workspace_root = tmp_path / "workspace"
+    workspace = _scaffold_without_tasks(
+        workspace_root,
+        name="learning-workspace",
+        workspace=True,
+    )
+    assert workspace.success is True, workspace.error
+    initial = _scaffold_without_tasks(
+        workspace_root,
+        member="learning-member",
+        kind="learning",
+        domain="forecasting",
+    )
+    assert initial.success is True, initial.error
+    member_root = workspace_root / "packages" / "learning-member"
+    recipe = member_root / "src" / "learning_member" / "recipe.py"
+    edited = recipe.read_bytes() + b"\n# user-owned member marker\n"
+    recipe.write_bytes(edited)
+
+    rerun = _scaffold_without_tasks(
+        workspace_root,
+        member="learning-member",
+        kind="learning",
+        domain="forecasting",
+    )
+
+    assert rerun.success is True, rerun.error
+    assert recipe.read_bytes() == edited
+
+
+@pytest.mark.integration
+def test_learning_member_domain_conflict_is_atomic_and_names_both_domains(
+    tmp_path: Path,
+) -> None:
+    """AC2: a changed-domain member re-run names both domains and writes nothing."""
+    workspace_root = tmp_path / "workspace"
+    workspace = _scaffold_without_tasks(
+        workspace_root,
+        name="learning-workspace",
+        workspace=True,
+    )
+    assert workspace.success is True, workspace.error
+    initial = _scaffold_without_tasks(
+        workspace_root,
+        member="learning-member",
+        kind="learning",
+        domain="forecasting",
+    )
+    assert initial.success is True, initial.error
+    member_root = workspace_root / "packages" / "learning-member"
+    recipe = member_root / "src" / "learning_member" / "recipe.py"
+    training = member_root / "training.toml"
+    recipe.write_bytes(recipe.read_bytes() + b"\n# user-owned member marker\n")
+    recipe_before = recipe.read_bytes()
+    training_before = training.read_bytes()
+
+    conflict = _scaffold_without_tasks(
+        workspace_root,
+        member="learning-member",
+        kind="learning",
+        domain="ranking",
+    )
+
+    assert conflict.success is False
+    error = conflict.error or ""
+    assert "forecasting" in error
+    assert "ranking" in error
+    assert "profile is required for a protocol package" not in error
+    assert recipe.read_bytes() == recipe_before
+    assert training.read_bytes() == training_before

@@ -23,7 +23,7 @@ axm init_scaffold [OPTIONS] [PATH]
 | `--kind` | | string | `None` | Scaffold kind: `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `--framework` | | string | `python` | `python`, `node`, `svelte`; non-Python templates support standalone only |
 | `--profile` | | string | `None` | `protocols` profile for Python |
-| `--domain` | | string | `None` | Required with protocol profile |
+| `--domain` | | string | `None` | Learning domain for `--kind learning`, or required protocol domain with `--profile protocols` |
 | `--unit` | | string | `None` | Shared unit for protocol declarations |
 | `--protocols` | | JSON list | `None` | Action-only protocol payloads |
 | `--preview` | | bool | `False` | Plan protocol declarations without applying them |
@@ -42,6 +42,11 @@ axm init_scaffold [OPTIONS] [PATH]
   `paper`, `experiment`, `learning`, `protocol_unit`, `protocol`) → exit code 1
 - `--kind experiment` on a directory that is not a detected paper → exit code 1,
   and nothing is written under that directory
+- A learning re-run whose declared domain matches `--domain` reconciles either a
+  standalone project or workspace member and preserves the recipe byte for byte
+- A learning re-run with a different `--domain` → exit code 1 before rendering;
+  the error names both domains and leaves training configuration and recipe bytes
+  unchanged
 
 **Exit codes:**
 
@@ -129,18 +134,24 @@ entry always resolves on disk — `manifest.yaml`, `inputs/SOURCES.md`, … The
 ## Learning example
 
 ```bash
-axm init_scaffold learning-lab --kind learning \
+axm init_scaffold learning-lab --kind learning --domain forecasting \
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
-The learning kind is standalone and selects the bundled `learning-project`
-template. It creates `training.toml`, `study.toml`,
-`src/learning_lab/recipe.py`, `src/learning_lab/tools/train.py` and
-`tests_learning_lab/unit/test_recipe.py`. The structured result adds
-`profile="learning"`, `mode="standalone"`, `distribution` and `root` to the
-ordinary `project_name`, `template` and `files` fields. The generated
-`pyproject.toml` declares `[tool.axm-init.learning]` and an `axm.tools` entry
-point for `learning_lab.tools.train:TrainingTool`.
+The learning kind selects the bundled `learning-project` template. It creates
+`training.toml`, `study.toml`, `src/learning_lab/recipe.py`,
+`src/learning_lab/tools/train.py` and `tests_learning_lab/unit/test_recipe.py`.
+The structured result adds `profile="learning"`, `mode`, `distribution` and
+`root` to the ordinary scaffold fields. The generated `pyproject.toml` declares
+`[tool.axm-init.learning]` and an `axm.tools` entry point for
+`learning_lab.tools.train:TrainingTool`. Without `--domain`, the domain defaults
+to the generated module name.
+
+For a workspace member, add `--member learning-lab` and run against the
+workspace. Re-running either form with the same domain reconciles the existing
+learning scaffold: template-owned configuration is refreshed while the recipe
+is restored byte for byte. A different requested domain fails before rendering,
+with both the declared and requested domains in the error.
 
 ## Protocol and framework contracts
 
