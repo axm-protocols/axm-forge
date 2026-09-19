@@ -161,6 +161,19 @@ An experiment folder — a directory whose root `manifest.yaml` declares both
     and papers, so a Python package is never reproached an experiment check.
 
 
+### learning (explicit-only)
+
+Learning-profile conformance runs only when the `learning` category is requested:
+
+| Check | Weight | What It Verifies |
+|-------|--------|------------------|
+| `learning.learning_profile` | 2 | `[tool.axm-init.learning]` declares the supported schema version and a non-empty domain, and `study.toml` plus `training.toml` exist at the project root |
+
+A project without `[tool.axm-init.learning]` returns a passing, zero-weight result.
+This keeps the default catalogue and historical grades unchanged while allowing
+profile-aware CI to request the check explicitly with `--category learning`.
+Failures identify invalid metadata and every missing generated configuration file.
+
 ### protocols (explicit-only)
 
 Protocol-profile checks run only when the `protocols` category is requested:

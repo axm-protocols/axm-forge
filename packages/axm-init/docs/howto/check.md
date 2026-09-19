@@ -29,8 +29,28 @@ axm init_check --category structure
 axm init_check --category deps
 axm init_check --category changelog
 axm init_check --category workspace
+axm init_check /path/to/learning-project --category learning
 axm init_check /path/to/protocol-package --category protocols
 ```
+
+## Check a Learning Profile
+
+Projects declaring `[tool.axm-init.learning]` can verify that declaration and
+its generated configuration explicitly:
+
+```bash
+axm init_check /path/to/project --category learning --verbose
+```
+
+The `learning.learning_profile` line passes when `schema_version = 1`, `domain`
+is a non-empty string, and both `study.toml` and `training.toml` exist at the
+project root. A failure lists each missing file and recommends regenerating the
+profile. Projects without a learning declaration receive a neutral, zero-weight
+result.
+
+`learning` is explicit-only: it does not alter the default catalogue, historical
+check counts, or grades. Select it in CI whenever the project declares a learning
+profile.
 
 ## Check Workspace Protocols
 
@@ -121,12 +141,13 @@ By default, only failures are displayed.
 
 | **paper** | paper structure, plan, research protocol | 15 |
 | **experiment** | directory structure and required files | 10 |
+| **learning** *(explicit-only)* | declared domain, schema version, `study.toml`, `training.toml` | 2 |
 | **protocols** *(explicit-only)* | profile metadata, prompt resources, public components, assembly, and author grammar | 12 |
 
 The first ten rows are the default Python catalogue before context filtering.
-`protocols` runs only when selected with `--category protocols`, so unfiltered
-quality scores for projects outside that profile do not change. Its findings
-include the metadata or source location and an actionable correction. See the
+`learning` and `protocols` run only when selected with their respective
+`--category` values, so unfiltered quality scores do not change. Their findings
+include the missing or invalid artefact and an actionable correction. See the
 [complete catalogue](../reference/checks/catalogue.md) for canonical identifiers
 and Node/React/Svelte selection.
 
