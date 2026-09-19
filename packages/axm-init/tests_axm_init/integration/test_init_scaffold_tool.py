@@ -654,3 +654,43 @@ def test_learning_pyproject_declares_training_tool_entry_point(
     entry_points = metadata["project"]["entry-points"]["axm.tools"]
     targets = [str(value).split(":", 1)[0] for value in entry_points.values()]
     assert "learning_lab.tools.train" in targets
+
+
+@pytest.mark.integration
+def test_learning_rerun_preserves_edited_recipe_bytes(tmp_path: Path) -> None:
+    """AC1: an identical learning re-run preserves user-owned recipe bytes."""
+    target, initial = _scaffold_learning(tmp_path)
+    assert initial.success is True, initial.error
+    recipe = target / "src" / "learning_lab" / "recipe.py"
+    edited = recipe.read_bytes() + b"\n# user-owned marker\n"
+    recipe.write_bytes(edited)
+
+    rerun = _scaffold_without_tasks(
+        target,
+        name="learning-lab",
+        kind="learning",
+    )
+
+    assert rerun.success is True, rerun.error
+    assert recipe.read_bytes() == edited
+
+
+@pytest.mark.integration
+def test_learning_rerun_refreshes_training_configuration(tmp_path: Path) -> None:
+    """AC2: the identical re-run refreshes template-owned training config."""
+    target, initial = _scaffold_learning(tmp_path)
+    assert initial.success is True, initial.error
+    training = target / "training.toml"
+    marker = "hand_written_marker = true"
+    training.write_text(f"{marker}\n", encoding="utf-8")
+
+    rerun = _scaffold_without_tasks(
+        target,
+        name="learning-lab",
+        kind="learning",
+    )
+
+    assert rerun.success is True, rerun.error
+    refreshed = training.read_text(encoding="utf-8")
+    assert marker not in refreshed
+    assert 'entry_point = "learning_lab.recipe:SyntheticRecipe"' in refreshed

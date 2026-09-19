@@ -13,6 +13,7 @@ from tomlkit import parse
 from tomlkit.items import Table
 
 from axm_init.core.framework import Framework
+from axm_init.core.learning_profile import declared_learning_domain
 from axm_init.core.protocol_scaffolder import (
     ProtocolScaffoldRequest,
     prepare_protocol_request,
@@ -696,6 +697,19 @@ class InitScaffoldTool:
             if ctx.workspace
             else TemplateType.STANDALONE
         )
+        recipe_path = (
+            ctx.target_path / "src" / ctx.project_name.replace("-", "_") / "recipe.py"
+        )
+        reconcile_learning = (
+            template_type is TemplateType.LEARNING
+            and declared_learning_domain(ctx.target_path)
+            == ctx.project_name.replace("-", "_")
+        )
+        recipe_bytes = (
+            recipe_path.read_bytes()
+            if reconcile_learning and recipe_path.is_file()
+            else None
+        )
         template_data = self._build_template_data(
             project_name=ctx.project_name,
             workspace=ctx.workspace,
@@ -712,8 +726,11 @@ class InitScaffoldTool:
                 destination=ctx.target_path,
                 data=template_data,
                 trust_template=True,
+                overwrite=reconcile_learning,
             )
         )
+        if recipe_bytes is not None:
+            recipe_path.write_bytes(recipe_bytes)
 
         files = [str(f) for f in result.files_created]
         result_data: dict[str, object] = {

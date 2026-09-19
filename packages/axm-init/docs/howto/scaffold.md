@@ -151,6 +151,15 @@ Change `schedule.max_steps` in `training.toml` when you need a longer run. The
 same entry point is available through the registered `learning_lab_train`
 AXMTool.
 
+To pick up template updates later, re-run the identical standalone learning
+command against the same target. When its `pyproject.toml` still declares the
+same learning domain, `init_scaffold` reconciles the project: it re-renders
+`training.toml` from the current template while restoring
+`src/learning_lab/recipe.py` byte for byte. This lets you refresh template-owned
+configuration without losing edits to the user-owned recipe. A different
+project name or learning domain is not treated as a reconciliation; use a fresh
+target for that migration.
+
 To create the same learning package as a member of an existing UV workspace,
 run from the workspace root (or one of its members) and supply `--member`:
 
@@ -162,7 +171,8 @@ axm init_scaffold --kind learning --member learning-lab \
 This renders the learning tree under `packages/learning-lab/`, patches the
 workspace root files, and reports `mode="member"`, the member distribution,
 the member directory as `root`, and the non-empty `patched_root_files` list.
-The standalone learning route remains unchanged.
+Existing learning members remain one-shot scaffolds; reconciliation applies only
+to the standalone learning form described above.
 
 To apply only the compatibility overlay to an existing package, use the Python
 template API described in
@@ -199,7 +209,7 @@ Outputs structured JSON for CI/automation use.
 | `Not inside a UV workspace` | `--member` used outside workspace | Run from a workspace directory |
 | `Member 'X' already exists` | Duplicate member name | Choose a different member name |
 | `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
-| Existing destination content | Copier can encounter conflicts with existing files | Prefer a fresh destination and inspect the result before reusing one |
+| Existing destination content | Copier can encounter conflicts with existing files | For the same standalone learning domain, re-run the identical learning command to reconcile it; otherwise use a fresh destination |
 | `... is not a paper` | `--kind experiment` outside a detected paper | Scaffold the paper first (`--kind paper`), or point the path at the paper root |
 | `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |

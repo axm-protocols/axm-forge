@@ -9,7 +9,11 @@ from pathlib import Path
 from tomlkit import TOMLDocument, array, dumps, parse, table
 from tomlkit.items import Array, Table
 
-__all__ = ["merge_learning_metadata", "register_learning_profile"]
+__all__ = [
+    "declared_learning_domain",
+    "merge_learning_metadata",
+    "register_learning_profile",
+]
 
 _LEARNING_DISTRIBUTIONS = ("axm-learning", "axm-fit", "axm-tune")
 _SCHEMA_VERSION = 1
@@ -106,6 +110,14 @@ def merge_learning_metadata(metadata: str, domain: str, module_name: str) -> str
     profile["schema_version"] = _SCHEMA_VERSION
     profile["domain"] = domain
     return dumps(document)
+
+
+def declared_learning_domain(root: Path) -> str | None:
+    """Return the learning domain declared by the project at *root*, if any."""
+    metadata_path = root / "pyproject.toml"
+    if not metadata_path.is_file():
+        return None
+    return _learning_domain(metadata_path.read_text(encoding="utf-8"))
 
 
 def register_learning_profile(root: Path, domain: str, module_name: str) -> None:
