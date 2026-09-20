@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import _thread
-from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 
-from tomlkit import TOMLDocument, array, dumps, parse, table
+from tomlkit import array, dumps, parse
 from tomlkit.items import Array, Table
+
+from axm_init.core.root_lock import target_root_lock
+from axm_init.core.toml_edit import table_at
 
 __all__ = [
     "declared_learning_domain",
@@ -17,31 +16,6 @@ __all__ = [
 
 _LEARNING_DISTRIBUTIONS = ("axm-learning", "axm-fit", "axm-tune")
 _SCHEMA_VERSION = 1
-
-
-type _TomlContainer = TOMLDocument | Table
-
-
-@dataclass
-class _RootLockEntry:
-    lock: _thread.RLock
-    users: int = 0
-
-
-_ROOT_LOCKS: dict[Path, _RootLockEntry] = {}
-_ROOT_LOCKS_GUARD = _thread.RLock()
-
-
-def _table_at(container: _TomlContainer, key: str) -> Table:
-    value = container.get(key)
-    if value is None:
-        created = table()
-        container[key] = created
-        return created
-    if not isinstance(value, Table):
-        msg = f"{key!r} must be a TOML table"
-        raise ValueError(msg)
-    return value
 
 
 def _array_at(container: Table, key: str) -> Array:
@@ -71,42 +45,22 @@ def _learning_domain(metadata: str) -> str | None:
     return domain if isinstance(domain, str) else None
 
 
-@contextmanager
-def _target_root_lock(root: Path) -> Iterator[None]:
-    canonical_root = root.resolve()
-    with _ROOT_LOCKS_GUARD:
-        entry = _ROOT_LOCKS.get(canonical_root)
-        if entry is None:
-            entry = _RootLockEntry(lock=_thread.RLock())
-            _ROOT_LOCKS[canonical_root] = entry
-        entry.users += 1
-    entry.lock.acquire()
-    try:
-        yield
-    finally:
-        entry.lock.release()
-        with _ROOT_LOCKS_GUARD:
-            entry.users -= 1
-            if entry.users == 0:
-                _ROOT_LOCKS.pop(canonical_root, None)
-
-
 def merge_learning_metadata(metadata: str, domain: str, module_name: str) -> str:
     """Merge the learning profile into project metadata without re-rendering it."""
     document = parse(metadata)
-    project = _table_at(document, "project")
+    project = table_at(document, "project")
     dependencies = _array_at(project, "dependencies")
     for distribution in _LEARNING_DISTRIBUTIONS:
         if distribution not in dependencies:
             dependencies.append(distribution)
 
-    entry_points = _table_at(project, "entry-points")
-    axm_tools = _table_at(entry_points, "axm.tools")
+    entry_points = table_at(project, "entry-points")
+    axm_tools = table_at(entry_points, "axm.tools")
     axm_tools[f"{module_name}_train"] = f"{module_name}.learning.tool:TrainingTool"
 
-    tool = _table_at(document, "tool")
-    axm_init = _table_at(tool, "axm-init")
-    profile = _table_at(axm_init, "learning")
+    tool = table_at(document, "tool")
+    axm_init = table_at(tool, "axm-init")
+    profile = table_at(axm_init, "learning")
     profile["schema_version"] = _SCHEMA_VERSION
     profile["domain"] = domain
     return dumps(document)
@@ -118,7 +72,7 @@ def declared_learning_domain(
 ) -> str | None:
     """Return the learning domain declared by the project at *root*, if any."""
     canonical_root = root.resolve()
-    with _target_root_lock(canonical_root):
+    with target_root_lock(canonical_root):
         metadata_path = canonical_root / "pyproject.toml"
         if not metadata_path.is_file():
             return None
@@ -139,7 +93,7 @@ def declared_learning_domain(
 def register_learning_profile(root: Path, domain: str, module_name: str) -> None:
     """Persist one learning profile while serializing writes on its root."""
     canonical_root = root.resolve()
-    with _target_root_lock(canonical_root):
+    with target_root_lock(canonical_root):
         metadata_path = canonical_root / "pyproject.toml"
         metadata = metadata_path.read_text(encoding="utf-8")
         existing_domain = _learning_domain(metadata)

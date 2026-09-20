@@ -1,25 +1,12 @@
 from __future__ import annotations
 
-from tomlkit import TOMLDocument, aot, dumps, parse, table
+from tomlkit import aot, dumps, parse, table
 from tomlkit.items import AoT, Table
 
+from axm_init.core.toml_edit import table_at
 from axm_init.models.protocol_scaffold import ProtocolScaffoldDecl
 
 __all__ = ["merge_protocol_metadata"]
-
-type _TomlContainer = TOMLDocument | Table
-
-
-def _table_at(container: _TomlContainer, key: str) -> Table:
-    value = container.get(key)
-    if value is None:
-        created = table()
-        container[key] = created
-        return created
-    if not isinstance(value, Table):
-        msg = f"{key!r} must be a TOML table"
-        raise ValueError(msg)
-    return value
 
 
 def _array_of_tables_at(container: Table, key: str) -> AoT:
@@ -61,9 +48,9 @@ def merge_protocol_metadata(
 ) -> str:
     """Merge one validated draft protocol declaration into TOML metadata."""
     document = parse(metadata)
-    tool = _table_at(document, "tool")
-    axm_init = _table_at(tool, "axm-init")
-    profile = _table_at(axm_init, "protocols")
+    tool = table_at(document, "tool")
+    axm_init = table_at(tool, "axm-init")
+    profile = table_at(axm_init, "protocols")
 
     profile["schema_version"] = 1
     profile["domain"] = declaration.domain
