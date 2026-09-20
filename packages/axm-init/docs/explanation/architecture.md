@@ -121,10 +121,18 @@ Each adapter wraps a single external dependency:
 
 | Adapter | Wraps | Purpose |
 |---|---|---|
-| `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding (`CopierConfig` is the Pydantic input model) |
+| `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding, including ordered multi-layer application in one destination (`CopierConfig` is the Pydantic input model) |
 | `PyPIAdapter` / `AvailabilityStatus` | PyPI JSON API | Package name availability check |
 | `CredentialManager` | axm-vault catalog (`PYPI_API_TOKEN` or `pypi.token`); optional interactive adapter method | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
 | `patch_all()` / `PatchReport` | `pyproject.toml`, `Makefile`, CI workflows | Workspace root file patching after member scaffold; returns a `PatchReport` that truthfully partitions files into `patched` (real writes only), `skipped` (no-op or absent), and `failed` (caught `PermissionError`/`UnicodeDecodeError` — partial-state signal, never raised) |
+
+`CopierAdapter.apply_chain()` applies `TemplateLayer` values in declaration order.
+Caller data is merged with each layer's own data, with layer values taking
+precedence. Every layer receives a distinct `.copier-answers.<layer>.yml` file:
+without that separation, a later template would replace the first template's
+ownership record. Keeping the records independent lets Copier regenerate files
+owned by an earlier layer while `_skip_if_exists` continues to preserve
+user-owned files declared by a later layer during reapplication.
 
 #### Credential resolution
 

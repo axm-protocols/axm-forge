@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 from collections.abc import Callable, Iterator, Mapping
 from io import StringIO
@@ -11,6 +12,7 @@ from pathlib import Path
 from copier import run_copy
 from pydantic import BaseModel, ConfigDict
 
+from axm_init.core.templates import TemplateLayer
 from axm_init.models.results import ScaffoldResult
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,7 @@ class CopierConfig(BaseModel):  # type: ignore[explicit-any]
     overwrite: bool = False
     trust_template: bool = False
     skip_tasks: bool = False
+    answers_file: Path | None = None
     """Render the template without running its ``_tasks``.
 
     The bundled templates declare post-copy tasks that shell out to ``git init``
@@ -128,6 +131,7 @@ class CopierAdapter:
                 overwrite=config.overwrite,
                 unsafe=config.trust_template,
                 skip_tasks=config.skip_tasks,
+                answers_file=config.answers_file,
             )
 
         try:
@@ -139,6 +143,47 @@ class CopierAdapter:
             # Inside an event loop (MCP server) — offload without blocking
             # the running loop on a synchronous ``future.result()``.
             _offload_to_thread(_run)
+
+    def apply_chain(
+        self,
+        layers: list[TemplateLayer],
+        destination: Path,
+        data: Mapping[str, object],
+    ) -> ScaffoldResult:
+        """Apply ordered template layers to one destination.
+
+        Each layer receives caller data overlaid with its own data and keeps a
+        dedicated answers file so Copier can reapply its ownership rules
+        independently from the other layers.
+        """
+        result = ScaffoldResult(
+            success=True,
+            path=str(destination),
+            message="No template layers to apply",
+        )
+        for layer in layers:
+            layer_data = dict(data)
+            layer_data.update(layer.data)
+            answers_file = Path(f".copier-answers.{layer.name}.yml")
+            layer_data["_src_path"] = str(layer.path)
+            layer_data["_answers_file"] = str(answers_file)
+            result = self.copy(
+                CopierConfig(
+                    template_path=layer.path,
+                    destination=destination,
+                    data=layer_data,
+                    overwrite=True,
+                    answers_file=answers_file,
+                )
+            )
+            if not result.success:
+                return result
+            answers_path = destination / answers_file
+            if not answers_path.exists():
+                answers_path.write_text(
+                    json.dumps({"_src_path": str(layer.path)}, indent=2) + "\n"
+                )
+        return result
 
     def copy(self, config: CopierConfig) -> ScaffoldResult:
         """Execute Copier copy operation.
