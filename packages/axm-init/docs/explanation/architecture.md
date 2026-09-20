@@ -89,7 +89,7 @@ Application orchestration and domain logic separated from tool presentation:
 | Module | Key Symbols | Purpose |
 |---|---|---|
 | `checker.py` | `CheckEngine`, `SKIP_BY_CONTEXT`, `REDIRECT_BY_CONTEXT`, `validate_context_tables()`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output. Every result is re-stamped with the *canonical* check name — `get_check_name()`'s `category.function_name_without_check_` form — so context skips (`SKIP_BY_CONTEXT`), member redirects (`REDIRECT_BY_CONTEXT`), `[tool.axm-init].exclude` matching, and the displayed name all key off one string |
-| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Exact type/framework template selection; see [template catalogue](../reference/templates.md) and [research contracts](../reference/research-templates.md) |
+| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()`, `template_chain()` | Exact type/framework template selection and ordered layer resolution; see [template catalogue](../reference/templates.md) and [research contracts](../reference/research-templates.md) |
 | `reserver.py` | `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow (the `ReserveResult` model lives in `models/results.py`) |
 | `protocol_planner.py` | `plan_protocol_scaffold()`, `ProtocolScaffoldPlan`, `PlanOperation` | Pure, deterministic protocol filesystem planning; owned compatible implementations are preserved as unchanged |
 | `protocol_scaffolder.py` | `prepare_protocol_request()`, `preview_protocol_scaffold()` | Preview or apply the planner result. Application serializes preflight-through-rollback by canonical target root, while distinct roots remain concurrent; it preflights confinement and symlinks before writing, then provides in-memory rollback for partial application failures. Missing profiles and profile-domain conflicts are rejected at the external `InitScaffoldTool` boundary before mutation; lower-level preview and registration deliberately retain automatic profile adoption |
@@ -133,6 +133,14 @@ without that separation, a later template would replace the first template's
 ownership record. Keeping the records independent lets Copier regenerate files
 owned by an earlier layer while `_skip_if_exists` continues to preserve
 user-owned files declared by a later layer during reapplication.
+
+Standalone learning scaffolds use this composition deliberately: the ordinary
+Python project owns repository-wide tooling and the learning template owns only
+the domain overlay. After both layers render, the learning profile is merged
+back into the composed `pyproject.toml`; this preserves the base tool tables
+while adding the requested domain and the training entry point. Workspace
+members remain single-layer learning scaffolds because their repository tooling
+is owned by the workspace root.
 
 #### Credential resolution
 

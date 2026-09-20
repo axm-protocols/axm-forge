@@ -173,6 +173,7 @@ class CopierAdapter:
                     destination=destination,
                     data=layer_data,
                     overwrite=True,
+                    trust_template=True,
                     answers_file=answers_file,
                 )
             )

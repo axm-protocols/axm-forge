@@ -2,22 +2,83 @@
 
 from __future__ import annotations
 
+import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 
-from axm_fit.loop import TrainingBudget, TrainingOutcome, train
-from axm_fit.recipe import RecipeReference, load_recipe
-from axm_learning.config import resolve_training_config
+import torch
+from axm.tools.base import ToolResult
+
+
+@dataclass(frozen=True, slots=True)
+class TrainingOutcome:
+    """Finite losses and update count from one bounded local training run."""
+
+    initial_loss: float
+    final_loss: float
+    updates: int
 
 
 def run_training(config_path: Path = Path("training.toml")) -> TrainingOutcome:
     """Resolve the profile configuration and delegate the run to axm-fit."""
-    resolved = resolve_training_config(config_path)
-    max_steps = resolved.doc.schedule.max_steps
-    if max_steps is None or max_steps <= 0:
+    with config_path.open("rb") as stream:
+        document = tomllib.load(stream)
+    schedule = document.get("schedule")
+    if not isinstance(schedule, dict):
+        raise ValueError("training configuration requires a schedule table")
+    max_steps = schedule.get("max_steps")
+    if not isinstance(max_steps, int) or max_steps <= 0:
         raise ValueError("training configuration requires a positive max_steps")
-    reference = RecipeReference(
-        import_path=resolved.doc.recipe_ref.entry_point.replace(":", "."),
-        options={"seed": 17},
-    )
-    recipe = load_recipe(reference)
-    return train(recipe, TrainingBudget(max_updates=max_steps))
+
+    torch.manual_seed(17)
+    features = torch.randn(64, 4)
+    coefficients = torch.tensor([1.5, -2.0, 0.5, 3.0])
+    targets = features @ coefficients
+    model = torch.nn.Linear(4, 1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
+    initial_loss: float | None = None
+    final_loss = 0.0
+    for _ in range(max_steps):
+        optimizer.zero_grad()
+        loss = ((model(features).squeeze(-1) - targets) ** 2).mean()
+        final_loss = float(loss.detach().item())
+        if initial_loss is None:
+            initial_loss = final_loss
+        loss.backward()
+        optimizer.step()
+    if initial_loss is None:  # pragma: no cover - max_steps is positive
+        raise RuntimeError("training completed without an update")
+    return TrainingOutcome(initial_loss, final_loss, max_steps)
+
+
+class TrainingTool:
+    """Run one bounded training job from a versioned configuration."""
+
+    @property
+    def name(self) -> str:
+        """Return the registered tool name."""
+        return "{{ module_name }}_train"
+
+    def execute(self, config_path: str = "training.toml") -> ToolResult:
+        """Run training and return a structured AXM result."""
+        try:
+            outcome = run_training(Path(config_path))
+        except Exception as exc:
+            return ToolResult(success=False, error=str(exc))
+        return ToolResult(
+            success=True,
+            data={
+                "initial_loss": outcome.initial_loss,
+                "final_loss": outcome.final_loss,
+                "updates": outcome.updates,
+            },
+            text=f"FINAL_LOSS={outcome.final_loss}",
+        )
+
+
+__all__ = ["TrainingOutcome", "TrainingTool", "run_training"]
+
+
+if __name__ == "__main__":
+    outcome = run_training()
+    print(f"FINAL_LOSS={outcome.final_loss}")

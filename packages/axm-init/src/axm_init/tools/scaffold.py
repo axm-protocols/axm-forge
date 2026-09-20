@@ -13,7 +13,10 @@ from tomlkit import parse
 from tomlkit.items import Table
 
 from axm_init.core.framework import Framework
-from axm_init.core.learning_profile import declared_learning_domain
+from axm_init.core.learning_profile import (
+    declared_learning_domain,
+    register_learning_profile,
+)
 from axm_init.core.protocol_scaffolder import (
     ProtocolScaffoldRequest,
     prepare_protocol_request,
@@ -698,7 +701,12 @@ class InitScaffoldTool:
     def _scaffold_root(self, ctx: _ScaffoldContext) -> ToolResult:
         """Render the workspace or standalone template at the target root."""
         from axm_init.adapters.copier import CopierAdapter, CopierConfig
-        from axm_init.core.templates import TemplateType, get_template_path
+        from axm_init.core.templates import (
+            TemplateType,
+            get_template_path,
+            template_chain,
+        )
+        from axm_init.models.results import ScaffoldResult
 
         template_type = (
             TemplateType.LEARNING
@@ -709,18 +717,8 @@ class InitScaffoldTool:
         )
         module_name = ctx.project_name.replace("-", "_")
         requested_learning_domain = ctx.learning_domain or module_name
-        recipe_path = ctx.target_path / "src" / module_name / "recipe.py"
-        declared_domain = (
+        if template_type is TemplateType.LEARNING:
             declared_learning_domain(ctx.target_path, requested_learning_domain)
-            if template_type is TemplateType.LEARNING
-            else None
-        )
-        reconcile_learning = declared_domain == requested_learning_domain
-        recipe_bytes = (
-            recipe_path.read_bytes()
-            if reconcile_learning and recipe_path.is_file()
-            else None
-        )
         template_data = self._build_template_data(
             project_name=ctx.project_name,
             workspace=ctx.workspace,
@@ -736,17 +734,32 @@ class InitScaffoldTool:
                     "domain": requested_learning_domain,
                 }
             )
-        result = CopierAdapter().copy(
-            CopierConfig(
-                template_path=get_template_path(template_type, ctx.framework),
-                destination=ctx.target_path,
-                data=template_data,
-                trust_template=True,
-                overwrite=reconcile_learning,
+        copier = CopierAdapter()
+        if template_type is TemplateType.LEARNING:
+            layers = template_chain(template_type, ctx.framework, member=False)
+            result = copier.apply_chain(
+                list(layers),
+                ctx.target_path,
+                template_data,
             )
-        )
-        if recipe_bytes is not None:
-            recipe_path.write_bytes(recipe_bytes)
+            if not isinstance(result, ScaffoldResult):
+                result = copier.copy(
+                    CopierConfig(
+                        template_path=get_template_path(template_type, ctx.framework),
+                        destination=ctx.target_path,
+                        data=template_data,
+                        trust_template=True,
+                    )
+                )
+        else:
+            result = copier.copy(
+                CopierConfig(
+                    template_path=get_template_path(template_type, ctx.framework),
+                    destination=ctx.target_path,
+                    data=template_data,
+                    trust_template=True,
+                )
+            )
 
         files = [str(f) for f in result.files_created]
         result_data: dict[str, object] = {
@@ -756,6 +769,13 @@ class InitScaffoldTool:
         }
         request = ctx.protocol_request
         if result.success and template_type is TemplateType.LEARNING:
+            metadata_path = ctx.target_path / "pyproject.toml"
+            if metadata_path.is_file():
+                register_learning_profile(
+                    ctx.target_path,
+                    requested_learning_domain,
+                    module_name,
+                )
             result_data.update(
                 {
                     "profile": "learning",

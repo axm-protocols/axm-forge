@@ -265,7 +265,7 @@ def _run_training(
     if extra_env:
         env.update(extra_env)
     return _run(
-        [python.as_posix(), "-m", f"{project.module_name}.tools.train"],
+        [python.as_posix(), "-m", f"{project.module_name}.learning.tool"],
         cwd=project.root,
         env=env,
     )

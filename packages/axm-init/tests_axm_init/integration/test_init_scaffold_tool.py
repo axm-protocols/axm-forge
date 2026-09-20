@@ -622,8 +622,8 @@ def test_learning_scaffold_writes_learning_artifacts(tmp_path: Path) -> None:
         "pyproject.toml",
         "training.toml",
         "study.toml",
-        "src/learning_lab/recipe.py",
-        "src/learning_lab/tools/train.py",
+        "src/learning_lab/learning/recipe.py",
+        "src/learning_lab/learning/tool.py",
         "tests_learning_lab/unit/test_recipe.py",
     }
     missing = sorted(path for path in expected if not (target / path).is_file())
@@ -653,7 +653,7 @@ def test_learning_pyproject_declares_training_tool_entry_point(
     metadata = tomllib.loads((target / "pyproject.toml").read_text(encoding="utf-8"))
     entry_points = metadata["project"]["entry-points"]["axm.tools"]
     targets = [str(value).split(":", 1)[0] for value in entry_points.values()]
-    assert "learning_lab.tools.train" in targets
+    assert "learning_lab.learning.tool" in targets
 
 
 @pytest.mark.integration
@@ -661,7 +661,7 @@ def test_learning_rerun_preserves_edited_recipe_bytes(tmp_path: Path) -> None:
     """AC1: an identical learning re-run preserves user-owned recipe bytes."""
     target, initial = _scaffold_learning(tmp_path)
     assert initial.success is True, initial.error
-    recipe = target / "src" / "learning_lab" / "recipe.py"
+    recipe = target / "src" / "learning_lab" / "learning" / "recipe.py"
     edited = recipe.read_bytes() + b"\n# user-owned marker\n"
     recipe.write_bytes(edited)
 
@@ -693,7 +693,7 @@ def test_learning_rerun_refreshes_training_configuration(tmp_path: Path) -> None
     assert rerun.success is True, rerun.error
     refreshed = training.read_text(encoding="utf-8")
     assert marker not in refreshed
-    assert 'entry_point = "learning_lab.recipe:SyntheticRecipe"' in refreshed
+    assert 'entry_point = "learning_lab.learning.recipe:SyntheticRecipe"' in refreshed
 
 
 @pytest.mark.integration

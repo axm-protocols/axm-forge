@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from tomlkit import array, dumps, parse
+from tomlkit.container import OutOfOrderTableProxy
 from tomlkit.items import Array, Table
 
 from axm_init.core.root_lock import target_root_lock
@@ -15,6 +17,11 @@ __all__ = [
 ]
 
 _LEARNING_DISTRIBUTIONS = ("axm-learning", "axm-fit", "axm-tune")
+_COMPOSED_LEARNING_DISTRIBUTIONS = (
+    "axm==0.9.0",
+    "numpy==2.5.3",
+    "torch==2.14.0",
+)
 _SCHEMA_VERSION = 1
 
 
@@ -33,9 +40,9 @@ def _array_at(container: Table, key: str) -> Array:
 def _learning_domain(metadata: str) -> str | None:
     document = parse(metadata)
     tool = document.get("tool")
-    if not isinstance(tool, Table):
+    if not isinstance(tool, (Table, OutOfOrderTableProxy)):
         return None
-    axm_init = tool.get("axm-init")
+    axm_init = cast(Table, tool).get("axm-init")
     if not isinstance(axm_init, Table):
         return None
     profile = axm_init.get("learning")
@@ -50,7 +57,12 @@ def merge_learning_metadata(metadata: str, domain: str, module_name: str) -> str
     document = parse(metadata)
     project = table_at(document, "project")
     dependencies = _array_at(project, "dependencies")
-    for distribution in _LEARNING_DISTRIBUTIONS:
+    distributions = (
+        _COMPOSED_LEARNING_DISTRIBUTIONS
+        if document.get("dependency-groups") is not None
+        else _LEARNING_DISTRIBUTIONS
+    )
+    for distribution in distributions:
         if distribution not in dependencies:
             dependencies.append(distribution)
 
@@ -58,7 +70,14 @@ def merge_learning_metadata(metadata: str, domain: str, module_name: str) -> str
     axm_tools = table_at(entry_points, "axm.tools")
     axm_tools[f"{module_name}_train"] = f"{module_name}.learning.tool:TrainingTool"
 
-    tool = table_at(document, "tool")
+    tool_item = document.get("tool")
+    if tool_item is None:
+        tool = table_at(document, "tool")
+    elif isinstance(tool_item, (Table, OutOfOrderTableProxy)):
+        tool = cast(Table, tool_item)
+    else:
+        msg = "'tool' must be a TOML table"
+        raise ValueError(msg)
     axm_init = table_at(tool, "axm-init")
     profile = table_at(axm_init, "learning")
     profile["schema_version"] = _SCHEMA_VERSION

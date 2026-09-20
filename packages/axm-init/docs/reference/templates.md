@@ -36,14 +36,16 @@ the `learning` layer with `learning_mode="standalone"`.
 `TemplateType.LEARNING` with `Framework.PYTHON` selects `learning-project`.
 The template has two explicit modes over the same learning contract.
 
-The public `init_scaffold --kind learning` route selects `standalone` when no
-member is supplied. It renders `pyproject.toml`, `README.md`, `training.toml`,
-`study.toml`, the deterministic `src/<module_name>/recipe.py`, the AXMTool at
-`src/<module_name>/tools/train.py`, and its seed unit test. Generated metadata
-contains `[tool.axm-init.learning]` with a non-empty `domain`, plus an
-`axm.tools` entry point targeting `<module_name>.tools.train:TrainingTool`.
-The result reports `template="learning"`, `profile="learning"` and
-`mode="standalone"`.
+The public `init_scaffold --kind learning` route reports standalone mode when
+no member is supplied, but renders the ordered `base` + `learning` chain. The
+destination therefore retains the ordinary Python project's repository tooling
+and metadata sections while adding `training.toml`, `study.toml`,
+`src/<module_name>/learning/{__init__,recipe,tool}.py`, and the recipe unit test.
+After rendering, the profile merge adds `[tool.axm-init.learning]` with a
+non-empty `domain` and registers
+`<module_name>.learning.tool:TrainingTool` under `axm.tools` without replacing
+the composed metadata. The result reports `template="learning"`,
+`profile="learning"` and `mode="standalone"`.
 
 With `--member <name>` inside a UV workspace, the same template renders the
 complete learning package under `packages/<name>/`. The result instead reports
@@ -61,8 +63,9 @@ exactly:
 
 The overlay preserves `src/*/learning/recipe.py` and
 `tests_*/unit/test_recipe.py` when reapplied; its configuration files remain
-template-owned. The standalone route sets its mode explicitly, so adding the
-public kind does not change existing overlay calls.
+template-owned. Through the public standalone route, the base layer is also
+reapplied, so repository tooling is regenerated while those learning files stay
+user-owned.
 
 ## Tool routing
 

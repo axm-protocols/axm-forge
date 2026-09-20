@@ -1,7 +1,7 @@
 [recipe_ref]
 distribution = "{{ package_name or module_name }}"
 version = "0.1.0"
-entry_point = "{{ module_name }}{% if not package_name %}.learning{% endif %}.recipe:SyntheticRecipe"
+entry_point = "{{ module_name }}{% if learning_mode == 'overlay' %}.learning{% endif %}.recipe:SyntheticRecipe"
 contract_version = 1
 
 [run]
@@ -12,7 +12,7 @@ name = "{{ domain }}-synthetic"
 version = "1"
 
 [data.loader]
-target = "{{ module_name }}{% if not package_name %}.learning{% endif %}.recipe:SyntheticRecipe"
+target = "{{ module_name }}{% if learning_mode == 'overlay' %}.learning{% endif %}.recipe:SyntheticRecipe"
 params = { seed = 17 }
 
 [data.splits.train]

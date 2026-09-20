@@ -138,20 +138,31 @@ axm init_scaffold learning-lab --kind learning --domain forecasting \
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
-The learning kind selects the bundled `learning-project` template. It creates
-`training.toml`, `study.toml`, `src/learning_lab/recipe.py`,
-`src/learning_lab/tools/train.py` and `tests_learning_lab/unit/test_recipe.py`.
-The structured result adds `profile="learning"`, `mode`, `distribution` and
-`root` to the ordinary scaffold fields. The generated `pyproject.toml` declares
-`[tool.axm-init.learning]` and an `axm.tools` entry point for
-`learning_lab.tools.train:TrainingTool`. Without `--domain`, the domain defaults
-to the generated module name.
+For a standalone destination, the learning kind composes the ordinary Python
+project as a base with the bundled `learning-project` overlay. It therefore
+keeps the base repository tooling (`Makefile`, MkDocs, pre-commit and
+`.github/`) and adds `training.toml`, `study.toml`,
+`src/learning_lab/learning/recipe.py`,
+`src/learning_lab/learning/tool.py` and
+`tests_learning_lab/unit/test_recipe.py`. The generated training module reads
+`training.toml`, performs a bounded deterministic local run and exposes both a
+structured `TrainingTool` result and a module entry point that prints
+`FINAL_LOSS=<value>`.
+
+The structured scaffold result adds `profile="learning"`, `mode`,
+`distribution` and `root` to the ordinary fields. The composed
+`pyproject.toml` retains the base tooling tables, declares
+`[tool.axm-init.learning]`, and registers
+`learning_lab.learning.tool:TrainingTool` under `axm.tools`. Without
+`--domain`, the domain defaults to the generated module name.
 
 For a workspace member, add `--member learning-lab` and run against the
-workspace. Re-running either form with the same domain reconciles the existing
-learning scaffold: template-owned configuration is refreshed while the recipe
-is restored byte for byte. A different requested domain fails before rendering,
-with both the declared and requested domains in the error.
+workspace. Members keep the single standalone learning layer because repository
+tooling belongs to the workspace root. Re-running either form with the same
+domain reconciles the existing learning scaffold: template-owned configuration
+and base tooling are refreshed while the recipe is preserved byte for byte. A
+different requested domain fails before rendering, with both the declared and
+requested domains in the error.
 
 ## Protocol and framework contracts
 
