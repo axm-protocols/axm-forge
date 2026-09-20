@@ -1,8 +1,8 @@
 # Template selection
 
 `get_template_path(template_type, framework)` selects a bundled directory
-by an exact pair. Unsupported combinations raise `KeyError`; there is no
-fallback.
+by template type and framework. Passing `None` for the framework selects Python;
+unsupported resolved combinations raise `KeyError`.
 
 | Framework | Template type | Directory |
 |---|---|---|
@@ -17,6 +17,19 @@ fallback.
 
 The `protocols` profile adds metadata and declaration planning/application to
 Python packages; it is not another framework template.
+
+## Ordered template chains
+
+`template_chain(template_type, framework, *, member)` returns an ordered tuple
+of immutable `TemplateLayer` values. Each layer exposes a stable `name`, its
+resolved template `path`, and the Copier answer `data` for that application.
+All paths are resolved through `get_template_path`.
+
+Non-learning types produce one layer. A standalone learning project produces
+two layers in application order: `base` resolves `python-project` without a
+`learning_mode` answer, then `learning` resolves `learning-project` with
+`learning_mode="overlay"`. In workspace-member form, the chain contains only
+the `learning` layer with `learning_mode="standalone"`.
 
 ## Learning project and compatibility overlay
 

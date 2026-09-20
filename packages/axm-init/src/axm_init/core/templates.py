@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-__all__ = ["TemplateInfo", "TemplateType", "get_template_path"]
+__all__ = [
+    "TemplateInfo",
+    "TemplateLayer",
+    "TemplateType",
+    "get_template_path",
+    "template_chain",
+]
 
 from enum import StrEnum
 from importlib.resources import files
@@ -14,6 +20,16 @@ from axm_init.core.framework import Framework
 
 # Bundled templates package
 TEMPLATES_PKG = files("axm_init.templates")
+
+
+class TemplateLayer(BaseModel):  # type: ignore[explicit-any]
+    """One ordered Copier template application."""
+
+    name: str
+    path: Path
+    data: dict[str, str]
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class TemplateInfo(BaseModel):  # type: ignore[explicit-any]
@@ -58,7 +74,7 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
 
 def get_template_path(
     template_type: TemplateType = TemplateType.STANDALONE,
-    framework: Framework = Framework.PYTHON,
+    framework: Framework | None = Framework.PYTHON,
 ) -> Path:
     """Return path to a bundled Copier template for a template type + framework.
 
@@ -73,5 +89,40 @@ def get_template_path(
     Raises:
         KeyError: If no template exists for the (type, framework) combination.
     """
-    dir_name = _TEMPLATE_DIRS[(template_type, framework)]
+    resolved_framework = framework or Framework.PYTHON
+    dir_name = _TEMPLATE_DIRS[(template_type, resolved_framework)]
     return Path(str(TEMPLATES_PKG / dir_name))
+
+
+def template_chain(
+    template_type: TemplateType,
+    framework: Framework | None,
+    *,
+    member: bool,
+) -> tuple[TemplateLayer, ...]:
+    """Resolve the ordered Copier layers for a scaffold request."""
+    if template_type is not TemplateType.LEARNING:
+        return (
+            TemplateLayer(
+                name=template_type.value,
+                path=get_template_path(template_type, framework),
+                data={},
+            ),
+        )
+
+    learning_layer = TemplateLayer(
+        name="learning",
+        path=get_template_path(TemplateType.LEARNING, framework),
+        data={"learning_mode": "standalone" if member else "overlay"},
+    )
+    if member:
+        return (learning_layer,)
+
+    return (
+        TemplateLayer(
+            name="base",
+            path=get_template_path(TemplateType.STANDALONE, framework),
+            data={},
+        ),
+        learning_layer,
+    )
