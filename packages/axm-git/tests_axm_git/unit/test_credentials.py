@@ -58,14 +58,15 @@ def test_gh_auth_dependency_subclass_declares_catalog_metadata() -> None:
     )
 
     assert isinstance(dependency, dependency_type)
-    extra_fields = set(dependency_type.model_fields) - set(
-        AuthDependencySpec.model_fields
-    )
-    assert len(extra_fields) == 3
+    # Attest the exposed metadata, not which hierarchy level declares each
+    # field: `login_command` is expected to move up into AuthDependencySpec.
     dumped = dependency.model_dump()
-    assert extra_fields <= set(dumped)
-    assert sorted(dumped[name] for name in extra_fields) == [
-        "axm-git",
-        "gh auth login",
-        "gh auth status",
-    ]
+    assert {
+        "package": dumped.get("package"),
+        "status_command": dumped.get("status_command"),
+        "login_command": dumped.get("login_command"),
+    } == {
+        "package": "axm-git",
+        "status_command": "gh auth status",
+        "login_command": "gh auth login",
+    }
