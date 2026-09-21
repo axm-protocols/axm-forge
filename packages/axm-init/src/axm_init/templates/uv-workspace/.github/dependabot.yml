@@ -41,4 +41,6 @@ updates:
       # the other -- and `ruff format --check` is blocking. Bump both sites
       # together, by hand. Narrow on purpose: the other hooks have no such
       # coupling and stay tracked.
-      - dependency-name: astral-sh/ruff-pre-commit
+      # The pre-commit ecosystem names a hook by its full repository URL; the
+      # short `astral-sh/ruff-pre-commit` form matches nothing.
+      - dependency-name: https://github.com/astral-sh/ruff-pre-commit

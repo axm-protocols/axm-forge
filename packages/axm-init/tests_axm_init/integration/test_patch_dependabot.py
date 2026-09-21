@@ -75,3 +75,38 @@ def test_patch_dependabot_member_group_scoped(workspace_root: Path) -> None:
         u for u in parsed["updates"] if u.get("directory") == "/packages/my-lib"
     )
     assert entry["groups"] == {"my-lib": {"patterns": ["*"]}}
+
+
+# ─ Workspace-pinned tools ────────────────────────────────────────────────────
+
+
+def _member_entry(root: Path, member: str) -> dict[str, object]:
+    parsed = yaml.safe_load((root / ".github" / "dependabot.yml").read_text())
+    return next(
+        u for u in parsed["updates"] if u.get("directory") == f"/packages/{member}"
+    )
+
+
+def test_member_entry_ignores_exact_workspace_pins(workspace_root: Path) -> None:
+    """``==`` constraints are ignored; ``>=`` security floors stay tracked."""
+    pyproject = workspace_root / "pyproject.toml"
+    pyproject.write_text(
+        pyproject.read_text() + "\n[tool.uv]\nconstraint-dependencies = [\n"
+        '    "ruff==0.16.7",\n    "mypy == 2.3.1",\n'
+        '    "cryptography>=46.0.7",\n]\n'
+    )
+
+    patch_dependabot(workspace_root, "my-lib")
+
+    entry = _member_entry(workspace_root, "my-lib")
+    assert entry["ignore"] == [
+        {"dependency-name": "ruff"},
+        {"dependency-name": "mypy"},
+    ]
+
+
+def test_member_entry_has_no_ignore_without_pins(workspace_root: Path) -> None:
+    """A workspace pinning nothing gets a plain member entry."""
+    patch_dependabot(workspace_root, "my-lib")
+
+    assert "ignore" not in _member_entry(workspace_root, "my-lib")

@@ -22,6 +22,7 @@ __all__ = [
 
 import logging
 import re
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -686,14 +687,34 @@ def patch_testpaths(root: Path, member_name: str) -> bool:
     return True
 
 
+_EXACT_PIN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*==")
+
+
+def _exact_pinned_constraints(root: Path) -> list[str]:
+    """Names pinned with ``==`` in the root ``[tool.uv].constraint-dependencies``.
+
+    Those versions are set once for the whole workspace; a member block that
+    raised its own floor above the pin would make the workspace unsolvable.
+    Range constraints (``>=`` security floors) are not returned.
+    """
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+    data = tomllib.loads(pyproject.read_text())
+    specs = data.get("tool", {}).get("uv", {}).get("constraint-dependencies", [])
+    return [m.group(1) for spec in specs if (m := _EXACT_PIN.match(spec))]
+
+
 def patch_dependabot(root: Path, member_name: str) -> bool:
     """Add a per-package Dependabot entry for *member_name*.
 
     Appends a ``package-ecosystem: uv`` update block scoped to
     ``/packages/<member_name>`` so Dependabot keeps that published package's
     pyproject constraints current (its PyPI contract), alongside the shared
-    workspace-root lockfile entry. The block is inserted before the trailing
-    ``github-actions`` entry. Idempotent — skips if already present.
+    workspace-root lockfile entry. Dependencies pinned exactly (``==``) in the
+    root ``[tool.uv].constraint-dependencies`` are ignored by that block: their
+    single bump channel is the root entry. The block is inserted before the
+    trailing ``github-actions`` entry. Idempotent — skips if already present.
 
     Args:
         root: Workspace root directory.
@@ -724,6 +745,11 @@ def patch_dependabot(root: Path, member_name: str) -> bool:
         f"        patterns:\n"
         f'          - "*"\n'
     )
+    pinned = _exact_pinned_constraints(root)
+    if pinned:
+        block += "    ignore:\n" + "".join(
+            f"      - dependency-name: {name}\n" for name in pinned
+        )
 
     anchor = "  - package-ecosystem: github-actions\n"
     if anchor in content:
