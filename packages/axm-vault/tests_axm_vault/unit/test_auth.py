@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import importlib
 
+import pydantic
 import pytest
+
+from axm_vault.auth import AuthDependencySpec
 
 
 def _auth_module() -> object:
@@ -72,3 +75,72 @@ def test_non_auth_source_is_rejected() -> None:
 
     with pytest.raises(auth.UnsupportedAuthDeclarationError):
         auth.AuthDependencySpec(name="broken-session", source=object())
+
+
+def test_undeclared_field_is_rejected() -> None:
+    """AC1: reject arbitrary extras while declaring the login command."""
+    auth = _auth_module()
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    with pytest.raises(pydantic.ValidationError):
+        auth.AuthDependencySpec(
+            name="claude-session", source=ConnectedSource(), token="secret"
+        )
+
+
+def test_cli_shaped_subclass_redeclaring_login_command_is_accepted() -> None:
+    """AC2: accept a CLI-shaped redeclaration and the base login contract."""
+    auth = _auth_module()
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    class CliShapedDependency(AuthDependencySpec):
+        login_command: str
+        binary: str
+        session_file: str
+        keychain_service: str
+
+        def __init__(self, *, source: object, **data: object) -> None:
+            super().__init__(source=source, **data)
+
+    dependency = CliShapedDependency(
+        name="claude-session",
+        source=ConnectedSource(),
+        login_command="claude login",
+        binary="claude",
+        session_file="~/.claude/session",
+        keychain_service="claude",
+    )
+    assert dependency.login_command == "claude login"
+
+
+def test_gh_shaped_subclass_redeclaring_status_command_is_accepted() -> None:
+    """AC3: keep GH status and login commands distinct under the base contract."""
+    auth = _auth_module()
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    class GhShapedDependency(AuthDependencySpec):
+        package: str
+        status_command: str
+        login_command: str
+
+        def __init__(self, *, source: object, **data: object) -> None:
+            super().__init__(source=source, **data)
+
+    dependency = GhShapedDependency(
+        name="gh",
+        source=ConnectedSource(),
+        package="axm-git",
+        status_command="gh auth status",
+        login_command="gh auth login",
+    )
+    assert dependency.status_command == "gh auth status"
+    assert dependency.login_command == "gh auth login"
