@@ -68,6 +68,7 @@ def test_declared_auth_dependency_drives_logged_in_verdict(
                         auth_dependencies=(
                             AuthDependencySpec(
                                 name="declared-success",
+                                login_command="declared-success login",
                                 source=ConnectedSource(),
                             ),
                         ),
@@ -82,6 +83,50 @@ def test_declared_auth_dependency_drives_logged_in_verdict(
     assert "declared-success" in declarations
     assert status.state == "logged_in"
     assert status.login_cmd is None
+
+
+@pytest.mark.integration
+def test_discovered_disconnected_declaration_exposes_login_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: a discovered disconnected declaration exposes its login command."""
+    _install_provider(
+        tmp_path,
+        monkeypatch,
+        module_name="declared_logged_out",
+        source="""
+            from axm_vault import AuthDependencySpec, CredentialGroup
+
+
+            class DisconnectedSource:
+                def status(self):
+                    return "disconnected"
+
+
+            def credentials():
+                return [
+                    CredentialGroup(
+                        id="declared-logged-out",
+                        package="declared-logged-out",
+                        title="Declared logged out",
+                        specs=(),
+                        auth_dependencies=(
+                            AuthDependencySpec(
+                                name="declared-logged-out",
+                                login_command="gh auth login",
+                                source=DisconnectedSource(),
+                            ),
+                        ),
+                    ),
+                ]
+        """,
+    )
+
+    status = detect_auth("declared-logged-out")
+
+    assert status.state == "logged_out"
+    assert status.login_cmd == "gh auth login"
 
 
 @pytest.mark.integration
@@ -113,6 +158,7 @@ def test_declared_inconclusive_probe_reports_consulted_declaration(
                         auth_dependencies=(
                             AuthDependencySpec(
                                 name="declared-inconclusive",
+                                login_command="declared-inconclusive login",
                                 source=InconclusiveSource(),
                             ),
                         ),
@@ -163,10 +209,12 @@ def test_raising_declaration_is_indeterminate_for_that_tool_alone(
                         auth_dependencies=(
                             AuthDependencySpec(
                                 name="declared-raising",
+                                login_command="declared-raising login",
                                 source=RaisingSource(),
                             ),
                             AuthDependencySpec(
                                 name="declared-healthy",
+                                login_command="declared-healthy login",
                                 source=ConnectedSource(),
                             ),
                         ),
@@ -221,6 +269,7 @@ def test_raising_provider_does_not_hide_another_consulted_declaration(
                         auth_dependencies=(
                             AuthDependencySpec(
                                 name="provider-healthy-tool",
+                                login_command="provider-healthy-tool login",
                                 source=ConnectedSource(),
                             ),
                         ),
@@ -273,6 +322,7 @@ def test_declaration_guard_delay_bounds_probe(
                         auth_dependencies=(
                             GuardedDependency(
                                 name="declared-slow",
+                                login_command="gh auth login",
                                 source=SlowSource(),
                             ),
                         ),
@@ -287,4 +337,5 @@ def test_declaration_guard_delay_bounds_probe(
 
     assert isinstance(status, AuthStatus)
     assert status.state == "logged_out"
+    assert status.login_cmd == "gh auth login"
     assert elapsed < 0.5

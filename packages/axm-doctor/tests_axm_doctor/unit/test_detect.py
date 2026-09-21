@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 import pytest
+from axm_vault import AuthDependencySpec
 from pydantic import ValidationError
 
 import axm_doctor.detect as detect_module
@@ -74,6 +75,60 @@ def test_auth_status_accepts_undetermined_state() -> None:
     status = detect_module.AuthStatus(tool="uncatalogued", state="undetermined")
 
     assert status.state == "undetermined"
+
+
+def test_detect_auth_exposes_login_command_only_when_logged_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: only a logged-out declared tool exposes its login command."""
+
+    class DisconnectedSource:
+        def status(self) -> str:
+            return "disconnected"
+
+    class AbsentSource:
+        def status(self) -> str:
+            return "tool_absent"
+
+    declarations = {
+        "gh": AuthDependencySpec(
+            name="gh", login_command="gh auth login", source=DisconnectedSource()
+        ),
+        "gh-absent": AuthDependencySpec(
+            name="gh-absent", login_command="gh auth login", source=AbsentSource()
+        ),
+    }
+    monkeypatch.setattr(detect_module, "load_auth_declarations", lambda: declarations)
+
+    logged_out = detect_auth("gh")
+    absent = detect_auth("gh-absent")
+
+    assert logged_out.state == "logged_out"
+    assert logged_out.login_cmd == "gh auth login"
+    assert absent.state == "not_installed"
+    assert absent.login_cmd is None
+
+
+def test_detect_auth_exposes_login_command_when_probe_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a raising declared probe still exposes its login command."""
+
+    class RaisingSource:
+        def status(self) -> str:
+            raise RuntimeError("probe failed")
+
+    declaration = AuthDependencySpec(
+        name="gh", login_command="gh auth login", source=RaisingSource()
+    )
+    monkeypatch.setattr(
+        detect_module, "load_auth_declarations", lambda: {"gh": declaration}
+    )
+
+    status = detect_auth("gh")
+
+    assert status.state == "logged_out"
+    assert status.login_cmd == "gh auth login"
 
 
 class _Proc:

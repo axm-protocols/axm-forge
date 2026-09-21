@@ -22,7 +22,9 @@ The CLI prints tab-separated rows in this order:
 | `secret` | group.name, setup hint |
 
 Auth markers are ✓ for `logged_in`, ? for `undetermined`, and ✗ otherwise.
-`login_cmd` is currently always absent in detector results.
+`login_cmd` is copied from the discovered auth declaration only when the
+resolved state is `logged_out`. It remains absent for `logged_in`,
+`not_installed`, `undetermined`, and tools without a declaration.
 Config states are only in `env_doctor`, not this CLI report.
 Credential rows depend on installed providers; an empty catalog is valid.
 The CLI decodes provenance coordinates for display and omits account identity
@@ -75,7 +77,7 @@ rendered text only.
 Illustrative auth entry (JSON fragment):
 
 ```json
-{"state": "undetermined", "login_cmd": null, "declaration_consulted": false}
+{"state": "logged_out", "login_cmd": "gh auth login", "declaration_consulted": true}
 ```
 
 `auth_status` text groups provenance by kind and appends `[no declaration]`

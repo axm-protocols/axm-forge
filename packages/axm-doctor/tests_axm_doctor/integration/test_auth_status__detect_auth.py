@@ -58,7 +58,8 @@ def test_auth_status_marks_tools_without_discovered_declaration(
         "        return AuthStatus.CONNECTED\n\n"
         "def credentials():\n"
         "    dependency = AuthDependencySpec(\n"
-        "        name='claude', source=ConnectedSource()\n"
+        "        name='claude', login_command='claude login',\n"
+        "        source=ConnectedSource()\n"
         "    )\n"
         "    return (CredentialGroup(\n"
         "        id='synthetic', package='synthetic-auth', title='Synthetic',\n"
@@ -109,3 +110,59 @@ def test_auth_status_marks_tools_without_discovered_declaration(
     assert "[no declaration]" not in lines["claude"]
     assert declared_status.state in lines["claude"]
     assert "[no declaration]" in lines["codex"]
+
+
+@pytest.mark.integration
+def test_auth_status_reports_disconnected_declaration_login_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: auth_status carries a disconnected declaration's login command."""
+    module_path = tmp_path / "synthetic_disconnected_auth.py"
+    module_path.write_text(
+        "from axm_vault import AuthDependencySpec, CredentialGroup\n\n"
+        "class DisconnectedSource:\n"
+        "    def status(self):\n"
+        "        return 'disconnected'\n\n"
+        "def credentials():\n"
+        "    dependency = AuthDependencySpec(\n"
+        "        name='claude', login_command='claude login',\n"
+        "        source=DisconnectedSource()\n"
+        "    )\n"
+        "    return (CredentialGroup(\n"
+        "        id='synthetic', package='synthetic-auth', title='Synthetic',\n"
+        "        specs=(), auth_dependencies=(dependency,),\n"
+        "    ),)\n",
+        encoding="utf-8",
+    )
+    dist_info = tmp_path / "synthetic_disconnected_auth-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: synthetic-disconnected-auth\nVersion: 1.0\n",
+        encoding="utf-8",
+    )
+    (dist_info / "entry_points.txt").write_text(
+        "[axm.credentials]\nsynthetic = synthetic_disconnected_auth:credentials\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+    synthetic_endpoints = tuple(
+        endpoint
+        for distribution in metadata.distributions(path=[str(tmp_path)])
+        for endpoint in distribution.entry_points
+        if endpoint.group == "axm.credentials"
+    )
+
+    def _synthetic_entry_points(*, group: str) -> tuple[metadata.EntryPoint, ...]:
+        return tuple(
+            endpoint for endpoint in synthetic_endpoints if endpoint.group == group
+        )
+
+    monkeypatch.setattr(metadata, "entry_points", _synthetic_entry_points)
+    assert set(load_auth_declarations()) == {"claude"}
+
+    result = AuthStatusTool().execute()
+
+    assert result.success is True
+    assert result.data["auth"]["claude"]["login_cmd"] == "claude login"

@@ -48,6 +48,7 @@ def _install_auth_declaration(
             "def provide() -> tuple[CredentialGroup, ...]:",
             "    dependency = AuthDependencySpec(",
             '        name="declaration-only-tool",',
+            '        login_command="declaration-only-tool login",',
             "        source=_Source(),",
             "    )",
             "    return (",
@@ -122,6 +123,11 @@ def test_declaration_alone_drives_all_three_auth_states(
     )
     for observed, expected in cases:
         monkeypatch.setenv("AXM_TEST_DECLARED_AUTH_STATE", observed)
-        assert detect_auth("declaration-only-tool").state == expected
+        status = detect_auth("declaration-only-tool")
+        assert status.state == expected
+        expected_command = (
+            "declaration-only-tool login" if expected == "logged_out" else None
+        )
+        assert status.login_cmd == expected_command
 
     assert "_LOGIN_CMDS" not in _detect_source()

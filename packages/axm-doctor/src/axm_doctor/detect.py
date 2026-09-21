@@ -179,9 +179,13 @@ def detect_auth(tool: str) -> AuthStatus:
     """
     declaration = load_auth_declarations().get(tool)
     if declaration is not None:
+        declared_state = _detect_declared_auth(declaration)
         return AuthStatus(
             tool=tool,
-            state=_detect_declared_auth(declaration),
+            state=declared_state,
+            login_cmd=(
+                declaration.login_command if declared_state == "logged_out" else None
+            ),
             declaration_consulted=True,
         )
 
