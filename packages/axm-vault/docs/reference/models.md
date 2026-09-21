@@ -71,10 +71,13 @@ the dependency is constructed.
 
 ### `AuthDependencySpec`
 
-A frozen, strict model with a required `name`. Its source is accepted at
-construction and retained privately: the only authentication operation exposed
-by the spec is `status() -> AuthStatus`. In particular, there is no `resolve`,
-`value`, `secret`, `get`, or `env_var` surface.
+A frozen, strict model with a required `name` and an optional
+`login_command: str | None` (default `None`). The command is metadata a human
+can run to restore the external session; it is not a credential value. Its
+source is accepted at construction and retained privately: the only
+authentication operation exposed by the spec is `status() -> AuthStatus`. In
+particular, there is no `resolve`, `value`, `secret`, `get`, or `env_var`
+surface.
 
 ```python
 from axm_vault import AuthDependencySpec, AuthStatus
@@ -88,6 +91,7 @@ class AcmeSessionSource:
 dependency = AuthDependencySpec(
     name="acme-session",
     source=AcmeSessionSource(),
+    login_command="acme auth login",
 )
 assert dependency.status() is AuthStatus.CONNECTED
 ```

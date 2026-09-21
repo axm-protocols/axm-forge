@@ -144,3 +144,40 @@ def test_gh_shaped_subclass_redeclaring_status_command_is_accepted() -> None:
     )
     assert dependency.status_command == "gh auth status"
     assert dependency.login_command == "gh auth login"
+
+
+def test_base_dependency_accepts_and_exposes_login_command() -> None:
+    """AC1: the base contract accepts and exposes a login command."""
+    auth = _auth_module()
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    spec = auth.AuthDependencySpec(
+        name="claude-session",
+        source=ConnectedSource(),
+        login_command="claude login",
+    )
+
+    assert spec.login_command == "claude login"
+
+
+def test_base_dependency_declares_login_command_field() -> None:
+    """AC2: login_command is declared by the base model contract."""
+    auth = _auth_module()
+
+    assert "login_command" in auth.AuthDependencySpec.model_fields
+
+
+def test_base_dependency_defaults_login_command_to_none() -> None:
+    """AC3: the base contract exposes None when no command is supplied."""
+    auth = _auth_module()
+
+    class ConnectedSource:
+        def status(self) -> object:
+            return auth.AuthStatus.CONNECTED
+
+    spec = auth.AuthDependencySpec(name="claude-session", source=ConnectedSource())
+
+    assert spec.login_command is None

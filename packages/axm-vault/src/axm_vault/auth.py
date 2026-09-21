@@ -44,6 +44,8 @@ class AuthDependencySpec(BaseModel):  # type: ignore[explicit-any]
     )
 
     name: str
+    login_command: str | None = None
+    """Command a human runs to restore the authenticated session."""
     _source: AuthSource = PrivateAttr()
 
     def __init__(self, *, name: str, source: object, **data: object) -> None:
