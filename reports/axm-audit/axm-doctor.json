@@ -1,24 +1,23 @@
 {
-  "score": 93.5,
+  "score": 92.8,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
     "ARCH_COUPLING: Coupling: 0 modules above threshold (max fan-out: 9)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_TESTS: Test coverage: 91% (90/100)",
+    "QUALITY_TESTS: Test coverage: 91% (91/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: Clean dependencies (0 issues)",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
-    "PRACTICE_DOCSTRING: Docstring coverage: 100% (17/17)",
+    "PRACTICE_DOCSTRING: Docstring coverage: 100% (18/18)",
     "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
     {
       "rule_id": "PRACTICE_TOOL_SECRET_LOCATION",
@@ -66,6 +65,12 @@
       "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "text": "\u2022 axm_doctor/orchestrate.py:missing_secrets cc=9 (B) cog=18 [cog]\n\u2022 axm_doctor/detect.py:load_auth_declarations cc=8 (B) cog=16 [cog]\n\u2022 axm_doctor/orchestrate.py:provision_missing cc=12 (C) cog=12 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",

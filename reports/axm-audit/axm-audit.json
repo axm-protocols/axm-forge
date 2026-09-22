@@ -1,6 +1,6 @@
 {
-  "score": 90.1,
-  "grade": "A",
+  "score": 89.3,
+  "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_COUPLING: Coupling: 7 module(s) above threshold (-21 pts)",
@@ -10,7 +10,6 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_AUDIT: No known vulnerabilities",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
@@ -73,6 +72,12 @@
       "message": "Complexity score: 60/100 (4 high-complexity functions)",
       "text": "\u2022 axm_audit/core/rules/practices/tool_secret_locations.py:_security_service_literals cc=13 (C) cog=21 [cc+cog]\n\u2022 axm_audit/core/test_runner.py:_target_was_collected cc=12 (C) cog=15 [cc]\n\u2022 axm_audit/doc_gate/tool.py:DocGateTool.execute cc=12 (C) cog=9 [cc]\n\u2022 axm_audit/core/rules/practices/tool_secret_locations.py:_call_service_literal cc=11 (C) cog=10 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "DEPS_HYGIENE",

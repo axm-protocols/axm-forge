@@ -1,5 +1,5 @@
 {
-  "score": 98.2,
+  "score": 97.5,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -11,7 +11,6 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: 1 dependency issue(s) found",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
@@ -66,6 +65,12 @@
       "message": "Test coverage: 89% (89/100)",
       "text": "\u2022 cov 89% \u2192 100%",
       "fix_hint": "Increase test coverage to >= 90%"
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",

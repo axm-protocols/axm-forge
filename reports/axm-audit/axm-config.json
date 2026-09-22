@@ -1,5 +1,5 @@
 {
-  "score": 95.9,
+  "score": 95.2,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -12,12 +12,11 @@
       "text": "\u2022 axm_config/resolver.py:_get_file_value cc=11 (C) cog=14 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
-    "QUALITY_TESTS: Test coverage: 93% (92/100)",
+    "QUALITY_TESTS: Test coverage: 93% (93/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: Clean dependencies (0 issues)",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
@@ -25,7 +24,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 98% (51/52)",
+      "message": "Docstring coverage: 98% (53/54)",
       "text": "     \u2022 axm_config/resolver.py: model_dump",
       "fix_hint": "Add docstrings to public functions"
     },
@@ -65,6 +64,12 @@
   ],
   "failed": [
     {
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
+    },
+    {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "message": "1 source module(s) without tests",
       "text": "\u2022 untested: home.py",
@@ -72,20 +77,20 @@
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "message": "21 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "text": "\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:195 axm_config.resolver._execution_namespace (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:152 axm_config.resolver._execution_namespace (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:158 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:159 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:160 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:178 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:106 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:130 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:142 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:158 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:170 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:343 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:344 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:353 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:354 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:361 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:362 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_resolver.py:357 axm_config.resolver._execution_namespace (function)\n\u2022 [attribute] tests_axm_config/unit/test_resolver.py:367 axm_config.resolver._env_name (function)\n\u2022 [import] tests_axm_config/unit/test_store.py:9 axm_config.store._raw_node (function)\n(+1 more)",
+      "message": "24 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:195 axm_config.resolver._execution_namespace (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:152 axm_config.resolver._execution_namespace (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:158 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:159 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:160 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_get__set_.py:178 axm_config.resolver._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:108 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:132 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:144 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:160 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:172 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/integration/test_service_port.py:233 axm_config._env_name (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:343 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:344 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:353 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:354 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:361 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:362 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:381 axm_config._derive_service_port (function)\n\u2022 [attribute] tests_axm_config/unit/test_paths.py:373 axm_config._derive_service_port (function)\n(+4 more)",
       "fix_hint": "Re-export the symbol publicly or test via the public API"
     },
     {
       "rule_id": "TEST_QUALITY_TAUTOLOGY",
       "message": "1 tautology finding(s)",
-      "text": "\u2022 tests_axm_config/integration/test_service_port.py:74 test_two_resolutions_under_one_profile_agree [self_compare]",
+      "text": "\u2022 tests_axm_config/integration/test_service_port.py:76 test_two_resolutions_under_one_profile_agree [self_compare]",
       "metadata": {
         "verdicts": [
           {
             "file": "tests_axm_config/integration/test_service_port.py",
             "test": "test_two_resolutions_under_one_profile_agree",
-            "line": 74,
+            "line": 76,
             "pattern": "self_compare",
             "rule": "step0_self_compare",
             "verdict": "STRENGTHEN",

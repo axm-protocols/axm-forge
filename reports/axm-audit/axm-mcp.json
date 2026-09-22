@@ -1,5 +1,5 @@
 {
-  "score": 91.7,
+  "score": 90.8,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -11,7 +11,6 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
-    "DEPS_AUDIT: No known vulnerabilities",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
@@ -72,6 +71,12 @@
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
+      "rule_id": "DEPS_AUDIT",
+      "message": "1 vulnerable package(s) found",
+      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
+      "fix_hint": "Run: pip-audit --fix to remediate"
+    },
+    {
       "rule_id": "DEPS_HYGIENE",
       "message": "3 dependency issue(s) found",
       "text": "\u2022 DEP004 mkdocs_gen_files: misplaced dev dep\n\u2022 DEP003 pydantic: transitive dep\n\u2022 DEP003 pydantic: transitive dep",
@@ -79,8 +84,8 @@
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "message": "14 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "text": "\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:107 axm_mcp._write_refusal (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:103 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_register_facade__session_contracts.py:70 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:72 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:85 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:98 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:104 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:203 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:340 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:344 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:999 axm_mcp._select_lock (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1009 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1056 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1057 axm_mcp._normalize_lock_key (function)",
+      "message": "16 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:107 axm_mcp._write_refusal (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:103 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_register_facade__session_contracts.py:70 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:72 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:85 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:98 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:104 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:203 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:349 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:378 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:353 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:382 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1029 axm_mcp._select_lock (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1039 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1086 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1087 axm_mcp._normalize_lock_key (function)",
       "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]
