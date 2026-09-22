@@ -57,18 +57,10 @@ def test_a_paper_with_no_experiment_needs_no_index(tmp_path: Path) -> None:
     assert result.passed is True, _blob(result)
 
 
-def test_a_paper_with_experiments_and_no_index_is_named(tmp_path: Path) -> None:
-    """Experiments present but no INDEX.md: the registry was never generated."""
+def test_paper_does_not_require_a_legacy_experiment_index(tmp_path: Path) -> None:
     root = _paper_root(tmp_path)
-    _experiment(root, "01-first")
-
-    result = check_paper_structure(root)
-
-    assert result.passed is False
-    assert "index.md" in _blob(result)
-    # The registry is generated, so the fix names the generator rather than
-    # telling the author to create the file by hand.
-    assert "experiment_index" in result.fix
+    _experiment(root, "01-demo")
+    assert check_paper_structure(root).passed
 
 
 def test_a_paper_with_experiments_and_an_index_passes(tmp_path: Path) -> None:

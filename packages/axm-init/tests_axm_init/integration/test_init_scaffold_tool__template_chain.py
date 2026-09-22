@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_init.core.templates import TemplateType, get_template_path
+from axm_init.core.templates import TemplateType, template_chain
 from axm_init.tools.check import InitCheckTool
 from axm_init.tools.scaffold import InitScaffoldTool
 from tests_axm_init.conftest import (
@@ -88,7 +88,9 @@ def test_learning_scaffold_inherits_repository_tooling_only_from_base_layer(
     for relative in tooling_paths:
         assert (learning / relative).read_bytes() == (ordinary / relative).read_bytes()
 
-    learning_template = get_template_path(TemplateType.LEARNING)
+    learning_template = template_chain(TemplateType.LEARNING, None, member=False)[
+        -1
+    ].path
     rendered_overlay_paths = {
         path.relative_to(learning_template).as_posix().removesuffix(".jinja")
         for path in learning_template.rglob("*")
@@ -97,7 +99,7 @@ def test_learning_scaffold_inherits_repository_tooling_only_from_base_layer(
     assert tooling_paths.isdisjoint(rendered_overlay_paths)
 
 
-def test_learning_rerun_refreshes_makefile_and_preserves_overlay_recipe(
+def test_learning_rerun_preserves_authored_makefile_and_overlay_recipe(
     tmp_path: Path,
 ) -> None:
     """AC4: one rerun refreshes base tooling while preserving recipe bytes."""
@@ -105,12 +107,11 @@ def test_learning_rerun_refreshes_makefile_and_preserves_overlay_recipe(
     _generate(root, learning=True)
     makefile = root / "Makefile"
     recipe = root / "src" / "contrast_project" / "learning" / "recipe.py"
-    rendered_makefile = makefile.read_bytes()
     edited_recipe = recipe.read_bytes() + b"\n# user-owned recipe body\n"
     makefile.write_bytes(b"hand-written makefile\n")
     recipe.write_bytes(edited_recipe)
 
     _generate(root, learning=True)
 
-    assert makefile.read_bytes() == rendered_makefile
+    assert makefile.read_bytes() == b"hand-written makefile\n"
     assert recipe.read_bytes() == edited_recipe

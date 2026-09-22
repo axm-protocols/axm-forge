@@ -13,9 +13,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ package_name }}"]
-
-[tool.axm-lab]
-kind = "paper"
-name = "{{ paper_name }}"
-paper = "paper/main.tex"
-experiments = "experiments"

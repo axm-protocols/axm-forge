@@ -28,7 +28,7 @@ def test_paper_structure_fails_and_names_the_missing_directories(
     assert result.passed is False
     blob = _blob(result)
     assert "paper" in blob
-    assert "experiments" in blob
+    assert "experiments" not in blob
 
 
 def test_paper_structure_fails_and_names_the_missing_readme(tmp_path: Path) -> None:

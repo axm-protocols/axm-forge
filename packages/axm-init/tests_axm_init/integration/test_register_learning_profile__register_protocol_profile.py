@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from axm_learning.scaffold import metadata as learning_profile_module
 
-from axm_init.core import learning_profile as learning_profile_module
 from axm_init.core.learning_profile import register_learning_profile
 from axm_init.core.protocol_scaffolder import register_protocol_profile
 

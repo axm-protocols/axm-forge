@@ -6,7 +6,7 @@ and load a zero-argument provider factory. Domain packages own their templates.
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from importlib.metadata import entry_points
 from pathlib import Path
@@ -33,7 +33,9 @@ __all__ = [
     "TemplateType",
     "TomlTable",
     "load_provider",
+    "provider_hook",
     "render_scaffold",
+    "require_provider",
     "requires_toml",
     "run_rules",
     "section",
@@ -86,6 +88,33 @@ def load_provider(kind: str) -> ScaffoldProvider | None:
     return cast(ScaffoldProvider, provider)
 
 
+def require_provider(kind: str) -> ScaffoldProvider:
+    """Require installed domain ownership before executing a domain operation."""
+    provider = load_provider(kind)
+    if provider is None:
+        package = {
+            "learning": "axm-learning[scaffold]",
+            "experiment": "axm-lab",
+            "investigation": "axm-lab",
+        }.get(kind, kind)
+        raise ProviderError(
+            f"No scaffold provider installed for {kind!r}; install {package} "
+            "in the environment running axm-init."
+        )
+    return provider
+
+
+def provider_hook(kind: str, name: str) -> Callable[..., object]:
+    """Resolve a required domain capability with an actionable version error."""
+    hook = getattr(require_provider(kind), name, None)
+    if not callable(hook):
+        raise ProviderError(
+            f"Scaffold provider {kind!r} lacks {name}; "
+            "install a compatible provider release."
+        )
+    return cast(Callable[..., object], hook)
+
+
 def _validate_layers(layers: tuple[TemplateLayer, ...]) -> None:
     """Reject malformed ownership names before Copier writes answers files."""
     if (
@@ -131,11 +160,11 @@ def render_scaffold(
             if provider is None:
                 try:
                     template_type = TemplateType(kind)
-                except ValueError as exc:
-                    raise ProviderError(
-                        f"No scaffold provider installed for {kind!r}"
-                    ) from exc
-                layers = template_chain(template_type, framework, member=member)
+                except ValueError:
+                    provider = require_provider(kind)
+                    layers = provider.layers(request)
+                else:
+                    layers = template_chain(template_type, framework, member=member)
             else:
                 layers = provider.layers(request)
             _validate_layers(layers)
@@ -148,20 +177,9 @@ def render_scaffold(
         return ScaffoldResult(success=False, path=str(destination), message=str(exc))
 
 
-def _provider_layers(request: ScaffoldRequest) -> tuple[TemplateLayer, ...] | None:
-    provider = load_provider(request.kind)
-    if provider is None:
-        return None
+def _provider_layers(request: ScaffoldRequest) -> tuple[TemplateLayer, ...]:
+    provider = require_provider(request.kind)
     layers = provider.layers(request)
-    _validate_layers(layers)
-    return layers
-
-
-def _legacy_experiment_layers() -> tuple[TemplateLayer, ...] | None:
-    hook = getattr(load_provider("experiment"), "legacy_experiment_layers", None)
-    if not callable(hook):
-        return None
-    layers = cast(tuple[TemplateLayer, ...], hook())
     _validate_layers(layers)
     return layers
 

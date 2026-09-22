@@ -61,17 +61,8 @@ def _has_axm_lab_section(data: TomlTable) -> bool:
 
 
 def _has_paper_structure(path: Path) -> bool:
-    """Check if *path* carries the full structural paper triple.
-
-    All three markers are required — a PLAN markdown file, a ``paper/``
-    directory and an ``experiments/`` directory — so a repository merely
-    holding a ``paper/`` directory is not misclassified.
-    """
-    return (
-        any(path.glob("PLAN*.md"))
-        and (path / "paper").is_dir()
-        and (path / "experiments").is_dir()
-    )
+    """Recognize a writing scaffold without requiring Lab-owned directories."""
+    return any(path.glob("PLAN*.md")) and (path / "paper").is_dir()
 
 
 _EXPERIMENT_MANIFEST = "manifest.yaml"
@@ -127,7 +118,7 @@ def _is_paper(path: Path, data: TomlTable | None) -> bool:
     Marker decision: a directory is a paper when its ``pyproject.toml``
     declares an ``[tool.axm-lab]`` section — explicit and machine-owned —
     OR, because a satellite paper legitimately has no ``pyproject.toml``,
-    when it carries the full structural triple (see
+    when it carries the writing structure (see
     :func:`_has_paper_structure`).
 
     Args:

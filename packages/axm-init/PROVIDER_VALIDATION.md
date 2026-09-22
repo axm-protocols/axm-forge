@@ -1,5 +1,8 @@
 # Scaffold provider foundation validation
 
+Historical report. The breaking cleanup and current required-provider contract
+are documented in [PROVIDER_CLEANUP_VALIDATION.md](PROVIDER_CLEANUP_VALIDATION.md).
+
 Branch: `feat-domain-scaffolds` in the assigned Forge worktree.
 Scope: public scaffold provider primitives, create-only rendering, optional
 learning/experiment compatibility delegation, and explicit unscored rule execution.

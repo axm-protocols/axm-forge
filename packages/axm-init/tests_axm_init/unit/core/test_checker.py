@@ -9,10 +9,6 @@ import pytest
 
 from axm_init.checks._workspace import ProjectContext
 from axm_init.checks.docs import check_mkdocs_exists
-from axm_init.checks.experiment import (
-    check_experiment_files,
-    check_experiment_structure,
-)
 from axm_init.checks.pyproject import check_pyproject_exists
 from axm_init.checks.structure import (
     check_py_typed,
@@ -41,8 +37,8 @@ class TestCheckDiscovery:
         # AC6: the paper module adds three checks in a ninth category, and the
         # experiment module two more in a tenth one.
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 57
-        assert len(ALL_CHECKS) == 10
+        assert total == 54
+        assert len(ALL_CHECKS) == 9
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
         """Auto-discovery picks up the wheel-doc-shipping check (AXM-1715)."""
@@ -62,7 +58,6 @@ class TestCheckDiscovery:
             "changelog",
             "workspace",
             "paper",
-            "experiment",
         }
         assert set(ALL_CHECKS.keys()) == expected
 
@@ -368,9 +363,7 @@ def test_validate_context_tables_accepts_shipped_tables() -> None:
 
 # --- paper checks are context-scoped -------------------------------------
 
-PAPER_CHECK_IDS = frozenset(
-    {"paper.paper_structure", "paper.plan_present", "paper.research_present"}
-)
+PAPER_CHECK_IDS = frozenset({"paper.paper_structure", "paper.plan_present"})
 
 
 def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
@@ -395,15 +388,6 @@ def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
 # stops reproaching pyproject.toml / src/ / py.typed / a tests directory /
 # mkdocs.yml to a folder that holds a manifest, while sparing the two
 # experiment FORM checks so those actually run.
-
-
-def _experiment_form_check_ids() -> set[str]:
-    """Canonical ids of the two experiment form checks."""
-    return {
-        name
-        for fn in (check_experiment_structure, check_experiment_files)
-        if (name := get_check_name(fn)) is not None
-    }
 
 
 def _packaging_check_ids() -> set[str]:
@@ -435,4 +419,4 @@ def test_experiment_skip_entry_spares_the_two_form_checks() -> None:
     entry = set(_skip_table()[ProjectContext.EXPERIMENT])
 
     assert _packaging_check_ids() <= entry
-    assert _experiment_form_check_ids().isdisjoint(entry)
+    assert "experiment" not in ALL_CHECKS

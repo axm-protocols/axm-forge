@@ -384,11 +384,11 @@ def test_read_kind_accepts_declared_learning_kind(
     with (
         patch("axm_init.adapters.copier.CopierAdapter") as mock_copier_cls,
         patch(
-            "axm_init.core.templates.get_template_path",
-            return_value=Path("/fake/learning-project"),
+            "axm_init.core.templates.template_chain",
+            return_value=(),
         ),
     ):
-        mock_copier_cls.return_value.copy.return_value = mock_result
+        mock_copier_cls.return_value.apply_chain.return_value = mock_result
         result = InitScaffoldTool().execute(
             path=str(tmp_path),
             name="learning-lab",

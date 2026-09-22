@@ -2,7 +2,7 @@
 
 import pytest
 
-from axm_init.core.templates import TemplateType, get_template_path
+from axm_init.core.templates import TemplateType, get_template_path, template_chain
 
 
 class TestGetTemplatePathIntegration:
@@ -24,7 +24,7 @@ def test_standalone_is_default() -> None:
 @pytest.mark.integration
 def test_learning_template_resolves_to_copier_directory() -> None:
     """AC2: the learning template is a real bundled Copier directory."""
-    path = get_template_path(TemplateType.LEARNING)
+    path = template_chain(TemplateType.LEARNING, None, member=False)[-1].path
 
     assert path.name == "learning-project"
     assert path.is_dir()

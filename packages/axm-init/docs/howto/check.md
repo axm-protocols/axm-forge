@@ -139,8 +139,8 @@ By default, only failures are displayed.
 | **changelog** | git-cliff config, no manual CHANGELOG | 5 |
 | **workspace** | packages layout, members consistent, monorepo plugin, matrix packages, requires-python compat, root name collision, pytest importmode, pytest testpaths, quality workflow, unique test-suite directory names | 21 |
 
-| **paper** | paper structure, plan, research protocol | 15 |
-| **experiment** | directory structure and required files | 10 |
+| **paper** | writing structure and plan | 10 |
+Experiments are checked through axm-lab `experiment_check`; Forge has no experiment score.
 | **learning** *(explicit-only)* | declared domain, schema version, `study.toml`, `training.toml` | 2 |
 | **protocols** *(explicit-only)* | profile metadata, prompt resources, public components, assembly, and author grammar | 12 |
 

@@ -65,8 +65,6 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
     (TemplateType.WORKSPACE, Framework.PYTHON): "uv-workspace",
     (TemplateType.MEMBER, Framework.PYTHON): "workspace-member",
     (TemplateType.PAPER, Framework.PYTHON): "paper-submodule",
-    (TemplateType.EXPERIMENT, Framework.PYTHON): "experiment",
-    (TemplateType.LEARNING, Framework.PYTHON): "learning-project",
     (TemplateType.STANDALONE, Framework.NODE): "node-project",
     (TemplateType.STANDALONE, Framework.SVELTE): "svelte-project",
 }
@@ -105,33 +103,13 @@ def template_chain(
     if template_type in (TemplateType.LEARNING, TemplateType.EXPERIMENT):
         from axm_init.scaffolding import ScaffoldRequest, _provider_layers
 
-        layers = _provider_layers(
+        return _provider_layers(
             ScaffoldRequest(template_type.value, framework, member, existing)
         )
-        if layers is not None:
-            return layers
-    if template_type is not TemplateType.LEARNING:
-        return (
-            TemplateLayer(
-                name=template_type.value,
-                path=get_template_path(template_type, framework),
-                data={},
-            ),
-        )
-
-    learning_layer = TemplateLayer(
-        name="learning",
-        path=get_template_path(TemplateType.LEARNING, framework),
-        data={"learning_mode": "standalone" if member else "overlay"},
-    )
-    if member:
-        return (learning_layer,)
-
     return (
         TemplateLayer(
-            name="base",
-            path=get_template_path(TemplateType.STANDALONE, framework),
+            name=template_type.value,
+            path=get_template_path(template_type, framework),
             data={},
         ),
-        learning_layer,
     )

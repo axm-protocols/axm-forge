@@ -2,7 +2,7 @@
 
 A paper carries none of a Python distribution's invariants (no Diataxis
 mkdocs, no Trusted Publishing, no CI matrix) but has its own: a ``paper/``
-directory, an ``experiments/`` directory, a README, and a plan document
+directory, a README, and a plan document
 declaring the intention through a YAML front-matter header.
 """
 
@@ -15,22 +15,13 @@ from axm_init.models.check import CheckResult
 if TYPE_CHECKING:
     from pathlib import Path
 
-__all__ = ["check_paper_structure", "check_plan_present", "check_research_present"]
+__all__ = ["check_paper_structure", "check_plan_present"]
 
 #: Delimiter opening and closing a YAML front-matter block.
 _FRONT_MATTER_DELIMITER = "---"
 
 #: Plan document, relative to the paper root.
 _PLAN_FILENAME = "PLAN.md"
-
-#: Research protocol document, relative to the paper root.
-_RESEARCH_FILENAME = "RESEARCH.md"
-
-#: Experiment registry, generated from the manifests — never hand-written.
-_INDEX_FILENAME = "INDEX.md"
-
-#: Marker naming an experiment folder inside ``experiments/``.
-_MANIFEST_FILENAME = "manifest.yaml"
 
 
 def _parse_front_matter(text: str) -> dict[str, str] | None:
@@ -61,51 +52,13 @@ def _parse_front_matter(text: str) -> dict[str, str] | None:
     return None
 
 
-def _holds_an_experiment(project: Path) -> bool:
-    """Return True when ``experiments/`` holds at least one experiment folder.
-
-    An experiment folder is one carrying a ``manifest.yaml`` — the same marker
-    the project-context detection uses, so both agree on what counts.
-
-    Args:
-        project: Paper root directory.
-
-    Returns:
-        ``True`` if at least one experiment folder is present.
-    """
-    experiments = project / "experiments"
-    if not experiments.is_dir():
-        return False
-    return any(
-        (folder / _MANIFEST_FILENAME).is_file()
-        for folder in experiments.iterdir()
-        if folder.is_dir()
-    )
-
-
 def check_paper_structure(project: Path) -> CheckResult:
-    """Check: the paper carries the entries its topology requires.
-
-    Four entries are unconditional (``paper/``, ``experiments/``,
-    ``README.md``, ``PIPELINE.md``). ``INDEX.md`` is conditional: it is
-    *generated* from the experiment manifests, so a paper with no experiment
-    yet carries none legitimately — but once experiments exist, its absence
-    means the registry was never produced.
-
-    Args:
-        project: Paper root directory.
-
-    Returns:
-        A failed ``CheckResult`` naming every missing entry, or a passed one.
-    """
+    """Check the writing layout; Lab owns investigation and experiment rules."""
     entries = [
         ("paper/", (project / "paper").is_dir()),
-        ("experiments/", (project / "experiments").is_dir()),
         ("README.md", (project / "README.md").is_file()),
         ("PIPELINE.md", (project / "PIPELINE.md").is_file()),
     ]
-    if _holds_an_experiment(project):
-        entries.append(("INDEX.md", (project / _INDEX_FILENAME).is_file()))
     missing = [label for label, present in entries if not present]
     if missing:
         return CheckResult(
@@ -117,15 +70,7 @@ def check_paper_structure(project: Path) -> CheckResult:
                 f"Paper layout missing {len(missing)} entry(ies): {', '.join(missing)}"
             ),
             details=[f"Missing: {', '.join(missing)}"],
-            fix=(
-                f"Generate {_INDEX_FILENAME} from the experiment manifests "
-                "(experiment_index)."
-                if missing == [_INDEX_FILENAME]
-                else (
-                    "Create paper/, experiments/, README.md and PIPELINE.md "
-                    "at the paper root."
-                )
-            ),
+            fix="Create paper/, README.md and PIPELINE.md at the paper root.",
         )
     return CheckResult(
         name="paper.paper_structure",
@@ -153,29 +98,6 @@ def check_plan_present(project: Path) -> CheckResult:
         _PLAN_FILENAME,
         "paper.plan_present",
         "the paper intention",
-    )
-
-
-def check_research_present(project: Path) -> CheckResult:
-    """Check: the research protocol document exists and declares a header.
-
-    Purely formal, like every ``axm init_check`` run: it grades the FORM (presence
-    of ``RESEARCH.md`` plus a non-empty YAML front-matter) and never reads
-    the substance of that header - no ``gap``, no ``investigations``, no
-    status. The authoritative model lives in another package.
-
-    Args:
-        project: Paper root directory.
-
-    Returns:
-        A failed ``CheckResult`` when ``RESEARCH.md`` is missing or carries
-        no non-empty YAML front-matter, a passed one otherwise.
-    """
-    return _front_matter_document(
-        project,
-        _RESEARCH_FILENAME,
-        "paper.research_present",
-        "the research protocol",
     )
 
 

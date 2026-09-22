@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from axm_init.adapters.copier import CopierAdapter, CopierConfig
-from axm_init.core.templates import TemplateType, get_template_path
+from axm_init.core.templates import TemplateType, get_template_path, template_chain
 
 
 @pytest.fixture(scope="module")
@@ -141,7 +141,9 @@ def test_workspace_member_default_is_private(
 def _render_learning_overlay(destination: Path) -> Path:
     result = CopierAdapter().copy(
         CopierConfig(
-            template_path=get_template_path(TemplateType.LEARNING),
+            template_path=template_chain(TemplateType.LEARNING, None, member=False)[
+                -1
+            ].path,
             destination=destination,
             data={"module_name": "axm_demo", "domain": "demo"},
             trust_template=True,
@@ -155,7 +157,10 @@ def _render_learning_overlay(destination: Path) -> Path:
 @pytest.mark.integration
 def test_learning_template_declares_preservation_patterns() -> None:
     """AC2: the overlay preserves user-owned recipe and recipe-test files."""
-    config_path = get_template_path(TemplateType.LEARNING) / "copier.yml"
+    config_path = (
+        template_chain(TemplateType.LEARNING, None, member=False)[-1].path
+        / "copier.yml"
+    )
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
     assert isinstance(config, dict)

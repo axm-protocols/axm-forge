@@ -100,36 +100,23 @@ def test_duplicate_layer_names_are_rejected_before_render(monkeypatch, tmp_path)
     assert not target.exists()
 
 
-@pytest.mark.parametrize("kind", ["learning", "experiment"])
-def test_init_routes_delegate_to_installed_provider(monkeypatch, tmp_path, kind):
+def test_init_learning_route_delegates_to_installed_provider(monkeypatch, tmp_path):
     from axm_init.tools.scaffold import InitScaffoldTool
 
-    provider, _ = _provider(monkeypatch, tmp_path, name=kind)
+    provider, _ = _provider(monkeypatch, tmp_path)
+    provider.declared_learning_domain = Mock(return_value=None)
     target = tmp_path / "target"
-    target.mkdir()
-    if kind == "experiment":
-        provider.legacy_experiment_layers = Mock(
-            return_value=provider.layers.return_value
-        )
-        (target / "paper").mkdir()
-        (target / "experiments").mkdir()
-        (target / "PLAN.md").write_text("Plan")
     result = InitScaffoldTool().execute(
         path=str(target),
         name="baseline",
-        kind=kind,
+        kind="learning",
         org="test",
         author="Test",
         email="test@example.com",
     )
     assert result.success, result.error
-    if kind == "experiment":
-        provider.legacy_experiment_layers.assert_called_once_with()
-        provider.layers.assert_not_called()
-    else:
-        provider.layers.assert_called_once_with(api.ScaffoldRequest(kind=kind))
-    rendered = target if kind == "learning" else target / "experiments/01-baseline"
-    assert (rendered / "domain.txt").read_text() == f"Example:{kind}\n"
+    provider.layers.assert_called_once_with(api.ScaffoldRequest("learning"))
+    assert (target / "domain.txt").read_text() == "Example:learning\n"
 
 
 def test_legacy_learning_metadata_delegates(monkeypatch, tmp_path):
@@ -171,28 +158,6 @@ def test_legacy_learning_check_delegates_before_legacy_toml_guard(
     )
     provider.check_learning_profile = Mock(return_value=finding)
     assert check_learning_profile(tmp_path) is finding
-
-
-def test_legacy_experiment_does_not_use_modern_provider_answers(monkeypatch, tmp_path):
-    from axm_init.tools.scaffold import InitScaffoldTool
-
-    provider, _ = _provider(monkeypatch, tmp_path, name="experiment")
-    target = tmp_path / "paper-root"
-    target.mkdir()
-    (target / "paper").mkdir()
-    (target / "experiments").mkdir()
-    (target / "PLAN.md").write_text("Plan")
-    result = InitScaffoldTool().execute(
-        path=str(target),
-        name="baseline",
-        kind="experiment",
-        org="test",
-        author="Test",
-        email="test@example.com",
-    )
-    assert result.success, result.error
-    provider.layers.assert_not_called()
-    assert (target / "experiments/01-baseline/manifest.yaml").is_file()
 
 
 @pytest.mark.parametrize("member", [False, True])

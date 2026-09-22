@@ -10,8 +10,6 @@ unsupported resolved combinations raise `KeyError`.
 | python | workspace | uv-workspace |
 | python | member | workspace-member |
 | python | paper | paper-submodule |
-| python | experiment | experiment |
-| python | learning | learning-project |
 | node | standalone | node-project |
 | svelte | standalone | svelte-project |
 
@@ -23,17 +21,19 @@ Python packages; it is not another framework template.
 `template_chain(template_type, framework, *, member)` returns an ordered tuple
 of immutable `TemplateLayer` values. Each layer exposes a stable `name`, its
 resolved template `path`, and the Copier answer `data` for that application.
-All paths are resolved through `get_template_path`.
+Primitive paths are resolved through `get_template_path`; domain layers require installed providers.
 
-Non-learning types produce one layer. A standalone learning project produces
+Primitive types produce one layer. A standalone learning project produces
 two layers in application order: `base` resolves `python-project` without a
 `learning_mode` answer, then `learning` resolves `learning-project` with
 `learning_mode="overlay"`. In workspace-member form, the chain contains only
 the `learning` layer with `learning_mode="standalone"`.
 
-## Learning project and compatibility overlay
+## Learning-owned project and overlay
 
-`TemplateType.LEARNING` with `Framework.PYTHON` selects `learning-project`.
+`template_chain(TemplateType.LEARNING, Framework.PYTHON, member=False)`
+requires `axm-learning[scaffold]` and selects Learning-owned assets.
+`get_template_path(TemplateType.LEARNING)` has no bundled implementation.
 The template has two explicit modes over the same learning contract.
 
 The public `init_scaffold --kind learning` route reports standalone mode when
@@ -63,9 +63,8 @@ exactly:
 
 The overlay preserves `src/*/learning/recipe.py` and
 `tests_*/unit/test_recipe.py` when reapplied; its configuration files remain
-template-owned. Through the public standalone route, the base layer is also
-reapplied, so repository tooling is regenerated while those learning files stay
-user-owned.
+template-owned. On reruns and existing-project overlays, only the Learning layer is applied;
+authored base metadata and repository tooling remain untouched.
 
 ## Tool routing
 
@@ -171,44 +170,35 @@ The full signature is
 It returns `ScaffoldResult` and uses the existing `CopierAdapter.apply_chain`.
 It refuses a nonempty directory, file, or destination symlink before rendering,
 under the shared process-local root lock. An empty directory is accepted.
-Provider absence uses the historical template chain for built-in kinds;
-unknown kinds such as `investigation` require an installed provider.
+Only standalone, workspace, member, and paper have bundled templates.
+Learning, experiment, investigation, and other domain kinds require installed
+providers; absence returns installation guidance before any write.
 Templates are trusted and can execute Copier tasks. Render/task failures can
 leave partial output; the operation is not transactional, and the lock does
 not coordinate separate processes. Layer validation does not restrict the
 behavior of trusted template tasks.
 
-### Compatibility delegation
+### Required domain delegation
 
-`template_chain` resolves installed `learning` and `experiment` providers
-before bundled fallback. Standard Python, Node/Svelte, workspace, and member
-selection remains unchanged. Installed domain templates are authoritative;
-bundled learning and experiment templates remain compatibility snapshots for
-installations without the domain packages during migration.
+`template_chain` requires installed `learning` and `experiment` providers.
+There are no bundled Learning or Lab templates, rules, or metadata fallbacks.
+`load_provider` remains a discovery API returning `None` on absence;
+`require_provider` turns absence into an actionable installation error.
 
-`init_scaffold --kind learning` retains its existing rerun and metadata-merge
-path, including workspace members. It does not call the create-only
-`render_scaffold` facade. The optional learning provider hooks are:
+`init_scaffold --kind learning` retains existing-project and workspace-member
+support. Its metadata/check wrappers require the corresponding provider hooks:
+`declared_learning_domain`, `merge_learning_metadata`,
+`register_learning_profile`, and `check_learning_profile`. Missing hooks fail
+with compatible-version guidance. Providers may implement
+`finalize(request, destination, data)` for metadata completion after rendering.
+`ScaffoldRequest.existing` tells an overlay provider whether metadata exists.
 
-- `declared_learning_domain(root, requested_domain=None) -> str | None`;
-- `merge_learning_metadata(metadata, domain, module_name) -> str`;
-- `register_learning_profile(root, domain, module_name) -> None`;
-- `check_learning_profile(root) -> CheckResult`.
-
-The legacy functions delegate to these hooks when supplied, with historical
-fallback for missing hooks. Domain hook implementations must not call those
-legacy wrappers themselves. `profile_template: Path` may expose the domain's
-compatibility overlay to consumers; init's generation uses `layers`.
-
-`init_scaffold --kind experiment` still creates indexed experiments under a
-paper root with `experiment_id`, `experiment_title`, and `research_question`
-answers. It calls the installed experiment provider's optional
-`legacy_experiment_layers() -> tuple[TemplateLayer, ...]` hook. Without that
-hook it uses the historical bundled template, even when a modern experiment
-provider is installed. It never passes these legacy answers to modern
-`layers(request)`. Modern experiment and investigation creation is available
-through `render_scaffold` using domain-owned answer contracts; `investigation`
-is not a new init CLI kind.
+`init_scaffold --kind experiment` is retired and returns guidance to install
+axm-lab and use `experiment_scaffold`. Modern investigations and experiments
+2.0 are created by Lab's ownership-aware domain tools. The shared
+`render_scaffold` primitive renders provider layers; it does not replace the
+domain tool's ownership and plan validation. The `legacy_experiment_layers`
+hook and Learning's separate `profile_template` snapshot have been removed.
 
 ### Explicit domain rules without quality scores
 

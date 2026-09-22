@@ -38,13 +38,11 @@ PACKAGE_GOLDEN: frozenset[str] = frozenset(
         "README.md",
         "PLAN.md",
         "PIPELINE.md",
-        "RESEARCH.md",
         "pyproject.toml",
         "src/attention_study/__init__.py",
         "paper/main.tex",
         "paper/references.bib",
         "paper/Makefile",
-        "experiments/.gitkeep",
     }
 )
 
@@ -135,10 +133,13 @@ def test_render_carries_its_paper_marker(tmp_path: Path) -> None:
     satellite render marks itself structurally instead."""
     package_root = _render(tmp_path / "marker_pkg", PACKAGE_ANSWERS)
     manifest = (package_root / "pyproject.toml").read_text(encoding="utf-8")
-    assert "[tool.axm-lab" in manifest
+    assert "[tool.axm-lab" not in manifest
+    assert (package_root / "PLAN.md").is_file()
+    assert (package_root / "paper").is_dir()
 
     satellite_root = _render(tmp_path / "marker_sat", SATELLITE_ANSWERS)
     assert (satellite_root / "paper").is_dir()
-    assert (satellite_root / "experiments").is_dir()
+    assert not (satellite_root / "experiments").exists()
+    assert (satellite_root / "PLAN.md").is_file()
     assert (satellite_root / "README.md").is_file()
     assert not (satellite_root / "pyproject.toml").exists()
