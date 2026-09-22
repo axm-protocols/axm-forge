@@ -96,6 +96,7 @@ def require_provider(kind: str) -> ScaffoldProvider:
             "learning": "axm-learning[scaffold]",
             "experiment": "axm-lab",
             "investigation": "axm-lab",
+            "paper": "axm-lab",
         }.get(kind, kind)
         raise ProviderError(
             f"No scaffold provider installed for {kind!r}; install {package} "

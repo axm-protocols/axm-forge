@@ -64,7 +64,6 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
     (TemplateType.STANDALONE, Framework.PYTHON): "python-project",
     (TemplateType.WORKSPACE, Framework.PYTHON): "uv-workspace",
     (TemplateType.MEMBER, Framework.PYTHON): "workspace-member",
-    (TemplateType.PAPER, Framework.PYTHON): "paper-submodule",
     (TemplateType.STANDALONE, Framework.NODE): "node-project",
     (TemplateType.STANDALONE, Framework.SVELTE): "svelte-project",
 }
@@ -87,6 +86,8 @@ def get_template_path(
     Raises:
         KeyError: If no template exists for the (type, framework) combination.
     """
+    if template_type == TemplateType.PAPER:
+        raise ValueError("Paper scaffolding is owned by axm-lab; use paper_scaffold.")
     resolved_framework = framework or Framework.PYTHON
     dir_name = _TEMPLATE_DIRS[(template_type, resolved_framework)]
     return Path(str(TEMPLATES_PKG / dir_name))

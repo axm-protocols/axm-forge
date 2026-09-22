@@ -533,6 +533,8 @@ class CheckEngine:
                 "Experiment validation is owned by axm-lab; install axm-lab "
                 "and use its experiment_check tool."
             )
+        if self.context == ProjectContext.PAPER or category == "paper":
+            raise ValueError("Paper validation is owned by axm-lab; use paper_check.")
         self.workspace_root = find_workspace_root(self.project_path)
 
     def _is_excluded(self, check_name: str, exclusions: set[str]) -> bool:

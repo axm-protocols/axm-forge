@@ -92,7 +92,7 @@ def test_experiment_check_directs_to_lab_without_scoring(tmp_path):
     assert "experiment_check" in result.error
 
 
-def test_paper_scaffold_does_not_create_flat_lab_layout(tmp_path):
+def test_paper_scaffold_routes_to_lab(tmp_path):
     result = InitScaffoldTool().execute(
         path=str(tmp_path),
         kind="paper",
@@ -101,14 +101,6 @@ def test_paper_scaffold_does_not_create_flat_lab_layout(tmp_path):
         author="Test",
         email="test@example.com",
     )
-    assert result.success, result.error
-    assert not (tmp_path / "experiments").exists()
-    assert not (tmp_path / "RESEARCH.md").exists()
-    assert "[tool.axm-lab]" not in (tmp_path / "pyproject.toml").read_text()
-    from axm_init.checks._workspace import ProjectContext, detect_context
-    from axm_init.checks.paper import check_paper_structure
-    from axm_init.core.checker import ALL_CHECKS
-
-    assert detect_context(tmp_path) == ProjectContext.PAPER
-    assert check_paper_structure(tmp_path).passed
-    assert all(fn.__name__ != "check_research_present" for fn in ALL_CHECKS["paper"])
+    assert not result.success
+    assert "paper_scaffold" in result.error
+    assert not list(tmp_path.iterdir())

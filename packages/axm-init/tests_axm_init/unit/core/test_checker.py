@@ -37,8 +37,8 @@ class TestCheckDiscovery:
         # AC6: the paper module adds three checks in a ninth category, and the
         # experiment module two more in a tenth one.
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 54
-        assert len(ALL_CHECKS) == 9
+        assert total == 52
+        assert len(ALL_CHECKS) == 8
 
     def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
         """Auto-discovery picks up the wheel-doc-shipping check (AXM-1715)."""
@@ -57,7 +57,6 @@ class TestCheckDiscovery:
             "deps",
             "changelog",
             "workspace",
-            "paper",
         }
         assert set(ALL_CHECKS.keys()) == expected
 
@@ -366,8 +365,8 @@ def test_validate_context_tables_accepts_shipped_tables() -> None:
 PAPER_CHECK_IDS = frozenset({"paper.paper_structure", "paper.plan_present"})
 
 
-def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
-    """AC6: both paper ids sit in the standalone/workspace/member skip sets."""
+def test_paper_rules_are_absent_from_init() -> None:
+    """Domain paper rules are neither registered nor in packaging skip tables."""
     skip_table = _skip_table()
 
     for context in (
@@ -375,10 +374,10 @@ def test_paper_checks_are_skipped_for_the_three_legacy_contexts() -> None:
         ProjectContext.WORKSPACE,
         ProjectContext.MEMBER,
     ):
-        assert PAPER_CHECK_IDS <= set(skip_table[context])
+        assert PAPER_CHECK_IDS.isdisjoint(skip_table[context])
 
     assert PAPER_CHECK_IDS & set(skip_table[ProjectContext.PAPER]) == set()
-    assert PAPER_CHECK_IDS <= {get_check_name(fn) for fn in _all_check_fns()}
+    assert PAPER_CHECK_IDS.isdisjoint(get_check_name(fn) for fn in _all_check_fns())
 
 
 # --- experiment context: the packaging rulebook is switched off ----------

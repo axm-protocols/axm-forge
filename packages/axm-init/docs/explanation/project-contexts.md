@@ -9,18 +9,17 @@ The experiment branch is evaluated FIRST, keyed on a root `manifest.yaml` whose 
 The marker logic is split in two, mirroring the paper shape: a pure predicate over the YAML text and a thin filesystem wrapper reading the root manifest.
 
 The paper branch recognizes `PLAN*.md` plus `paper/`. An existing explicit
-`[tool.axm-lab]` marker remains recognizable, but new writing scaffolds do not
-create Lab metadata. Paper detection applies before workspace membership.
+`[tool.axm-lab]` marker is also recognized. Paper detection applies before
+workspace membership; Lab owns new writing scaffolds and their metadata.
 
 `find_workspace_root()` and `get_workspace_members()` use `axm_ingot.uv`.
 
 ## Skip and redirect policy
 
-`SKIP_BY_CONTEXT` and `REDIRECT_BY_CONTEXT` select applicable packaging and
-paper writing checks. `validate_context_tables()` rejects unknown check IDs.
-Paper projects run their writing-layout and PLAN checks; standalone and
-workspace projects exclude paper checks. Members inherit applicable root CI
-and tooling checks.
+`SKIP_BY_CONTEXT` and `REDIRECT_BY_CONTEXT` select applicable packaging checks.
+`validate_context_tables()` rejects unknown check IDs. Members inherit applicable
+root CI and tooling checks. Paper detection and explicit `category=paper` requests
+return guidance to axm-lab's `paper_check`; Init contains no paper rules.
 
 Experiment detection is retained to return actionable guidance: Forge refuses
 experiment validation and directs callers to axm-lab's `experiment_check`.

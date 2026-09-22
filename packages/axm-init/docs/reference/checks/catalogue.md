@@ -122,24 +122,11 @@ Workspace-specific checks — only run when the project context is `WORKSPACE`:
     The check engine detects the project context (standalone, member, workspace, paper, experiment) from
     `[tool.uv.workspace]` and the paper markers.
 
-### paper (15 pts)
+### Papers belong to Lab
 
-A paper — an `[tool.axm-lab]` project, or a satellite paper recognised by its
-`paper/` + `PLAN*.md` pair — carries none of a package's
-invariants, so it is scored on its own:
-
-| Check | Weight | What It Verifies |
-|-------|--------|------------------|
-| `paper.paper_structure` | 5 | `paper/`, `README.md` and `PIPELINE.md` present |
-| `paper.plan_present` | 5 | `PLAN.md` at the paper root opens with a `---` delimited, non-empty YAML front-matter block |
-
-!!! note "A paper skips the packaging rulebook"
-    The two `paper.*` checks run **only** when the detected context is `PAPER`; they are
-    skipped for standalone projects, workspace roots and members. Conversely a paper skips
-    every packaging check — `SKIP_BY_CONTEXT[PAPER]` is derived as *everything that is not a*
-    `paper.*` *check* — so its report carries no Trusted Publishing, CI-matrix, mkdocs,
-    dependabot, lock-file, classifiers, coverage or ruff/mypy finding, and its score stays
-    meaningful.
+Paper writing and frozen-provenance rules run through axm-lab’s `paper_check`.
+Init contains no paper rules; paper contexts and `category=paper` requests
+fail with guidance to that tool.
 
 ### Experiments belong to Lab
 

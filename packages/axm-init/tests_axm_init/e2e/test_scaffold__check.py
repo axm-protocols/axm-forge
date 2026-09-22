@@ -112,23 +112,16 @@ def _run_scaffold(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_scaffold_paper_into_empty_directory(tmp_path: Path) -> None:
-    """AC1: ``scaffold --kind paper`` exits 0 and writes the plan file."""
-    paper = tmp_path / "demo-paper"
-    paper.mkdir()
-
-    scaffold = _run_scaffold(str(paper), "--kind", "paper", "--json")
-
-    assert scaffold.returncode == 0, scaffold.stderr
-    plans = [p for p in paper.rglob("*.md") if "plan" in p.name.lower()]
-    assert plans, sorted(str(p.relative_to(paper)) for p in paper.rglob("*"))
+    result = _run_scaffold(str(tmp_path), "--kind", "paper", "--json")
+    assert result.returncode == 1
+    assert "paper_scaffold" in result.stdout + result.stderr
+    assert not list(tmp_path.iterdir())
 
 
 def test_scaffold_experiment_inside_paper_json(tmp_path: Path) -> None:
     """AC5: ``scaffold --kind experiment --json`` exits 0 and lists the manifest."""
     paper = tmp_path / "demo-paper"
     paper.mkdir()
-    bootstrap = _run_scaffold(str(paper), "--kind", "paper")
-    assert bootstrap.returncode == 0, bootstrap.stderr
 
     experiment = _run_scaffold(
         str(paper),
@@ -155,24 +148,3 @@ def _check_json(project: Path) -> dict[str, object]:
     assert completed.returncode == 0, completed.stderr or completed.stdout
     report: dict[str, object] = json.loads(completed.stdout)
     return report
-
-
-def test_scaffolded_paper_passes_without_legacy_research_authority(
-    tmp_path: Path,
-) -> None:
-    """AC5: a CLI-scaffolded paper ships RESEARCH.md and checks green on it."""
-    paper = tmp_path / "research-paper"
-    paper.mkdir()
-    bootstrap = _run_scaffold(str(paper), "--kind", "paper")
-    assert bootstrap.returncode == 0, bootstrap.stderr
-
-    assert not (paper / RESEARCH_FILENAME).exists(), sorted(
-        p.name for p in paper.iterdir()
-    )
-
-    report = _check_json(paper)
-
-    failures = report["failures"]
-    assert isinstance(failures, list)
-    failed = {str(f["name"]) for f in failures}
-    assert RESEARCH_CHECK_ID not in failed, sorted(failed)

@@ -568,6 +568,11 @@ class InitScaffoldTool:
         check_pypi: bool,
     ) -> _ScaffoldContext | ToolResult:
         """Validate every precondition, returning a context or the refusal."""
+        if kwargs.get("kind") == "paper":
+            return ToolResult(
+                success=False,
+                error="Paper scaffolding is owned by axm-lab; use paper_scaffold.",
+            )
         validated = self._validate_inputs(kwargs)
         if isinstance(validated, ToolResult):
             return validated
@@ -828,56 +833,12 @@ class InitScaffoldTool:
         meta: _ProjectMeta,
         description: str,
     ) -> ToolResult:
-        """Scaffold a paper submodule at *target_path*.
-
-        Renders the writing scaffold; Lab owns investigation and experiment creation.
-
-        Args:
-            target_path: Directory the paper is rendered into.
-            paper_name: Human-supplied paper name, slugified for the template.
-            meta: Author/license identity for the template variables.
-            description: Paper title; falls back to *paper_name*.
-
-        Returns:
-            ToolResult with the created files list.
-        """
-        from axm_init.adapters.copier import CopierAdapter, CopierConfig
-        from axm_init.core.templates import TemplateType, get_template_path
-
-        slug = _slugify(paper_name)
-        result = CopierAdapter().copy(
-            CopierConfig(
-                template_path=get_template_path(TemplateType.PAPER),
-                destination=target_path,
-                data={
-                    "paper_name": slug,
-                    "title": description or paper_name,
-                    "author": meta.author_name,
-                },
-                trust_template=True,
-            )
-        )
-        if not result.success:
-            return ToolResult(
-                success=False,
-                error=result.message or "Paper scaffold failed",
-            )
-
-        files = sorted(str(f) for f in result.files_created)
-        kind = TemplateType.PAPER.value
+        """Direct obsolete paper creation to the edition-aware Lab tool."""
         return ToolResult(
-            success=True,
-            data={
-                "project_name": slug,
-                "template": kind,
-                "path": str(target_path),
-                "files": files,
-            },
-            text=_render_scaffold_text(
-                label=slug,
-                kind=kind,
-                files=files,
-                path=str(target_path),
+            success=False,
+            error=(
+                "Paper scaffolding is owned by axm-lab; use paper_scaffold "
+                "with workspace, venue, year and slug."
             ),
         )
 

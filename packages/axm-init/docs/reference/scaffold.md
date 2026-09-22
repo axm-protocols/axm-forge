@@ -98,18 +98,9 @@ Member data also contains `skipped_root_files` and `failed_root_files`. The
 tool can return success after creating the member while some root patches failed;
 inspect those fields before treating workspace integration as complete.
 
-**Paper example** (`--kind paper`, into an empty directory):
-
-```bash
-axm init_scaffold my-paper --kind paper \
-  --org axm-protocols --author "Your Name" --email "you@example.com" \
-  --description "Attention study"
-```
-
-Renders `PLAN.md`, `PIPELINE.md` (the data-provenance skeleton), `README.md`,
-`paper/` (LaTeX source + bibliography). Lab owns investigations and experiments;
-select their evidence later through downstream `research.yaml`. `--description` becomes the paper title;
-`--name` (or the directory name) is slugified into the paper slug.
+**Papers:** install axm-lab and use `paper_scaffold` with workspace, venue,
+year and slug. Init no longer bundles a paper template; `--kind paper`
+returns an explicit routing error.
 
 **Experiments:** install axm-lab and use its `investigation_scaffold` and
 `experiment_scaffold` tools. The latter requires an owning investigation and

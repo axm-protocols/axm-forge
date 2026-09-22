@@ -41,33 +41,17 @@ def _scaffold_experiment(target: Path, name: str):
     )
 
 
-def test_paper_kind_scaffolds_full_paper_tree(tmp_path: Path) -> None:
-    """AC1: the paper kind renders plan, readme, source and experiments dir.
-
-    Invoking the tool with ``kind="paper"`` on an empty target must return a
-    successful result whose file list carries the plan file, the readme, the
-    paper source and the experiments placeholder — and that tree must exist
-    on disk.
-    """
-    result = _scaffold_paper(tmp_path)
-
-    assert result.success is True, result.error
-    assert result.data is not None
-    assert result.data["template"] == "paper"
-
-    files = result.data["files"]
-    assert "README.md" in files, files
-    assert any("plan" in f.lower() and f.endswith(".md") for f in files), files
-    assert not any(f.startswith("experiments") for f in files), files
-
-    assert (tmp_path / "README.md").is_file()
-    assert not (tmp_path / "experiments").exists()
-    sources = [
-        p
-        for p in tmp_path.iterdir()
-        if p.is_file() and p.suffix in {".tex", ".md", ".qmd"} and p.name != "README.md"
-    ]
-    assert sources, sorted(p.name for p in tmp_path.iterdir())
+def test_paper_kind_routes_to_lab(tmp_path: Path) -> None:
+    result = InitScaffoldTool().execute(
+        path=str(tmp_path),
+        kind="paper",
+        org="test",
+        author="Test",
+        email="test@example.com",
+    )
+    assert not result.success
+    assert "paper_scaffold" in result.error
+    assert not list(tmp_path.iterdir())
 
 
 def test_experiment_kind_refuses_non_paper_target(tmp_path: Path) -> None:

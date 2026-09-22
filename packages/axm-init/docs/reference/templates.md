@@ -9,7 +9,7 @@ unsupported resolved combinations raise `KeyError`.
 | python | standalone | python-project |
 | python | workspace | uv-workspace |
 | python | member | workspace-member |
-| python | paper | paper-submodule |
+| python | paper | axm-lab provider (use paper_scaffold) |
 | node | standalone | node-project |
 | svelte | standalone | svelte-project |
 
@@ -170,7 +170,7 @@ The full signature is
 It returns `ScaffoldResult` and uses the existing `CopierAdapter.apply_chain`.
 It refuses a nonempty directory, file, or destination symlink before rendering,
 under the shared process-local root lock. An empty directory is accepted.
-Only standalone, workspace, member, and paper have bundled templates.
+Only standalone, workspace and member have bundled templates.
 Learning, experiment, investigation, and other domain kinds require installed
 providers; absence returns installation guidance before any write.
 Templates are trusted and can execute Copier tasks. Render/task failures can

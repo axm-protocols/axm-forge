@@ -1,15 +1,17 @@
 # Scaffold papers and research
 
-Create the paper writing scaffold:
+Install axm-lab to create a paper from existing local venue and edition inputs:
 
 ```bash
-axm init_scaffold my-paper --kind paper \
-  --org myorg --author "Your Name" --email "you@example.com" \
-  --description "Attention study"
+axm paper_scaffold --workspace /path/to/papers --venue example-symposium \
+  --year 2026 --slug attention-study --title "Attention study"
 ```
 
-Complete `PLAN.md`, `PIPELINE.md`, and the sources in `paper/`. This creates no
-Lab research authority, `RESEARCH.md`, or flat experiment root.
+The venue must have `PROFILE.md`; the year must have `EDITION.yaml` and a local
+template. Lab validates and snapshots these inputs. Complete `PLAN.md`,
+`PIPELINE.md`, and the sources in `paper/`, then run `axm paper_check --path PATH`.
+This creates no investigation or experiment. Init's former `--kind paper`
+entrypoint returns routing guidance and has no fallback template.
 
 Install axm-lab for research operations. Create an investigation with
 `investigation_scaffold`, declare the experiment in its plan, and use

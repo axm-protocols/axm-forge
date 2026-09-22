@@ -94,7 +94,9 @@ Score a project against the context- and framework-selected AXM checks.
 | `--json-output` | | `False` | Output as JSON |
 | `--agent` | | `False` | Compact agent-friendly output |
 
-**Python categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`, `paper`, `experiment`. Node/React/Svelte use their own registries.
+**Python categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`. Node/React/Svelte use their own registries.
+Paper and experiment creation/checks belong to axm-lab; use `paper_scaffold`,
+`paper_check`, `investigation_scaffold`, `experiment_scaffold`, and `experiment_check`.
 
 #### `axm init_reserve`
 

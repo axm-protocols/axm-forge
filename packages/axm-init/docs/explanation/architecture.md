@@ -108,7 +108,7 @@ The default Python registry spans 10 categories; each is an independently callab
 | `deps.py` | deps | 2 |  |
 | `changelog.py` | changelog | 2 |  |
 | `workspace.py` | workspace | 10 |  |
-| `paper.py` | paper | 2 | [Form checks and implementation boundary](../reference/checks/catalogue.md#paper-check-implementation-boundary) |
+| `paper.py` (in axm-lab) | paper | 3 | [Form checks and implementation boundary](../reference/checks/catalogue.md#paper-check-implementation-boundary) |
 | `protocols.py` | protocols *(explicit-only)* | 2 | Statically validate `[tool.axm-init.protocols]`, distribution/module identity, required package layout, and bidirectional component inventory. A separate resource check verifies both that every declared `prompts/*.md` file exists and that Hatch `force-include` ships the protocol package; at a workspace root, both checks aggregate profiled-member findings under each member's identity, without importing inspected code |
 | `_workspace.py` | *(internal)* | — | Context detection and uv workspace resolution; see [context policy](project-contexts.md) |
 
