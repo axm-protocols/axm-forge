@@ -943,20 +943,26 @@ class InitScaffoldTool:
         experiment_dir = experiments_dir / f"{index:02d}-{_slugify(experiment_name)}"
         title = description or experiment_name
 
-        result = CopierAdapter().copy(
-            CopierConfig(
-                template_path=get_template_path(TemplateType.EXPERIMENT),
-                destination=experiment_dir,
-                data={
-                    "experiment_id": experiment_dir.name,
-                    "experiment_title": title,
-                    "research_question": (
-                        description or f"What does '{title}' establish?"
-                    ),
-                },
-                trust_template=True,
+        from axm_init.scaffolding import _legacy_experiment_layers
+
+        data = {
+            "experiment_id": experiment_dir.name,
+            "experiment_title": title,
+            "research_question": description or f"What does '{title}' establish?",
+        }
+        layers = _legacy_experiment_layers()
+        adapter = CopierAdapter()
+        if layers is not None:
+            result = adapter.apply_chain(list(layers), experiment_dir, data)
+        else:
+            result = adapter.copy(
+                CopierConfig(
+                    template_path=get_template_path(TemplateType.EXPERIMENT),
+                    destination=experiment_dir,
+                    data=data,
+                    trust_template=True,
+                )
             )
-        )
         if not result.success:
             return ToolResult(
                 success=False,
@@ -1059,16 +1065,26 @@ class InitScaffoldTool:
             )
 
         copier_adapter = CopierAdapter()
-        copier_config = CopierConfig(
-            template_path=get_template_path(
-                TemplateType.LEARNING if learning else TemplateType.MEMBER
-            ),
-            destination=member_dir,
-            data=data,
-            trust_template=True,
-            overwrite=reconcile_learning,
+        from axm_init.scaffolding import ScaffoldRequest, _provider_layers
+
+        layers = (
+            _provider_layers(ScaffoldRequest("learning", member=True))
+            if learning
+            else None
         )
-        result = copier_adapter.copy(copier_config)
+        if layers is not None:
+            result = copier_adapter.apply_chain(list(layers), member_dir, data)
+        else:
+            copier_config = CopierConfig(
+                template_path=get_template_path(
+                    TemplateType.LEARNING if learning else TemplateType.MEMBER
+                ),
+                destination=member_dir,
+                data=data,
+                trust_template=True,
+                overwrite=reconcile_learning,
+            )
+            result = copier_adapter.copy(copier_config)
         if recipe_bytes is not None:
             recipe_path.write_bytes(recipe_bytes)
 

@@ -54,6 +54,11 @@ def _learning_domain(metadata: str) -> str | None:
 
 def merge_learning_metadata(metadata: str, domain: str, module_name: str) -> str:
     """Merge the learning profile into project metadata without re-rendering it."""
+    from axm_init.scaffolding import load_provider
+
+    hook = getattr(load_provider("learning"), "merge_learning_metadata", None)
+    if callable(hook):
+        return cast(str, hook(metadata, domain, module_name))
     document = parse(metadata)
     project = table_at(document, "project")
     dependencies = _array_at(project, "dependencies")
@@ -90,6 +95,11 @@ def declared_learning_domain(
     requested_domain: str | None = None,
 ) -> str | None:
     """Return the learning domain declared by the project at *root*, if any."""
+    from axm_init.scaffolding import load_provider
+
+    hook = getattr(load_provider("learning"), "declared_learning_domain", None)
+    if callable(hook):
+        return cast(str | None, hook(root, requested_domain))
     canonical_root = root.resolve()
     with target_root_lock(canonical_root):
         metadata_path = canonical_root / "pyproject.toml"
@@ -111,6 +121,12 @@ def declared_learning_domain(
 
 def register_learning_profile(root: Path, domain: str, module_name: str) -> None:
     """Persist one learning profile while serializing writes on its root."""
+    from axm_init.scaffolding import load_provider
+
+    hook = getattr(load_provider("learning"), "register_learning_profile", None)
+    if callable(hook):
+        hook(root, domain, module_name)
+        return
     canonical_root = root.resolve()
     with target_root_lock(canonical_root):
         metadata_path = canonical_root / "pyproject.toml"

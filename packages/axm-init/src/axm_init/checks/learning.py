@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from axm_init.checks._utils import TomlTable, requires_toml, section
 from axm_init.models.check import CheckResult
@@ -23,7 +24,7 @@ _FIX = "Regenerate the learning profile to restore its configuration files."
     2,
     _FIX,
 )
-def check_learning_profile(project: Path, data: TomlTable) -> CheckResult:
+def _check_learning_profile(project: Path, data: TomlTable) -> CheckResult:
     """Check the generated configuration for a declared learning profile."""
     tool = section(data, "tool")
     axm_init = section(tool, "axm-init")
@@ -75,3 +76,17 @@ def check_learning_profile(project: Path, data: TomlTable) -> CheckResult:
         details=[],
         fix="",
     )
+
+
+def check_learning_profile(project: Path) -> CheckResult:
+    """Delegate explicit learning checks to the installed domain provider."""
+    from axm_init.scaffolding import load_provider
+
+    hook = getattr(load_provider("learning"), "check_learning_profile", None)
+    if callable(hook):
+        return cast(CheckResult, hook(project))
+    return _check_learning_profile(project)
+
+
+# Preserve the historical table-level callable for direct rule consumers.
+check_learning_profile.__wrapped__ = _check_learning_profile.__wrapped__  # type: ignore[attr-defined]

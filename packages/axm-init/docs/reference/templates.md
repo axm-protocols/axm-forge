@@ -103,3 +103,120 @@ After member creation, `patch_all` returns `PatchReport` with `patched`,
 `patched_root_files`, `skipped_root_files` and `failed_root_files`.
 A created member can be reported successful despite failures while patching
 the root; inspect those fields to assess partial integration.
+
+## Public domain-provider API
+
+Domain packages import scaffold primitives from `axm_init.scaffolding`:
+`TemplateLayer`, `TemplateType`, `Framework`, `template_chain`, `CopierAdapter`,
+`CopierConfig`, `ScaffoldResult`, `ScaffoldRequest`, `ScaffoldProvider`,
+`ProviderError`, `load_provider`, and `render_scaffold`. The module also exposes
+`target_root_lock`, `table_at`, and the rule primitives described below.
+Init does not import domain packages directly.
+
+A provider is installed through a zero-argument factory or class entry point:
+
+```toml
+[project.entry-points."axm.scaffold_providers"]
+investigation = "my_domain.scaffolds:InvestigationProvider"
+```
+
+```python
+from pathlib import Path
+from axm_init.scaffolding import ScaffoldRequest, TemplateLayer
+
+
+class InvestigationProvider:
+    def layers(self, request: ScaffoldRequest) -> tuple[TemplateLayer, ...]:
+        return (
+            TemplateLayer(
+                name="investigation",
+                path=Path(__file__).parent / "templates" / "investigation",
+                data={},
+            ),
+        )
+```
+
+`ScaffoldRequest` is a frozen dataclass with `kind: str`,
+`framework: Framework | None = Framework.PYTHON`, and `member: bool = False`.
+The provider owns template selection and must return nonempty ordered layers
+whose paths stay available throughout rendering. Layer names must be unique
+and match `[A-Za-z0-9][A-Za-z0-9_-]*`; they identify separate Copier answers
+files. `TemplateLayer.data` is `dict[str, str]` and overrides caller answers;
+the caller's answer mapping may contain other object types. A provider can
+compose a standard base using
+`template_chain(TemplateType.STANDALONE, request.framework, member=False)`.
+Do not request the provider's own kind through `template_chain` from its
+`layers` method: that would recurse into discovery.
+
+`load_provider(kind)` loads only the named entry point. It returns `None` when
+absent and raises `ProviderError` for duplicate registrations, failed imports,
+or a factory result without callable `layers`. A broken installed provider
+never silently falls back to a bundled template. Discovery is not cached.
+
+```python
+from pathlib import Path
+from axm_init.scaffolding import render_scaffold
+
+result = render_scaffold(
+    "investigation",
+    Path("investigations/example"),
+    {"title": "Example investigation"},
+)
+if not result.success:
+    raise RuntimeError(result.message)
+```
+
+The full signature is
+`render_scaffold(kind, destination, data, *, framework=Framework.PYTHON, member=False)`.
+It returns `ScaffoldResult` and uses the existing `CopierAdapter.apply_chain`.
+It refuses a nonempty directory, file, or destination symlink before rendering,
+under the shared process-local root lock. An empty directory is accepted.
+Provider absence uses the historical template chain for built-in kinds;
+unknown kinds such as `investigation` require an installed provider.
+Templates are trusted and can execute Copier tasks. Render/task failures can
+leave partial output; the operation is not transactional, and the lock does
+not coordinate separate processes. Layer validation does not restrict the
+behavior of trusted template tasks.
+
+### Compatibility delegation
+
+`template_chain` resolves installed `learning` and `experiment` providers
+before bundled fallback. Standard Python, Node/Svelte, workspace, and member
+selection remains unchanged. Installed domain templates are authoritative;
+bundled learning and experiment templates remain compatibility snapshots for
+installations without the domain packages during migration.
+
+`init_scaffold --kind learning` retains its existing rerun and metadata-merge
+path, including workspace members. It does not call the create-only
+`render_scaffold` facade. The optional learning provider hooks are:
+
+- `declared_learning_domain(root, requested_domain=None) -> str | None`;
+- `merge_learning_metadata(metadata, domain, module_name) -> str`;
+- `register_learning_profile(root, domain, module_name) -> None`;
+- `check_learning_profile(root) -> CheckResult`.
+
+The legacy functions delegate to these hooks when supplied, with historical
+fallback for missing hooks. Domain hook implementations must not call those
+legacy wrappers themselves. `profile_template: Path` may expose the domain's
+compatibility overlay to consumers; init's generation uses `layers`.
+
+`init_scaffold --kind experiment` still creates indexed experiments under a
+paper root with `experiment_id`, `experiment_title`, and `research_question`
+answers. It calls the installed experiment provider's optional
+`legacy_experiment_layers() -> tuple[TemplateLayer, ...]` hook. Without that
+hook it uses the historical bundled template, even when a modern experiment
+provider is installed. It never passes these legacy answers to modern
+`layers(request)`. Modern experiment and investigation creation is available
+through `render_scaffold` using domain-owned answer contracts; `investigation`
+is not a new init CLI kind.
+
+### Explicit domain rules without quality scores
+
+`axm_init.rules` exports `run_rules`, `CheckResult`, `TomlTable`,
+`requires_toml`, and `section`; these are also re-exported by
+`axm_init.scaffolding`. `run_rules(path, rules)` accepts an iterable of
+`Callable[[Path], T]` and returns `list[T]` in rule order. It preserves domain
+finding objects, propagates rule exceptions, and performs no discovery or
+score aggregation. Scientific status can therefore use domain-owned result
+types without contributing to the default project quality score. Existing
+learning checks remain opt-in through their explicit category.

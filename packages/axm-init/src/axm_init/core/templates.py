@@ -101,6 +101,14 @@ def template_chain(
     member: bool,
 ) -> tuple[TemplateLayer, ...]:
     """Resolve the ordered Copier layers for a scaffold request."""
+    if template_type in (TemplateType.LEARNING, TemplateType.EXPERIMENT):
+        from axm_init.scaffolding import ScaffoldRequest, _provider_layers
+
+        layers = _provider_layers(
+            ScaffoldRequest(template_type.value, framework, member)
+        )
+        if layers is not None:
+            return layers
     if template_type is not TemplateType.LEARNING:
         return (
             TemplateLayer(
