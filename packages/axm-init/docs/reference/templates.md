@@ -136,7 +136,8 @@ class InvestigationProvider:
 ```
 
 `ScaffoldRequest` is a frozen dataclass with `kind: str`,
-`framework: Framework | None = Framework.PYTHON`, and `member: bool = False`.
+`framework: Framework | None = Framework.PYTHON`, `member: bool = False`,
+`existing: bool = False`, and `record_answers: bool = True`.
 The provider owns template selection and must return nonempty ordered layers
 whose paths stay available throughout rendering. Layer names must be unique
 and match `[A-Za-z0-9][A-Za-z0-9_-]*`; they identify separate Copier answers
@@ -166,8 +167,13 @@ if not result.success:
 ```
 
 The full signature is
-`render_scaffold(kind, destination, data, *, framework=Framework.PYTHON, member=False)`.
+`render_scaffold(kind, destination, data, *, framework=Framework.PYTHON, member=False, record_answers=True)`.
 It returns `ScaffoldResult` and uses the existing `CopierAdapter.apply_chain`.
+Pass `record_answers=False` to suppress engine-generated Copier answers and
+their local template paths. The option reaches provider requests and the adapter;
+explicit overlay routes can also call `apply_chain(..., record_answers=False)`.
+Opt-out preserves preexisting answer files, including those for the same layer.
+The default continues to record a separate answer file for each layer.
 It refuses a nonempty directory, file, or destination symlink before rendering,
 under the shared process-local root lock. An empty directory is accepted.
 Only standalone, workspace and member have bundled templates.

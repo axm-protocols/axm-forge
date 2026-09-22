@@ -96,3 +96,43 @@ def test_apply_chain_reapply_preserves_skipped_and_regenerates_owned_file(
     assert second.success, second.message
     assert protected.read_bytes() == protected_bytes
     assert owned.read_text() == "caller:base\n"
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_answer_opt_out_preserves_user_files_and_leaves_no_paths(
+    tmp_path: Path, existing: bool
+) -> None:
+    layers = _two_layers(tmp_path, protect_overlay=True)
+    for layer in layers:
+        (layer.path / "{{ _copier_conf.answers_file }}.jinja").write_text(
+            "{{ _copier_answers | to_nice_yaml }}"
+        )
+    destination = tmp_path / "project"
+    preserved = {}
+    if existing:
+        destination.mkdir()
+        preserved = {
+            ".copier-answers.yml": b"user: default\n",
+            ".copier-answers.base.yml": b"user: same-layer\n",
+            ".copier-answers.unrelated.yml": b"user: unrelated\n",
+            "protected.txt": b"user content\n",
+        }
+        for name, content in preserved.items():
+            (destination / name).write_bytes(content)
+
+    result = CopierAdapter().apply_chain(
+        layers, destination, {"shared": "caller"}, record_answers=False
+    )
+
+    assert result.success, result.message
+    assert (destination / "base.txt").read_text() == "caller:base\n"
+    assert sorted(p.name for p in destination.glob(".copier-answers*")) == sorted(
+        name for name in preserved if name.startswith(".copier-answers")
+    )
+    for name, content in preserved.items():
+        assert (destination / name).read_bytes() == content
+    assert all(
+        str(tmp_path) not in path.read_text()
+        for path in destination.rglob("*")
+        if path.is_file()
+    )

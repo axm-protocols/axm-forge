@@ -68,6 +68,21 @@ def test_provider_renders_with_existing_layer_engine(monkeypatch, tmp_path):
     provider.layers.assert_called_once_with(api.ScaffoldRequest(kind="learning"))
 
 
+def test_project_provider_receives_answer_opt_out(monkeypatch, tmp_path):
+    provider, _ = _provider(monkeypatch, tmp_path, name="project")
+    target = tmp_path / "target"
+    result = api.render_scaffold("project", target, {}, record_answers=False)
+    assert result.success, result.message
+    assert (target / "domain.txt").read_text() == "Example:project\n"
+    assert not list(target.glob(".copier-answers*"))
+    provider.layers.assert_called_once_with(
+        api.ScaffoldRequest(kind="project", record_answers=False)
+    )
+    api.entry_points.assert_called_once_with(
+        group="axm.scaffold_providers", name="project"
+    )
+
+
 @pytest.mark.parametrize("existing", ["directory", "file", "symlink"])
 def test_render_refuses_existing_content(monkeypatch, tmp_path, existing):
     provider, _ = _provider(monkeypatch, tmp_path)

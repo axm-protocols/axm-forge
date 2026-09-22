@@ -156,15 +156,17 @@ errors in JSON mode use an `error` field.
 ## Installed scaffold providers
 
 `axm_init.scaffolding.render_scaffold(kind, destination, data, *, framework,
-member=False)` creates projects only in missing or empty directories. Installed
+member=False, record_answers=True)` creates projects only in missing or empty directories. Installed
 `axm.scaffold_providers` entry points supply a zero-argument factory whose object
 implements `layers(request)`. Layers-only providers remain supported.
 
-`ScaffoldRequest(kind, framework=Framework.PYTHON, member=False, existing=False)`
+`ScaffoldRequest(kind, framework=Framework.PYTHON, member=False, existing=False, record_answers=True)`
 selects the layout. `existing=True` is reserved for explicit overlay routes such
 as the Learning tool, allowing providers to omit base templates that would
 replace authored project configuration. The public create renderer always uses
 `existing=False` and rejects existing content before invoking a provider.
+Set `record_answers=False` to omit engine-generated answer files; existing
+answer files are preserved when an overlay uses the adapter's matching option.
 
 Providers may implement `finalize(request, destination, data) -> None` to complete
 domain metadata after all layers render successfully. The public renderer calls

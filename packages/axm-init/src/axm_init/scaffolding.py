@@ -57,6 +57,7 @@ class ScaffoldRequest:
     framework: Framework | None = Framework.PYTHON
     member: bool = False
     existing: bool = False
+    record_answers: bool = True
 
 
 class ScaffoldProvider(Protocol):
@@ -96,6 +97,7 @@ def require_provider(kind: str) -> ScaffoldProvider:
             "learning": "axm-learning[scaffold]",
             "experiment": "axm-lab",
             "investigation": "axm-lab",
+            "project": "axm-lab",
             "paper": "axm-lab",
         }.get(kind, kind)
         raise ProviderError(
@@ -134,13 +136,14 @@ def _validate_layers(layers: tuple[TemplateLayer, ...]) -> None:
             raise ProviderError(f"Template layer path does not exist: {layer.path}")
 
 
-def render_scaffold(
+def render_scaffold(  # noqa: PLR0913 — public scaffold options remain keyword-only
     kind: str,
     destination: Path,
     data: Mapping[str, object],
     *,
     framework: Framework | None = Framework.PYTHON,
     member: bool = False,
+    record_answers: bool = True,
 ) -> ScaffoldResult:
     """Create a scaffold in a missing/empty directory; never update user files.
 
@@ -148,6 +151,7 @@ def render_scaffold(
     template-chain fallback. Templates are trusted as with init itself, and may
     execute Copier tasks. This is not transactional: task/render failures may
     leave partial output. Existing learning overlays use their dedicated route.
+    Set ``record_answers=False`` to omit engine-generated Copier answer files.
     """
     try:
         with target_root_lock(destination):
@@ -156,7 +160,9 @@ def render_scaffold(
                 and (not destination.is_dir() or any(destination.iterdir()))
             ):
                 raise ProviderError(f"Scaffold destination is not empty: {destination}")
-            request = ScaffoldRequest(kind, framework, member)
+            request = ScaffoldRequest(
+                kind, framework, member, record_answers=record_answers
+            )
             provider = load_provider(kind)
             if provider is None:
                 try:
@@ -169,7 +175,9 @@ def render_scaffold(
             else:
                 layers = provider.layers(request)
             _validate_layers(layers)
-            result = CopierAdapter().apply_chain(list(layers), destination, data)
+            result = CopierAdapter().apply_chain(
+                list(layers), destination, data, record_answers=record_answers
+            )
             if result.success:
                 _finalize_provider(provider, request, destination, data)
             return result

@@ -11,7 +11,8 @@ from axm_init.tools.scaffold import InitScaffoldTool
 
 
 @pytest.mark.parametrize(
-    "kind,package", [("learning", "axm-learning"), ("experiment", "axm-lab")]
+    "kind,package",
+    [("learning", "axm-learning"), ("experiment", "axm-lab"), ("project", "axm-lab")],
 )
 def test_absent_domain_provider_refuses_public_render(
     monkeypatch, tmp_path, kind, package
