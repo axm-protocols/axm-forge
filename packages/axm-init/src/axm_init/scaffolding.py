@@ -4,6 +4,7 @@ Entry points in ``axm.scaffold_providers`` are named after the scaffold kind
 and load a zero-argument provider factory. Domain packages own their templates.
 """
 
+import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -53,10 +54,16 @@ class ScaffoldRequest:
     kind: str
     framework: Framework | None = Framework.PYTHON
     member: bool = False
+    existing: bool = False
 
 
 class ScaffoldProvider(Protocol):
-    """Provider factory result; paths must remain available during rendering."""
+    """Provider factory result; paths must remain available during rendering.
+
+    Providers may additionally define ``finalize(request, destination, data)``.
+    It runs after successful rendering under the destination lock and may merge
+    domain metadata. Raising an exception reports failure with partial output.
+    """
 
     def layers(self, request: ScaffoldRequest) -> tuple[TemplateLayer, ...]:
         """Return ordered layers, including any required standard base layer."""
@@ -81,7 +88,11 @@ def load_provider(kind: str) -> ScaffoldProvider | None:
 
 def _validate_layers(layers: tuple[TemplateLayer, ...]) -> None:
     """Reject malformed ownership names before Copier writes answers files."""
-    if not layers or not all(isinstance(layer, TemplateLayer) for layer in layers):
+    if (
+        not isinstance(layers, tuple)
+        or not layers
+        or not all(isinstance(layer, TemplateLayer) for layer in layers)
+    ):
         raise ProviderError("Provider must return nonempty TemplateLayer values")
     names = [layer.name for layer in layers]
     if len(set(names)) != len(names):
@@ -115,6 +126,7 @@ def render_scaffold(
                 and (not destination.is_dir() or any(destination.iterdir()))
             ):
                 raise ProviderError(f"Scaffold destination is not empty: {destination}")
+            request = ScaffoldRequest(kind, framework, member)
             provider = load_provider(kind)
             if provider is None:
                 try:
@@ -125,10 +137,14 @@ def render_scaffold(
                     ) from exc
                 layers = template_chain(template_type, framework, member=member)
             else:
-                layers = provider.layers(ScaffoldRequest(kind, framework, member))
+                layers = provider.layers(request)
             _validate_layers(layers)
-            return CopierAdapter().apply_chain(list(layers), destination, data)
-    except (ProviderError, KeyError, OSError) as exc:
+            result = CopierAdapter().apply_chain(list(layers), destination, data)
+            if result.success:
+                _finalize_provider(provider, request, destination, data)
+            return result
+    except Exception as exc:
+        logging.getLogger(__name__).exception("Scaffold rendering failed")
         return ScaffoldResult(success=False, path=str(destination), message=str(exc))
 
 
@@ -148,3 +164,16 @@ def _legacy_experiment_layers() -> tuple[TemplateLayer, ...] | None:
     layers = cast(tuple[TemplateLayer, ...], hook())
     _validate_layers(layers)
     return layers
+
+
+def _finalize_provider(
+    provider: ScaffoldProvider | None,
+    request: ScaffoldRequest,
+    destination: Path,
+    data: Mapping[str, object],
+) -> None:
+    """Run an optional provider finalizer after successful layer application."""
+    hook = getattr(provider, "finalize", None)
+    if callable(hook):
+        with target_root_lock(destination):
+            hook(request, destination, data)

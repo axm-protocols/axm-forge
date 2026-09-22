@@ -176,3 +176,24 @@ The standalone JSON payload contains `project_name`, `template` and `files`;
 member, paper/experiment and protocol paths have their own additional fields.
 Do not require a `path` field on every scaffold result. Early validation
 errors in JSON mode use an `error` field.
+
+## Optional scaffold providers
+
+`axm_init.scaffolding.render_scaffold(kind, destination, data, *, framework,
+member=False)` creates projects only in missing or empty directories. Installed
+`axm.scaffold_providers` entry points supply a zero-argument factory whose object
+implements `layers(request)`. Layers-only providers remain supported.
+
+`ScaffoldRequest(kind, framework=Framework.PYTHON, member=False, existing=False)`
+selects the layout. `existing=True` is reserved for explicit overlay routes such
+as the Learning tool, allowing providers to omit base templates that would
+replace authored project configuration. The public create renderer always uses
+`existing=False` and rejects existing content before invoking a provider.
+
+Providers may implement `finalize(request, destination, data) -> None` to complete
+domain metadata after all layers render successfully. The public renderer calls
+this hook under its reentrant destination lock, with the original caller answers;
+providers must resolve any omitted answer defaults themselves. Finalization must
+preserve authored configuration when used by an overlay route. Exceptions produce
+a failed scaffold result. Rendering and finalization are not transactional and
+may leave partial output; a failed render never invokes finalization.

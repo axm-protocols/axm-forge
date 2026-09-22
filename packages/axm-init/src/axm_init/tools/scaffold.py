@@ -736,7 +736,12 @@ class InitScaffoldTool:
             )
         copier = CopierAdapter()
         if template_type is TemplateType.LEARNING:
-            layers = template_chain(template_type, ctx.framework, member=False)
+            layers = template_chain(
+                template_type,
+                ctx.framework,
+                member=False,
+                existing=(ctx.target_path / "pyproject.toml").is_file(),
+            )
             result = copier.apply_chain(
                 list(layers),
                 ctx.target_path,
@@ -1019,6 +1024,12 @@ class InitScaffoldTool:
         from axm_init.adapters.copier import CopierAdapter, CopierConfig
         from axm_init.adapters.workspace_patcher import patch_all
         from axm_init.core.templates import TemplateType, get_template_path
+        from axm_init.scaffolding import (
+            ScaffoldRequest,
+            _finalize_provider,
+            _provider_layers,
+            load_provider,
+        )
 
         workspace_root = self._resolve_workspace_root(target_path)
         if workspace_root is None:
@@ -1029,13 +1040,13 @@ class InitScaffoldTool:
         requested_learning_domain = learning_domain or module_name
         reconcile_learning = False
         if member_dir.exists() and learning:
-            try:
-                reconcile_learning = (
-                    declared_learning_domain(member_dir, requested_learning_domain)
-                    == requested_learning_domain
-                )
-            except ValueError as exc:
-                return ToolResult(success=False, error=str(exc))
+            existing_domain = declared_learning_domain(
+                member_dir, requested_learning_domain
+            )
+            reconcile_learning = existing_domain == requested_learning_domain or (
+                (member_dir / "pyproject.toml").is_file()
+                and load_provider("learning") is not None
+            )
         if member_dir.exists() and not reconcile_learning:
             return ToolResult(
                 success=False,
@@ -1065,13 +1076,11 @@ class InitScaffoldTool:
             )
 
         copier_adapter = CopierAdapter()
-        from axm_init.scaffolding import ScaffoldRequest, _provider_layers
 
-        layers = (
-            _provider_layers(ScaffoldRequest("learning", member=True))
-            if learning
-            else None
+        learning_request = ScaffoldRequest(
+            "learning", member=True, existing=reconcile_learning
         )
+        layers = _provider_layers(learning_request) if learning else None
         if layers is not None:
             result = copier_adapter.apply_chain(list(layers), member_dir, data)
         else:
@@ -1092,6 +1101,11 @@ class InitScaffoldTool:
             return ToolResult(
                 success=False,
                 error=result.message or "Member scaffold failed",
+            )
+
+        if layers is not None:
+            _finalize_provider(
+                load_provider("learning"), learning_request, member_dir, data
             )
 
         report = patch_all(workspace_root, member_name)

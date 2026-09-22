@@ -193,3 +193,65 @@ def test_legacy_experiment_does_not_use_modern_provider_answers(monkeypatch, tmp
     assert result.success, result.error
     provider.layers.assert_not_called()
     assert (target / "experiments/01-baseline/manifest.yaml").is_file()
+
+
+@pytest.mark.parametrize("member", [False, True])
+def test_public_render_finalizes_successful_provider(monkeypatch, tmp_path, member):
+    provider, _ = _provider(monkeypatch, tmp_path)
+    target = tmp_path / "target"
+    data = {"title": "Rendered"}
+
+    def finalize(request, destination, answers):
+        assert (destination / "domain.txt").is_file()
+        assert request == api.ScaffoldRequest("learning", member=member)
+        assert answers == data
+        (destination / "metadata.txt").write_text("complete")
+
+    provider.finalize = Mock(side_effect=finalize)
+    result = api.render_scaffold("learning", target, data, member=member)
+    assert result.success, result.message
+    assert (target / "metadata.txt").read_text() == "complete"
+    provider.finalize.assert_called_once()
+
+
+@pytest.mark.parametrize("error", [ValueError, RuntimeError])
+def test_public_render_reports_finalization_failure(monkeypatch, tmp_path, error):
+    provider, _ = _provider(monkeypatch, tmp_path)
+    provider.finalize = Mock(side_effect=error("Invalid domain metadata"))
+    result = api.render_scaffold("learning", tmp_path / "target", {})
+    assert not result.success
+    assert "Invalid domain metadata" in result.message
+
+
+def test_failed_render_does_not_finalize(monkeypatch, tmp_path):
+    provider, _ = _provider(monkeypatch, tmp_path)
+    provider.finalize = Mock()
+    monkeypatch.setattr(
+        api.CopierAdapter,
+        "apply_chain",
+        Mock(
+            return_value=api.ScaffoldResult(
+                success=False, path=str(tmp_path), message="Rendering failed"
+            )
+        ),
+    )
+    result = api.render_scaffold("learning", tmp_path / "target", {})
+    assert not result.success
+    provider.finalize.assert_not_called()
+
+
+def test_generator_layers_fail_before_render(monkeypatch, tmp_path):
+    provider, _ = _provider(monkeypatch, tmp_path)
+    provider.layers.return_value = iter(provider.layers.return_value)
+    result = api.render_scaffold("learning", tmp_path / "target", {})
+    assert not result.success
+    assert not (tmp_path / "target").exists()
+
+
+def test_provider_layer_failure_is_structured(monkeypatch, tmp_path):
+    provider, _ = _provider(monkeypatch, tmp_path)
+    provider.layers.side_effect = RuntimeError("Provider configuration unavailable")
+    result = api.render_scaffold("learning", tmp_path / "target", {})
+    assert not result.success
+    assert "Provider configuration unavailable" in result.message
+    assert not (tmp_path / "target").exists()
