@@ -166,22 +166,31 @@ def learning_project(
             root, distribution.replace("-", "_"), None, None, (), error
         )
 
+    # The scaffold's own post-copy tasks (`uv add`, see the template copier.yml)
+    # already provision `<root>/.venv`. Adopt it rather than creating a second
+    # environment at the same path: two owners for one artefact makes the run
+    # order decide the outcome, which is exactly how this test used to flake
+    # (green locally when the post-copy install was slow or failed, red in CI
+    # where it had already succeeded). Creating one only when the scaffold left
+    # none also keeps the test honest about what it attests: that a freshly
+    # scaffolded learning project ships a usable environment.
     venv = root / ".venv"
-    created = _run(
-        ["uv", "venv", "--python", sys.executable, str(venv)],
-        cwd=root,
-    )
-    if created.returncode != 0:
-        return GeneratedLearningProject(
-            root,
-            distribution.replace("-", "_"),
-            None,
-            None,
-            (),
-            _process_error("uv venv", created),
-        )
-
     python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if not python.exists():
+        created = _run(
+            ["uv", "venv", "--python", sys.executable, str(venv)],
+            cwd=root,
+        )
+        if created.returncode != 0:
+            return GeneratedLearningProject(
+                root,
+                distribution.replace("-", "_"),
+                None,
+                None,
+                (),
+                _process_error("uv venv", created),
+            )
+
     installed = _run(
         ["uv", "pip", "install", "--python", str(python), *references],
         cwd=root,
