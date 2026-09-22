@@ -1,5 +1,5 @@
 {
-  "score": 90.8,
+  "score": 91.5,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -11,6 +11,7 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_AUDIT: No known vulnerabilities",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
@@ -69,12 +70,6 @@
       "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=13 (C) cog=14 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "message": "1 vulnerable package(s) found",
-      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
-      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "DEPS_HYGIENE",

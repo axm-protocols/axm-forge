@@ -1,5 +1,5 @@
 {
-  "score": 90.0,
+  "score": 90.7,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
@@ -10,6 +10,7 @@
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
     "QUALITY_DIFF_SIZE: No uncommitted changes",
+    "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: Clean dependencies (0 issues)",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
@@ -73,12 +74,6 @@
       "message": "Complexity score: 60/100 (4 high-complexity functions)",
       "text": "\u2022 axm_init/templates/uv-workspace/.github/scripts/workspace_ci.py:select cc=16 (C) cog=23 [cc+cog]\n\u2022 axm_init/templates/uv-workspace/.github/scripts/workspace_ci.py:discover cc=14 (C) cog=22 [cc+cog]\n\u2022 axm_init/tools/scaffold.py:InitScaffoldTool._scaffold_member cc=18 (C) cog=15 [cc]\n\u2022 axm_init/tools/scaffold.py:InitScaffoldTool._scaffold_root cc=16 (C) cog=17 [cc+cog]",
       "fix_hint": "Refactor complex functions into smaller units"
-    },
-    {
-      "rule_id": "DEPS_AUDIT",
-      "message": "1 vulnerable package(s) found",
-      "text": "\u2022 anyio 4.12.1\u21924.14.2 CVE-2026-63374+1",
-      "fix_hint": "Run: pip-audit --fix to remediate"
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
