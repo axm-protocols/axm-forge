@@ -74,3 +74,28 @@ All passed. Formatting checked with Ruff on the same changed Python files.
 - Rule execution preserves domain findings without project-score aggregation.
 - Cross-worktree installed-provider integration and independent counter-audit are
   coordinated separately; this report does not claim their completion.
+
+## Counter-audit and coordinator verification
+
+The independent audit reproduced existing-project metadata replacement,
+incomplete public Learning rendering, and generator layers reporting successful
+empty output. Follow-up commits `dcd672038` (Forge) and `6d9e518` (Learning)
+corrected these cases and normalized provider exceptions. They add an optional
+provider finalizer and existing-target context without changing layers-only
+providers or generic create-only safety.
+
+After those commits, the coordinator rebuilt both wheels in temporary copies
+and reran all 15 original independent counter-tests against the extracted wheels:
+**15 passed**. No generated-project installation or training tasks ran.
+The implementation worker also reported **1174 passed, 1 skipped** in Forge's
+unit/integration suite and **182 passed** in Learning's suite.
+
+The broader run's isolated CLI test lacked `axm` on its subprocess PATH. The
+coordinator reran it with the worktree environment explicitly available:
+
+```sh
+PATH="$PWD/.venv/bin:$PATH" .venv/bin/python -m pytest packages/axm-init/tests_axm_init/e2e/test_scaffold__reserve.py::test_reserve_json_missing_identity_exits_nonzero -q -o addopts=''
+```
+
+Result: **1 passed**. This resolves the reported environment limitation for that
+test; it is not a claim that every end-to-end test was rerun in this final pass.
