@@ -105,7 +105,9 @@ def test_group_keeps_credentials_and_auth_dependencies_separate() -> None:
 
     credential = CredentialSpec(name="token", env="TOKEN", kind="token")
     dependency = auth.AuthDependencySpec(
-        name="claude-session", source=ConnectedSource()
+        name="claude-session",
+        source=ConnectedSource(),
+        login_command="claude login",
     )
 
     group = CredentialGroup(

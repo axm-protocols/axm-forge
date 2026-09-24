@@ -132,7 +132,9 @@ def _mixed_catalog() -> tuple[Catalog, object]:
 
     credential = CredentialSpec(name="api_key", env="API_KEY", kind="token")
     dependency = auth.AuthDependencySpec(
-        name="claude-session", source=ConnectedSource()
+        name="claude-session",
+        source=ConnectedSource(),
+        login_command="claude login",
     )
     group = CredentialGroup(
         id="agent",

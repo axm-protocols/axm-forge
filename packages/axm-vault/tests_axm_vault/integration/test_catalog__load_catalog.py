@@ -84,7 +84,9 @@ class ConnectedSource:
         return auth.AuthStatus.CONNECTED
 
 DEPENDENCY = auth.AuthDependencySpec(
-    name="github-session", source=ConnectedSource()
+    name="github-session",
+    source=ConnectedSource(),
+    login_command="gh auth login",
 )
 GROUP = CredentialGroup(
     id="mixed",

@@ -121,6 +121,7 @@ group = CredentialGroup(
         AuthDependencySpec(
             name="acme-session",
             source=AcmeSessionSource(),
+            login_command="acme auth login",
         ),
     ),
 )
@@ -130,6 +131,12 @@ Keep credentials and authentication dependencies separate: `all_specs()` feeds
 resolution and provisioning, while `auth_dependencies()` returns descriptors; call their `status()` methods to observe external session state. An authentication dependency has no environment variable or
 value accessor. If the supplied source does not implement `status()`,
 construction raises `UnsupportedAuthDeclarationError`.
+
+`login_command` is mandatory: it is the command a human runs to restore the
+session. Omitting it, or passing `None`, an empty string or only whitespace,
+raises `pydantic.ValidationError` when the dependency is declared. If this
+happens in your provider, `load_catalog()` rejects the whole contribution and
+records a `CatalogRejection`.
 
 ## 5. Use it
 

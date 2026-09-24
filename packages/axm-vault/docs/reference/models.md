@@ -71,9 +71,13 @@ the dependency is constructed.
 
 ### `AuthDependencySpec`
 
-A frozen, strict model with a required `name` and an optional
-`login_command: str | None` (default `None`). The command is metadata a human
-can run to restore the external session; it is not a credential value. Its
+A frozen, strict model with a required `name` and a required
+`login_command: str`. The command is metadata a human can run to restore the
+external session; it is not a credential value. An omitted, `None`, empty or
+whitespace-only `login_command` raises `pydantic.ValidationError` at
+construction. This check also applies to subclasses that redeclare
+`login_command: str`. The source is checked first: an invalid source raises
+`UnsupportedAuthDeclarationError` even when the command is missing. Its
 source is accepted at construction and retained privately: the only
 authentication operation exposed by the spec is `status() -> AuthStatus`. In
 particular, there is no `resolve`, `value`, `secret`, `get`, or `env_var`

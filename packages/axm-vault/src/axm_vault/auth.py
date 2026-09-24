@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Protocol, Self, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import BaseModel, ConfigDict, PrivateAttr, model_validator
 
 __all__ = [
     "AuthDependencySpec",
@@ -44,7 +44,7 @@ class AuthDependencySpec(BaseModel):  # type: ignore[explicit-any]
     )
 
     name: str
-    login_command: str | None = None
+    login_command: str
     """Command a human runs to restore the authenticated session."""
     _source: AuthSource = PrivateAttr()
 
@@ -59,3 +59,15 @@ class AuthDependencySpec(BaseModel):  # type: ignore[explicit-any]
     def status(self) -> AuthStatus:
         """Return the source's current tri-state authentication status."""
         return self._source.status()
+
+    @model_validator(mode="after")
+    def _require_login_command(self) -> Self:
+        # A model validator (not a field validator) so that it still runs when
+        # a subclass redeclares ``login_command``.
+        if not self.login_command.strip():
+            msg = (
+                f"authentication dependency {self.name!r} must declare a "
+                "non-empty login_command"
+            )
+            raise ValueError(msg)
+        return self
