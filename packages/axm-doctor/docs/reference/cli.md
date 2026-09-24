@@ -88,8 +88,8 @@ not a field of its public `credentials` map.
 filtering, no deduplication, no rewording. Each entry is an `axm.credentials`
 contribution that vault rejected: its entry point failed to load, its provider
 raised, or it built an invalid declaration such as an `AuthDependencySpec`
-with an empty `login_command`. The auth detectors skip such contributions
-silently, so this list explains why a tool shows `[no declaration]`. It is
+with an empty `login_command`. The auth detectors skip each such contribution in full
+(its valid groups included), silently, so this list explains why a tool shows `[no declaration]`. It is
 `[]` when nothing was rejected. In that case the text is unchanged; otherwise
 the text ends with a `Rejected credential contributions: <entry points>` line.
 

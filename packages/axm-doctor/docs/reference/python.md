@@ -22,6 +22,13 @@ outcomes, failures and guard timeouts map to logged_out. Without a declaration,
 PATH presence yields undetermined and absence not_installed. The detector
 currently leaves login_cmd=None. Discovery is repeated per call.
 
+`load_auth_declarations()` validates each `axm.credentials` contribution with the
+same all-or-nothing rule as `axm_vault.load_catalog()`. If the entry point fails
+to load, the provider raises, returns a non-iterable value, or returns any item
+that is not a `CredentialGroup`, the contribution adds no declaration at all,
+not even from its valid groups. It never raises, so its key set matches the
+auth dependencies listed by the vault catalog.
+
 Git/gh subprocess errors become unconfigured. The axm-config import/get occurs
 outside that handler and can raise. A truthy git.default does not validate a
 complete committer identity. Non-sensitive config values are retrieved, and

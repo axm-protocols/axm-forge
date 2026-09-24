@@ -17,10 +17,9 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Iterable
 from queue import Empty, Queue
 from threading import Thread
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
@@ -100,7 +99,6 @@ def detect_tool(name: str) -> ToolStatus:
     )
 
 
-type CredentialProvider = Callable[[], Iterable[object]]
 type AuthProbeResult = tuple[bool, object]
 
 
@@ -109,20 +107,23 @@ def load_auth_declarations() -> dict[str, AuthDependencySpec]:
     try:
         from importlib.metadata import entry_points
 
-        from axm_vault import AuthDependencySpec, CredentialGroup
+        from axm_vault import AuthDependencySpec
+        from axm_vault.catalog import groups_from_provider
     except ImportError:
         return {}
 
     declarations: dict[str, AuthDependencySpec] = {}
     for endpoint in entry_points(group="axm.credentials"):
         try:
-            provider = cast("CredentialProvider", endpoint.load())
-            groups = provider()
+            provider = endpoint.load()
         except Exception:  # noqa: BLE001, S112 - isolate a broken distribution
             continue
+        # Same all-or-nothing validation as the vault catalog: a rejected
+        # contribution (raising, non-iterable, junk item) contributes nothing.
+        groups, rejection = groups_from_provider(endpoint.name, provider)
+        if rejection is not None:
+            continue
         for group in groups:
-            if not isinstance(group, CredentialGroup):
-                continue
             for declaration in group.auth_dependencies:
                 if isinstance(declaration, AuthDependencySpec):
                     declarations[declaration.name] = declaration
