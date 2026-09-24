@@ -63,8 +63,8 @@
   "failed": [
     {
       "rule_id": "QUALITY_TESTS",
-      "message": "Test coverage: 89% (89/100)",
-      "text": "\u2022 cov 89% \u2192 100%",
+      "message": "Test coverage: 90% (89/100)",
+      "text": "\u2022 cov 90% \u2192 100%",
       "fix_hint": "Increase test coverage to >= 90%"
     },
     {

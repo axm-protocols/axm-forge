@@ -1,12 +1,12 @@
 {
-  "score": 93.6,
+  "score": 95.1,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
     "ARCH_COUPLING: Coupling: 0 modules above threshold (max fan-out: 9)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_TESTS: Test coverage: 91% (91/100)",
+    "QUALITY_TESTS: Test coverage: 92% (91/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -63,8 +63,8 @@
   "failed": [
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
-      "text": "\u2022 axm_doctor/orchestrate.py:missing_secrets cc=9 (B) cog=18 [cog]\n\u2022 axm_doctor/detect.py:load_auth_declarations cc=8 (B) cog=16 [cog]\n\u2022 axm_doctor/orchestrate.py:provision_missing cc=12 (C) cog=12 [cc]",
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
+      "text": "\u2022 axm_doctor/orchestrate.py:missing_secrets cc=9 (B) cog=18 [cog]\n\u2022 axm_doctor/orchestrate.py:provision_missing cc=12 (C) cog=12 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
