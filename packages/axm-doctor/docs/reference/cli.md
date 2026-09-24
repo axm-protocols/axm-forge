@@ -72,7 +72,7 @@ rendered text only.
 | Tool | Data fields |
 | --- | --- |
 | `env_doctor` | `tools`: name → {state, version}; `auth`: tool → {state, login_cmd, declaration_consulted}; `secrets`: complete MissingSecret rows; `config`: {git: {state}, gh: {state}} |
-| `auth_status` | `auth`: same map; `undetermined` and `logged_out`: tool-name lists; `credentials`: coordinate → {layer, present} |
+| `auth_status` | `auth`: same map; `undetermined` and `logged_out`: tool-name lists; `credentials`: coordinate → {layer, present}; `rejections`: list of {entry_point, reason} |
 
 Illustrative auth entry (JSON fragment):
 
@@ -83,6 +83,15 @@ Illustrative auth entry (JSON fragment):
 `auth_status` text groups provenance by kind and appends `[no declaration]`
 for tools lacking one. `kind` is present in `CredentialProvenance`, but is
 not a field of its public `credentials` map.
+
+`rejections` passes on `axm_vault.load_catalog().rejections()` unchanged: no
+filtering, no deduplication, no rewording. Each entry is an `axm.credentials`
+contribution that vault rejected: its entry point failed to load, its provider
+raised, or it built an invalid declaration such as an `AuthDependencySpec`
+with an empty `login_command`. The auth detectors skip such contributions
+silently, so this list explains why a tool shows `[no declaration]`. It is
+`[]` when nothing was rejected. In that case the text is unchanged; otherwise
+the text ends with a `Rejected credential contributions: <entry points>` line.
 
 Successful report construction yields `success=True` even for unhealthy
 observations. `auth_status` wraps collection exceptions into

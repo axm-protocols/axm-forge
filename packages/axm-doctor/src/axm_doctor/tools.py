@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from axm.tools.base import ToolResult
+from axm_vault import load_catalog
 
 from axm_doctor.credentials import (
     CredentialProvenance,
@@ -83,6 +84,22 @@ def _credentials_text(
             f"- {coordinate}: {entry['layer']}" for coordinate, entry in entries
         )
     return "\n".join(lines) if lines else "Credentials:"
+
+
+def _rejection_rows() -> list[dict[str, str]]:
+    """Relay vault's rejected ``axm.credentials`` contributions verbatim."""
+    return [
+        {"entry_point": rejection.entry_point, "reason": rejection.reason}
+        for rejection in load_catalog().rejections()
+    ]
+
+
+def _rejections_text(rejections: Sequence[Mapping[str, str]]) -> str:
+    """Render the rejected-contributions line, empty when none was rejected."""
+    if not rejections:
+        return ""
+    names = ", ".join(entry["entry_point"] for entry in rejections)
+    return f"\n\nRejected credential contributions: {names}"
 
 
 def _config_map() -> dict[str, dict[str, str]]:
@@ -161,6 +178,7 @@ class AuthStatusTool:
                 }
                 for coordinate, entry in provenance.items()
             }
+            rejections = _rejection_rows()
         except Exception as exc:  # noqa: BLE001 # MCP boundary: any error -> failure
             return ToolResult(success=False, error=str(exc))
         auth_text = "\n".join(
@@ -183,6 +201,10 @@ class AuthStatusTool:
                     if entry["state"] == "logged_out"
                 ],
                 "credentials": credentials,
+                "rejections": rejections,
             },
-            text=(f"Third-party auth:\n{auth_text}\n\n{_credentials_text(provenance)}"),
+            text=(
+                f"Third-party auth:\n{auth_text}\n\n{_credentials_text(provenance)}"
+                f"{_rejections_text(rejections)}"
+            ),
         )
