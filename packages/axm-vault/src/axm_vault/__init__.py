@@ -11,7 +11,12 @@ from axm_vault.auth import (
     AuthStatus,
     UnsupportedAuthDeclarationError,
 )
-from axm_vault.catalog import Catalog, CatalogRejection, load_catalog
+from axm_vault.catalog import (
+    Catalog,
+    CatalogRejection,
+    groups_from_provider,
+    load_catalog,
+)
 from axm_vault.doctor import Provenance, doctor_data
 from axm_vault.instances import (
     UnsupportedInstanceDeclarationError,
@@ -66,6 +71,7 @@ __all__ = [
     "declare_instance",
     "doctor_data",
     "get",
+    "groups_from_provider",
     "list_instances",
     "load_catalog",
     "redact",

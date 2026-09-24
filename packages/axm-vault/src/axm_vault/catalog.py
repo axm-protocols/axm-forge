@@ -64,6 +64,26 @@ class CatalogRejection(BaseModel):  # type: ignore[explicit-any]
     reason: str
 
 
+def _identifier_error(group: CredentialGroup) -> str | None:
+    """Return why ``group`` carries an identifier axm-config cannot hold.
+
+    The group id is checked as an axm-config namespace; SECRET/CONFIG spec
+    names as axm-config keys (NONSENSITIVE specs are env-only and exempt).
+    Validation delegates to :func:`axm_config.validate_segment` and stops at
+    the first failure, in declaration order, so the reason is deterministic.
+    Returns ``None`` when every identifier is valid.
+    """
+    segments = [(group.id, "namespace")] + [
+        (spec.name, "key") for spec in group.specs if spec.sensitivity in _STORABLE
+    ]
+    for segment, kind in segments:
+        try:
+            axm_config.validate_segment(segment, kind=kind)
+        except axm_config.ConfigError as exc:
+            return f"invalid credential identifier {segment!r}: {exc}"
+    return None
+
+
 def groups_from_provider(
     entry_point: str,
     provider: object,
@@ -98,6 +118,13 @@ def groups_from_provider(
             entry_point=entry_point,
             reason=f"provider raised {type(exc).__name__}: {exc}",
         )
+    # All-or-nothing: one invalid identifier rejects the whole contribution,
+    # with the exact rule Catalog._validate_names enforces (public contract,
+    # shared with axm-doctor).
+    for group in groups:
+        error = _identifier_error(group)
+        if error is not None:
+            return (), CatalogRejection(entry_point=entry_point, reason=error)
     return tuple(groups), None
 
 
@@ -139,14 +166,10 @@ class Catalog(BaseModel):  # type: ignore[explicit-any]
         normalised to ``ValueError`` so the failure arrives as pydantic's
         ``ValidationError`` like any other model-validation error.
         """
-        try:
-            for group in self.groups_:
-                axm_config.validate_segment(group.id, kind="namespace")
-                for spec in group.specs:
-                    if spec.sensitivity in _STORABLE:
-                        axm_config.validate_segment(spec.name, kind="key")
-        except axm_config.ConfigError as exc:
-            raise ValueError(str(exc)) from exc
+        for group in self.groups_:
+            error = _identifier_error(group)
+            if error is not None:
+                raise ValueError(error)
         return self
 
     def group(self, gid: str) -> CredentialGroup:

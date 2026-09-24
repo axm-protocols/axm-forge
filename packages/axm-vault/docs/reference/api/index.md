@@ -22,8 +22,9 @@ It is a runtime instance, rather than another class or factory.
 ## Module-level surfaces
 
 The installed tools include `VaultDeleteTool`, although it is not a root export.
-`KeyringUnavailableError` and `groups_from_provider` likewise require their
-module paths. They are listed separately rather than implied root imports.
+`KeyringUnavailableError` likewise requires its module path. They are listed
+separately rather than implied root imports. `groups_from_provider` is a root
+export, documented above.
 
 ::: axm_vault.tools.VaultDeleteTool
     options:
@@ -31,11 +32,6 @@ module paths. They are listed separately rather than implied root imports.
       show_source: false
 
 ::: axm_vault.store.KeyringUnavailableError
-    options:
-      show_docstring_description: false
-      show_source: false
-
-::: axm_vault.catalog.groups_from_provider
     options:
       show_docstring_description: false
       show_source: false

@@ -36,12 +36,32 @@ acme = "axm_acme.credentials:provide_groups"
 where `provide_groups` is a callable returning `list[CredentialGroup]`.
 
 Discovery is isolated per contribution. If loading or calling one entry-point
-fails, its provider is not callable, or it yields an item other than a
-`CredentialGroup`, `load_catalog()` skips only that contribution. It emits a
+fails, its provider is not callable, it yields an item other than a
+`CredentialGroup`, or one of its groups carries an invalid identifier (see
+below), `load_catalog()` skips only that contribution. It emits a
 `WARNING`, records a typed `CatalogRejection`, and continues serving every
 conforming group. The same policy is available directly through
 `groups_from_provider(entry_point, provider)` for callers that already hold a
 provider object.
+
+## `groups_from_provider()`
+
+```python
+from axm_vault import groups_from_provider
+
+groups, rejection = groups_from_provider("acme", provide_groups)
+# conforming:  ((CredentialGroup(...), ...), None)
+# defective:   ((), CatalogRejection(entry_point="acme", reason="..."))
+```
+
+The public, single-contribution judgement that `load_catalog()` applies to every
+entry-point. It never raises for a contribution defect and is **all-or-nothing**:
+one defect (non-callable provider, provider exception, non-`CredentialGroup`
+item, invalid identifier) discards the whole contribution, valid sibling groups
+included. Groups are checked in provider order and specs in declaration order,
+stopping at the first failure, so the rejection is deterministic and equal to
+the one `load_catalog()` records for the same entry-point. Callers such as
+`axm-doctor` use it to apply the exact same rule without copying it.
 
 !!! warning "Group ids and `SECRET`/`CONFIG` spec names must be valid `axm-config` segments"
     A `CONFIG` spec persists its value in `axm-config` keyed by `<name>` under
@@ -55,9 +75,13 @@ provider object.
       lowercase alphanumeric segments joined by a single `_` (no leading /
       trailing / doubled `_`, no `.`/`-`).
 
-    An identifier that could never round-trip makes building the `Catalog` (the
-    path `load_catalog()` takes) **raise `ValueError`** naming the offender — a
-    structural error caught at discovery rather than mid-`setup`.
+    During discovery, a contribution declaring an identifier that could never
+    round-trip is **rejected as a whole**: `load_catalog()` records a
+    `CatalogRejection` whose reason names the offender
+    (`invalid credential identifier 'Bad_ID': ...`) and keeps every other
+    contribution. Building a `Catalog` directly with such an identifier still
+    **raises `ValueError`** (a pydantic `ValidationError`) — the rule is a
+    type-level guarantee with a single implementation shared by both paths.
     `NONSENSITIVE` spec names are environment-only and exempt (the group id is
     still checked).
 
@@ -102,6 +126,6 @@ catalog.auth_dependencies()      # -> [] for this credential-only group
 
 ## Discovery boundaries
 
-Providers may return any iterable of `CredentialGroup`, though a list is the recommended declaration. If any yielded item is invalid, the whole provider contribution is rejected. Identifier validation happens later when the final `Catalog` is built; invalid group ids or storable names can therefore fail the entire discovery instead of producing a rejection. Duplicate ids are not errors: the last discovered group wins, so providers must use distinct ids rather than depend on installation order.
+Providers may return any iterable of `CredentialGroup`, though a list is the recommended declaration. If any yielded item is invalid, or any group carries an invalid group id or storable spec name, the whole provider contribution is rejected; the rest of discovery is unaffected. Duplicate ids are not errors: the last discovered group wins, so providers must use distinct ids rather than depend on installation order.
 
-`load_catalog()` is cached; restart a long-lived process after installing or changing providers. Importing/loading/calling a third-party provider executes its code and can perform I/O. Vault does not sandbox providers. `groups_from_provider` is available from `axm_vault.catalog`, but is not exported at the package root.
+`load_catalog()` is cached; restart a long-lived process after installing or changing providers. Importing/loading/calling a third-party provider executes its code and can perform I/O. Vault does not sandbox providers. `groups_from_provider` is exported at the package root (`from axm_vault import groups_from_provider`).

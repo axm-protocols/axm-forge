@@ -75,8 +75,12 @@ by `axm_config.validate_segment`:
 - **`NONSENSITIVE`** spec names are env-only and exempt from the key charset
   (but the group id is still checked).
 
-If any identifier violates its charset, `load_catalog()` raises at construction
-— you find out immediately, not mid-`setup`.
+If any identifier violates its charset, `load_catalog()` rejects your **whole
+contribution** (other packages' groups stay available): it logs a `WARNING` and
+records a `CatalogRejection` whose reason names the offending identifier. Check
+`load_catalog().rejections()`, or judge your provider directly with
+`axm_vault.groups_from_provider("broker", provide_credentials)`, to find out
+immediately rather than mid-`setup`.
 
 ## 4. Register the provider under the `axm.credentials` entry point
 

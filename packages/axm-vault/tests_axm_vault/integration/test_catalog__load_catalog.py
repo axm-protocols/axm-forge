@@ -15,8 +15,10 @@ from pathlib import Path
 
 import pytest
 
+import axm_vault
 from axm_vault import catalog as catalog_module
 from axm_vault.catalog import load_catalog
+from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
 from tests_axm_vault.fixtures.sample_groups import SAMPLE_GROUPS, provide_sample_groups
 
 
@@ -252,4 +254,135 @@ def test_load_catalog_warns_for_malformed_disk_contribution(
     assert any(
         record.levelno >= logging.WARNING and "broken" in record.getMessage()
         for record in caplog.records
+    )
+
+
+def _secret_group(gid: str, spec_name: str = "api_key") -> CredentialGroup:
+    return CredentialGroup(
+        id=gid,
+        package=f"pkg-{gid.lower()}",
+        title="Service",
+        specs=(
+            CredentialSpec(
+                name=spec_name,
+                env="SVC_TOKEN",
+                kind="token",
+                sensitivity=Sensitivity.SECRET,
+                required=False,
+            ),
+        ),
+    )
+
+
+_CODEX = _secret_group("codex")
+_SAIN = _secret_group("sain")
+_BAD_ID = _secret_group("Bad_ID")
+_BADSPEC = _secret_group("badspec", "Bad-Key")
+
+
+def _provide_ok() -> list[CredentialGroup]:
+    return [_CODEX]
+
+
+def _provide_bad_id() -> list[CredentialGroup]:
+    return [_BAD_ID]
+
+
+def _provide_badspec() -> list[CredentialGroup]:
+    return [_BADSPEC]
+
+
+def _provide_sain_and_bad_id() -> list[CredentialGroup]:
+    return [_SAIN, _BAD_ID]
+
+
+def _provide_sain_and_badspec() -> list[CredentialGroup]:
+    return [_SAIN, _BADSPEC]
+
+
+def _install_ok_and_bad(monkeypatch: pytest.MonkeyPatch, bad_provider: object) -> None:
+    endpoints = [
+        _FakeEntryPoint("ok", _provide_ok),
+        _FakeEntryPoint("bad", bad_provider),
+    ]
+    monkeypatch.setattr(
+        catalog_module, "entry_points", lambda *, group: endpoints, raising=True
+    )
+    load_catalog.cache_clear()
+
+
+def _assert_only_bad_rejected(offender: str) -> None:
+    catalog = load_catalog()
+    assert {g.id for g in catalog.groups()} == {"codex"}
+    assert catalog.group("codex") == _CODEX
+    rejections = catalog.rejections()
+    assert len(rejections) == 1
+    assert rejections[0].entry_point == "bad"
+    assert offender in rejections[0].reason
+
+
+@pytest.mark.integration
+def test_load_catalog_rejects_contribution_with_invalid_group_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: an invalid group id rejects only its contribution, without raising."""
+    _install_ok_and_bad(monkeypatch, _provide_bad_id)
+
+    _assert_only_bad_rejected("Bad_ID")
+
+
+@pytest.mark.integration
+def test_load_catalog_rejects_contribution_with_invalid_secret_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: an invalid SECRET spec key rejects only its contribution."""
+    _install_ok_and_bad(monkeypatch, _provide_badspec)
+
+    _assert_only_bad_rejected("Bad-Key")
+
+
+@pytest.mark.integration
+def test_load_catalog_drops_valid_sibling_of_invalid_group_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: the valid sibling 'sain' of an invalid group id is dropped too."""
+    _install_ok_and_bad(monkeypatch, _provide_sain_and_bad_id)
+
+    _assert_only_bad_rejected("Bad_ID")
+
+
+@pytest.mark.integration
+def test_load_catalog_drops_valid_sibling_of_invalid_spec_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: the valid sibling 'sain' of an invalid spec key is dropped too."""
+    _install_ok_and_bad(monkeypatch, _provide_sain_and_badspec)
+
+    _assert_only_bad_rejected("Bad-Key")
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "bad_provider",
+    [
+        _provide_bad_id,
+        _provide_badspec,
+        _provide_sain_and_bad_id,
+        _provide_sain_and_badspec,
+    ],
+    ids=["bad-id", "badspec", "sain-bad-id", "sain-badspec"],
+)
+def test_public_judgement_matches_load_catalog_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+    bad_provider: object,
+) -> None:
+    """AC7: the public judgement yields the exact rejection load_catalog records."""
+    _install_ok_and_bad(monkeypatch, bad_provider)
+
+    rejections = load_catalog().rejections()
+    assert len(rejections) == 1
+
+    assert axm_vault.groups_from_provider("bad", bad_provider) == (
+        (),
+        rejections[0],
     )

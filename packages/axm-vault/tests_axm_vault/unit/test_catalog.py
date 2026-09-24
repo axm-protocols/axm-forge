@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+import axm_vault
 from axm_vault import catalog as catalog_module
 from axm_vault.catalog import Catalog
 from axm_vault.models import CredentialGroup, CredentialSpec, Sensitivity
@@ -201,3 +202,96 @@ def test_raising_provider_is_rejected_without_propagation() -> None:
     assert groups == ()
     assert rejection is not None
     assert "kaput" in rejection.reason
+
+
+def _secret_group(gid: str, spec_name: str = "api_key") -> CredentialGroup:
+    return CredentialGroup(
+        id=gid,
+        package=f"pkg-{gid.lower()}",
+        title="Service",
+        specs=(
+            CredentialSpec(
+                name=spec_name,
+                env="SVC_TOKEN",
+                kind="token",
+                sensitivity=Sensitivity.SECRET,
+                required=False,
+            ),
+        ),
+    )
+
+
+CODEX_GROUP = _secret_group("codex")
+SAIN_GROUP = _secret_group("sain")
+BAD_ID_GROUP = _secret_group("Bad_ID")
+BADSPEC_GROUP = _secret_group("badspec", "Bad-Key")
+
+
+def _provide_codex() -> list[CredentialGroup]:
+    return [CODEX_GROUP]
+
+
+def _provide_bad_id() -> list[CredentialGroup]:
+    return [BAD_ID_GROUP]
+
+
+def _provide_badspec() -> list[CredentialGroup]:
+    return [BADSPEC_GROUP]
+
+
+def _provide_sain_and_bad_id() -> list[CredentialGroup]:
+    return [SAIN_GROUP, BAD_ID_GROUP]
+
+
+def _provide_sain_and_badspec() -> list[CredentialGroup]:
+    return [SAIN_GROUP, BADSPEC_GROUP]
+
+
+def test_groups_from_provider_rejects_invalid_group_id() -> None:
+    """AC5: a group id outside the namespace charset rejects the contribution."""
+    groups, rejection = catalog_module.groups_from_provider("bad", _provide_bad_id)
+
+    assert groups == ()
+    assert rejection is not None
+    assert rejection.entry_point == "bad"
+    assert "Bad_ID" in rejection.reason
+
+
+def test_groups_from_provider_rejects_invalid_secret_spec_key() -> None:
+    """AC5: a SECRET spec name outside the key charset rejects the contribution."""
+    groups, rejection = catalog_module.groups_from_provider("bad", _provide_badspec)
+
+    assert groups == ()
+    assert rejection is not None
+    assert rejection.entry_point == "bad"
+    assert "Bad-Key" in rejection.reason
+
+
+@pytest.mark.parametrize(
+    ("provider", "offender"),
+    [(_provide_sain_and_bad_id, "Bad_ID"), (_provide_sain_and_badspec, "Bad-Key")],
+    ids=["sain-bad-id", "sain-badspec"],
+)
+def test_groups_from_provider_rejects_whole_contribution_when_one_group_invalid(
+    provider: object, offender: str
+) -> None:
+    """AC5: one invalid group discards the valid sibling group too."""
+    groups, rejection = catalog_module.groups_from_provider("bad", provider)
+
+    assert groups == ()
+    assert rejection is not None
+    assert rejection.entry_point == "bad"
+    assert offender in rejection.reason
+
+
+def test_groups_from_provider_is_public_api() -> None:
+    """AC6: groups_from_provider is exported from the package root."""
+    assert "groups_from_provider" in axm_vault.__all__
+    assert axm_vault.groups_from_provider is catalog_module.groups_from_provider
+
+
+def test_public_groups_from_provider_accepts_valid_contribution() -> None:
+    """AC8: the root-exported judgement returns the valid groups, no rejection."""
+    result = axm_vault.groups_from_provider("ok", _provide_codex)
+
+    assert result == ((CODEX_GROUP,), None)
