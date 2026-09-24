@@ -53,7 +53,7 @@ def _install_auth_declaration(
             "    )",
             "    return (",
             "        CredentialGroup(",
-            '            id="declaration-only",',
+            '            id="declaration.only",',
             '            package="declaration-only",',
             '            title="Declaration only",',
             "            specs=(),",

@@ -107,8 +107,7 @@ def load_auth_declarations() -> dict[str, AuthDependencySpec]:
     try:
         from importlib.metadata import entry_points
 
-        from axm_vault import AuthDependencySpec
-        from axm_vault.catalog import groups_from_provider
+        from axm_vault import AuthDependencySpec, groups_from_provider
     except ImportError:
         return {}
 

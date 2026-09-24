@@ -61,7 +61,7 @@ def test_declared_auth_dependency_drives_logged_in_verdict(
             def credentials():
                 return [
                     CredentialGroup(
-                        id="declared-success",
+                        id="declared.success",
                         package="declared-success",
                         title="Declared success",
                         specs=(),
@@ -107,7 +107,7 @@ def test_discovered_disconnected_declaration_exposes_login_command(
             def credentials():
                 return [
                     CredentialGroup(
-                        id="declared-logged-out",
+                        id="declared.logged.out",
                         package="declared-logged-out",
                         title="Declared logged out",
                         specs=(),
@@ -151,7 +151,7 @@ def test_declared_inconclusive_probe_reports_consulted_declaration(
             def credentials():
                 return [
                     CredentialGroup(
-                        id="declared-inconclusive",
+                        id="declared.inconclusive",
                         package="declared-inconclusive",
                         title="Declared inconclusive",
                         specs=(),
@@ -202,7 +202,7 @@ def test_raising_declaration_is_indeterminate_for_that_tool_alone(
             def credentials():
                 return [
                     CredentialGroup(
-                        id="declared-raising",
+                        id="declared.raising",
                         package="declared-raising",
                         title="Declared raising",
                         specs=(),
@@ -262,7 +262,7 @@ def test_raising_provider_does_not_hide_another_consulted_declaration(
             def credentials():
                 return [
                     CredentialGroup(
-                        id="provider-healthy",
+                        id="provider.healthy",
                         package="provider-healthy",
                         title="Provider healthy",
                         specs=(),
@@ -315,7 +315,7 @@ def test_declaration_guard_delay_bounds_probe(
             def credentials():
                 return [
                     CredentialGroup(
-                        id="declared-slow",
+                        id="declared.slow",
                         package="declared-slow",
                         title="Declared slow",
                         specs=(),
