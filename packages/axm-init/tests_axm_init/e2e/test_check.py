@@ -176,19 +176,3 @@ def test_check_experiment_requires_lab(tmp_path: Path) -> None:
     assert proc.returncode == 1
     assert "experiment_check" in proc.stdout + proc.stderr
     assert "axm-lab" in proc.stdout + proc.stderr
-
-
-def test_check_reports_declared_learning_profile(tmp_path: Path) -> None:
-    """AC4: init_check renders the learning category and profile check line."""
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "vision-project"\n\n'
-        '[tool.axm-init.learning]\ndomain = "vision"\nschema_version = 1\n'
-    )
-    (tmp_path / "study.toml").write_text('[study]\nname = "vision"\n')
-    (tmp_path / "training.toml").write_text('[training]\nname = "vision"\n')
-
-    proc = _run_check(str(tmp_path), "--category", "learning", "--verbose")
-
-    combined = proc.stdout + proc.stderr
-    assert "learning" in combined
-    assert "learning.learning_profile" in combined

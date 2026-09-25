@@ -24,6 +24,7 @@ from copier import run_copy
 
 from axm_init.core.templates import TemplateType, get_template_path
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init._learning_provider import install_fake_learning_provider
 
 pytestmark = pytest.mark.integration
 
@@ -67,30 +68,29 @@ def learning_member_scaffold(
     workspace_root = tmp_path_factory.mktemp("learning_member_ws")
     _render(workspace_root, skip_tasks=True)
     member = "learning_member"
-    result = InitScaffoldTool().execute(
-        str(workspace_root),
-        member=member,
-        kind="learning",
-        org="test-org",
-        author="Test Author",
-        email="test@test.com",
-    )
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        install_fake_learning_provider(monkeypatch)
+        result = InitScaffoldTool().execute(
+            str(workspace_root),
+            member=member,
+            kind="learning",
+            org="test-org",
+            author="Test Author",
+            email="test@test.com",
+        )
     return workspace_root, member, result
 
 
 def test_learning_member_lands_under_packages_with_artefacts(
     learning_member_scaffold: tuple[Path, str, ToolResult],
 ) -> None:
-    """AC1: a learning member lands under packages with all learning artefacts."""
+    """AC1: a learning member lands under packages with the provider's files."""
     workspace_root, member, result = learning_member_scaffold
     member_root = workspace_root / "packages" / member
     expected = (
         member_root / "pyproject.toml",
         member_root / "training.toml",
-        member_root / "study.toml",
         member_root / "src" / member / "recipe.py",
-        member_root / "src" / member / "tools" / "train.py",
-        member_root / f"tests_{member}" / "unit" / "test_recipe.py",
     )
 
     assert result.success is True

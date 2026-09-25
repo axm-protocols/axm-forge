@@ -11,6 +11,10 @@ import pytest
 
 from axm_init.adapters.copier import CopierConfig
 from axm_init.models.results import ScaffoldResult
+from tests_axm_init._learning_provider import (
+    FakeLearningProvider,
+    install_fake_learning_provider,
+)
 from tests_axm_init.integration._helpers import MKDOCS_FULL, WORKSPACE_TOML
 
 # ── Sample Data ──────────────────────────────────────────────────────────
@@ -76,6 +80,12 @@ def scaffold_without_tasks() -> Generator[None]:
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def fake_learning_provider(monkeypatch: pytest.MonkeyPatch) -> FakeLearningProvider:
+    """Resolve the ``learning`` kind to an in-repo fake provider."""
+    return install_fake_learning_provider(monkeypatch)
 
 
 @pytest.fixture

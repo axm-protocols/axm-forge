@@ -1,79 +1,71 @@
+"""Learning metadata is routed verbatim to the installed provider's hooks."""
+
 from __future__ import annotations
 
-import importlib
-import tomllib
-from types import ModuleType
+from importlib.metadata import EntryPoint
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
-LEARNING_DISTRIBUTIONS = ("axm-learning", "axm-fit", "axm-tune")
+import pytest
 
-
-def _learning_profile_module() -> ModuleType:
-    return importlib.import_module("axm_init.core.learning_profile")
-
-
-def _metadata() -> str:
-    return """[project]
-name = "demo"
-dependencies = ["httpx>=0.27"]
-
-[tool.ruff]
-line-length = 99
-"""
+from axm_init import scaffolding
+from axm_init.core import learning_profile
 
 
-def test_merge_writes_profile_and_preserves_existing_tables() -> None:
-    """AC1: the learning profile is typed and existing tables stay verbatim."""
-    learning_profile = _learning_profile_module()
-    ruff_table = "[tool.ruff]\nline-length = 99\n"
-
-    merged = learning_profile.merge_learning_metadata(
-        _metadata(), domain="vision", module_name="axm_demo"
-    )
-    parsed = tomllib.loads(merged)
-    profile = parsed["tool"]["axm-init"]["learning"]
-
-    assert profile["domain"] == "vision"
-    assert isinstance(profile["schema_version"], int)
-    assert ruff_table in merged
+def _install(monkeypatch: pytest.MonkeyPatch, provider: object) -> None:
+    entry = Mock(spec=EntryPoint)
+    entry.load.return_value = Mock(return_value=provider)
+    monkeypatch.setattr(scaffolding, "entry_points", Mock(return_value=[entry]))
 
 
-def test_merge_declares_learning_distributions_without_dropping_existing() -> None:
-    """AC2: all learning distributions join the existing dependencies."""
-    learning_profile = _learning_profile_module()
-
-    merged = learning_profile.merge_learning_metadata(
-        _metadata(), domain="vision", module_name="axm_demo"
-    )
-    dependencies = tomllib.loads(merged)["project"]["dependencies"]
-
-    assert "httpx>=0.27" in dependencies
-    assert all(distribution in dependencies for distribution in LEARNING_DISTRIBUTIONS)
+def _provider(**hooks: object) -> SimpleNamespace:
+    return SimpleNamespace(layers=Mock(return_value=()), **hooks)
 
 
-def test_merge_is_idempotent_with_one_entry_per_distribution() -> None:
-    """AC2: reapplying the merge is byte-idempotent and adds no duplicate."""
-    learning_profile = _learning_profile_module()
+def test_merge_forwards_arguments_and_returns_provider_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1: merging is the provider's, with arguments passed through unchanged."""
+    hook = Mock(return_value="merged")
+    _install(monkeypatch, _provider(merge_learning_metadata=hook))
 
-    first = learning_profile.merge_learning_metadata(
-        _metadata(), domain="vision", module_name="axm_demo"
-    )
-    second = learning_profile.merge_learning_metadata(
-        first, domain="vision", module_name="axm_demo"
-    )
-    dependencies = tomllib.loads(second)["project"]["dependencies"]
+    merged = learning_profile.merge_learning_metadata("[project]\n", "vision", "demo")
 
-    assert second == first
-    assert "httpx>=0.27" in dependencies
-    assert all(dependencies.count(item) == 1 for item in LEARNING_DISTRIBUTIONS)
+    assert merged == "merged"
+    hook.assert_called_once_with("[project]\n", "vision", "demo")
 
 
-def test_merge_declares_generated_training_entry_point() -> None:
-    """AC3: the generated module exposes its training tool to axm.tools."""
-    learning_profile = _learning_profile_module()
+def test_declared_domain_forwards_the_requested_domain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: discovery hands the provider both the root and the requested domain."""
+    hook = Mock(return_value="vision")
+    _install(monkeypatch, _provider(declared_learning_domain=hook))
+    root = Path("/project")
 
-    merged = learning_profile.merge_learning_metadata(
-        _metadata(), domain="vision", module_name="axm_demo"
-    )
-    entry_points = tomllib.loads(merged)["project"]["entry-points"]["axm.tools"]
+    assert learning_profile.declared_learning_domain(root, "vision") == "vision"
+    hook.assert_called_once_with(root, "vision")
 
-    assert entry_points["axm_demo_train"] == ("axm_demo.learning.tool:TrainingTool")
+
+def test_register_forwards_root_domain_and_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC3: registration is delegated with its three arguments."""
+    hook = Mock(return_value=None)
+    _install(monkeypatch, _provider(register_learning_profile=hook))
+    root = Path("/project")
+
+    learning_profile.register_learning_profile(root, "vision", "demo")
+
+    hook.assert_called_once_with(root, "vision", "demo")
+
+
+def test_provider_without_the_hook_names_the_missing_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC4: an outdated provider fails with the missing hook's name."""
+    _install(monkeypatch, _provider())
+
+    with pytest.raises(scaffolding.ProviderError, match="merge_learning_metadata"):
+        learning_profile.merge_learning_metadata("", "vision", "demo")

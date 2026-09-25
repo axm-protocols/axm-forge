@@ -112,22 +112,3 @@ def test_protocol_preview_cli_matches_axmtool_structured_payload(
     assert {key: cli_payload[key] for key in keys} == {
         key: direct.data[key] for key in keys
     }
-
-
-@pytest.mark.e2e
-def test_learning_scaffold_cli_creates_learning_configs(tmp_path: Path) -> None:
-    """AC7: the learning CLI exits zero and writes both learning configs."""
-    proc = _run(
-        [
-            str(tmp_path),
-            "--kind",
-            "learning",
-            "--name",
-            "learning-cli",
-            *IDENTITY,
-        ]
-    )
-
-    assert proc.returncode == 0, proc.stderr
-    assert (tmp_path / "training.toml").is_file()
-    assert (tmp_path / "study.toml").is_file()

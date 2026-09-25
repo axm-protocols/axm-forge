@@ -8,10 +8,9 @@ import tomllib
 from pathlib import Path
 
 import pytest
-import yaml
 
 from axm_init.adapters.copier import CopierAdapter, CopierConfig
-from axm_init.core.templates import TemplateType, get_template_path, template_chain
+from axm_init.core.templates import TemplateType, get_template_path
 
 
 @pytest.fixture(scope="module")
@@ -136,88 +135,6 @@ def test_workspace_member_default_is_private(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Typing :: Typed",
     ]
-
-
-def _render_learning_overlay(destination: Path) -> Path:
-    result = CopierAdapter().copy(
-        CopierConfig(
-            template_path=template_chain(TemplateType.LEARNING, None, member=False)[
-                -1
-            ].path,
-            destination=destination,
-            data={"module_name": "axm_demo", "domain": "demo"},
-            trust_template=True,
-            skip_tasks=True,
-        )
-    )
-    assert result.success, result.message
-    return destination
-
-
-@pytest.mark.integration
-def test_learning_template_declares_preservation_patterns() -> None:
-    """AC2: the overlay preserves user-owned recipe and recipe-test files."""
-    config_path = (
-        template_chain(TemplateType.LEARNING, None, member=False)[-1].path
-        / "copier.yml"
-    )
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-
-    assert isinstance(config, dict)
-    skip_if_exists = config["_skip_if_exists"]
-    assert isinstance(skip_if_exists, list)
-    assert "src/*/learning/recipe.py" in skip_if_exists
-    assert "tests_*/unit/test_recipe.py" in skip_if_exists
-    assert config["_templates_suffix"] == ".jinja"
-
-
-@pytest.mark.integration
-def test_learning_overlay_renders_exact_project_artifacts(tmp_path: Path) -> None:
-    """AC3: rendering the overlay creates exactly its six owned files."""
-    project = _render_learning_overlay(tmp_path / "project")
-    rendered_files = {
-        path.relative_to(project).as_posix()
-        for path in project.rglob("*")
-        if path.is_file()
-    }
-
-    assert rendered_files == {
-        "study.toml",
-        "training.toml",
-        "src/axm_demo/learning/__init__.py",
-        "src/axm_demo/learning/recipe.py",
-        "src/axm_demo/learning/tool.py",
-        "tests_axm_demo/unit/test_recipe.py",
-    }
-
-
-@pytest.mark.integration
-def test_learning_overlay_configures_generated_recipe_and_search(
-    tmp_path: Path,
-) -> None:
-    """AC4: rendered TOML names its recipe and a non-empty search space."""
-    project = _render_learning_overlay(tmp_path / "project")
-    recipe_path = project / "src" / "axm_demo" / "learning" / "recipe.py"
-    recipe_module = ast.parse(recipe_path.read_text(encoding="utf-8"))
-    recipe_classes = [
-        node.name
-        for node in recipe_module.body
-        if isinstance(node, ast.ClassDef)
-        and any(
-            isinstance(base, ast.Name) and base.id == "TrainingRecipe"
-            for base in node.bases
-        )
-    ]
-    assert len(recipe_classes) == 1
-
-    with (project / "training.toml").open("rb") as stream:
-        training = tomllib.load(stream)
-    with (project / "study.toml").open("rb") as stream:
-        study = tomllib.load(stream)
-
-    expected_entry_point = f"axm_demo.learning.recipe:{recipe_classes[0]}"
-    assert training["recipe_ref"]["entry_point"] == expected_entry_point
-    assert study["search_space"]["params"]
 
 
 @pytest.mark.integration

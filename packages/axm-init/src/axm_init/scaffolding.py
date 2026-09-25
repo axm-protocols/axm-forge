@@ -6,7 +6,7 @@ and load a zero-argument provider factory. Domain packages own their templates.
 
 import logging
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.metadata import entry_points
 from pathlib import Path
@@ -26,6 +26,7 @@ __all__ = [
     "CopierConfig",
     "Framework",
     "ProviderError",
+    "ProviderHook",
     "ScaffoldProvider",
     "ScaffoldRequest",
     "ScaffoldResult",
@@ -73,6 +74,14 @@ class ScaffoldProvider(Protocol):
         ...
 
 
+class ProviderHook(Protocol):
+    """A provider capability; hooks are always invoked positionally."""
+
+    def __call__(self, *args: object) -> object:
+        """Run the capability and return its provider-defined result."""
+        ...
+
+
 def load_provider(kind: str) -> ScaffoldProvider | None:
     """Load only the requested kind; absence is distinct from broken installs."""
     entries = list(entry_points(group="axm.scaffold_providers", name=kind))
@@ -107,7 +116,7 @@ def require_provider(kind: str) -> ScaffoldProvider:
     return provider
 
 
-def provider_hook(kind: str, name: str) -> Callable[..., object]:
+def provider_hook(kind: str, name: str) -> ProviderHook:
     """Resolve a required domain capability with an actionable version error."""
     hook = getattr(require_provider(kind), name, None)
     if not callable(hook):
@@ -115,7 +124,7 @@ def provider_hook(kind: str, name: str) -> Callable[..., object]:
             f"Scaffold provider {kind!r} lacks {name}; "
             "install a compatible provider release."
         )
-    return cast(Callable[..., object], hook)
+    return cast(ProviderHook, hook)
 
 
 def _validate_layers(layers: tuple[TemplateLayer, ...]) -> None:

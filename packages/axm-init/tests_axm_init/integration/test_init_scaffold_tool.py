@@ -9,6 +9,7 @@ import pytest
 from axm.tools.base import ToolResult
 
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init._learning_provider import FakeLearningProvider
 from tests_axm_init.conftest import (
     materialize_post_copy_artifacts,
     scaffold_without_tasks,
@@ -539,7 +540,9 @@ def _scaffold_learning(tmp_path: Path) -> tuple[Path, ToolResult]:
 
 
 @pytest.mark.integration
-def test_learning_scaffold_reports_template_profile_and_mode(tmp_path: Path) -> None:
+def test_learning_scaffold_reports_template_profile_and_mode(
+    tmp_path: Path, fake_learning_provider: FakeLearningProvider
+) -> None:
     """AC3: standalone learning reports its template, profile and mode."""
     _target, result = _scaffold_learning(tmp_path)
 
@@ -551,92 +554,21 @@ def test_learning_scaffold_reports_template_profile_and_mode(tmp_path: Path) -> 
 
 
 @pytest.mark.integration
-def test_learning_scaffold_writes_learning_artifacts(tmp_path: Path) -> None:
-    """AC4: the learning scaffold renders every required training artefact."""
-    target, result = _scaffold_learning(tmp_path)
-
-    assert result.success is True, result.error
-    expected = {
-        "pyproject.toml",
-        "training.toml",
-        "study.toml",
-        "src/learning_lab/learning/recipe.py",
-        "src/learning_lab/learning/tool.py",
-        "tests_learning_lab/unit/test_recipe.py",
-    }
-    missing = sorted(path for path in expected if not (target / path).is_file())
-    assert missing == []
-
-
-@pytest.mark.integration
-def test_learning_pyproject_declares_nonempty_domain(tmp_path: Path) -> None:
-    """AC5: generated metadata declares a non-empty learning domain."""
+def test_learning_pyproject_defaults_domain_to_module_name(
+    tmp_path: Path, fake_learning_provider: FakeLearningProvider
+) -> None:
+    """AC5: without an explicit domain, the module name is registered."""
     target, result = _scaffold_learning(tmp_path)
     assert result.success is True, result.error
 
     metadata = tomllib.loads((target / "pyproject.toml").read_text(encoding="utf-8"))
     profile = metadata["tool"]["axm-init"]["learning"]
-    assert isinstance(profile["domain"], str)
-    assert profile["domain"].strip()
-
-
-@pytest.mark.integration
-def test_learning_pyproject_declares_training_tool_entry_point(
-    tmp_path: Path,
-) -> None:
-    """AC6: generated metadata exposes the rendered training AXMTool."""
-    target, result = _scaffold_learning(tmp_path)
-    assert result.success is True, result.error
-
-    metadata = tomllib.loads((target / "pyproject.toml").read_text(encoding="utf-8"))
-    entry_points = metadata["project"]["entry-points"]["axm.tools"]
-    targets = [str(value).split(":", 1)[0] for value in entry_points.values()]
-    assert "learning_lab.learning.tool" in targets
-
-
-@pytest.mark.integration
-def test_learning_rerun_preserves_edited_recipe_bytes(tmp_path: Path) -> None:
-    """AC1: an identical learning re-run preserves user-owned recipe bytes."""
-    target, initial = _scaffold_learning(tmp_path)
-    assert initial.success is True, initial.error
-    recipe = target / "src" / "learning_lab" / "learning" / "recipe.py"
-    edited = recipe.read_bytes() + b"\n# user-owned marker\n"
-    recipe.write_bytes(edited)
-
-    rerun = _scaffold_without_tasks(
-        target,
-        name="learning-lab",
-        kind="learning",
-    )
-
-    assert rerun.success is True, rerun.error
-    assert recipe.read_bytes() == edited
-
-
-@pytest.mark.integration
-def test_learning_rerun_refreshes_training_configuration(tmp_path: Path) -> None:
-    """AC2: the identical re-run refreshes template-owned training config."""
-    target, initial = _scaffold_learning(tmp_path)
-    assert initial.success is True, initial.error
-    training = target / "training.toml"
-    marker = "hand_written_marker = true"
-    training.write_text(f"{marker}\n", encoding="utf-8")
-
-    rerun = _scaffold_without_tasks(
-        target,
-        name="learning-lab",
-        kind="learning",
-    )
-
-    assert rerun.success is True, rerun.error
-    refreshed = training.read_text(encoding="utf-8")
-    assert marker not in refreshed
-    assert 'entry_point = "learning_lab.learning.recipe:SyntheticRecipe"' in refreshed
+    assert profile["domain"] == "learning_lab"
 
 
 @pytest.mark.integration
 def test_learning_member_rerun_reconciles_same_domain_and_preserves_recipe(
-    tmp_path: Path,
+    tmp_path: Path, fake_learning_provider: FakeLearningProvider
 ) -> None:
     """AC1: a same-domain member re-run succeeds and preserves recipe bytes."""
     workspace_root = tmp_path / "workspace"
@@ -671,7 +603,7 @@ def test_learning_member_rerun_reconciles_same_domain_and_preserves_recipe(
 
 @pytest.mark.integration
 def test_learning_member_domain_conflict_is_atomic_and_names_both_domains(
-    tmp_path: Path,
+    tmp_path: Path, fake_learning_provider: FakeLearningProvider
 ) -> None:
     """AC2: a changed-domain member re-run names both domains and writes nothing."""
     workspace_root = tmp_path / "workspace"

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init._learning_provider import FakeLearningProvider
 from tests_axm_init.conftest import (
     materialize_post_copy_artifacts,
     scaffold_without_tasks,
@@ -15,7 +16,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_composed_learning_pyproject_keeps_profile_and_base_tooling(
-    tmp_path: Path,
+    tmp_path: Path, fake_learning_provider: FakeLearningProvider
 ) -> None:
     """AC1: composed metadata contains learning and base-tooling contracts."""
     root = tmp_path / "learning-lab"
@@ -34,9 +35,6 @@ def test_composed_learning_pyproject_keeps_profile_and_base_tooling(
 
     metadata = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     assert metadata["tool"]["axm-init"]["learning"]["domain"] == "forecasting"
-    assert metadata["project"]["entry-points"]["axm.tools"]["learning_lab_train"] == (
-        "learning_lab.learning.tool:TrainingTool"
-    )
     assert isinstance(metadata["tool"]["mypy"], dict)
     assert isinstance(metadata["tool"]["coverage"]["run"], dict)
     assert isinstance(metadata["tool"]["hatch"]["version"], dict)
