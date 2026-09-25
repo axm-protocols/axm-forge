@@ -41,8 +41,9 @@ from pathlib import Path
 from typing import NamedTuple, cast
 
 from axm_config.home import axm_home_path, resolve_safe
-from axm_config.profile import current_profile, profile_root_for
+from axm_config.profile import PROFILE_ENV_VAR, current_profile, profile_root_for
 from axm_config.resolver import ConfigError, resolve
+from axm_config.sandbox import SessionSandbox, active_sandbox
 
 __all__ = [
     "PATHS_NAMESPACE",
@@ -88,7 +89,12 @@ def _resolve_configured(
     home_override = os.environ.get("AXM_HOME")
     if home_override is None:
         return _MISSING
-    config_path = Path(home_override) / "config.toml"
+    return _read_home_config(Path(home_override), namespace, key)
+
+
+def _read_home_config(home: Path, namespace: str, key: str) -> object:
+    """Read ``namespace.key`` from ``home/config.toml``, else ``_MISSING``."""
+    config_path = home / "config.toml"
     try:
         with config_path.open("rb") as stream:
             document = tomllib.load(stream)
@@ -119,6 +125,68 @@ _PROFILE_RELATIVE_PATHS = {
     (PATHS_NAMESPACE, "warden_socket"): Path("warden.sock"),
 }
 
+# The six state paths a session sandbox owns, relative to its root. The socket
+# name is short to stay under the 104-byte AF_UNIX path limit.
+_SANDBOX_RELATIVE_PATHS: dict[tuple[str, str], Path] = {
+    (PATHS_NAMESPACE, "sessions_root"): Path("sessions"),
+    (PATHS_NAMESPACE, "quality_dir"): Path("quality"),
+    (PATHS_NAMESPACE, "protocols_dir"): Path("protocols"),
+    (PATHS_NAMESPACE, "warden_socket"): Path("w.sock"),
+    ("tickets", "db_path"): Path("tickets") / "tickets.db",
+    ("warden", "log_path"): Path("warden.log"),
+}
+
+
+def _normalise_configured(namespace: str, key: str, configured: object) -> Path:
+    """Expand and resolve a configured path, refusing bad or in-repo values."""
+    if not isinstance(configured, str | Path):
+        msg = (
+            f"invalid path for {namespace}.{key}: "
+            f"expected a string, got {type(configured).__name__}"
+        )
+        raise ConfigError(msg)
+    expanded = Path(configured).expanduser()
+    try:
+        return resolve_safe(expanded)
+    except ValueError as exc:
+        msg = f"invalid path for {namespace}.{key}: {exc}"
+        raise ConfigError(msg) from exc
+
+
+def _sandbox_defers(sandbox: SessionSandbox) -> bool:
+    """Whether a test-set ``AXM_PROFILE`` or ``HOME`` restores today's rules."""
+    if PROFILE_ENV_VAR in os.environ:
+        return True
+    home = os.environ.get("HOME")
+    current = Path(home) if home else Path.home()
+    return current != sandbox.launch_home
+
+
+def _sandboxed_path(namespace: str, key: str) -> Path | None:
+    """Resolve one of the six state paths under an active sandbox, else None.
+
+    Precedence: a test-set ``AXM_PROFILE`` or ``HOME`` defers to today's full
+    resolution (None); the key's own variable wins with no profile
+    containment; then a test-set ``AXM_HOME`` whose ``config.toml`` sets the
+    key; otherwise the sandbox-owned path. The launch ``config.toml`` files
+    are never read for these keys.
+    """
+    relative = _SANDBOX_RELATIVE_PATHS.get((namespace, key))
+    if relative is None:
+        return None
+    sandbox = active_sandbox()
+    if sandbox is None or _sandbox_defers(sandbox):
+        return None
+    env_value = os.environ.get(f"AXM_{namespace.upper()}_{key.upper()}")
+    if env_value:
+        return _normalise_configured(namespace, key, env_value)
+    axm_home = os.environ.get("AXM_HOME")
+    if axm_home and axm_home != sandbox.launch_axm_home:
+        configured = _read_home_config(Path(axm_home), namespace, key)
+        if configured is not _MISSING:
+            return _normalise_configured(namespace, key, configured)
+    return sandbox.root / relative
+
 
 def get_path(
     key: str,
@@ -140,6 +208,9 @@ def get_path(
     in-repo path, so a bad config fails loudly at the boundary rather than
     writing runtime state somewhere unintended.
     """
+    sandboxed = _sandboxed_path(namespace, key)
+    if sandboxed is not None:
+        return sandboxed
     configured = _resolve_configured(namespace, key)
     requested = _requested_profile(profile)
     root = profile_root_for(requested)
@@ -148,18 +219,7 @@ def get_path(
         if root is not None and relative is not None:
             return root / relative
         return default
-    if not isinstance(configured, str | Path):
-        msg = (
-            f"invalid path for {namespace}.{key}: "
-            f"expected a string, got {type(configured).__name__}"
-        )
-        raise ConfigError(msg)
-    expanded = Path(configured).expanduser()
-    try:
-        resolved = resolve_safe(expanded)
-    except ValueError as exc:
-        msg = f"invalid path for {namespace}.{key}: {exc}"
-        raise ConfigError(msg) from exc
+    resolved = _normalise_configured(namespace, key, configured)
 
     if root is not None:
         resolved_root = root.expanduser().resolve()

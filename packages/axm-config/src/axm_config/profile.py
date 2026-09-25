@@ -6,6 +6,7 @@ from pathlib import Path
 
 from axm_config.home import axm_home_path
 from axm_config.resolver import ConfigError
+from axm_config.sandbox import active_sandbox
 
 __all__ = [
     "DEFAULT_PROFILE",
@@ -33,7 +34,11 @@ def validate_profile_name(name: str) -> str:
 
 def current_profile() -> str:
     """Return the active, lexically validated state profile."""
-    profile = os.environ.get(PROFILE_ENV_VAR) or DEFAULT_PROFILE
+    profile = os.environ.get(PROFILE_ENV_VAR)
+    if not profile:
+        sandbox = active_sandbox()
+        launch = sandbox.launch_profile if sandbox is not None else None
+        profile = launch or DEFAULT_PROFILE
     return validate_profile_name(profile)
 
 
