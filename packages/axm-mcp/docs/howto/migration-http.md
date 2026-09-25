@@ -29,8 +29,9 @@ overrides that resolution verbatim. For several processes, run them under
 distinct `AXM_PROFILE` values — they then pick distinct ports and PID files
 on their own; see [configuration](../reference/configuration.md).
 
-Dedicated HTTP can serve multiple clients, but it does not require a separate
-write contract from each. For cooperative per-session scopes, use the
+Dedicated HTTP can serve multiple clients. Configure them without an
+`X-AXM-Write-Contract` header: this mode rejects any request carrying one with
+HTTP 403. For cooperative per-session scopes, use the
 [shared-policy setup](../reference/shared-contracts.md), including its
 current limitations.
 
@@ -89,6 +90,8 @@ matching profile. If you installed launchd, use `axm-mcp uninstall`;
 | Connection refused | Foreground server logs, bind host, explicit port and the client's URL |
 | Address already in use | Select another port and use it consistently in serve/status/client configuration |
 | Missing tools | Installed environment, disabled patterns and entry-point loading logs |
+| HTTP 400 for a shared write contract | Send valid JSON with `execution_root`, `allowed_prefixes` and `markdown_only_prefixes` in the required shapes |
+| HTTP 403 for a dedicated write contract | Remove `X-AXM-Write-Contract` from every request, including `initialize`, or start in shared mode |
 | Unbound session in shared mode | MCP session ID and valid contract header; discovery alone does not bind a contract |
 | PermissionError on macOS | Filesystem permissions and system privacy settings for the actual service process |
 | High CPU or stalled tool | Identify the responsible process/call first; stopping HTTP does not stop unrelated stdio children |

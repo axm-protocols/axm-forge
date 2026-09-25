@@ -40,11 +40,23 @@ MCP transport, not a made-up identity.
 
 ## Binding and enforcement
 
-The shared HTTP middleware reads both headers and binds a normalized
-contract to the supplied identity before tool dispatch. A subsequent valid
-declaration for that identity **replaces** its prior contract. Missing headers
-do not create a binding. Invalid declarations are ignored by the middleware;
-an existing binding is not revoked by a malformed replacement.
+The HTTP middleware checks `X-AXM-Write-Contract` before MCP dispatch. In
+shared mode, the header must be valid JSON with a string `execution_root` and
+lists of strings for `allowed_prefixes` and `markdown_only_prefixes`. An invalid
+header receives HTTP 400 with a reason naming the write contract, even on
+`initialize` before a session ID exists. The request does not reach an MCP tool.
+
+A valid header with `Mcp-Session-Id` binds a normalized contract to that
+identity before tool dispatch. A subsequent valid declaration **replaces** its
+prior contract. A valid header on `initialize` passes validation and reaches
+the MCP transport, but does not bind a contract until a later request supplies
+the session ID. A request without the contract header creates no binding;
+an invalid replacement receives 400 and leaves an existing binding intact.
+
+In dedicated mode, any request carrying the contract header receives HTTP 403:
+write contracts are not enforced by a dedicated server. Omit the header for a
+dedicated session. Rejected requests are logged once at WARNING level by
+`axm_mcp.mcp_app` and do not reach MCP dispatch.
 
 Both catalog calls and direct hot-path calls resolve the contract at call
 time. A session carrying a contract is restricted to that contract's perimeter.
