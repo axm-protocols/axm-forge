@@ -31,12 +31,12 @@ value nobody chose. The CLI, the lower-level server API and the AXM daemon
 descriptor now read that same seam, so they can no longer disagree about
 where the server listens.
 
-The serving policy resolves explicit `--no-shared` → `AXM_MCP_SERVE_MODE`
+The serving policy resolves explicit `--shared / --no-shared` → `AXM_MCP_SERVE_MODE`
 → `[mcp] serve_mode` in AXM configuration → `dedicated`.
-Only `shared` and `dedicated` are valid. **The explicit `--shared` flag
-currently exits 1**, even on `serve`, with a message referring to stdio.
-Use `AXM_MCP_SERVE_MODE=shared axm-mcp serve --port 9427` to start the
-shared policy. Keep the facade enabled; see [shared contracts](shared-contracts.md).
+Only `shared` and `dedicated` are valid. `axm-mcp serve --shared --port 9427`
+(or `AXM_MCP_SERVE_MODE=shared`) starts the shared policy; the resolved mode is
+printed on stderr as `axm-mcp: serve mode <mode>` before the server starts.
+Keep the facade enabled; see [shared contracts](shared-contracts.md).
 
 Before starting, the command checks the profile's PID file and refuses if it
 identifies a live axm-mcp process. It writes its own PID, and on exit removes
@@ -58,11 +58,13 @@ identity, authorization or tool-execution check.
 The real server's health object is:
 
 ```json
-{"status": "ok", "tools_count": 7}
+{"status": "ok", "tools_count": 7, "serve_mode": "dedicated", "write_contracts_enforced": false}
 ```
 
 The count is illustrative: it counts **directly registered MCP tools**,
 including meta-tools, rather than all facade-dispatchable entries.
+`serve_mode` is the resolved serving policy; `write_contracts_enforced` is
+`true` only when it is `shared`.
 
 ### stop
 

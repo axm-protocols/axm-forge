@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import os
-from unittest.mock import patch
+from collections.abc import Iterator
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -183,6 +185,61 @@ class TestHealthEndpoint:
         body = json.loads(response.body)
         assert body["status"] == "ok"
         assert body["tools_count"] == 3
+
+
+@pytest.fixture
+def _restore_server_state(
+    _restore_http_mode: None, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Undo any process state a serve() call records on the server module."""
+    monkeypatch.delenv("AXM_MCP_SHARED", raising=False)
+    monkeypatch.delenv("AXM_MCP_SERVE_MODE", raising=False)
+    snapshot = dict(vars(server))
+    yield
+    for key in set(vars(server)) - set(snapshot):
+        delattr(server, key)
+    for key, value in snapshot.items():
+        if vars(server).get(key) is not value:
+            setattr(server, key, value)
+
+
+def _fake_mcp() -> MagicMock:
+    fake = MagicMock()
+    fake.list_tools = AsyncMock(return_value=[MagicMock(), MagicMock()])
+    return fake
+
+
+class TestHealthReportsServeMode:
+    """AC1, AC4: /health reports the mode serve() resolved."""
+
+    @pytest.mark.asyncio
+    async def test_health_reports_shared_after_shared_serve(
+        self, _restore_server_state: None
+    ) -> None:
+        """AC1: a shared serve makes /health report shared + enforced contracts."""
+        fake = _fake_mcp()
+        with patch("axm_mcp.server.mcp", fake):
+            server.serve(port=8765, shared=True, session_resolver=lambda: None)
+            response = await server.health_check(MagicMock())
+        fake.run.assert_called_once()
+        body = json.loads(response.body)
+        assert body["serve_mode"] == "shared"
+        assert body["write_contracts_enforced"] is True
+
+    @pytest.mark.asyncio
+    async def test_health_reports_dedicated_after_default_serve(
+        self, _restore_server_state: None
+    ) -> None:
+        """AC4: a default serve reports dedicated, unenforced, keys preserved."""
+        fake = _fake_mcp()
+        with patch("axm_mcp.server.mcp", fake):
+            server.serve(port=8765)
+            response = await server.health_check(MagicMock())
+        body = json.loads(response.body)
+        assert body["serve_mode"] == "dedicated"
+        assert body["write_contracts_enforced"] is False
+        assert body["status"] == "ok"
+        assert body["tools_count"] == 2
 
 
 # ─────────────────────── Functional tests ────────────────

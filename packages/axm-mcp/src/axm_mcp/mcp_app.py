@@ -141,7 +141,11 @@ class _SessionAwareMCPServer(MCPServer[object]):
         # and passes every unit test, then fails at boot when the transport
         # supplies them -- so relay whatever the caller sent.
         app = super().streamable_http_app(**kwargs)
-        if resolve_serve_mode() == "shared":
+        # An explicit ``serve --shared`` reaches this process only through the
+        # registration switch (``AXM_MCP_SHARED``), which outranks the
+        # environment/file policy exactly as the CLI option does.
+        explicit = "shared" if _SHARED_MODE else None
+        if resolve_serve_mode(explicit) == "shared":
             app.add_middleware(_SessionContractMiddleware)
         return app
 

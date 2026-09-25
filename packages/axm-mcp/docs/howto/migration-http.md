@@ -43,10 +43,13 @@ axm-mcp status --host 127.0.0.1 --port 9427
 curl --fail http://127.0.0.1:9427/health
 ```
 
-A real server returns a JSON object with `status: "ok"` and
-`tools_count`. That number measures direct registration, not the full
-catalog. `status` alone only tests reachability; it can accept a 200
-non-JSON page.
+A real server returns a JSON object with `status: "ok"`,
+`tools_count`, `serve_mode` and `write_contracts_enforced`. The count measures
+direct registration, not the full catalog. Check `serve_mode` to confirm the
+policy the server actually resolved: `write_contracts_enforced` is `true` only
+under `shared` (for example after `axm-mcp serve --shared`). The same mode is
+printed on the server's stderr at startup as `axm-mcp: serve mode <mode>`.
+`status` alone only tests reachability; it can accept a 200 non-JSON page.
 
 ## 4. Connect your client
 

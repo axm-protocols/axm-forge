@@ -15,12 +15,17 @@ from starlette.responses import JSONResponse
 
 import axm_mcp.wrapping as _wrapping
 from axm_mcp.mcp_app import mcp
-from axm_mcp.settings import HEALTH_PATH, resolve_http_port
+from axm_mcp.settings import HEALTH_PATH, ServeMode, resolve_http_port
 
 __all__ = ["health_check", "serve"]
 
 _MIN_PORT = 1
 _MAX_PORT = 65535
+
+# The serving policy this process resolved, recorded by ``serve`` before the
+# transport starts. ``/health`` reports it, and whether write contracts are
+# enforced is derived from it alone — never from a second flag.
+_SERVE_MODE: ServeMode = "dedicated"
 
 
 class SharedModeNotArmedError(RuntimeError):
@@ -37,7 +42,14 @@ async def health_check(request: Request) -> JSONResponse:
     parallel counter that could drift from the registration seam.
     """
     tools = await mcp.list_tools()
-    return JSONResponse({"status": "ok", "tools_count": len(tools)})
+    return JSONResponse(
+        {
+            "status": "ok",
+            "tools_count": len(tools),
+            "serve_mode": _SERVE_MODE,
+            "write_contracts_enforced": _SERVE_MODE == "shared",
+        }
+    )
 
 
 def serve(
@@ -73,5 +85,7 @@ def serve(
     # server starts. Stdio mode (cli._stdio) leaves this False — one process
     # per conversation, no cross-session contention. This boundary is the
     # single writer of _HTTP_MODE=True in production.
+    global _SERVE_MODE
+    _SERVE_MODE = "shared" if shared else "dedicated"
     _wrapping._HTTP_MODE = True
     mcp.run(transport="streamable-http", host=host, port=port)

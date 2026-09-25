@@ -52,26 +52,6 @@ def test_serve(
 
 
 @pytest.mark.e2e
-def test_shared_stdio_is_refused(
-    tmp_path: Path,
-    cli_binary: str,
-    sandbox_env: Callable[[Path], dict[str, str]],
-) -> None:
-    """AC5: stdio cannot arm shared mode without a session identity."""
-    result = subprocess.run(  # noqa: S603
-        [cli_binary, "serve", "--shared"],
-        capture_output=True,
-        text=True,
-        env=sandbox_env(tmp_path),
-        timeout=10,
-        check=False,
-    )
-
-    assert result.returncode == 1
-    assert "shared mode" in result.stderr.lower()
-
-
-@pytest.mark.e2e
 def test_invalid_configured_serve_mode_is_refused(
     tmp_path: Path,
     cli_binary: str,
@@ -117,6 +97,53 @@ def _shared_mode_process(
     stderr_stream = stderr_path.open("w", encoding="utf-8")
     process = subprocess.Popen(  # noqa: S603
         [cli_binary, "serve", "--host", "127.0.0.1", "--port", str(free_port)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=stderr_stream,
+        text=True,
+        env=env,
+    )
+    stderr_stream.close()
+    return process, env, stderr_path
+
+
+def _isolated_serve_process(  # noqa: PLR0913
+    home: Path,
+    cli_binary: str,
+    port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+    *,
+    extra_args: tuple[str, ...] = (),
+    serve_mode_env: str | None = None,
+    config_serve_mode: str | None = None,
+) -> tuple[subprocess.Popen[str], dict[str, str], Path]:
+    """Start ``serve`` under an isolated AXM_HOME, empty unless a mode is given."""
+    home.mkdir(parents=True, exist_ok=True)
+    config_home = home / ".axm"
+    config_home.mkdir(parents=True, exist_ok=True)
+    if config_serve_mode is not None:
+        (config_home / "config.toml").write_text(
+            f'[mcp]\nserve_mode = "{config_serve_mode}"\n',
+            encoding="utf-8",
+        )
+    env = sandbox_env(home)
+    env["AXM_HOME"] = str(config_home)
+    env.pop("AXM_MCP_SERVE_MODE", None)
+    env.pop("AXM_MCP_SHARED", None)
+    if serve_mode_env is not None:
+        env["AXM_MCP_SERVE_MODE"] = serve_mode_env
+    stderr_path = home / "serve.stderr"
+    stderr_stream = stderr_path.open("w", encoding="utf-8")
+    process = subprocess.Popen(  # noqa: S603
+        [
+            cli_binary,
+            "serve",
+            *extra_args,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=stderr_stream,
@@ -179,6 +206,29 @@ def _stop_server(
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=10)
+
+
+def _health_of_isolated_serve(
+    home: Path,
+    cli_binary: str,
+    port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+    **options: Any,
+) -> dict[str, Any]:
+    """Start an isolated serve, require it alive, and return its /health JSON."""
+    process, env, stderr_path = _isolated_serve_process(
+        home, cli_binary, port, sandbox_env, **options
+    )
+    try:
+        status = _wait_for_status(cli_binary, port, env, process)
+        assert status.returncode == 0, stderr_path.read_text(encoding="utf-8")
+        assert process.poll() is None, stderr_path.read_text(encoding="utf-8")
+        response = httpx.get(f"http://127.0.0.1:{port}/health", timeout=5)
+        assert response.status_code == 200
+        payload: dict[str, Any] = response.json()
+        return payload
+    finally:
+        _stop_server(cli_binary, env, process)
 
 
 def _write_contract_header(scope: Path) -> str:
@@ -467,3 +517,209 @@ def test_shared_config_serve_emits_no_arming_or_stdio_refusal(
         assert not ("stdio" in stderr and "shared mode" in stderr)
     finally:
         _stop_server(cli_binary, env, process)
+
+
+@pytest.mark.e2e
+def test_shared_flag_serve_reports_shared_on_health(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC1: ``serve --shared`` stays up and /health reports enforced shared mode."""
+    payload = _health_of_isolated_serve(
+        tmp_path / "flag-shared",
+        cli_binary,
+        free_port,
+        sandbox_env,
+        extra_args=("--shared",),
+    )
+    assert payload["serve_mode"] == "shared"
+    assert payload["write_contracts_enforced"] is True
+
+
+@pytest.mark.e2e
+def test_env_shared_serve_reports_shared_on_health(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC2: AXM_MCP_SERVE_MODE=shared alone arms shared mode on /health."""
+    payload = _health_of_isolated_serve(
+        tmp_path / "env-shared",
+        cli_binary,
+        free_port,
+        sandbox_env,
+        serve_mode_env="shared",
+    )
+    assert payload["serve_mode"] == "shared"
+    assert payload["write_contracts_enforced"] is True
+
+
+@pytest.mark.e2e
+def test_config_shared_serve_reports_shared_on_health(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC3: a config-file-only shared serve_mode is reported on /health."""
+    process, env, stderr_path = _shared_mode_process(
+        tmp_path,
+        cli_binary,
+        free_port,
+        sandbox_env,
+    )
+    try:
+        status = _wait_for_status(cli_binary, free_port, env, process)
+        assert status.returncode == 0, stderr_path.read_text(encoding="utf-8")
+        payload = httpx.get(f"http://127.0.0.1:{free_port}/health", timeout=5).json()
+        assert payload["serve_mode"] == "shared"
+        assert payload["write_contracts_enforced"] is True
+    finally:
+        _stop_server(cli_binary, env, process)
+
+
+@pytest.mark.e2e
+def test_default_serve_reports_dedicated_on_health(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC4: no option, env or config gives dedicated mode, keys preserved."""
+    payload = _health_of_isolated_serve(
+        tmp_path / "default",
+        cli_binary,
+        free_port,
+        sandbox_env,
+    )
+    assert payload["serve_mode"] == "dedicated"
+    assert payload["write_contracts_enforced"] is False
+    assert "status" in payload
+    assert "tools_count" in payload
+
+
+@pytest.mark.e2e
+def test_shared_flag_refuses_write_outside_contract(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC5: on ``serve --shared`` a write outside the session perimeter fails."""
+    inside = tmp_path / "inside"
+    outside = tmp_path / "outside"
+    inside.mkdir()
+    outside.mkdir()
+    process, env, stderr_path = _isolated_serve_process(
+        tmp_path / "home",
+        cli_binary,
+        free_port,
+        sandbox_env,
+        extra_args=("--shared",),
+    )
+    try:
+        status = _wait_for_status(cli_binary, free_port, env, process)
+        assert status.returncode == 0, stderr_path.read_text(encoding="utf-8")
+        success, _error, _session_id = asyncio.run(
+            _call_shared_tool(
+                free_port,
+                headers={"X-AXM-Write-Contract": _write_contract_header(inside)},
+                name="batch_edit",
+                arguments={
+                    "path": str(outside),
+                    "operations": [
+                        {
+                            "op": "create",
+                            "file": "blocked.txt",
+                            "content": "must not land",
+                        }
+                    ],
+                },
+            )
+        )
+        assert success is False
+        assert not (outside / "blocked.txt").exists()
+    finally:
+        _stop_server(cli_binary, env, process)
+
+
+def _ready_stderr(
+    home: Path,
+    cli_binary: str,
+    port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+    extra_args: tuple[str, ...],
+) -> str:
+    """Start an isolated serve, wait until ready, stop it, return its stderr."""
+    process, env, stderr_path = _isolated_serve_process(
+        home, cli_binary, port, sandbox_env, extra_args=extra_args
+    )
+    try:
+        status = _wait_for_status(cli_binary, port, env, process)
+        assert status.returncode == 0, stderr_path.read_text(encoding="utf-8")
+    finally:
+        _stop_server(cli_binary, env, process)
+    return stderr_path.read_text(encoding="utf-8").lower()
+
+
+@pytest.mark.e2e
+def test_startup_stderr_names_resolved_mode(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC6: startup stderr names the resolved mode and never the other one."""
+    shared_stderr = _ready_stderr(
+        tmp_path / "shared-launch", cli_binary, free_port, sandbox_env, ("--shared",)
+    )
+    default_stderr = _ready_stderr(
+        tmp_path / "default-launch", cli_binary, free_port, sandbox_env, ()
+    )
+    assert "shared" in shared_stderr
+    assert "dedicated" not in shared_stderr
+    assert "dedicated" in default_stderr
+    assert "shared" not in default_stderr
+
+
+@pytest.mark.e2e
+def test_no_shared_flag_beats_env(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC7: ``--no-shared`` wins over AXM_MCP_SERVE_MODE=shared."""
+    payload = _health_of_isolated_serve(
+        tmp_path / "no-shared",
+        cli_binary,
+        free_port,
+        sandbox_env,
+        extra_args=("--no-shared",),
+        serve_mode_env="shared",
+    )
+    assert payload["serve_mode"] == "dedicated"
+    assert payload["write_contracts_enforced"] is False
+
+
+@pytest.mark.e2e
+def test_env_dedicated_beats_config_shared(
+    tmp_path: Path,
+    cli_binary: str,
+    free_port: int,
+    sandbox_env: Callable[[Path], dict[str, str]],
+) -> None:
+    """AC8: AXM_MCP_SERVE_MODE=dedicated wins over a shared config file."""
+    payload = _health_of_isolated_serve(
+        tmp_path / "env-over-config",
+        cli_binary,
+        free_port,
+        sandbox_env,
+        serve_mode_env="dedicated",
+        config_serve_mode="shared",
+    )
+    assert payload["serve_mode"] == "dedicated"
+    assert payload["write_contracts_enforced"] is False

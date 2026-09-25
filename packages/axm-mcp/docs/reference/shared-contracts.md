@@ -6,11 +6,21 @@ serving policies; an HTTP process can run either.
 ## Start the shared policy
 
 ```bash
-AXM_MCP_SERVE_MODE=shared axm-mcp serve --host 127.0.0.1 --port 9427
+axm-mcp serve --shared --host 127.0.0.1 --port 9427
+# or: AXM_MCP_SERVE_MODE=shared axm-mcp serve --host 127.0.0.1 --port 9427
 ```
 
-Keep `AXM_MCP_FACADE` enabled. The CLI's `--shared` flag currently refuses
-startup; the environment or configuration-file policy is the working route.
+Keep `AXM_MCP_FACADE` enabled. The mode resolves, highest first: the explicit
+`--shared / --no-shared` option, then `AXM_MCP_SERVE_MODE`, then `[mcp]
+serve_mode` in `$AXM_HOME/config.toml`, then `dedicated`. `serve` prints the
+resolved mode on stderr at startup (`axm-mcp: serve mode shared`), and
+`GET /health` reports it:
+
+```json
+{"status": "ok", "tools_count": 7, "serve_mode": "shared", "write_contracts_enforced": true}
+```
+
+`write_contracts_enforced` is `true` only in shared mode.
 
 An MCP client first establishes a session and then carries its
 `mcp-session-id` on requests. To bind a contract it additionally sends

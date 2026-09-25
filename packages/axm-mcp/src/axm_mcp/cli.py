@@ -149,12 +149,6 @@ def serve(
         raise SystemExit(1) from exc
 
     shared_mode = serve_mode == "shared"
-    if shared is True:
-        print(  # noqa: T201
-            "Shared mode is unavailable on stdio because it has no session identity.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
 
     if shared_mode:
         os.environ["AXM_MCP_SHARED"] = "1"
@@ -179,6 +173,7 @@ def serve(
         )
         raise SystemExit(1)
 
+    print(f"axm-mcp: serve mode {serve_mode}", file=sys.stderr, flush=True)  # noqa: T201
     own_pid = os.getpid()
     write_pid(own_pid)
     try:
