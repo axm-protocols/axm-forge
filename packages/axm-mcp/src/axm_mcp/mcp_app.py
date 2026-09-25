@@ -21,6 +21,7 @@ import os
 import time
 from collections.abc import Mapping
 from contextvars import ContextVar
+from functools import partial
 from typing import TypedDict, Unpack, cast
 
 from mcp.server.mcpserver import MCPServer
@@ -29,7 +30,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
 from starlette.responses import PlainTextResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from axm_mcp.discovery import (
     ToolEntry,
@@ -87,6 +88,20 @@ def session_id_from_headers(headers: Mapping[str, str]) -> str:
 __all__ = ["build_http_app"]
 
 
+async def _bind_initialize_response(
+    message: Message, send: Send, contract: WriteContract
+) -> None:
+    if message["type"] == "http.response.start":
+        response_session_id = Headers(raw=message["headers"]).get(MCP_SESSION_ID_HEADER)
+        if response_session_id is None:
+            logging.getLogger(__name__).warning(
+                "initialize response has no MCP session id for write contract"
+            )
+        else:
+            session_contract_registry.bind(response_session_id, contract)
+    await send(message)
+
+
 class _SessionContractMiddleware:
     """Bind per-session write contracts before MCP request dispatch."""
 
@@ -105,6 +120,7 @@ class _SessionContractMiddleware:
             return
         headers = Headers(scope=scope)
         raw_contract = headers.get(_WRITE_CONTRACT_HEADER)
+        declared_contract: WriteContract | None = None
         if raw_contract is not None:
             if self._mode == "dedicated":
                 reason = "write contracts are not enforced by a dedicated server"
@@ -112,17 +128,18 @@ class _SessionContractMiddleware:
                 await PlainTextResponse(reason, status_code=403)(scope, receive, send)
                 return
             try:
-                parse_write_contract_header(raw_contract)
+                declared_contract = parse_write_contract_header(raw_contract)
             except ValueError as exc:
                 reason = f"invalid write contract: {exc}"
                 logging.getLogger(__name__).warning(reason)
                 await PlainTextResponse(reason, status_code=400)(scope, receive, send)
                 return
         token = None
+        pending_contract: WriteContract | None = None
         try:
             session_id = session_id_from_headers(headers)
         except UnboundSessionError:
-            pass
+            pending_contract = declared_contract
         else:
             if raw_contract is not None:
                 try:
@@ -135,8 +152,14 @@ class _SessionContractMiddleware:
                     )
                     return
             token = _current_session_id.set(session_id)
+
         try:
-            await self._app(scope, receive, send)
+            response_send = (
+                partial(_bind_initialize_response, send=send, contract=pending_contract)
+                if pending_contract is not None
+                else send
+            )
+            await self._app(scope, receive, response_send)
         finally:
             if token is not None:
                 _current_session_id.reset(token)

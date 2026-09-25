@@ -22,9 +22,10 @@ resolved mode on stderr at startup (`axm-mcp: serve mode shared`), and
 
 `write_contracts_enforced` is `true` only in shared mode.
 
-An MCP client first establishes a session and then carries its
-`mcp-session-id` on requests. To bind a contract it additionally sends
-`X-AXM-Write-Contract` containing a JSON object, for example:
+An MCP client sends `initialize` without `Mcp-Session-Id`; the transport
+returns that ID in the response. In shared mode, the client can declare its
+write perimeter on `initialize` with `X-AXM-Write-Contract` containing a JSON
+object, for example:
 
 ```json
 {
@@ -35,8 +36,8 @@ An MCP client first establishes a session and then carries its
 ```
 
 The header's value is that JSON serialized onto one line. This is a header
-payload, not an MCP tool argument. Use the actual session ID returned by the
-MCP transport, not a made-up identity.
+payload, not an MCP tool argument. Carry the actual session ID returned by the
+MCP transport on later requests; they need no repeated contract header.
 
 ## Binding and enforcement
 
@@ -46,12 +47,14 @@ lists of strings for `allowed_prefixes` and `markdown_only_prefixes`. An invalid
 header receives HTTP 400 with a reason naming the write contract, even on
 `initialize` before a session ID exists. The request does not reach an MCP tool.
 
-A valid header with `Mcp-Session-Id` binds a normalized contract to that
-identity before tool dispatch. A subsequent valid declaration **replaces** its
-prior contract. A valid header on `initialize` passes validation and reaches
-the MCP transport, but does not bind a contract until a later request supplies
-the session ID. A request without the contract header creates no binding;
-an invalid replacement receives 400 and leaves an existing binding intact.
+A valid header on `initialize` is bound to the exact session ID returned in
+the response, before the response is forwarded. If the response has no session
+ID, the server logs a warning and makes no binding. Later calls carrying that
+session ID use the bound contract even without a contract header. A valid
+header on a request already carrying `Mcp-Session-Id` binds a normalized
+contract before tool dispatch; a subsequent valid declaration **replaces** it.
+A request without a contract header creates no new binding, and an invalid
+replacement receives 400 while leaving an existing binding intact.
 
 In dedicated mode, any request carrying the contract header receives HTTP 403:
 write contracts are not enforced by a dedicated server. Omit the header for a
