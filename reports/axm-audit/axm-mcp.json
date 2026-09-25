@@ -1,12 +1,12 @@
 {
-  "score": 91.5,
+  "score": 91.6,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
     "ARCH_COUPLING: Coupling: 4 module(s) above threshold (-12 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_TESTS: Test coverage: 93% (92/100)",
+    "QUALITY_TESTS: Test coverage: 93% (93/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -68,7 +68,7 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "message": "Complexity score: 70/100 (3 high-complexity functions)",
-      "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=13 (C) cog=14 [cc]",
+      "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=12 (C) cog=13 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
