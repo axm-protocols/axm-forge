@@ -28,6 +28,8 @@ overrides, TOML persistence, typed settings and named profiles. Resolution follo
 - Typed accessors share runtime paths, warden settings and inference defaults.
 - Execution-policy helpers persist complete backend/model pairs and analysis overrides.
 - `config_doctor` reports provenance; `profile_isolation` reports the resolved state paths.
+- A `pytest11` plugin sandboxes the AXM state paths of every pytest session
+  under a temporary root; see [Isolate test sessions](docs/howto/isolate-test-sessions.md).
 
 <a id="install"></a>
 

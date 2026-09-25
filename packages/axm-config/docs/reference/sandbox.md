@@ -2,7 +2,8 @@
 
 `axm_config.sandbox` moves the six AXM state paths to a temporary root. It is
 the primitive a test session uses so it never writes into the real `~/axm` or
-`~/.axm` state.
+`~/.axm` state. The [pytest plugin](#pytest-plugin) activates it for every
+pytest session automatically.
 
 ```python
 from pathlib import Path
@@ -78,6 +79,29 @@ a test that sets it again is detected, even to the launch value.
 one resolves to `<HOME>/axm` or `<HOME>/.axm`, or below either, it raises
 `SandboxEscapeError`. Symlinks are resolved first, so on macOS `/var` becomes
 `/private/var` before the comparison.
+
+## pytest plugin
+
+`axm_config.pytest_plugin` is registered under the `pytest11` entry point as
+`axm_config`. pytest therefore loads it in every session run in an environment
+where axm-config is installed, including the suites of packages that only
+depend on it.
+
+| Hook | Contract |
+|---|---|
+| `pytest_configure` (`tryfirst`) | Creates a fresh root with `tempfile.mkdtemp(prefix="axm-")` under the system temp directory, then calls `activate_sandbox(root)`. Each session gets its own root, even when a sandbox is already active: an inner `pytester` session or an xdist worker activates a new root over the inherited one. |
+| `pytest_configure` on `SandboxEscapeError` | Removes the root and raises `pytest.UsageError` with the error message. The session exits non-zero before collection and the message names the offending variable. |
+| `pytest_unconfigure` | Calls `deactivate_sandbox`, which restores the previous `AXM_SANDBOX_*` and `AXM_PROFILE` values, then deletes the root. |
+
+The plugin never changes `HOME` or `Path.home()`. It leaves the
+`AXM_SANDBOX_*` keys in `os.environ` for the whole session, so subprocesses
+spawned by tests resolve under the same root. It imports `axm_config` modules
+inside its hooks only, because pytest loads plugins before `pytest-cov` starts
+measuring.
+
+Bypass the plugin with `-p no:axm_config` or
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`. See
+[Isolate test sessions](../howto/isolate-test-sessions.md).
 
 Without `AXM_SANDBOX_ROOT`, every resolver behaves exactly as described in
 [runtime settings](runtime-settings.md).

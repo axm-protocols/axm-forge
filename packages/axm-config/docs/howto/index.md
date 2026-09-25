@@ -8,6 +8,8 @@ Choose the guide matching the operation you need:
   understand the limits of the isolation diagnostic.
 - [Manage execution policies](execution-policies.md): persist a complete
   backend/model pair, override analysis and remove a policy.
+- [Isolate test sessions](isolate-test-sessions.md): check the automatic
+  pytest sandbox, handle a refused session and opt out.
 
 The [CLI reference](../reference/cli.md) gives exact invocation forms.
 The [persistence explanation](../explanation/architecture.md) covers legacy
