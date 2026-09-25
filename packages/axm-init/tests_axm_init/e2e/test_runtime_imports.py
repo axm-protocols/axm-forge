@@ -6,7 +6,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -27,20 +26,26 @@ def test_copier_imports_at_runtime() -> None:
     assert "OK" in result.stdout
 
 
+def test_paper_template_is_not_bundled() -> None:
+    code = (
+        "from axm_init.core.templates import TEMPLATES_PKG; "
+        "assert not (TEMPLATES_PKG / 'paper-submodule').is_dir()"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        cwd=tempfile.gettempdir(),
+    )
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.e2e
-def test_paper_template_ships_with_distribution() -> None:
-    # AC1: a fresh interpreter outside the source tree resolves the paper
-    # template from the installed distribution, copier config included.
-    code = textwrap.dedent("""
-        from pathlib import Path
-
-        from axm_init.core.templates import TemplateType, get_template_path
-
-        path = Path(get_template_path(TemplateType.PAPER))
-        assert path.is_dir(), f"not a directory: {path}"
-        assert (path / "copier.yml").is_file(), f"no copier.yml in {path}"
-        print(path)
-    """)
+def test_experiment_template_is_not_bundled() -> None:
+    code = (
+        "from axm_init.core.templates import TEMPLATES_PKG; "
+        "assert not (TEMPLATES_PKG / 'experiment' / 'copier.yml').is_file()"
+    )
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
@@ -49,36 +54,6 @@ def test_paper_template_ships_with_distribution() -> None:
         cwd=tempfile.gettempdir(),
     )
     assert result.returncode == 0, result.stderr
-    printed = Path(result.stdout.strip())
-    assert printed.is_dir(), result.stdout
-    assert (printed / "copier.yml").is_file()
-
-
-@pytest.mark.e2e
-def test_experiment_template_ships_with_distribution() -> None:
-    # AC1: a fresh interpreter outside the source tree resolves the experiment
-    # template from the installed distribution, copier config included.
-    code = textwrap.dedent("""
-        from pathlib import Path
-
-        from axm_init.core.templates import TemplateType, get_template_path
-
-        path = Path(get_template_path(TemplateType.EXPERIMENT))
-        assert path.is_dir(), f"not a directory: {path}"
-        assert (path / "copier.yml").is_file(), f"no copier.yml in {path}"
-        print(path)
-    """)
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        timeout=60,
-        cwd=tempfile.gettempdir(),
-    )
-    assert result.returncode == 0, result.stderr
-    printed = Path(result.stdout.strip())
-    assert printed.is_dir(), result.stdout
-    assert (printed / "copier.yml").is_file()
 
 
 def test_checker_imports_at_runtime() -> None:

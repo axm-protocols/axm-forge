@@ -5,49 +5,27 @@ from __future__ import annotations
 import pytest
 
 from axm_init.core import templates
+from axm_init.scaffolding import ScaffoldRequest
+from tests_axm_init._learning_provider import FakeLearningProvider
 
 
 @pytest.mark.integration
-def test_learning_standalone_resolves_base_then_learning() -> None:
-    """AC1: standalone learning composes base then learning templates."""
+@pytest.mark.parametrize(("member", "existing"), [(False, False), (True, True)])
+def test_learning_chain_is_owned_by_the_installed_provider(
+    fake_learning_provider: FakeLearningProvider, member: bool, existing: bool
+) -> None:
+    """AC1: learning layers come from the provider, given the full request."""
     layers = templates.template_chain(
         templates.TemplateType.LEARNING,
         framework=None,
-        member=False,
+        member=member,
+        existing=existing,
     )
 
-    assert len(layers) == 2
-    assert [layer.path.name for layer in layers] == [
-        "python-project",
-        "learning-project",
+    assert fake_learning_provider.calls == [
+        ("layers", (ScaffoldRequest("learning", None, member, existing),))
     ]
-
-
-@pytest.mark.integration
-def test_learning_standalone_sets_overlay_only_on_learning_layer() -> None:
-    """AC2: only the learning layer carries overlay mode."""
-    base_layer, learning_layer = templates.template_chain(
-        templates.TemplateType.LEARNING,
-        framework=None,
-        member=False,
-    )
-
-    assert "learning_mode" not in base_layer.data
-    assert learning_layer.data["learning_mode"] == "overlay"
-
-
-@pytest.mark.integration
-def test_learning_member_is_standalone_learning_layer() -> None:
-    """AC3: a workspace member uses one standalone learning layer."""
-    layers = templates.template_chain(
-        templates.TemplateType.LEARNING,
-        framework=None,
-        member=True,
-    )
-
-    assert len(layers) == 1
-    assert layers[0].path.name == "learning-project"
-    assert layers[0].data["learning_mode"] == "standalone"
+    assert layers[-1].name == "learning"
 
 
 @pytest.mark.integration

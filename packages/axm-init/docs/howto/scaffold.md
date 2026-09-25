@@ -214,6 +214,6 @@ Outputs structured JSON for CI/automation use.
 | `Member 'X' already exists` | Duplicate non-learning member, or learning member without a matching declared domain | Choose another name; matching-domain learning members may be reconciled |
 | `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
 | Existing destination content | Copier can encounter conflicts with existing files | For the same standalone or member learning domain, re-run the identical learning command to reconcile it; otherwise use a fresh destination |
-| `... is not a paper` | `--kind experiment` outside a detected paper | Scaffold the paper first (`--kind paper`), or point the path at the paper root |
+| Experiment scaffolding is owned by axm-lab | Retired `--kind experiment` route | Install axm-lab and use `experiment_scaffold` with an owning investigation |
 | `Unknown --kind 'X'` | Kind outside the declared set | Use one of `standalone`, `workspace`, `member`, `paper`, `experiment`, `learning`, `protocol_unit`, `protocol` |
 | `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |

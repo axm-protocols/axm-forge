@@ -17,7 +17,7 @@ axm init_check [OPTIONS] [PATH]
 | `--category` | | string | *all* | Filter to one category |
 
 **Default Python categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`,
-`deps`, `changelog`, `workspace`, `paper`, `experiment`. The selected framework
+`deps`, `changelog`, `workspace`, `paper`. The selected framework
 can change this registry; see [check catalogue](checks/catalogue.md).
 
 `protocols` is an explicit-only Python category. Run it with

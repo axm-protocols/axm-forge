@@ -69,9 +69,8 @@ def _make_paper_by_structure(root: Path) -> Path:
 
 
 def _make_near_miss(root: Path) -> Path:
-    """Materialise a directory carrying only two of the three paper markers."""
+    """A paper directory alone does not declare a writing project."""
     root.mkdir(parents=True, exist_ok=True)
-    (root / "PLAN.md").write_text("# plan\n")
     (root / "paper").mkdir()
     return root
 

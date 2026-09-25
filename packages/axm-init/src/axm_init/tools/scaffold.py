@@ -81,20 +81,6 @@ def _slugify(value: str) -> str:
     return slug if slug[0] in _SLUG_ALPHA else f"x-{slug}"
 
 
-def _ensure_experiments_root(paper_root: Path) -> list[str]:
-    """Create the paper's ``experiments/`` root and return the files created.
-
-    The experiments root belongs to this tool — it names and indexes every
-    experiment directory — never to the paper template, which renders flat.
-    """
-    experiments = paper_root / "experiments"
-    experiments.mkdir(parents=True, exist_ok=True)
-    placeholder = experiments / ".gitkeep"
-    if not placeholder.exists():
-        placeholder.write_text("")
-    return ["experiments/.gitkeep"]
-
-
 def _group_files(files: list[str]) -> list[str]:
     """Group created files by top-level dir, listing basenames inline.
 
@@ -582,6 +568,11 @@ class InitScaffoldTool:
         check_pypi: bool,
     ) -> _ScaffoldContext | ToolResult:
         """Validate every precondition, returning a context or the refusal."""
+        if kwargs.get("kind") == "paper":
+            return ToolResult(
+                success=False,
+                error="Paper scaffolding is owned by axm-lab; use paper_scaffold.",
+            )
         validated = self._validate_inputs(kwargs)
         if isinstance(validated, ToolResult):
             return validated
@@ -706,7 +697,6 @@ class InitScaffoldTool:
             get_template_path,
             template_chain,
         )
-        from axm_init.models.results import ScaffoldResult
 
         template_type = (
             TemplateType.LEARNING
@@ -736,21 +726,17 @@ class InitScaffoldTool:
             )
         copier = CopierAdapter()
         if template_type is TemplateType.LEARNING:
-            layers = template_chain(template_type, ctx.framework, member=False)
+            layers = template_chain(
+                template_type,
+                ctx.framework,
+                member=False,
+                existing=(ctx.target_path / "pyproject.toml").is_file(),
+            )
             result = copier.apply_chain(
                 list(layers),
                 ctx.target_path,
                 template_data,
             )
-            if not isinstance(result, ScaffoldResult):
-                result = copier.copy(
-                    CopierConfig(
-                        template_path=get_template_path(template_type, ctx.framework),
-                        destination=ctx.target_path,
-                        data=template_data,
-                        trust_template=True,
-                    )
-                )
         else:
             result = copier.copy(
                 CopierConfig(
@@ -847,138 +833,25 @@ class InitScaffoldTool:
         meta: _ProjectMeta,
         description: str,
     ) -> ToolResult:
-        """Scaffold a paper submodule at *target_path*.
-
-        Renders the bundled paper template, then materialises the
-        ``experiments/`` root this tool owns (the template renders flat and
-        never names an experiment directory).
-
-        Args:
-            target_path: Directory the paper is rendered into.
-            paper_name: Human-supplied paper name, slugified for the template.
-            meta: Author/license identity for the template variables.
-            description: Paper title; falls back to *paper_name*.
-
-        Returns:
-            ToolResult with the created files list.
-        """
-        from axm_init.adapters.copier import CopierAdapter, CopierConfig
-        from axm_init.core.templates import TemplateType, get_template_path
-
-        slug = _slugify(paper_name)
-        result = CopierAdapter().copy(
-            CopierConfig(
-                template_path=get_template_path(TemplateType.PAPER),
-                destination=target_path,
-                data={
-                    "paper_name": slug,
-                    "title": description or paper_name,
-                    "author": meta.author_name,
-                },
-                trust_template=True,
-            )
-        )
-        if not result.success:
-            return ToolResult(
-                success=False,
-                error=result.message or "Paper scaffold failed",
-            )
-
-        files = sorted({*result.files_created, *_ensure_experiments_root(target_path)})
-        kind = TemplateType.PAPER.value
+        """Direct obsolete paper creation to the edition-aware Lab tool."""
         return ToolResult(
-            success=True,
-            data={
-                "project_name": slug,
-                "template": kind,
-                "path": str(target_path),
-                "files": files,
-            },
-            text=_render_scaffold_text(
-                label=slug,
-                kind=kind,
-                files=files,
-                path=str(target_path),
+            success=False,
+            error=(
+                "Paper scaffolding is owned by axm-lab; use paper_scaffold "
+                "with workspace, venue, year and slug."
             ),
         )
 
     def _scaffold_experiment(
-        self,
-        target_path: Path,
-        *,
-        experiment_name: str,
-        description: str,
+        self, target_path: Path, *, experiment_name: str, description: str
     ) -> ToolResult:
-        """Scaffold an indexed experiment inside the paper at *target_path*.
-
-        Guards on the detected context first: an experiment is legal only
-        inside a detected paper, and the guard fails before any write. The
-        directory is named ``{index:02d}-{slug}`` with the next free index.
-
-        Args:
-            target_path: The paper root the experiment belongs to.
-            experiment_name: Human-supplied experiment name, slugified.
-            description: Experiment title / research question fallback.
-
-        Returns:
-            ToolResult with the created files list, relative to the reported
-            experiment directory (the tree the template actually rendered).
-        """
-        from axm_init.adapters.copier import CopierAdapter, CopierConfig
-        from axm_init.checks._workspace import ProjectContext, detect_context
-        from axm_init.core.scaffolder import next_experiment_index
-        from axm_init.core.templates import TemplateType, get_template_path
-
-        if detect_context(target_path) != ProjectContext.PAPER:
-            return ToolResult(
-                success=False,
-                error=(
-                    f"{target_path} is not a paper — scaffold a paper first "
-                    "(kind='paper')"
-                ),
-            )
-
-        experiments_dir = target_path / "experiments"
-        index = next_experiment_index(experiments_dir)
-        experiment_dir = experiments_dir / f"{index:02d}-{_slugify(experiment_name)}"
-        title = description or experiment_name
-
-        result = CopierAdapter().copy(
-            CopierConfig(
-                template_path=get_template_path(TemplateType.EXPERIMENT),
-                destination=experiment_dir,
-                data={
-                    "experiment_id": experiment_dir.name,
-                    "experiment_title": title,
-                    "research_question": (
-                        description or f"What does '{title}' establish?"
-                    ),
-                },
-                trust_template=True,
-            )
-        )
-        if not result.success:
-            return ToolResult(
-                success=False,
-                error=result.message or "Experiment scaffold failed",
-            )
-
-        files = sorted(str(f) for f in result.files_created)
-        kind = TemplateType.EXPERIMENT.value
+        """Refuse retired scaffolding and direct callers to Lab's owned workflow."""
         return ToolResult(
-            success=True,
-            data={
-                "experiment": experiment_dir.name,
-                "template": kind,
-                "path": str(experiment_dir),
-                "index": index,
-                "files": files,
-            },
-            text=_render_scaffold_text(
-                label=experiment_dir.name,
-                kind=kind,
-                files=files,
-                path=str(experiment_dir),
+            success=False,
+            error=(
+                "Experiment scaffolding is owned by axm-lab "
+                "investigations/experiments 2.0; install axm-lab and use its "
+                "experiment_scaffold tool with an investigation owner."
             ),
         )
 
@@ -1013,6 +886,12 @@ class InitScaffoldTool:
         from axm_init.adapters.copier import CopierAdapter, CopierConfig
         from axm_init.adapters.workspace_patcher import patch_all
         from axm_init.core.templates import TemplateType, get_template_path
+        from axm_init.scaffolding import (
+            ScaffoldRequest,
+            _finalize_provider,
+            _provider_layers,
+            load_provider,
+        )
 
         workspace_root = self._resolve_workspace_root(target_path)
         if workspace_root is None:
@@ -1023,13 +902,12 @@ class InitScaffoldTool:
         requested_learning_domain = learning_domain or module_name
         reconcile_learning = False
         if member_dir.exists() and learning:
-            try:
-                reconcile_learning = (
-                    declared_learning_domain(member_dir, requested_learning_domain)
-                    == requested_learning_domain
-                )
-            except ValueError as exc:
-                return ToolResult(success=False, error=str(exc))
+            existing_domain = declared_learning_domain(
+                member_dir, requested_learning_domain
+            )
+            reconcile_learning = existing_domain == requested_learning_domain or (
+                (member_dir / "pyproject.toml").is_file()
+            )
         if member_dir.exists() and not reconcile_learning:
             return ToolResult(
                 success=False,
@@ -1059,16 +937,22 @@ class InitScaffoldTool:
             )
 
         copier_adapter = CopierAdapter()
-        copier_config = CopierConfig(
-            template_path=get_template_path(
-                TemplateType.LEARNING if learning else TemplateType.MEMBER
-            ),
-            destination=member_dir,
-            data=data,
-            trust_template=True,
-            overwrite=reconcile_learning,
+
+        learning_request = ScaffoldRequest(
+            "learning", member=True, existing=reconcile_learning
         )
-        result = copier_adapter.copy(copier_config)
+        layers = _provider_layers(learning_request) if learning else None
+        if layers is not None:
+            result = copier_adapter.apply_chain(list(layers), member_dir, data)
+        else:
+            copier_config = CopierConfig(
+                template_path=get_template_path(TemplateType.MEMBER),
+                destination=member_dir,
+                data=data,
+                trust_template=True,
+                overwrite=reconcile_learning,
+            )
+            result = copier_adapter.copy(copier_config)
         if recipe_bytes is not None:
             recipe_path.write_bytes(recipe_bytes)
 
@@ -1076,6 +960,11 @@ class InitScaffoldTool:
             return ToolResult(
                 success=False,
                 error=result.message or "Member scaffold failed",
+            )
+
+        if layers is not None:
+            _finalize_provider(
+                load_provider("learning"), learning_request, member_dir, data
             )
 
         report = patch_all(workspace_root, member_name)

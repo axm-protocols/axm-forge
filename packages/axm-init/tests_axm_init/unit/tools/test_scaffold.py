@@ -10,6 +10,7 @@ import pytest
 
 from axm_init.adapters.workspace_patcher import PatchReport
 from axm_init.tools.scaffold import InitScaffoldTool
+from tests_axm_init._learning_provider import FakeLearningProvider
 
 # --- merged from test_scaffold_coverage.py ---
 
@@ -367,7 +368,7 @@ def test_unknown_kind_reports_the_exact_complete_seven_mode_set() -> None:
 
 
 def test_read_kind_accepts_declared_learning_kind(
-    tmp_path: Path,
+    tmp_path: Path, fake_learning_provider: FakeLearningProvider
 ) -> None:
     """AC1: learning is declared and reaches scaffolding after `_read_kind`."""
     from axm_init.tools.scaffold import _read_kind
@@ -384,11 +385,11 @@ def test_read_kind_accepts_declared_learning_kind(
     with (
         patch("axm_init.adapters.copier.CopierAdapter") as mock_copier_cls,
         patch(
-            "axm_init.core.templates.get_template_path",
-            return_value=Path("/fake/learning-project"),
+            "axm_init.core.templates.template_chain",
+            return_value=(),
         ),
     ):
-        mock_copier_cls.return_value.copy.return_value = mock_result
+        mock_copier_cls.return_value.apply_chain.return_value = mock_result
         result = InitScaffoldTool().execute(
             path=str(tmp_path),
             name="learning-lab",

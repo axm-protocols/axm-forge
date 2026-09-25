@@ -53,24 +53,14 @@ def test_template_has_copier_yml(template_type: TemplateType) -> None:
 
 @pytest.mark.integration
 def test_paper_template_path_resolves_to_named_directory() -> None:
-    # AC1: PAPER resolves to a real ``paper-submodule`` dir with copier.yml.
-    path = Path(get_template_path(TemplateType.PAPER))
-    assert path.name == "paper-submodule"
-    assert path.is_dir()
-    config = path / "copier.yml"
-    assert config.is_file()
-    assert config.read_text(encoding="utf-8").strip()
+    with pytest.raises(ValueError, match="axm-lab"):
+        get_template_path(TemplateType.PAPER)
 
 
 @pytest.mark.integration
 def test_experiment_template_path_resolves_to_named_directory() -> None:
-    # AC1: EXPERIMENT resolves to a real ``experiment`` dir with copier.yml.
-    path = Path(get_template_path(TemplateType.EXPERIMENT))
-    assert path.name == "experiment"
-    assert path.is_dir()
-    config = path / "copier.yml"
-    assert config.is_file()
-    assert config.read_text(encoding="utf-8").strip()
+    with pytest.raises(KeyError):
+        get_template_path(TemplateType.EXPERIMENT)
 
 
 class TestWorkspaceTemplateStructure:

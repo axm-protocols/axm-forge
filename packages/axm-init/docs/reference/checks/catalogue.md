@@ -122,44 +122,17 @@ Workspace-specific checks — only run when the project context is `WORKSPACE`:
     The check engine detects the project context (standalone, member, workspace, paper, experiment) from
     `[tool.uv.workspace]` and the paper markers.
 
-### paper (15 pts)
+### Papers belong to Lab
 
-A paper — an `[tool.axm-lab]` project, or a satellite paper recognised by its
-`paper/` + `experiments/` + `PLAN*.md` triple — carries none of a package's
-invariants, so it is scored on its own:
+Paper writing and frozen-provenance rules run through axm-lab’s `paper_check`.
+Init contains no paper rules; paper contexts and `category=paper` requests
+fail with guidance to that tool.
 
-| Check | Weight | What It Verifies |
-|-------|--------|------------------|
-| `paper.paper_structure` | 5 | `paper/`, `experiments/`, `README.md` and `PIPELINE.md` all present; `INDEX.md` is also required once an immediate experiment subdirectory has a `manifest.yaml` (a failure names every missing entry, in its message and in its fix) |
-| `paper.plan_present` | 5 | `PLAN.md` at the paper root opens with a `---` delimited, non-empty YAML front-matter block |
-| `paper.research_present` | 5 | `RESEARCH.md` at the paper root opens with a `---` delimited, non-empty YAML front-matter block — presence and form only, the header's keys are never read |
+### Experiments belong to Lab
 
-!!! note "A paper skips the packaging rulebook"
-    The three `paper.*` checks run **only** when the detected context is `PAPER`; they are
-    skipped for standalone projects, workspace roots and members. Conversely a paper skips
-    every packaging check — `SKIP_BY_CONTEXT[PAPER]` is derived as *everything that is not a*
-    `paper.*` *check* — so its report carries no Trusted Publishing, CI-matrix, mkdocs,
-    dependabot, lock-file, classifiers, coverage or ruff/mypy finding, and its score stays
-    meaningful.
-
-### experiment (10 pts)
-
-An experiment folder — a directory whose root `manifest.yaml` declares both
-`contract_version` and `id` — is graded on the **form** its scaffold must carry:
-
-| Check | Weight | What It Verifies |
-|-------|--------|------------------|
-| `experiment.experiment_structure` | 5 | `inputs/`, `scripts/`, `outputs/`, `analysis/` and `figures/` all present (a failure names exactly the missing directories) |
-| `experiment.experiment_files` | 5 | `manifest.yaml` and `README.md` at the experiment root — existence only (a failure names exactly the missing file(s)) |
-
-!!! note "Form here, substance elsewhere"
-    Neither check reads the **content** of `manifest.yaml`: a freshly scaffolded
-    experiment whose manifest still holds `TODO` placeholders passes both. Manifest
-    validity, input hashing, DAG coherence, freeze anteriority and metrics are the job
-    of axm-lab's `experiment_check` — axm-init never duplicates them. Symmetrically the
-    two `experiment.*` ids are skipped for standalone projects, workspace roots, members
-    and papers, so a Python package is never reproached an experiment check.
-
+Forge contains no experiment rules. Experiment contexts and explicit
+`category=experiment` requests fail with guidance to use axm-lab's
+`experiment_check`, rather than reporting an empty successful grade.
 
 ### learning (explicit-only)
 
@@ -212,9 +185,9 @@ context still follows the paper/experiment and uv-workspace markers.
 `init_check` has no CLI `--framework` override.
 
 Counts depend on registry revision, context and configured exclusions. The
-current Python catalogue has 57 declared functions, of which
+current Python catalogue has 54 declared functions, of which
 `ci.ci_workflow_exists` is superseded by `ci.ci_steps_executable` and skipped.
-This yields 56 active catalogue entries, not 56 checks on every project.
+This yields 53 active catalogue entries, not 53 checks on every project.
 Use the actual report as the authority for a run's coverage.
 
 See [grade calculation](../../explanation/check-grades.md) and
@@ -222,16 +195,6 @@ See [grade calculation](../../explanation/check-grades.md) and
 
 ## Paper check implementation boundary
 
-Paper invariants, run only in the `PAPER` context: `check_paper_structure` (`paper/`, `experiments/`, `README.md`, `PIPELINE.md` — the provenance document of the shared data cohort, rendered at the paper root by the `paper-submodule` template in both flavours — plus `INDEX.md` once experiments have manifests), `check_plan_present` (`PLAN.md` opening with a `---` YAML front-matter block) and `check_research_present` (`RESEARCH.md`, the research protocol document, same rule).
-
-The last two share the private `_front_matter_document(project, filename, check_name, intention)` helper, itself built on the pure `_parse_front_matter` parser, so presence + non-empty front-matter is graded identically for every paper document.
-
-FORM only: the header's keys (`gap`, `investigations`, a status) are never read — that substance belongs to the package owning the authoritative model, and axm-init carries no dependency toward it
-
-## Experiment check implementation boundary
-
-Experiment FORM invariants, run only in the `EXPERIMENT` context: `check_experiment_structure` (`inputs/`, `scripts/`, `outputs/`, `analysis/`, `figures/` all present) and `check_experiment_files` (`manifest.yaml` + `README.md` at the root, existence only).
-
-Both name EXACTLY the missing entries, computed by the pure filesystem-free `_missing_entries(required, present)` helper, and NEITHER opens the manifest — a freshly scaffolded experiment whose manifest still holds TODO placeholders passes.
-
-Substance (contract validity, input hashing, DAG coherence, freeze anteriority, metrics) belongs to axm-lab's `experiment_check` and is deliberately never duplicated here, so axm-init carries no dependency toward axm-lab
+Paper checks validate the writing layout and PLAN front-matter. Research
+selection, investigation ownership, and experiment validity belong to Lab;
+Forge requires neither `RESEARCH.md` nor a legacy experiment index.

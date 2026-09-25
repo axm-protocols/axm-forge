@@ -161,147 +161,18 @@ def _paper_project(root: Path) -> Path:
     return root
 
 
-def test_check_on_a_paper_reports_no_packaging_failure(tmp_path: Path) -> None:
-    """AC4: the CLI report on a paper holds no packaging failure.
-
-    Deliberately makes no claim about the exit code: a paper may still fail a
-    paper-specific check, and the exit code encodes overall grade.
-    """
+def test_check_on_a_paper_routes_to_lab(tmp_path: Path) -> None:
     project = _paper_project(tmp_path / "paper-x")
-
-    proc = _run_check(str(project), "--json")
-    payload = json.loads(proc.stdout)
-
-    failures = payload.get("failures", [])
-    names = {
-        entry["name"]
-        for entry in failures
-        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
-    }
-    packaging = sorted(name for name in names if not name.startswith("paper."))
-
-    assert packaging == []
-
-
-def test_check_json_report_exposes_the_paper_context(tmp_path: Path) -> None:
-    """AC2: the CLI report on an axm-lab project exposes the paper context."""
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "paper-x"\n\n[tool.axm-lab]\nslug = "paper-x"\n'
+    result = subprocess.run(
+        ["axm", "init_check", str(project)], capture_output=True, text=True
     )
+    assert result.returncode != 0
+    assert "paper_check" in result.stdout + result.stderr
 
+
+def test_check_experiment_requires_lab(tmp_path: Path) -> None:
+    (tmp_path / "manifest.yaml").write_text("contract_version: 2.0.0\nid: demo\n")
     proc = _run_check(str(tmp_path), "--json")
-    payload = json.loads(proc.stdout)
-    contexts: set[str] = set()
-    _collect_contexts(payload, contexts)
-
-    assert "paper" in contexts
-
-
-def test_check_json_report_names_the_canonical_plan_document(tmp_path: Path) -> None:
-    """AC3: on a paper carrying no plan file, the JSON report names PLAN.md
-    and never the lowercase form."""
-    root = tmp_path / "paper-z"
-    root.mkdir()
-    (root / "pyproject.toml").write_text(
-        '[project]\nname = "paper-z"\n\n[tool.axm-lab]\nslug = "paper-z"\n'
-    )
-
-    proc = _run_check(str(root), "--json")
-    payload = json.loads(proc.stdout)
-    names: set[str] = set()
-    _collect_names(payload, names)
-    blob = json.dumps(payload)
-
-    assert proc.returncode != 0
-    assert "paper.plan_present" in names
-    assert "PLAN.md" in blob
-    assert "plan.md" not in blob
-
-
-def test_check_json_report_names_the_missing_provenance_document(
-    tmp_path: Path,
-) -> None:
-    # AC1: on a paper carrying no provenance document, the CLI exits non-zero
-    # and its paper-structure failure entry names PIPELINE.md.
-    root = tmp_path / "paper-p"
-    root.mkdir()
-    (root / "pyproject.toml").write_text(
-        '[project]\nname = "paper-p"\n\n[tool.axm-lab]\nslug = "paper-p"\n'
-    )
-    (root / "paper").mkdir()
-    (root / "experiments").mkdir()
-    (root / "README.md").write_text("# Paper P\n")
-    (root / "PLAN.md").write_text("---\ntitle: Paper P\nstatus: draft\n---\n\n# Plan\n")
-
-    proc = _run_check(str(root), "--json")
-    payload = json.loads(proc.stdout)
-    failures = payload.get("failures", [])
-    structure = [
-        entry
-        for entry in failures
-        if isinstance(entry, dict) and entry.get("name") == "paper.paper_structure"
-    ]
-
-    assert proc.returncode != 0
-    assert structure, payload
-    assert "PIPELINE.md" in json.dumps(structure)
-
-
-def test_check_json_report_exposes_the_experiment_context(tmp_path: Path) -> None:
-    """AC2: the CLI report on an experiment folder exposes the experiment context."""
-    root = tmp_path / "01-demo"
-    root.mkdir()
-    (root / "manifest.yaml").write_text("contract_version: 1\nid: 01-demo\n")
-    (root / "README.md").write_text("# 01-demo\n")
-    for name in ("inputs", "scripts", "outputs", "logs", "figures"):
-        (root / name).mkdir()
-
-    proc = _run_check(str(root), "--json")
-    payload = json.loads(proc.stdout)
-    contexts: set[str] = set()
-    _collect_contexts(payload, contexts)
-
-    assert "experiment" in contexts
-
-
-def test_check_json_report_flags_the_missing_research_document(tmp_path: Path) -> None:
-    # AC2: on a paper carrying no research protocol document, the JSON report
-    # holds a failed paper.research_present entry naming RESEARCH.md.
-    root = tmp_path / "paper-r"
-    root.mkdir()
-    (root / "pyproject.toml").write_text(
-        '[project]\nname = "paper-r"\n\n[tool.axm-lab]\nslug = "paper-r"\n'
-    )
-    (root / "paper").mkdir()
-    (root / "experiments").mkdir()
-    (root / "README.md").write_text("# Paper R\n")
-    (root / "PIPELINE.md").write_text("# Pipeline\n")
-    (root / "PLAN.md").write_text("---\ntitle: Paper R\n---\n\n# Plan\n")
-
-    proc = _run_check(str(root), "--json")
-    payload = json.loads(proc.stdout)
-    failures = payload.get("failures", [])
-    research = [
-        entry
-        for entry in failures
-        if isinstance(entry, dict) and entry.get("name") == "paper.research_present"
-    ]
-
-    assert research, payload
-    assert "RESEARCH.md" in json.dumps(research)
-
-
-def test_check_reports_declared_learning_profile(tmp_path: Path) -> None:
-    """AC4: init_check renders the learning category and profile check line."""
-    (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "vision-project"\n\n'
-        '[tool.axm-init.learning]\ndomain = "vision"\nschema_version = 1\n'
-    )
-    (tmp_path / "study.toml").write_text('[study]\nname = "vision"\n')
-    (tmp_path / "training.toml").write_text('[training]\nname = "vision"\n')
-
-    proc = _run_check(str(tmp_path), "--category", "learning", "--verbose")
-
-    combined = proc.stdout + proc.stderr
-    assert "learning" in combined
-    assert "learning.learning_profile" in combined
+    assert proc.returncode == 1
+    assert "experiment_check" in proc.stdout + proc.stderr
+    assert "axm-lab" in proc.stdout + proc.stderr

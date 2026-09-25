@@ -2,7 +2,9 @@
 
 ## Overview
 
-`axm init_check` scores your project against the AXM gold standard — checks derived from the best practices embedded in the project template and CI configurations. A **paper** (an `[tool.axm-lab]` project) is not a Python distribution and is graded on its own invariants instead: see [paper checks](../reference/checks/catalogue.md#paper-15-pts).
+`axm init_check` scores your project against checks derived from the project
+template and CI configurations. Papers are validated by axm-lab's `paper_check`;
+Init returns an explicit routing error for paper contexts.
 
 ## Grade Scale
 
@@ -27,8 +29,8 @@ The denominator is **dynamic**. The check engine selects which checks run from t
 project context (standalone, workspace, member, paper, experiment). A workspace
 selects workspace checks and skips package-only checks. For members, some checks
 are skipped while CI and shared tooling checks are redirected to the workspace
-root. A paper runs its three paper invariants; an experiment runs its two form
-invariants. See [project contexts](project-contexts.md).
+root. Paper validation is owned by axm-lab through `paper_check`. Experiment checks are owned by
+axm-lab; Forge returns migration guidance instead of a score. See [project contexts](project-contexts.md).
 
 If no weighted check applies, the result is N/A: structured score and grade
 are null and the CLI exits successfully. Otherwise the score is normalized to

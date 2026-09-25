@@ -96,6 +96,9 @@ class CopierConfig(BaseModel):  # type: ignore[explicit-any]
     to ``True`` rather than paying for a package installation it never inspects.
     """
 
+    exclude: tuple[str, ...] = ()
+    """Destination-relative patterns omitted by Copier during rendering."""
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -132,6 +135,7 @@ class CopierAdapter:
                 unsafe=config.trust_template,
                 skip_tasks=config.skip_tasks,
                 answers_file=config.answers_file,
+                exclude=config.exclude,
             )
 
         try:
@@ -149,12 +153,18 @@ class CopierAdapter:
         layers: list[TemplateLayer],
         destination: Path,
         data: Mapping[str, object],
+        *,
+        record_answers: bool = True,
     ) -> ScaffoldResult:
         """Apply ordered template layers to one destination.
 
         Each layer receives caller data overlaid with its own data and keeps a
         dedicated answers file so Copier can reapply its ownership rules
         independently from the other layers.
+
+        With ``record_answers=False``, exclude the engine's answer destinations
+        before rendering and omit fallback answer creation. Existing answers
+        stay untouched, including answers belonging to the same layer.
         """
         result = ScaffoldResult(
             success=True,
@@ -175,12 +185,15 @@ class CopierAdapter:
                     overwrite=True,
                     trust_template=True,
                     answers_file=answers_file,
+                    exclude=()
+                    if record_answers
+                    else (f"/{answers_file}", "/.copier-answers.yml"),
                 )
             )
             if not result.success:
                 return result
             answers_path = destination / answers_file
-            if not answers_path.exists():
+            if record_answers and not answers_path.exists():
                 answers_path.write_text(
                     json.dumps({"_src_path": str(layer.path)}, indent=2) + "\n"
                 )

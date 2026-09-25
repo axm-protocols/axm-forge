@@ -23,8 +23,8 @@ for the full script set.
 Only standalone Node/Svelte templates are registered. There is no Node/Svelte
 workspace template; requesting one fails. The current member path uses the
 Python template regardless of `framework`, so do not use it to create a
-Node/Svelte member. Paper and experiment branches also use Python-side research
-templates. See the [template matrix](../reference/templates.md).
+Node/Svelte member. Paper uses its writing template; experiment creation
+is owned by axm-lab. See the [template matrix](../reference/templates.md).
 
 `init_check` detects the framework from the target files; it has no
 `--framework` override.

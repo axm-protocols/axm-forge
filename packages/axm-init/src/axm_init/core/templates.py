@@ -64,9 +64,6 @@ _TEMPLATE_DIRS: dict[tuple[TemplateType, Framework], str] = {
     (TemplateType.STANDALONE, Framework.PYTHON): "python-project",
     (TemplateType.WORKSPACE, Framework.PYTHON): "uv-workspace",
     (TemplateType.MEMBER, Framework.PYTHON): "workspace-member",
-    (TemplateType.PAPER, Framework.PYTHON): "paper-submodule",
-    (TemplateType.EXPERIMENT, Framework.PYTHON): "experiment",
-    (TemplateType.LEARNING, Framework.PYTHON): "learning-project",
     (TemplateType.STANDALONE, Framework.NODE): "node-project",
     (TemplateType.STANDALONE, Framework.SVELTE): "svelte-project",
 }
@@ -89,6 +86,8 @@ def get_template_path(
     Raises:
         KeyError: If no template exists for the (type, framework) combination.
     """
+    if template_type == TemplateType.PAPER:
+        raise ValueError("Paper scaffolding is owned by axm-lab; use paper_scaffold.")
     resolved_framework = framework or Framework.PYTHON
     dir_name = _TEMPLATE_DIRS[(template_type, resolved_framework)]
     return Path(str(TEMPLATES_PKG / dir_name))
@@ -99,30 +98,19 @@ def template_chain(
     framework: Framework | None,
     *,
     member: bool,
+    existing: bool = False,
 ) -> tuple[TemplateLayer, ...]:
     """Resolve the ordered Copier layers for a scaffold request."""
-    if template_type is not TemplateType.LEARNING:
-        return (
-            TemplateLayer(
-                name=template_type.value,
-                path=get_template_path(template_type, framework),
-                data={},
-            ),
+    if template_type in (TemplateType.LEARNING, TemplateType.EXPERIMENT):
+        from axm_init.scaffolding import ScaffoldRequest, _provider_layers
+
+        return _provider_layers(
+            ScaffoldRequest(template_type.value, framework, member, existing)
         )
-
-    learning_layer = TemplateLayer(
-        name="learning",
-        path=get_template_path(TemplateType.LEARNING, framework),
-        data={"learning_mode": "standalone" if member else "overlay"},
-    )
-    if member:
-        return (learning_layer,)
-
     return (
         TemplateLayer(
-            name="base",
-            path=get_template_path(TemplateType.STANDALONE, framework),
+            name=template_type.value,
+            path=get_template_path(template_type, framework),
             data={},
         ),
-        learning_layer,
     )

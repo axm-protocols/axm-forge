@@ -8,10 +8,6 @@ import pytest
 
 from axm_init.checks._workspace import ProjectContext
 from axm_init.checks.docs import check_mkdocs_exists
-from axm_init.checks.experiment import (
-    check_experiment_files,
-    check_experiment_structure,
-)
 from axm_init.checks.pyproject import check_pyproject_exists
 from axm_init.checks.structure import (
     check_py_typed,
@@ -20,7 +16,6 @@ from axm_init.checks.structure import (
 )
 from axm_init.core import checker
 from axm_init.core.checker import CheckEngine, _discover_checks, get_check_name
-from axm_init.tools.scaffold import InitScaffoldTool
 
 pytestmark = pytest.mark.integration
 
@@ -91,16 +86,6 @@ def test_module_source_drops_the_legacy_constants() -> None:
         assert legacy not in source, f"{legacy} still defined in {checker.__file__}"
 
 
-def _experiment_check_ids() -> set[str]:
-    # Canonical ids of the two experiment form checks.
-    ids: set[str] = set()
-    for fn in (check_experiment_structure, check_experiment_files):
-        name = get_check_name(fn)
-        assert name is not None
-        ids.add(name)
-    return ids
-
-
 def _make_standalone(tmp_path: Path) -> Path:
     # A bare standalone package on disk.
     solo = tmp_path / "solo"
@@ -130,59 +115,6 @@ def _make_paper(tmp_path: Path) -> Path:
     return paper
 
 
-def test_experiment_checks_are_skipped_for_every_non_experiment_context() -> None:
-    # AC3: both experiment ids sit in the skip entry of every other context.
-    table = _skip_table()
-    ids = _experiment_check_ids()
-
-    for context in ProjectContext:
-        if context is ProjectContext.EXPERIMENT:
-            continue
-        assert ids <= set(table[context]), context
-
-    assert ids.isdisjoint(table[ProjectContext.EXPERIMENT])
-
-
-def test_research_check_shares_the_paper_partition() -> None:
-    # AC4: the new paper check is registered in the context tables exactly
-    # where its sibling paper.plan_present is - same skip entry per context.
-    table = _skip_table()
-    skipped_for_plan = {
-        context for context in ProjectContext if "paper.plan_present" in table[context]
-    }
-    assert skipped_for_plan, "paper.plan_present must be skipped somewhere"
-
-    skipped_for_research = {
-        context
-        for context in ProjectContext
-        if "paper.research_present" in table[context]
-    }
-
-    assert skipped_for_research == skipped_for_plan
-
-
-def test_experiment_checks_never_run_outside_an_experiment(
-    tmp_path: Path,
-    member_path: Path,
-) -> None:
-    # AC3: standalone, workspace, member and paper never see them at all.
-    ids = _experiment_check_ids()
-    discovered = {
-        get_check_name(fn) for fns in _discover_checks().values() for fn in fns
-    }
-    assert ids <= discovered
-
-    projects = (
-        _make_standalone(tmp_path),
-        _make_workspace_root(tmp_path),
-        member_path,
-        _make_paper(tmp_path),
-    )
-    for project in projects:
-        result = CheckEngine(project).run()
-        assert ids.isdisjoint({c.name for c in result.checks}), project
-
-
 SCAFFOLD_IDENTITY = {
     "org": "DemoOrg",
     "author": "Demo Author",
@@ -203,55 +135,3 @@ def _packaging_check_ids() -> set[str]:
         )
         if (name := get_check_name(fn)) is not None
     }
-
-
-@pytest.fixture()
-def experiment_path(tmp_path: Path) -> Path:
-    # A real experiment folder, scaffolded inside a real paper on disk.
-    paper = tmp_path / "demo-paper"
-    paper.mkdir()
-    tool = InitScaffoldTool()
-    bootstrap = tool.execute(
-        path=str(paper),
-        kind="paper",
-        name="demo-paper",
-        **SCAFFOLD_IDENTITY,
-    )
-    assert bootstrap.success, bootstrap.error
-    made = tool.execute(
-        path=str(paper),
-        kind="experiment",
-        name="baseline",
-        **SCAFFOLD_IDENTITY,
-    )
-    assert made.success, made.error
-    assert isinstance(made.data, dict)
-    return Path(str(made.data["path"]))
-
-
-def test_packaging_checks_never_fail_for_an_experiment(
-    experiment_path: Path,
-) -> None:
-    # AC2: on an experiment the packaging checks are skipped, never failed.
-    engine = CheckEngine(experiment_path)
-    assert engine.context == ProjectContext.EXPERIMENT
-
-    result = engine.run()
-    packaging = _packaging_check_ids()
-
-    assert packaging.isdisjoint({f.name for f in result.failures})
-    for check in result.checks:
-        if check.name in packaging:
-            assert check.passed, check.message
-
-
-def test_experiment_form_checks_run_and_pass(experiment_path: Path) -> None:
-    # AC3: the two form checks execute and pass on an experiment folder,
-    # while the packaging rulebook does not run at all.
-    result = CheckEngine(experiment_path).run()
-    executed = {check.name: check for check in result.checks}
-    form_ids = _experiment_check_ids()
-
-    assert form_ids <= set(executed)
-    assert all(executed[name].passed for name in form_ids), result.failures
-    assert _packaging_check_ids().isdisjoint(executed)

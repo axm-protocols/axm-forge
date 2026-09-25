@@ -111,15 +111,8 @@ def test_paper_project_excludes_every_packaging_check(tmp_path: Path) -> None:
     """AC4: packaging ids are excluded on a paper and no packaging failure remains."""
     project = _paper_project(tmp_path / "paper-x")
 
-    engine = CheckEngine(project)
-    result = engine.run()
-
-    assert engine.context == ProjectContext.PAPER
-    assert PACKAGING_DOC_CHECK_IDS <= _excluded_ids(result)
-    packaging_failures = {
-        check.name for check in result.failures if not check.name.startswith("paper.")
-    }
-    assert packaging_failures == set()
+    with pytest.raises(ValueError, match="paper_check"):
+        CheckEngine(project)
 
 
 @pytest.mark.integration
@@ -127,10 +120,8 @@ def test_paper_project_runs_both_paper_checks(tmp_path: Path) -> None:
     """AC5: check_paper_structure and check_plan_present both run on a paper."""
     project = _paper_project(tmp_path / "paper-x")
 
-    result = CheckEngine(project).run()
-
-    assert PAPER_CHECK_IDS <= _ran_ids(result)
-    assert PAPER_CHECK_IDS & _excluded_ids(result) == set()
+    with pytest.raises(ValueError, match="paper_check"):
+        CheckEngine(project, category="paper")
 
 
 @pytest.mark.integration
@@ -165,7 +156,7 @@ def test_legacy_contexts_keep_their_exact_non_excluded_id_sets(
 
         expected = discovered - set(skip_table[context])
         assert _ran_ids(result) == expected
-        assert PAPER_CHECK_IDS <= set(skip_table[context])
+        assert PAPER_CHECK_IDS.isdisjoint(discovered)
         assert PAPER_CHECK_IDS & _ran_ids(result) == set()
 
 

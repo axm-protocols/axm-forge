@@ -8,31 +8,22 @@ The experiment branch is evaluated FIRST, keyed on a root `manifest.yaml` whose 
 
 The marker logic is split in two, mirroring the paper shape: a pure predicate over the YAML text and a thin filesystem wrapper reading the root manifest.
 
-The paper branch is evaluated next, keyed on an explicit `[tool.axm-lab]` pyproject section OR (for a satellite paper carrying no pyproject) the full structural triple `PLAN*.md` + `paper/` + `experiments/`, all three required, so a paper nested in a uv workspace stays a paper instead of inheriting the Python-packaging rulebook.
+The paper branch recognizes `PLAN*.md` plus `paper/`. An existing explicit
+`[tool.axm-lab]` marker is also recognized. Paper detection applies before
+workspace membership; Lab owns new writing scaffolds and their metadata.
 
-Plus `find_workspace_root()` / `get_workspace_members()` which delegate uv-workspace resolution to `axm_ingot.uv` (`find_workspace_root` / `resolve_workspace`) and only project the result
+`find_workspace_root()` and `get_workspace_members()` use `axm_ingot.uv`.
 
 ## Skip and redirect policy
 
-`SKIP_BY_CONTEXT` / `REDIRECT_BY_CONTEXT` map every `ProjectContext` to a frozenset of check ids — a new context is a new row, not a new branch.
+`SKIP_BY_CONTEXT` and `REDIRECT_BY_CONTEXT` select applicable packaging checks.
+`validate_context_tables()` rejects unknown check IDs. Members inherit applicable
+root CI and tooling checks. Paper detection and explicit `category=paper` requests
+return guidance to axm-lab's `paper_check`; Init contains no paper rules.
 
-`validate_context_tables()` runs at `CheckEngine` construction, so an id no discovered check declares raises `ValueError` up front instead of being a silently inert skip.
-
-The two `experiment.*` ids are unioned into every OTHER context's skip row, derived from the registry via `_category_check_ids("experiment")` so startup validation stays green.
-
-The `experiment` row of `REDIRECT_BY_CONTEXT` stays empty on purpose: every redirectable id is a packaging check, and the experiment context skips the packaging rulebook outright — `_filter_checks` evaluates skip before redirect, so a redirect entry there would be dead code
-
-`SKIP_BY_CONTEXT[PAPER]` is *derived*, not hand-listed: `_known_check_ids() - _PAPER_CHECKS - _EXPERIMENT_CHECKS`.
-
-Every Python-packaging id (Trusted Publishing, CI matrix, Diataxis nav, mkdocs, dependabot, `py.typed`, lock file, classifiers, coverage, ruff/mypy config) is therefore skipped on a paper, and a packaging check added later is skipped the day it lands.
-
-Symmetrically the `paper.*` ids sit in the standalone, workspace and member rows, and the two `experiment.*` ids sit in all four non-experiment rows (the paper row included)
-
-Same derivation, one context lower: `SKIP_BY_CONTEXT[EXPERIMENT]` is the union of `_PACKAGING_CHECKS` and `_PAPER_CHECKS`, both registry-derived, so no id is hand-listed and a renamed check is either routed automatically or rejected up front by `validate_context_tables()`.
-
-A folder holding a `manifest.yaml` is not a Python distribution: `pyproject.pyproject_exists`, `structure.src_layout`, `structure.py_typed`, `structure.tests_dir`, `docs.mkdocs_exists` and the rest of the packaging rulebook never run on it, and the paper invariants belong to the paper root ABOVE it.
-
-Only `experiment.experiment_structure` and `experiment.experiment_files` are graded — so an experiment freshly scaffolded with `--kind experiment` is reported in the `experiment` context with an EMPTY failure list, while its manifest substance (still TODO placeholders) stays axm-lab's business
+Experiment detection is retained to return actionable guidance: Forge refuses
+experiment validation and directs callers to axm-lab's `experiment_check`.
+It has no bundled experiment checks and does not return an empty passing grade.
 
 ## Protocol checks at the workspace root
 

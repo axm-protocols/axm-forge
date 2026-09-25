@@ -305,45 +305,23 @@ _MEMBER_REDIRECTS: frozenset[str] = frozenset(
 # A paper's own invariants: meaningless in every non-paper context.
 _PAPER_CHECKS: frozenset[str] = _category_check_ids("paper")
 
-# An experiment folder's own form invariants: meaningless everywhere else,
-# so every NON-experiment context skips the whole ``experiment`` category.
-# Derived from the registry, never hand-listed.
-_EXPERIMENT_CHECKS: frozenset[str] = _category_check_ids("experiment")
-
-# Every Python-packaging check id — i.e. everything that is neither a paper
-# nor an experiment check. Derived from the registry instead of hand-listed,
-# so a packaging check added later is skipped on a paper the day it lands.
-_PACKAGING_CHECKS: frozenset[str] = (
-    _known_check_ids() - _PAPER_CHECKS - _EXPERIMENT_CHECKS
-)
+# Packaging checks are every default check except paper writing checks.
+_PACKAGING_CHECKS: frozenset[str] = _known_check_ids() - _PAPER_CHECKS
 
 # Checks skipped entirely, per detected project context.
 SKIP_BY_CONTEXT: dict[ProjectContext, frozenset[str]] = {
     ProjectContext.STANDALONE: (
-        _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS | _EXPERIMENT_CHECKS | _SUPERSEDED_CHECKS
+        _WORKSPACE_ONLY_CHECKS | _PAPER_CHECKS | _SUPERSEDED_CHECKS
     ),
     ProjectContext.WORKSPACE: (
-        _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS | _EXPERIMENT_CHECKS | _SUPERSEDED_CHECKS
+        _WORKSPACE_ROOT_SKIPS | _PAPER_CHECKS | _SUPERSEDED_CHECKS
     ),
     ProjectContext.MEMBER: (
-        _WORKSPACE_ONLY_CHECKS
-        | _MEMBER_SKIPS
-        | _PAPER_CHECKS
-        | _EXPERIMENT_CHECKS
-        | _SUPERSEDED_CHECKS
+        _WORKSPACE_ONLY_CHECKS | _MEMBER_SKIPS | _PAPER_CHECKS | _SUPERSEDED_CHECKS
     ),
-    # A paper is not a Python distribution: the whole packaging rulebook is
-    # out, only the paper's own invariants are graded — and an experiment's
-    # form checks belong to the experiment folders nested under it, not to
-    # the paper root.
-    ProjectContext.PAPER: _PACKAGING_CHECKS | _EXPERIMENT_CHECKS,
-    # An experiment folder is not a Python distribution either: it holds a
-    # manifest, not a pyproject.toml / src/ / py.typed / test pyramid /
-    # mkdocs.yml. The whole packaging rulebook is out, and so are the paper
-    # invariants (they belong to the paper root above it) — only the two
-    # experiment FORM checks are graded. Both operands come from the
-    # registry-derived sets, so a check added or renamed later is routed (or
-    # rejected by ``validate_context_tables``) instead of drifting.
+    # Paper projects run only their writing checks.
+    ProjectContext.PAPER: _PACKAGING_CHECKS,
+    # Retained for context-table consumers; the engine redirects to Lab with an error.
     ProjectContext.EXPERIMENT: _PACKAGING_CHECKS | _PAPER_CHECKS,
 }
 
@@ -550,6 +528,13 @@ class CheckEngine:
             else Framework(framework)
         )
         self.context = detect_context(self.project_path)
+        if self.context == ProjectContext.EXPERIMENT or category == "experiment":
+            raise ValueError(
+                "Experiment validation is owned by axm-lab; install axm-lab "
+                "and use its experiment_check tool."
+            )
+        if self.context == ProjectContext.PAPER or category == "paper":
+            raise ValueError("Paper validation is owned by axm-lab; use paper_check.")
         self.workspace_root = find_workspace_root(self.project_path)
 
     def _is_excluded(self, check_name: str, exclusions: set[str]) -> bool:
