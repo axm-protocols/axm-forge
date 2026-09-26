@@ -15,6 +15,7 @@ from axm.tools.base import ToolResult
 
 from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
 from axm_edit.core.engine import batch_apply
+from axm_edit.core.operation_shapes import OPERATION_SHAPES_HINT
 from axm_edit.core.preflight import (
     collect_preflight_diagnostics,
     partition_diagnostics,
@@ -754,10 +755,11 @@ class BatchEditTool:
     tags = frozenset({"edit", "atomic", "refactor"})
 
     agent_hint: str = (
-        "Apply multiple file edits atomically via op=replace"
-        " with old/new pairs. Safer than sed — validates before writing."
+        "Apply multiple file operations atomically."
+        " Safer than sed — validates before writing."
         " A batch that fails mid-apply restores every touched file on its"
         " own; to undo a batch that succeeded, use git.\n"
+        f"{OPERATION_SHAPES_HINT}\n"
         f"{ANCHOR_RULES_HINT}"
     )
 
@@ -831,19 +833,20 @@ class BatchEditTool:
 
 
 def _compose_execute_doc(doc: str | None) -> str:
-    """Insert the shared anchor contract into an ``execute`` docstring.
+    """Insert the shared shapes and anchor contract into an ``execute`` docstring.
 
-    The rules land in the long description, right after the summary line,
-    so the CLI help renders them before the ``Args:`` section.
+    The shapes then the rules land in the long description, right after the
+    summary line, so the CLI help renders them before the ``Args:`` section.
 
     Args:
         doc: The literal docstring of the ``execute`` method.
 
     Returns:
-        The same docstring with :data:`ANCHOR_RULES_HINT` composed in.
+        The same docstring with :data:`OPERATION_SHAPES_HINT` and
+        :data:`ANCHOR_RULES_HINT` composed in.
     """
     summary, _, body = (doc or "").partition("\n")
-    rules = indent(ANCHOR_RULES_HINT, " " * 8)
+    rules = indent(f"{OPERATION_SHAPES_HINT}\n\n{ANCHOR_RULES_HINT}", " " * 8)
     return f"{summary}\n\n{rules}\n{body}"
 
 

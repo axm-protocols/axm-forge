@@ -7,6 +7,7 @@ from pathlib import Path
 from pytest_mock import MockerFixture
 
 from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
+from axm_edit.core.operation_shapes import OPERATION_SHAPES_HINT
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -422,6 +423,23 @@ class TestAgentHintPublishesTheAnchorContract:
         missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
 
         assert not missing, f"missing rule markers: {missing}"
+
+
+class TestOperationShapesArePublished:
+    """Both published texts carry the operation shapes."""
+
+    def test_hint_embeds_the_shapes(self) -> None:
+        """The agent hint composes OPERATION_SHAPES_HINT."""
+        assert OPERATION_SHAPES_HINT in BatchEditTool().agent_hint
+
+    def test_execute_doc_embeds_every_shape_line(self) -> None:
+        """The MCP description (execute docstring) lists every shape line."""
+        doc = BatchEditTool.execute.__doc__ or ""
+        missing = [
+            line for line in OPERATION_SHAPES_HINT.splitlines() if line not in doc
+        ]
+
+        assert not missing, missing
 
 
 ENRICHED_ANCHOR_EXCERPT = "return VALUE"
