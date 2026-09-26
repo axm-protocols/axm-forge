@@ -915,7 +915,7 @@ class TestBlockedBatchSurfacesTheEnrichedDiagnostic:
                     "edits": [
                         {"old": "VALUE = 1", "new": "VALUE = 2"},
                         {
-                            "old": '    """Return the value."""',
+                            "old": '    """Return the missing value."""',
                             "new": '    """Return the stored value."""',
                         },
                     ],

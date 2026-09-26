@@ -47,7 +47,9 @@ All edits for a file are resolved before apply, then spliced bottom to top.
 An empty `new` deletes the matched block without leaving a blank line.
 
 For tool calls, copy indentation, omit trailing newlines from `old` and
-`new`, and avoid triple quotes in `old`. Use a unique, small anchor.
+`new`. Use a unique, small anchor. Triple-quoted strings are valid anchors;
+a batch that would leave a parseable Python file unparseable is refused before
+any write, whatever the anchor.
 The engine can recover shifted lines, normalized quotes and dedented matches;
 these fallbacks are not semantic code analysis. Overlapping edits and unresolved
 ambiguous anchors are rejected. A preflight warning about ambiguity does not

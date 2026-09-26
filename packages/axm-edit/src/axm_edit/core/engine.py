@@ -12,7 +12,7 @@ Implements the validate-then-apply strategy from the axm-edit spec:
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
@@ -31,6 +31,7 @@ from axm_edit.core.rewrite import (
     classify_rewrite_target,
     compute_checksum,
 )
+from axm_edit.core.syntax_gate import syntax_regression
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -585,6 +586,53 @@ def _anchor_still_matches(lines: list[str], edit: ResolvedEdit) -> bool:
     return match_exact(edit.line) or match_dedented(edit.line)
 
 
+def _replacement_lines(edit: ResolvedEdit) -> list[str]:
+    """Return the lines replacing the block matched by *edit*.
+
+    An empty ``new`` is a pure deletion of the matched block: no lines, rather
+    than a residual blank line.
+    """
+    new_content = _reindent(edit.new, edit.indent) if edit.indent else edit.new
+    if new_content == "":
+        return []
+    if not new_content.endswith("\n"):
+        new_content += "\n"
+    return new_content.splitlines(keepends=True)
+
+
+def _splice(
+    lines: list[str],
+    resolved: list[ResolvedEdit],
+    file_rel: str,
+) -> list[str]:
+    """Return a copy of *lines* with every resolved edit spliced in.
+
+    Edits are spliced bottom-to-top so upper edits don't shift. Before each
+    splice the resolved range is re-verified against ``old`` (TOCTOU guard).
+
+    Raises:
+        _AnchorDriftError: When a resolved range no longer matches its anchor.
+    """
+    spliced = list(lines)
+    for edit in sorted(resolved, key=lambda e: e.line, reverse=True):
+        if not _anchor_still_matches(spliced, edit):
+            raise _AnchorDriftError(
+                ValidationError(
+                    file=file_rel,
+                    line=edit.line,
+                    expected=edit.old,
+                    error=(
+                        "File changed between validation and apply: "
+                        f"content at line {edit.line} no longer matches the "
+                        "'old' anchor (aborted to avoid a wrong-location splice)"
+                    ),
+                )
+            )
+        end = edit.line + _old_line_count(edit.old) - 1
+        spliced[edit.line - 1 : end] = _replacement_lines(edit)
+    return spliced
+
+
 def _apply_replace(
     root: Path,
     file_rel: str,
@@ -607,43 +655,8 @@ def _apply_replace(
 
     eol = _detect_eol(target)
     lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
-
-    # Sort bottom-to-top so upper edits don't shift
-    sorted_edits = sorted(resolved, key=lambda e: e.line, reverse=True)
-
-    for edit in sorted_edits:
-        # TOCTOU guard: confirm the anchor is still where validation found it.
-        if not _anchor_still_matches(lines, edit):
-            raise _AnchorDriftError(
-                ValidationError(
-                    file=file_rel,
-                    line=edit.line,
-                    expected=edit.old,
-                    error=(
-                        "File changed between validation and apply: "
-                        f"content at line {edit.line} no longer matches the "
-                        "'old' anchor (aborted to avoid a wrong-location splice)"
-                    ),
-                )
-            )
-        start = edit.line
-        end = start + _old_line_count(edit.old) - 1
-        # Build replacement lines, preserving trailing newline style
-        new_content = edit.new
-        # Re-indent if match was indent-normalized
-        if edit.indent:
-            new_content = _reindent(new_content, edit.indent)
-        if new_content == "":
-            # An empty replacement is a *pure deletion* of the matched block:
-            # emit no lines rather than a residual blank line.
-            new_lines: list[str] = []
-        else:
-            if not new_content.endswith("\n"):
-                new_content += "\n"
-            new_lines = new_content.splitlines(keepends=True)
-        lines[start - 1 : end] = new_lines
-
-    target.write_text("".join(lines), encoding="utf-8", newline=eol)
+    spliced = _splice(lines, resolved, file_rel)
+    target.write_text("".join(spliced), encoding="utf-8", newline=eol)
     return len(resolved)
 
 
@@ -877,6 +890,56 @@ def _apply_rewrites(root: Path, rewrites: list[RewriteOp]) -> int:
     return count
 
 
+def _current_text(root: Path, file_rel: str) -> str | None:
+    """Read *file_rel* as UTF-8 text, ``None`` when absent or unreadable."""
+    target = _resolve_safe(root, file_rel)
+    if target is None or not target.is_file():
+        return None
+    try:
+        return target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _planned_contents(
+    root: Path,
+    grouped: _GroupedOps,
+    resolved_by_file: dict[str, list[ResolvedEdit]],
+) -> Iterator[tuple[str, str | None, str]]:
+    """Yield ``(file, before, after)`` for every file the batch would write.
+
+    A replace target that drifted since its resolution is skipped: the apply
+    step re-detects the drift and rolls the batch back.
+    """
+    for file_rel, resolved in resolved_by_file.items():
+        before = _current_text(root, file_rel)
+        if before is None:
+            continue
+        try:
+            spliced = _splice(before.splitlines(keepends=True), resolved, file_rel)
+        except _AnchorDriftError:
+            continue
+        yield file_rel, before, "".join(spliced)
+    for create_op in grouped.creates:
+        yield create_op.file, _current_text(root, create_op.file), create_op.content
+    for rewrite_op in grouped.rewrites:
+        yield rewrite_op.file, _current_text(root, rewrite_op.file), rewrite_op.content
+
+
+def _syntax_errors(
+    root: Path,
+    grouped: _GroupedOps,
+    resolved_by_file: dict[str, list[ResolvedEdit]],
+) -> list[ValidationError]:
+    """Refuse the batch when it would leave a Python file unparseable."""
+    errors: list[ValidationError] = []
+    for file_rel, before, after in _planned_contents(root, grouped, resolved_by_file):
+        error = syntax_regression(file_rel, before, after)
+        if error is not None:
+            errors.append(error)
+    return errors
+
+
 def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     """Validate and apply a batch of file operations.
 
@@ -884,7 +947,9 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
 
     * **Validation is the gate.** All operations are validated first; if any
       fails the batch is rejected wholesale (``success=False``) before a
-      single byte is written — a true all-or-nothing guarantee.
+      single byte is written — a true all-or-nothing guarantee. Validation
+      includes the syntax gate: a batch that would leave a parseable Python
+      file unparseable is refused (:mod:`axm_edit.core.syntax_gate`).
     * **Apply is best-effort with automatic rollback.** Once validation
       passes, a targeted checkpoint of every touched path is captured and the
       operations are applied. If *any* exception occurs mid-apply (anchor
@@ -906,6 +971,8 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     root = root.resolve()
     grouped = _group_operations(root, operations)
     resolved_by_file, errors = _validate_all(root, grouped)
+    if not errors:
+        errors = _syntax_errors(root, grouped, resolved_by_file)
 
     if errors:
         return BatchResult(

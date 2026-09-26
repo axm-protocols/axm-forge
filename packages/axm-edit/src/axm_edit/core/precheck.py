@@ -15,7 +15,6 @@ from axm_edit.models.check import CheckDiagnostic
 from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp, RewriteOp
 
 __all__ = [
-    "check_anchor_quotes",
     "check_anchor_whole_line",
     "check_edit_keys",
     "check_rewrite_keys",
@@ -31,8 +30,6 @@ _REWRITE_ALLOWED_KEYS = ("op", *_REWRITE_DECLARED_KEYS)
 
 StaticOperation = ReplaceOp | CreateOp | DeleteOp | RewriteOp
 """Any already-parsed batch operation accepted by the static checks."""
-
-_TRIPLE_QUOTES = ('"""', "'''")
 
 
 def check_edit_keys(
@@ -160,40 +157,6 @@ def anchor_excerpt(old: str) -> str:
     return _truncate(render_invisibles(old), MAX_ANCHOR_EXCERPT_CHARS)
 
 
-def check_anchor_quotes(
-    op_index: int,
-    file: str,
-    old: str,
-    edit_index: int | None = None,
-) -> list[CheckDiagnostic]:
-    """Report an anchor containing a triple-quote delimiter.
-
-    Args:
-        op_index: 0-indexed position of the operation in the batch.
-        file: Relative path targeted by the operation.
-        old: The anchor text to inspect.
-        edit_index: 0-indexed position of the edit inside that operation,
-            echoed back on the diagnostic; ``None`` when unknown.
-
-    Returns:
-        A single ``ANCHOR_TRIPLE_QUOTE`` diagnostic, or ``[]``.
-    """
-    if not any(quote in old for quote in _TRIPLE_QUOTES):
-        return []
-    return [
-        CheckDiagnostic(
-            op_index=op_index,
-            file=file,
-            severity="error",
-            code="ANCHOR_TRIPLE_QUOTE",
-            message="the anchor contains a triple-quote delimiter",
-            hint="Anchor on a quote-free line instead of a docstring body.",
-            edit_index=edit_index,
-            anchor_excerpt=anchor_excerpt(old),
-        )
-    ]
-
-
 def _occurrences(text: str, needle: str) -> Iterator[int]:
     """Yield every start offset of ``needle`` in ``text``."""
     start = text.find(needle)
@@ -264,7 +227,6 @@ def _check_replace(
     diagnostics: list[CheckDiagnostic] = []
     for edit_index, edit in enumerate(op.edits):
         diagnostics.extend(check_edit_keys(op_index, op.file, edit.model_dump()))
-        diagnostics.extend(check_anchor_quotes(op_index, op.file, edit.old, edit_index))
         diagnostics.extend(
             check_anchor_whole_line(op_index, op.file, lines, edit.old, edit_index)
         )

@@ -401,8 +401,8 @@ class TestRenderRewriteOpLine:
 
 
 ANCHOR_RULE_MARKERS = (
-    "triple quote",
     "trailing newline",
+    "syntax gate",
     "whole line",
     "indentation",
 )
@@ -417,8 +417,8 @@ class TestAgentHintPublishesTheAnchorContract:
 
         assert ANCHOR_RULES_HINT in hint, hint
 
-    def test_hint_states_the_four_anchor_rules(self) -> None:
-        """AC2: the published hint carries the four rule markers."""
+    def test_hint_states_the_anchor_contract(self) -> None:
+        """AC2: the published hint carries the contract markers."""
         lowered = BatchEditTool().agent_hint.lower()
         missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
 
@@ -455,9 +455,9 @@ def _blocked_preflight_data() -> dict[str, object]:
                     "severity": "error",
                     "file": "pkg/mod.py",
                     "op_index": 0,
-                    "code": "ANCHOR_TRIPLE_QUOTE",
-                    "message": "the anchor contains a triple-quote delimiter",
-                    "hint": "Anchor on a quote-free line instead.",
+                    "code": "ANCHOR_NOT_WHOLE_LINE",
+                    "message": "the multi-line anchor starts or ends mid-line",
+                    "hint": "Extend the anchor to full lines.",
                     "edit_index": 1,
                     "anchor_excerpt": ENRICHED_ANCHOR_EXCERPT,
                 },
@@ -488,7 +488,7 @@ class TestRenderPreflightEnrichment:
 
         text = render_text(result, [], _blocked_preflight_data())
         lines = [line.strip() for line in text.splitlines()]
-        enriched = [line for line in lines if "ANCHOR_TRIPLE_QUOTE" in line]
+        enriched = [line for line in lines if "ANCHOR_NOT_WHOLE_LINE" in line]
         legacy = [line for line in lines if "UNKNOWN_EDIT_KEY" in line]
 
         assert len(enriched) == 1, text

@@ -69,6 +69,10 @@ _DELETE_THEN_CREATE_HINT = (
 _ANCHOR_NOT_FOUND_HINT = (
     "Re-read the file and copy the anchor verbatim, whitespace included."
 )
+_ANCHOR_OVER_ESCAPED_HINT = (
+    "The anchor carries backslash-escaped quotes the file does not: send the"
+    " quotes unescaped, the JSON layer already escapes them."
+)
 _ANCHOR_AMBIGUOUS_HINT = (
     "Extend the anchor with surrounding context (or pin `line`): "
     "`batch_edit` rewrites the first match only."
@@ -315,6 +319,14 @@ def check_rewrite_targets(
     return diagnostics
 
 
+def _not_found_hint(old: str, text: str) -> str:
+    """Pick the not-found hint, naming over-escaped quotes when they explain it."""
+    unescaped = old.replace('\\"', '"').replace("\\'", "'")
+    if unescaped != old and unescaped in text:
+        return _ANCHOR_OVER_ESCAPED_HINT
+    return _ANCHOR_NOT_FOUND_HINT
+
+
 def _check_anchors(
     op_index: int,
     op: ReplaceOp,
@@ -332,7 +344,7 @@ def _check_anchors(
                     severity="error",
                     code="ANCHOR_NOT_FOUND",
                     message=f"Anchor not found in {op.file!r}: {edit.old!r}.",
-                    hint=_ANCHOR_NOT_FOUND_HINT,
+                    hint=_not_found_hint(edit.old, text),
                     edit_index=edit_index,
                     anchor_excerpt=anchor_excerpt(edit.old),
                 )
