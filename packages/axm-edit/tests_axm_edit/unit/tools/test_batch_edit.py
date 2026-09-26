@@ -93,7 +93,8 @@ class TestRenderText:
             ReplaceOp(file="a.py", edits=[Edit(old="NOPE", new="y")]),
         ]
         text = render_text(result, parsed, {})
-        assert "✗ ROLLBACK" in text
+        assert "✗ REFUSED" in text
+        assert "ROLLBACK" not in text
         assert "Validation failed" in text
         assert "a.py: Content not found" in text
         assert "expected: NOPE" in text
@@ -119,6 +120,58 @@ class TestRenderText:
         assert "⚠ ruff slow" in text
         assert "lintme.py [F401]" in text
         assert "-import os" in text
+
+
+class TestFailureLabel:
+    """The failure header names what happened to the tree."""
+
+    def test_rolled_back_apply_is_labelled_rollback(self) -> None:
+        """A checkpoint restored in full: ROLLBACK, no partial-write alert."""
+        result = BatchResult(
+            success=False, checkpoint="{}", error="Apply aborted and rolled back"
+        )
+
+        text = render_text(result, [], {})
+
+        assert text.startswith("batch_edit | ✗ ROLLBACK | "), text
+        assert "rollback incomplete" not in text
+
+    def test_failed_rollback_is_labelled_and_alerted(self) -> None:
+        """An incomplete restore is named and tells how to recover."""
+        result = BatchResult(
+            success=False,
+            checkpoint="{}",
+            error="Apply aborted and rolled back",
+            rollback_failed=True,
+        )
+
+        text = render_text(result, [], {})
+
+        assert text.startswith("batch_edit | ✗ ROLLBACK FAILED | "), text
+        assert "rollback incomplete" in text
+        assert "batch_rollback" in text
+
+    def test_failed_rollback_reaches_the_payload(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """Agents reading data, not text, also learn of partial writes."""
+        (tmp_path / "a.txt").write_text("x\n", encoding="utf-8")
+        mocker.patch(
+            "axm_edit.tools.batch_edit.batch_apply",
+            return_value=BatchResult(
+                success=False, checkpoint="{}", error="boom", rollback_failed=True
+            ),
+        )
+
+        result = BatchEditTool().execute(
+            path=str(tmp_path),
+            operations=[
+                {"op": "replace", "file": "a.txt", "edits": [{"old": "x", "new": "y"}]}
+            ],
+        )
+
+        assert result.data is not None
+        assert result.data["rollback_failed"] is True
 
 
 class TestImportRemovalAlert:

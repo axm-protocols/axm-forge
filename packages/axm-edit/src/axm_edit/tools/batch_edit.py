@@ -556,6 +556,28 @@ def _preflight_blocking(data: dict[str, object]) -> bool:
     return isinstance(report, dict) and bool(report.get("blocking"))
 
 
+_ROLLBACK_FAILED_LINE = (
+    "  ! rollback incomplete: some files may hold partial writes; restore them"
+    " with batch_rollback (data.checkpoint) or git before retrying."
+)
+
+
+def _failure_label(result: BatchResult, data: dict[str, object]) -> str:
+    """Name what a failed batch did to the tree, from its state, not its message.
+
+    ``PREFLIGHT`` and ``REFUSED`` wrote nothing (no checkpoint was even
+    taken), ``ROLLBACK`` wrote then restored every touched file, and
+    ``ROLLBACK FAILED`` may have left partial writes behind.
+    """
+    if _preflight_blocking(data):
+        return "PREFLIGHT"
+    if result.checkpoint is None:
+        return "REFUSED"
+    if result.rollback_failed:
+        return "ROLLBACK FAILED"
+    return "ROLLBACK"
+
+
 def render_text(
     result: BatchResult,
     parsed: list[Operation],
@@ -563,9 +585,10 @@ def render_text(
 ) -> str:
     """Render a compact, ``git``-style LLM-facing view of a batch result.
 
-    The header carries the global status — ``✓`` on success, or
-    ``✗ ROLLBACK`` on failure so a partial/aborted batch is impossible to
-    miss — followed by the modified/created/deleted/edits counts. Each
+    The header carries the global status — ``✓`` on success, or on failure
+    ``✗`` with a label naming what happened to the tree (see
+    :func:`_failure_label`), so a partial write is impossible to miss —
+    followed by the modified/created/deleted/edits counts. Each
     operated-on file is then listed with its op sigil and edit count, every
     validation error is surfaced verbatim, and the full lint summary
     (fixes, remaining errors, warnings, diffs) is appended.
@@ -594,7 +617,7 @@ def render_text(
         ]
         return "\n".join(lines)
 
-    label = "PREFLIGHT" if _preflight_blocking(data) else "ROLLBACK"
+    label = _failure_label(result, data)
     header = f"batch_edit | ✗ {label} | {result.error or 'failed'}"
     lines = [
         *alerts,
@@ -602,6 +625,7 @@ def render_text(
         *_render_op_lines(parsed),
         *preflight,
         *_render_error_lines(result),
+        *([_ROLLBACK_FAILED_LINE] if result.rollback_failed else []),
     ]
     return "\n".join(lines)
 
@@ -630,6 +654,8 @@ def _run_batch(
     }
     if result.checkpoint is not None:
         data["checkpoint"] = result.checkpoint
+    if result.rollback_failed:
+        data["rollback_failed"] = True
 
     if result.success and options.enabled:
         py_files = _collect_python_files(root, parsed)
