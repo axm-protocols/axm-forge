@@ -74,7 +74,7 @@ def test_batch_edit_reports_nbsp_near_miss_with_locator(tmp_path: Path) -> None:
 
 @pytest.mark.e2e
 def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
-    """AC4: the CLI prints a bounded ``Ambiguous match:`` candidate list."""
+    """AC4: the CLI refuses the batch with a bounded ambiguous candidate list."""
     anchor = "value = compute(x)"
     target = tmp_path / "pkg" / "mod.py"
     target.parent.mkdir(parents=True)
@@ -110,7 +110,7 @@ def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
 
     combined = proc.stdout + proc.stderr
     reported = "\n".join(
-        line for line in combined.splitlines() if "Ambiguous match:" in line
+        line for line in combined.splitlines() if "ANCHOR_AMBIGUOUS" in line
     )
 
     assert proc.returncode != 0, combined

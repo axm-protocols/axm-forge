@@ -52,8 +52,11 @@ a batch that would leave a parseable Python file unparseable is refused before
 any write, whatever the anchor.
 The engine can recover shifted lines, normalized quotes and dedented matches;
 these fallbacks are not semantic code analysis. Overlapping edits and unresolved
-ambiguous anchors are rejected. A preflight warning about ambiguity does not
-mean engine validation will accept it.
+ambiguous anchors are rejected. The preflight resolves anchors with the same
+resolver as the engine: it blocks exactly the anchors the engine would refuse
+(`ANCHOR_NOT_FOUND`, `ANCHOR_AMBIGUOUS` with the candidate lines), and flags a
+match found only through a fallback as an `ANCHOR_NORMALIZED` warning. Lines
+are split on `\n` only, so a form feed stays inside its line.
 
 Replacements preserve detected LF or CRLF style. New replacement content
 receives a terminating newline when nonempty. Use rewrite when exact whole-file

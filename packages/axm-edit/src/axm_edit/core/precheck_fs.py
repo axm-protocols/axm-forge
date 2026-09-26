@@ -19,6 +19,8 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
+from axm_edit.core.anchor_match import AnchorMatch, resolve_anchor, split_lines
+from axm_edit.core.diagnostics import format_match_lines
 from axm_edit.core.precheck import (
     REWRITE_CHECKSUM_KEY,
     StaticOperation,
@@ -32,7 +34,7 @@ from axm_edit.core.rewrite import (
     classify_rewrite_target,
     compute_checksum,
 )
-from axm_edit.models.check import CheckDiagnostic
+from axm_edit.models.check import CheckDiagnostic, Severity
 from axm_edit.models.operations import (
     CreateOp,
     DeleteOp,
@@ -74,9 +76,18 @@ _ANCHOR_OVER_ESCAPED_HINT = (
     " quotes unescaped, the JSON layer already escapes them."
 )
 _ANCHOR_AMBIGUOUS_HINT = (
-    "Extend the anchor with surrounding context (or pin `line`): "
-    "`batch_edit` rewrites the first match only."
+    "Extend the anchor with surrounding context, or pin `line` to one of the"
+    " listed lines."
 )
+_ANCHOR_NORMALIZED_HINT = (
+    "Accepted, but copy the anchor verbatim next time: a normalized match is"
+    " a guess, and `new` is re-indented to the matched block."
+)
+_NORMALIZATION_LABELS = {
+    "indent": "the indentation",
+    "smart_quotes": "smart quotes",
+    "wrapping_quotes": "wrapping quotes",
+}
 _LINE_LENGTH_HINT = (
     "`batch_edit` lints with ruff's 88-char default, so this line may be "
     "reflowed even though the project allows it."
@@ -327,44 +338,61 @@ def _not_found_hint(old: str, text: str) -> str:
     return _ANCHOR_NOT_FOUND_HINT
 
 
+def _anchor_verdict(
+    file: str,
+    old: str,
+    match: AnchorMatch,
+    text: str,
+) -> tuple[Severity, str, str, str] | None:
+    """Map an anchor resolution to ``(severity, code, message, hint)``.
+
+    The verdict mirrors the engine, which resolves anchors through the same
+    :func:`~axm_edit.core.anchor_match.resolve_anchor`: an error here is an
+    anchor the engine would refuse, and nothing here blocks one it accepts.
+    """
+    if match.status == "not_found":
+        message = f"Anchor not found in {file!r}: {old!r}."
+        return "error", "ANCHOR_NOT_FOUND", message, _not_found_hint(old, text)
+    if match.status == "ambiguous":
+        lines = format_match_lines(list(match.hits))
+        message = f"Anchor found on {len(match.hits)} lines of {file!r} ({lines})."
+        return "error", "ANCHOR_AMBIGUOUS", message, _ANCHOR_AMBIGUOUS_HINT
+    if match.normalizations:
+        labels = " and ".join(_NORMALIZATION_LABELS[n] for n in match.normalizations)
+        message = (
+            f"Anchor matched line {match.line} of {file!r} only after"
+            f" normalizing {labels}."
+        )
+        return "warning", "ANCHOR_NORMALIZED", message, _ANCHOR_NORMALIZED_HINT
+    return None
+
+
 def _check_anchors(
     op_index: int,
     op: ReplaceOp,
     text: str,
 ) -> list[CheckDiagnostic]:
-    """Compare every anchor of *op* against the file *text* read on disk."""
+    """Resolve every anchor of *op* against the file *text* read on disk."""
+    lines = split_lines(text)
     diagnostics: list[CheckDiagnostic] = []
     for edit_index, edit in enumerate(op.edits):
-        occurrences = text.count(edit.old)
-        if occurrences == 0:
-            diagnostics.append(
-                CheckDiagnostic(
-                    op_index=op_index,
-                    file=op.file,
-                    severity="error",
-                    code="ANCHOR_NOT_FOUND",
-                    message=f"Anchor not found in {op.file!r}: {edit.old!r}.",
-                    hint=_not_found_hint(edit.old, text),
-                    edit_index=edit_index,
-                    anchor_excerpt=anchor_excerpt(edit.old),
-                )
+        match = resolve_anchor(lines, edit.old, edit.line)
+        verdict = _anchor_verdict(op.file, edit.old, match, text)
+        if verdict is None:
+            continue
+        severity, code, message, hint = verdict
+        diagnostics.append(
+            CheckDiagnostic(
+                op_index=op_index,
+                file=op.file,
+                severity=severity,
+                code=code,
+                message=message,
+                hint=hint,
+                edit_index=edit_index,
+                anchor_excerpt=anchor_excerpt(edit.old),
             )
-        elif occurrences > 1:
-            diagnostics.append(
-                CheckDiagnostic(
-                    op_index=op_index,
-                    file=op.file,
-                    severity="warning",
-                    code="ANCHOR_AMBIGUOUS",
-                    message=(
-                        f"Anchor found {occurrences} times in {op.file!r}: "
-                        f"{edit.old!r}."
-                    ),
-                    hint=_ANCHOR_AMBIGUOUS_HINT,
-                    edit_index=edit_index,
-                    anchor_excerpt=anchor_excerpt(edit.old),
-                )
-            )
+        )
     return diagnostics
 
 
@@ -379,9 +407,10 @@ def check_anchors_on_disk(
         operations: Operations in batch order (models or raw payloads).
 
     Returns:
-        ``ANCHOR_NOT_FOUND`` errors for missing anchors and
-        ``ANCHOR_AMBIGUOUS`` warnings for anchors matching more than once;
-        ``[]`` when every anchor matches exactly once.
+        ``ANCHOR_NOT_FOUND`` and ``ANCHOR_AMBIGUOUS`` errors for anchors the
+        engine would refuse, ``ANCHOR_NORMALIZED`` warnings for anchors it
+        accepts only after normalization; ``[]`` when every anchor matches
+        verbatim.
     """
     diagnostics: list[CheckDiagnostic] = []
     for index, op in enumerate(_parse(operations)):
@@ -462,6 +491,25 @@ def _read_contents(
     return contents
 
 
+def _drop_superseded(diagnostics: list[CheckDiagnostic]) -> list[CheckDiagnostic]:
+    """Keep one anchor verdict per edit: the more specific whole-line one.
+
+    A multi-line anchor cut mid-line is both ``ANCHOR_NOT_WHOLE_LINE`` and
+    unresolvable; the whole-line diagnostic already says why, so the generic
+    ``ANCHOR_NOT_FOUND`` of the same edit is dropped.
+    """
+    cut = {
+        (d.op_index, d.edit_index)
+        for d in diagnostics
+        if d.code == "ANCHOR_NOT_WHOLE_LINE"
+    }
+    return [
+        d
+        for d in diagnostics
+        if not (d.code == "ANCHOR_NOT_FOUND" and (d.op_index, d.edit_index) in cut)
+    ]
+
+
 def run_fs_checks(
     root: Path,
     operations: Sequence[FsOperation],
@@ -490,4 +538,5 @@ def run_fs_checks(
         *_check_line_lengths(parsed, limit),
         *run_static_checks(parsed, contents),
     ]
-    return sorted(diagnostics, key=lambda diagnostic: diagnostic.op_index)
+    kept = _drop_superseded(diagnostics)
+    return sorted(kept, key=lambda diagnostic: diagnostic.op_index)

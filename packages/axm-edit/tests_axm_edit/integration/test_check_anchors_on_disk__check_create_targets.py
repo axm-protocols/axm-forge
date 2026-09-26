@@ -63,8 +63,8 @@ def test_missing_anchor_on_disk_is_reported(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-def test_duplicated_anchor_is_a_warning(tmp_path: Path) -> None:
-    """AC3: an anchor found twice is ANCHOR_AMBIGUOUS, severity warning."""
+def test_duplicated_anchor_is_an_error_listing_its_lines(tmp_path: Path) -> None:
+    """An unhinted anchor found twice is refused by the engine, so it blocks."""
     (tmp_path / "a.py").write_text("x = 1\nx = 1\n")
     operations = [ReplaceOp(file="a.py", edits=[Edit(old="x = 1", new="x = 2")])]
 
@@ -72,7 +72,8 @@ def test_duplicated_anchor_is_a_warning(tmp_path: Path) -> None:
 
     assert len(diagnostics) == 1
     assert diagnostics[0].code == "ANCHOR_AMBIGUOUS"
-    assert diagnostics[0].severity == "warning"
+    assert diagnostics[0].severity == "error"
+    assert "(1, 2)" in diagnostics[0].message
 
 
 @pytest.mark.integration
