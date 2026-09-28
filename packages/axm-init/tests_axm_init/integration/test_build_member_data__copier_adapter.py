@@ -77,3 +77,63 @@ def test_generated_seed_test_documents_mirror_exemption(
     assert docstring
     assert "mirror" in docstring.casefold()
     assert "exempt" in docstring.casefold()
+
+
+_LONG_SUMMARY = (
+    "Judged-phase composition on axm-dag: typed verdicts, classified evaluators,"
+    " one feedback turn, waivers on replayed proof."
+)
+
+
+def _render_member(tmp_path: Path, description: str) -> tuple[bool, str, Path]:
+    destination = tmp_path / "axm-long"
+    data = build_member_data(
+        member_name="axm-long",
+        workspace_name="axm-long-workspace",
+        scaffold_data={
+            "org": "axm-protocols",
+            "author_name": "AXM Maintainer",
+            "author_email": "maintainer@example.com",
+            "license": "MIT",
+            "description": description,
+        },
+    )
+    result = CopierAdapter().copy(
+        CopierConfig(
+            template_path=get_template_path(TemplateType.MEMBER),
+            destination=destination,
+            data=data,
+            trust_template=True,
+        )
+    )
+    return result.success, result.message, destination
+
+
+@pytest.mark.integration
+def test_member_accepts_a_pep621_summary_longer_than_80_chars(
+    tmp_path: Path,
+) -> None:
+    """A one-line summary beyond 80 chars is kept whole and wrapped in the docstring."""
+    assert len(_LONG_SUMMARY) > 88
+    success, message, destination = _render_member(tmp_path, _LONG_SUMMARY)
+
+    assert success, message
+    with (destination / "pyproject.toml").open("rb") as stream:
+        assert tomllib.load(stream)["project"]["description"] == _LONG_SUMMARY
+    init = (destination / "src/axm_long/__init__.py").read_text()
+    docstring = ast.get_docstring(ast.parse(init))
+    assert docstring is not None
+    assert " ".join(docstring.split()) == f"axm-long. {_LONG_SUMMARY}"
+    assert max(len(line) for line in init.splitlines()) <= 88
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("description", ["two\nlines", "x" * 513])
+def test_member_refuses_a_summary_pypi_would_refuse(
+    tmp_path: Path, description: str
+) -> None:
+    """Multi-line or over-512-char summaries are invalid core-metadata Summaries."""
+    success, message, _ = _render_member(tmp_path, description)
+
+    assert not success
+    assert "Validation error for question 'description'" in message

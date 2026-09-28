@@ -17,9 +17,12 @@ member_name:
 
 description:
   type: str
-  help: "One-line description (keep under 80 chars — becomes the module docstring)"
+  help: "One-line summary (PEP 621 description; PyPI caps it at 512 chars)"
   default: "A workspace member package"
-  validator: "{% if description | length > 80 %}Description too long ({{ description | length }} chars, max 80){% endif %}"
+  # PEP 621 `description` becomes the core-metadata Summary: one line, and
+  # PyPI refuses more than 512 characters. The module docstring wraps it, so
+  # its length is not bound by the code line length.
+  validator: "{% if '\n' in description or '\r' in description %}Description must be a single line{% elif description | length > 512 %}Description too long ({{ description | length }} chars, max 512){% endif %}"
 
 author_name:
   type: str
