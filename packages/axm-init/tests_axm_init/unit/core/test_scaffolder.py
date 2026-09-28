@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 from axm_init.core.scaffolder import (
     WorkspaceIdentity,
@@ -74,6 +78,54 @@ class TestBuildMemberData:
         """Without an override the holder falls back to ``org``."""
         payload = build_member_data("axm-foo", "axm-demo", _SCAFFOLD_DATA)
         assert payload["license_holder"] == "acme"
+
+
+class TestBuildMemberDataLegacyKeyword:
+    """The former ``workspace_name=`` keyword keeps working, with a warning."""
+
+    def test_workspace_name_keyword_matches_workspace(self) -> None:
+        """``workspace_name=`` is deprecated and maps onto ``workspace``."""
+        expected = build_member_data(
+            "axm-foo", workspace="axm-demo", scaffold_data=_SCAFFOLD_DATA
+        )
+        with pytest.warns(DeprecationWarning, match="workspace_name"):
+            legacy = build_member_data(
+                "axm-foo", workspace_name="axm-demo", scaffold_data=_SCAFFOLD_DATA
+            )
+        assert legacy == expected
+        assert legacy["repository"] == "acme/axm-demo"
+
+    def test_workspace_keyword_does_not_warn(self) -> None:
+        """The new ``workspace`` parameter, positional or named, stays silent."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            build_member_data("axm-foo", "axm-demo", _SCAFFOLD_DATA)
+            build_member_data(
+                "axm-foo", workspace="axm-demo", scaffold_data=_SCAFFOLD_DATA
+            )
+
+    def test_both_spellings_are_refused(self) -> None:
+        """Giving ``workspace`` and ``workspace_name`` together is ambiguous."""
+        with pytest.raises(TypeError, match="both"):
+            build_member_data(
+                "axm-foo",
+                "axm-demo",
+                _SCAFFOLD_DATA,
+                workspace_name="axm-other",
+            )
+
+    def test_missing_arguments_are_refused(self) -> None:
+        """The optional defaults exist for the legacy keyword only."""
+        with pytest.raises(TypeError, match="'workspace'"):
+            build_member_data("axm-foo", scaffold_data=_SCAFFOLD_DATA)
+        with pytest.raises(TypeError, match="'scaffold_data'"):
+            build_member_data("axm-foo", "axm-demo")
+
+    def test_unknown_keyword_is_refused(self) -> None:
+        """Only the legacy ``workspace_name`` rides on the extra keywords."""
+        unknown: dict[str, Any] = {"workspace_title": "axm-demo"}
+        with pytest.raises(TypeError, match="'workspace_title'"):
+            build_member_data("axm-foo", "axm-demo", _SCAFFOLD_DATA, **unknown)
 
 
 class TestResolveWorkspaceRoot:

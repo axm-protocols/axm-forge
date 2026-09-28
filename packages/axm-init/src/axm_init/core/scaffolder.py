@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import re
 import tomllib
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict, Unpack
 
 __all__ = [
     "WorkspaceIdentity",
@@ -52,13 +54,46 @@ class WorkspaceIdentity:
         return cls(name, repository, f"https://{owner}.github.io/{repo}")
 
 
+class _LegacyMemberKeywords(TypedDict, total=False):
+    """Keywords of the former :func:`build_member_data` signature."""
+
+    workspace_name: str
+
+
+def _workspace_argument(
+    workspace: str | WorkspaceIdentity | None, legacy: Mapping[str, object]
+) -> str | WorkspaceIdentity:
+    """Resolve the ``workspace`` argument, honouring the deprecated keyword."""
+    unknown = sorted(set(legacy) - _LegacyMemberKeywords.__optional_keys__)
+    if unknown:
+        msg = f"build_member_data() got an unexpected keyword argument {unknown[0]!r}"
+        raise TypeError(msg)
+    legacy_name = legacy.get("workspace_name")
+    if legacy_name is None:
+        if workspace is None:
+            msg = "build_member_data() missing required argument: 'workspace'"
+            raise TypeError(msg)
+        return workspace
+    if workspace is not None:
+        msg = "build_member_data() got both 'workspace' and 'workspace_name'"
+        raise TypeError(msg)
+    warnings.warn(
+        "build_member_data(workspace_name=...) is deprecated; "
+        "pass workspace=... instead",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    return str(legacy_name)
+
+
 def build_member_data(
     member_name: str,
-    workspace: str | WorkspaceIdentity,
-    scaffold_data: Mapping[str, str],
+    workspace: str | WorkspaceIdentity | None = None,
+    scaffold_data: Mapping[str, str] | None = None,
     *,
     license_holder: str | None = None,
     private: bool | None = None,
+    **legacy: Unpack[_LegacyMemberKeywords],
 ) -> dict[str, object]:
     """Build copier template variables for a workspace member scaffold.
 
@@ -66,17 +101,30 @@ def build_member_data(
         member_name: Name of the new member package.
         workspace: Parent workspace, as resolved by
             :func:`read_workspace_identity`; a bare name stands for
-            ``org/<name>`` documented on GitHub Pages.
+            ``org/<name>`` documented on GitHub Pages. Required.
         scaffold_data: Caller identity fields — ``org``, ``author_name``,
             ``author_email``, ``license`` and optionally ``description``.
+            Required.
         license_holder: Explicit LICENSE holder; falls back to ``org``.
         private: Publication guard forwarded to Copier when provided.
+        **legacy: ``workspace_name``, the deprecated spelling of *workspace*
+            (a bare name) kept for callers written against the former
+            signature; it emits a :class:`DeprecationWarning`.
 
     Returns:
         The template-variable dict passed verbatim to copier. Identical inputs
         yield a byte-identical dict whatever the calling interface.
+
+    Raises:
+        TypeError: If *scaffold_data* or the workspace is missing, if both
+            *workspace* and ``workspace_name`` are given, or on an unknown
+            keyword.
     """
+    if scaffold_data is None:
+        msg = "build_member_data() missing required argument: 'scaffold_data'"
+        raise TypeError(msg)
     org = scaffold_data["org"]
+    workspace = _workspace_argument(workspace, legacy)
     if isinstance(workspace, str):
         workspace = WorkspaceIdentity.on_github(workspace, f"{org}/{workspace}")
     data: dict[str, object] = {
