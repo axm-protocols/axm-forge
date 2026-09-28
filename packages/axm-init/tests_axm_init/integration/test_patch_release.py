@@ -195,3 +195,32 @@ def test_inline_tags_patch_keeps_real_yaml_steps(
         isinstance(step, dict) and ("uses" in step or "run" in step) for step in steps
     )
     assert _steps_block(content) == steps_before
+
+
+def test_wildcard_tag_already_covering_the_member_is_kept_alone(
+    tmp_path: Path,
+) -> None:
+    """Regression: the template's `*/v*` release trigger gets no per-member tag."""
+    ci_dir = tmp_path / ".github" / "workflows"
+    ci_dir.mkdir(parents=True)
+    body = (
+        "name: Release\n\non:\n  push:\n    tags:\n"
+        '      - "*/v*"\n\npermissions:\n  contents: write\n\n'
+        "jobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n"
+        "      - uses: ./.github/actions/detect-package\n"
+    )
+    (ci_dir / "release.yml").write_text(body)
+
+    assert patch_release(tmp_path, "my-lib") is False
+    assert (ci_dir / "release.yml").read_text() == body
+
+
+def test_covered_tag_still_gets_its_detect_branch(release_root: Path) -> None:
+    """Coverage only spares the tag entry; a legacy detect chain still grows."""
+    release = release_root / ".github" / "workflows" / "release.yml"
+    release.write_text(release.read_text().replace('"v*"', '"**"'))
+
+    assert patch_release(release_root, "my-lib") is True
+    content = release.read_text()
+    assert "my-lib/v*" not in content
+    assert 'elif [[ "$TAG" == my-lib/* ]]' in content

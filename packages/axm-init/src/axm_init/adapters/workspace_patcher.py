@@ -503,12 +503,59 @@ def _find_top_level_key_index(lines: list[str], key: str) -> int | None:
     return None
 
 
+def _tag_patterns(lines: list[str]) -> list[str]:
+    """Return the items of the first ``tags:`` sequence, unquoted."""
+    bounds = _find_yaml_list_range(lines, "tags:")
+    if bounds is None:
+        return []
+    start, end = bounds
+    span = _inline_yaml_sequence_span(lines[start], "tags:")
+    if span is not None:
+        items = lines[start][span[0] + 1 : span[1]].split(",")
+    else:
+        items = [
+            line.strip().removeprefix("- ")
+            for line in lines[start:end]
+            if line.strip().startswith("- ")
+        ]
+    return [item.strip().strip("'\"") for item in items if item.strip()]
+
+
+def _filter_pattern_matches(pattern: str, ref: str) -> bool:
+    """Match a GitHub Actions filter pattern built from ``*`` and ``**`` only.
+
+    ``*`` stops at ``/``, ``**`` does not. Patterns using any other filter
+    operator are not interpreted and never match, so an unknown pattern can
+    only cause an explicit tag to be added, never one to be dropped.
+    """
+    if any(operator in pattern for operator in "?+[]!"):
+        return False
+    regex = "".join(
+        ".*" if part == "**" else "[^/]*" if part == "*" else re.escape(part)
+        for part in re.split(r"(\*\*|\*)", pattern)
+    )
+    return re.fullmatch(regex, ref) is not None
+
+
+def _tags_cover(lines: list[str], tag: str) -> bool:
+    """Whether the workflow's tag filter already triggers on *tag*.
+
+    A negated pattern (``!…``) anywhere makes the answer ``False``: the
+    order-dependent semantics are left to an explicit entry.
+    """
+    patterns = _tag_patterns(lines)
+    if any(pattern.startswith("!") for pattern in patterns):
+        return False
+    return any(_filter_pattern_matches(pattern, tag) for pattern in patterns)
+
+
 def patch_publish(root: Path, member_name: str) -> bool:
     """Add tag trigger pattern for *member_name*.
 
     Adds a ``<member_name>/v*`` tag pattern to the publish workflow's
     ``on.push.tags`` or ``on.release`` trigger.
-    Idempotent — skips if already present.
+    Idempotent — skips if already present, or if an existing pattern
+    (such as the template's ``*/v*``) already matches the member's tags.
 
     Args:
         root: Workspace root directory.
@@ -528,6 +575,9 @@ def patch_publish(root: Path, member_name: str) -> bool:
     tag_pattern = f"{member_name}/v*"
     if tag_pattern in content:
         logger.info("publish.yml already contains %s tag — skipping", member_name)
+        return False
+    if _tags_cover(content.splitlines(keepends=True), f"{member_name}/v0.0.0"):
+        logger.info("publish.yml tags already match %s — skipping", member_name)
         return False
 
     # If there's a tags section, add the pattern there
@@ -567,7 +617,8 @@ def patch_release(root: Path, member_name: str) -> bool:
 
     Adds a ``<member_name>/v*`` tag pattern and a corresponding
     detect block (elif branch) to the release workflow so git-cliff
-    scopes changelogs per-package.
+    scopes changelogs per-package. The tag pattern is not added when an
+    existing pattern (such as the template's ``*/v*``) already matches.
     Idempotent — skips if already present.
 
     Args:
@@ -595,9 +646,11 @@ def patch_release(root: Path, member_name: str) -> bool:
     if tag_pattern in content:
         logger.info("release.yml already contains %s — skipping", member_name)
         return False
+    covered = _tags_cover(lines, tag_pattern.replace("*", "0.0.0"))
 
-    # 1. Add tag pattern — reuse the shared YAML list inserter
-    if "tags:" in content:
+    # 1. Add tag pattern — reuse the shared YAML list inserter, unless an
+    #    existing pattern (e.g. the template's ``*/v*``) already matches.
+    if "tags:" in content and not covered:
         lines, _ = _insert_into_yaml_list(
             lines,
             tag_pattern if has_inline_tags else f'"{tag_pattern}"',
