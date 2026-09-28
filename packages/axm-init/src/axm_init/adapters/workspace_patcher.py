@@ -521,32 +521,54 @@ def _tag_patterns(lines: list[str]) -> list[str]:
     return [item.strip().strip("'\"") for item in items if item.strip()]
 
 
-def _filter_pattern_matches(pattern: str, ref: str) -> bool:
-    """Match a GitHub Actions filter pattern built from ``*`` and ``**`` only.
+def _filter_regex(pattern: str) -> str:
+    """Translate a filter built from ``*`` and ``**`` only into a regex.
 
-    ``*`` stops at ``/``, ``**`` does not. Patterns using any other filter
-    operator are not interpreted and never match, so an unknown pattern can
-    only cause an explicit tag to be added, never one to be dropped.
+    ``*`` stops at ``/``, ``**`` does not (GitHub Actions filter semantics).
     """
-    if any(operator in pattern for operator in "?+[]!"):
-        return False
-    regex = "".join(
+    return "".join(
         ".*" if part == "**" else "[^/]*" if part == "*" else re.escape(part)
         for part in re.split(r"(\*\*|\*)", pattern)
     )
-    return re.fullmatch(regex, ref) is not None
 
 
-def _tags_cover(lines: list[str], tag: str) -> bool:
-    """Whether the workflow's tag filter already triggers on *tag*.
+def _filter_covers(pattern: str, prefix: str) -> bool:
+    """Whether filter *pattern* matches every tag ``<prefix><version>``.
 
-    A negated pattern (``!…``) anywhere makes the answer ``False``: the
-    order-dependent semantics are left to an explicit entry.
+    Decided on the pattern's structure, not on a sample tag: the pattern must
+    end with a wildcard, and what precedes that wildcard must match a leading
+    part of *prefix* exactly, the wildcard absorbing the rest of *prefix* and
+    any version (a version never contains ``/``). ``*/v*`` and ``<member>/v*``
+    cover ``<member>/v``; ``<member>/v0*`` or ``<member>/v1.*`` do not, since
+    they only match some versions. Patterns using any other filter operator
+    are not interpreted and never cover, so an unknown pattern can only cause
+    an explicit tag to be added, never one to be dropped.
+    """
+    if any(operator in pattern for operator in "?+[]!"):
+        return False
+    wildcard = "**" if pattern.endswith("**") else "*"
+    if not pattern.endswith(wildcard):
+        return False
+    head = re.compile(_filter_regex(pattern.removesuffix(wildcard)))
+    return any(
+        head.fullmatch(prefix[:cut]) is not None
+        and (wildcard == "**" or "/" not in prefix[cut:])
+        for cut in range(len(prefix) + 1)
+    )
+
+
+def _tags_cover(lines: list[str], tag_pattern: str) -> bool:
+    """Whether the workflow's tag filter triggers on every tag of *tag_pattern*.
+
+    *tag_pattern* is the member's own ``<prefix>*`` entry. A negated pattern
+    (``!…``) anywhere makes the answer ``False``: the order-dependent
+    semantics are left to an explicit entry.
     """
     patterns = _tag_patterns(lines)
     if any(pattern.startswith("!") for pattern in patterns):
         return False
-    return any(_filter_pattern_matches(pattern, tag) for pattern in patterns)
+    prefix = tag_pattern.removesuffix("*")
+    return any(_filter_covers(pattern, prefix) for pattern in patterns)
 
 
 def patch_publish(root: Path, member_name: str) -> bool:
@@ -576,7 +598,7 @@ def patch_publish(root: Path, member_name: str) -> bool:
     if tag_pattern in content:
         logger.info("publish.yml already contains %s tag — skipping", member_name)
         return False
-    if _tags_cover(content.splitlines(keepends=True), f"{member_name}/v0.0.0"):
+    if _tags_cover(content.splitlines(keepends=True), tag_pattern):
         logger.info("publish.yml tags already match %s — skipping", member_name)
         return False
 
@@ -646,7 +668,7 @@ def patch_release(root: Path, member_name: str) -> bool:
     if tag_pattern in content:
         logger.info("release.yml already contains %s — skipping", member_name)
         return False
-    covered = _tags_cover(lines, tag_pattern.replace("*", "0.0.0"))
+    covered = _tags_cover(lines, tag_pattern)
 
     # 1. Add tag pattern — reuse the shared YAML list inserter, unless an
     #    existing pattern (e.g. the template's ``*/v*``) already matches.

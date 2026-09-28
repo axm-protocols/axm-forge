@@ -224,3 +224,20 @@ def test_covered_tag_still_gets_its_detect_branch(release_root: Path) -> None:
     content = release.read_text()
     assert "my-lib/v*" not in content
     assert 'elif [[ "$TAG" == my-lib/* ]]' in content
+
+
+@pytest.mark.parametrize("partial", ['"my-lib/v0*"', '"my-lib/v1.*"'])
+def test_partial_filter_does_not_spare_the_member_tag(
+    tmp_path: Path, partial: str
+) -> None:
+    """Regression: `my-lib/v0*` misses `my-lib/v1.0.0`, so `my-lib/v*` is added."""
+    ci_dir = tmp_path / ".github" / "workflows"
+    ci_dir.mkdir(parents=True)
+    (ci_dir / "release.yml").write_text(
+        "name: Release\n\non:\n  push:\n    tags:\n"
+        f"      - {partial}\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n"
+    )
+
+    assert patch_release(tmp_path, "my-lib") is True
+    tags = yaml.safe_load((ci_dir / "release.yml").read_text())[True]["push"]["tags"]
+    assert tags == [partial.strip('"'), "my-lib/v*"]
