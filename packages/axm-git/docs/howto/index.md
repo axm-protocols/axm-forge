@@ -8,6 +8,8 @@
 - [Inspect and publish a release](releases.md): analyze changes first, then
   understand the tag-and-push contract.
 - [Select the author identity](identity.md): default identity, profiles and schedules.
+- [Serialise integration](repository-lock.md): the per-repository lock shared by
+  the warden and the tribunal dev graphs.
 
 For exact defaults and returned keys, see the [tool reference](../reference/cli.md).
 For a read-only first run, see the [tutorial](../tutorials/getting-started.md).

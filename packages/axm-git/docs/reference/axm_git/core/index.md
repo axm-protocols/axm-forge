@@ -28,6 +28,10 @@ for registered operations.
     options:
       skip_local_inventory: true
 
+::: axm_git.core.lock
+    options:
+      skip_local_inventory: true
+
 ::: axm_git.core.pr_recovery
     options:
       skip_local_inventory: true
