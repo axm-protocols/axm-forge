@@ -77,6 +77,31 @@ and failure handling. `ToolNodeError` is a `RuntimeError` subclass.
     options:
       skip_local_inventory: true
 
+## Process sandbox
+
+`axm.sandbox` runs a subprocess that may write only under given directories,
+in a filtered environment. It is a submodule contract, not a root export.
+
+| Symbol | Purpose |
+|---|---|
+| `confinement(writable, protected=())` | Probe the platform sandbox (`sandbox-exec` on macOS, `bwrap` on Linux) with the profile it will apply; `Confinement(isolation="sandbox")` or `UNCONFINED` (`"detect-only"`) |
+| `run_confined(command, *, writable, cwd, env=None, protected=(), timeout=None, confined=None)` | Run one command under a confinement; returns `ConfinedRun` (isolation, return code, output) |
+| `inherited_environment(source=None)` | The allow-listed variables (`INHERITED_ENV`) only: no `PYTHONPATH`, `FORCE_COLOR` or credentials |
+| `private_environment(root)` | `HOME`, temporary and XDG variables pointed into fresh directories of `root` |
+| `darwin_profile`, `bubblewrap_argv` | The platform prefixes, for callers that launch the process themselves |
+
+A `detect-only` confinement does not confine anything: callers refuse it or
+report it, never treat it as a sandbox. A protected path inside a writable
+directory stays read-only.
+
+::: axm.sandbox.run_confined
+    options:
+      skip_local_inventory: true
+
+::: axm.sandbox.confinement
+    options:
+      skip_local_inventory: true
+
 ## Other contracts
 
 [Witnesses](witnesses.md) covers the remaining root protocols
