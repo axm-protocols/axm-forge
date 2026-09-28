@@ -181,3 +181,14 @@ def test_member_urls_follow_the_workspace_repository(tmp_path: Path) -> None:
     ).read_text()
     assert "axm-nexus-workspace/" not in rendered
     assert "axm-protocols/axm-nexus/gh-pages/badges/axm-tribunal" in rendered
+
+
+@pytest.mark.integration
+def test_generated_member_license_is_pep639_only(generated_member: Path) -> None:
+    """Regression: an SPDX `license` is never paired with `License ::` classifiers."""
+    with (generated_member / "pyproject.toml").open("rb") as stream:
+        project = tomllib.load(stream)["project"]
+
+    assert project["license"] == "MIT"
+    assert not [c for c in project["classifiers"] if c.startswith("License ::")]
+    assert "Intended Audience :: Developers" in project["classifiers"]
