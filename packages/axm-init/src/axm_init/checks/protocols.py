@@ -3,8 +3,10 @@ from __future__ import annotations
 import ast
 import re
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -20,7 +22,6 @@ from axm_ast import (
 
 from axm_init.checks._composition import (
     COMPOSITION_CALLS,
-    COMPOSITION_FAMILIES,
     GRAPH_GROUPS,
     CompositionFamily,
     family_named,
@@ -258,34 +259,54 @@ def _module_composition(
     return _composition_call(factory[1], _import_bindings(tree))
 
 
-def _graph_claim(module: ModuleInfo) -> tuple[str, str, int] | None:
+_UNATTRIBUTED_REGISTRY = "unattributed"
+"""Claim space of a bare ``GRAPH_NAME``: no composition call, no graph-group entry."""
+
+
+def _call_identity(call: ast.Call) -> tuple[str, int] | None:
+    identity = call.args[0] if call.args else None
+    if isinstance(identity, ast.Constant) and isinstance(identity.value, str):
+        return identity.value, identity.lineno
+    return None
+
+
+def _graph_claims(
+    module: ModuleInfo, groups_of: Callable[[str], list[str]]
+) -> list[tuple[str, str, int]]:
     """Prefer the factory's actual composition identity over a metadata constant.
 
-    The claim lives in its family's graph group; an identity declared without a
-    resolvable composition call belongs to the target (first) family.
+    The claim lives in its family's graph group. An identity declared without a
+    resolvable composition call belongs to the family of every group that
+    registers it (*groups_of*), and to :data:`_UNATTRIBUTED_REGISTRY` when no
+    group does: it is never assumed to belong to one family.
     """
-    family = COMPOSITION_FAMILIES[0]
     composition = _module_composition(module)
-    if composition is not None:
-        family, call = composition
-        identity = call.args[0] if call.args else None
-        if isinstance(identity, ast.Constant) and isinstance(identity.value, str):
-            return family.graphs_group, identity.value, identity.lineno
+    called = None if composition is None else _call_identity(composition[1])
+    if composition is not None and called is not None:
+        return [(composition[0].graphs_group, *called)]
     claim = _constant_claim(module, "GRAPH_NAME")
-    return None if claim is None else (family.graphs_group, *claim)
-
-
-def _record_claims(project: Path, module: ModuleInfo) -> list[tuple[str, str, str]]:
-    claim: tuple[str, str, int] | None = None
-    if module.path.name == "protocol.py":
-        claim = _graph_claim(module)
-    elif module.path.name == "ticket.py":
-        ticket = _constant_claim(module, "TICKET_TYPE")
-        claim = None if ticket is None else ("axm.ticket_types", *ticket)
     if claim is None:
         return []
-    registry, identity, line = claim
-    return [(registry, identity, _location(project, module, line))]
+    if composition is not None:
+        return [(composition[0].graphs_group, *claim)]
+    return [
+        (group, *claim) for group in groups_of(claim[0]) or [_UNATTRIBUTED_REGISTRY]
+    ]
+
+
+def _record_claims(
+    project: Path, module: ModuleInfo, groups_of: Callable[[str], list[str]]
+) -> list[tuple[str, str, str]]:
+    claims: list[tuple[str, str, int]] = []
+    if module.path.name == "protocol.py":
+        claims = _graph_claims(module, groups_of)
+    elif module.path.name == "ticket.py":
+        ticket = _constant_claim(module, "TICKET_TYPE")
+        claims = [] if ticket is None else [("axm.ticket_types", *ticket)]
+    return [
+        (registry, identity, _location(project, module, line))
+        for registry, identity, line in claims
+    ]
 
 
 def _state_location(text: str, unit: str, action: str) -> str:
@@ -358,17 +379,26 @@ def _registration_findings(
     return findings
 
 
+def _groups_registering(
+    identity: str,
+    factory: str,
+    groups: dict[str, dict[str, object]],
+    modules: dict[str, ModuleInfo],
+) -> list[str]:
+    """Graph groups with an entry named *identity* or targeting *factory*."""
+    return [
+        group
+        for group, entries in groups.items()
+        if identity in entries or _has_factory_entry(factory, entries, modules)
+    ]
+
+
 def _registered_groups(
     record: ProtocolRecord,
     groups: dict[str, dict[str, object]],
     modules: dict[str, ModuleInfo],
 ) -> list[str]:
-    return [
-        group
-        for group, entries in groups.items()
-        if record.graph_name in entries
-        or _has_factory_entry(record.factory, entries, modules)
-    ]
+    return _groups_registering(record.graph_name, record.factory, groups, modules)
 
 
 def _family_findings(record: ProtocolRecord, registered: list[str]) -> list[str]:
@@ -421,7 +451,11 @@ def _skeleton_findings(project: Path, modules: list[ModuleInfo]) -> list[str]:
 
 
 def _inspect_record(
-    project: Path, action_root: Path, package: PackageInfo, record: ProtocolRecord
+    project: Path,
+    action_root: Path,
+    package: PackageInfo,
+    record: ProtocolRecord,
+    groups_of: Callable[[str], list[str]],
 ) -> None:
     inspected = [
         module for module in package.modules if module.path.is_relative_to(action_root)
@@ -432,7 +466,9 @@ def _inspect_record(
     composition = None if assembly is None else _module_composition(assembly)
     record.family = None if composition is None else composition[0].name
     record.claims = [
-        claim for module in inspected for claim in _record_claims(project, module)
+        claim
+        for module in inspected
+        for claim in _record_claims(project, module, groups_of)
     ]
     if record.state == "ready":
         record.skeleton_findings = _skeleton_findings(project, inspected)
@@ -463,7 +499,18 @@ def protocol_inventory(project: Path) -> list[ProtocolRecord]:
             location=_state_location(text, unit, action),
             factory=f"{qualified}:build_protocol",
         )
-        _inspect_record(project, root / unit / action, package, record)
+        _inspect_record(
+            project,
+            root / unit / action,
+            package,
+            record,
+            partial(
+                _groups_registering,
+                factory=record.factory,
+                groups=groups,
+                modules=modules,
+            ),
+        )
         record.registration_findings = _registration_findings(
             record, groups, modules, text
         )

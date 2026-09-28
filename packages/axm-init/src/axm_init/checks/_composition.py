@@ -48,8 +48,9 @@ class CompositionFamily:
             raise ValueError(msg)
 
 
-# Order is precedence: the first row is the target family, assumed when a
-# protocol declares its identity without a resolvable composition call.
+# Order is precedence: the first row is the target family, listed first. A
+# protocol declaring its identity without a resolvable composition call is
+# attributed by the group that registers it, never by this order.
 COMPOSITION_FAMILIES: tuple[CompositionFamily, ...] = (
     CompositionFamily(
         name="tribunal",
