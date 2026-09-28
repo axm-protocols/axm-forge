@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import fnmatch
-import importlib.metadata
 import logging
 import os
 from collections.abc import Callable
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+
+from axm.tools.discovery import tool_entry_points
 
 from axm_mcp.facade.catalog import render_list_tools
 from axm_mcp.schema import (
@@ -29,7 +30,6 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-_EP_GROUP = "axm.tools"
 
 type _WriteContractResolver = Callable[[], WriteContract | None]
 type _RegistrationConfig = tuple[bool, _WriteContractResolver | None]
@@ -47,9 +47,9 @@ def is_disabled(name: str, patterns: list[str]) -> bool:
 class ToolResultLike(Protocol):
     """Structural protocol matching ``axm.tools.base.ToolResult``.
 
-    Declared locally to keep ``axm_mcp.discovery`` free of ``axm.*``
-    imports — ``axm-mcp`` is a pure discovery shell (enforced by
-    ``test_mcp_decoupled.py``).
+    Declared locally so ``axm_mcp.discovery`` imports nothing from ``axm``
+    but the shared tool resolver — ``axm-mcp`` is a pure discovery shell
+    (enforced by ``test_discovery__mcp_app.py``).
     """
 
     success: bool
@@ -86,6 +86,12 @@ ToolEntry = ToolLike | PlainTool
 def discover_tools() -> dict[str, ToolEntry]:
     """Discover and instantiate all AXMTool entry points.
 
+    Names are resolved by :func:`axm.tools.discovery.tool_entry_points`, the
+    resolver the ``axm`` CLI and ``load_tool`` share: the tribunal group
+    ``axm.tribunal.tools`` shadows the legacy ``axm.tools``, a name published
+    twice inside one group raises ``DuplicateToolError`` (the server refuses
+    to start on an ambiguous catalog), and tools register in name order.
+
     Supports both ``AXMTool`` subclasses (instantiated) and plain
     dispatcher functions (used as-is).
 
@@ -103,9 +109,9 @@ def discover_tools() -> dict[str, ToolEntry]:
 
     tools: dict[str, ToolEntry] = {}
 
-    for ep in importlib.metadata.entry_points(group=_EP_GROUP):
-        if disable_patterns and is_disabled(ep.name, disable_patterns):
-            logger.info("Skipping disabled tool: %s", ep.name)
+    for name, ep in tool_entry_points().items():
+        if disable_patterns and is_disabled(name, disable_patterns):
+            logger.info("Skipping disabled tool: %s", name)
             continue
         try:
             obj = ep.load()
@@ -113,12 +119,12 @@ def discover_tools() -> dict[str, ToolEntry]:
                 tool = obj()  # AXMTool class → instantiate
             else:
                 tool = obj  # plain function → use as-is
-            tools[ep.name] = tool
-            logger.debug("Discovered tool: %s", ep.name)
+            tools[name] = tool
+            logger.debug("Discovered tool: %s", name)
         except Exception:
             logger.warning(
                 "Failed to load tool entry point: %s",
-                ep.name,
+                name,
                 exc_info=True,
             )
 

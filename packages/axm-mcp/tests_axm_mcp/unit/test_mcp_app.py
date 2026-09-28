@@ -227,7 +227,7 @@ class TestDecouplingShape:
             import_module("axm_mcp.server.app")
 
 
-_DISCOVER = "axm_mcp.discovery.importlib.metadata.entry_points"
+_DISCOVER = "importlib.metadata.entry_points"
 
 
 class _HotTool:

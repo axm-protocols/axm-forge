@@ -30,7 +30,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
-from axm.tools._discovery import entry_points_for
+from axm.tools.discovery import tool_entry_points
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from axm.tools.base import AXMTool
 
 __all__ = [
-    "TOOLS_ENTRY_POINT_GROUP",
     "ToolNodeError",
     "load_tool",
     "override_tools",
@@ -52,8 +51,6 @@ _OVERRIDES: ContextVar[Mapping[str, AXMTool] | None] = ContextVar(
     "axm_tool_overrides", default=None
 )
 
-#: The entry-point group tools are discovered under (one declaration, three uses).
-TOOLS_ENTRY_POINT_GROUP = "axm.tools"
 
 #: Sentinel mapping a write key to the tool's ``ToolResult.text``.
 _TEXT = "text"
@@ -98,13 +95,22 @@ def override_tools(tools: Mapping[str, AXMTool]) -> Iterator[None]:
 
 
 def load_tool(name: str) -> AXMTool:
-    """Resolve and instantiate the ``axm.tools`` entry point named *name*."""
+    """Resolve and instantiate the AXM tool named *name*.
+
+    The name is resolved by :func:`axm.tools.discovery.tool_entry_points`
+    (tribunal group first, legacy ``axm.tools`` second), the resolver the MCP
+    catalog and the ``axm`` CLI share.
+
+    Raises:
+        ToolNodeError: No tool is registered under *name*.
+        DuplicateToolError: One entry-point group publishes a name twice.
+    """
     # An active ``override_tools`` substitute wins over discovery, for direct
     # callers as well as for ``tool_node`` (which consults it before its cache).
     overrides = _OVERRIDES.get()
     if overrides and name in overrides:
         return overrides[name]
-    eps = entry_points_for(TOOLS_ENTRY_POINT_GROUP)
+    eps = tool_entry_points()
     ep = eps.get(name)
     if ep is not None:
         obj = ep.load()

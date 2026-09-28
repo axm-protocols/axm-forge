@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from axm.tools.discovery import TOOL_ENTRY_POINT_GROUPS
 from axm_ingot.suite import resolve_suite_dir
 
 from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
@@ -1211,9 +1212,10 @@ def cli_binaries_from_pyproject(data: Mapping[str, object]) -> set[str]:
     """Return the CLI binaries a parsed pyproject document exposes.
 
     Union of the ``[project.scripts]`` keys and the generic ``axm`` binary,
-    the latter added only when the package declares a non-empty
-    ``[project.entry-points."axm.tools"]`` table (its keys are tool names,
-    never binaries). A document declaring neither table widens nothing.
+    the latter added only when the package declares a non-empty tool table
+    in one of the AXM tool entry-point groups (``axm.tribunal.tools`` or the
+    legacy ``axm.tools``; their keys are tool names, never binaries). A
+    document declaring neither table widens nothing.
     """
     project = data.get("project")
     if not isinstance(project, dict):
@@ -1224,10 +1226,13 @@ def cli_binaries_from_pyproject(data: Mapping[str, object]) -> set[str]:
         binaries.update(name for name in scripts if isinstance(name, str))
     entry_points = project.get("entry-points")
     if isinstance(entry_points, dict):
-        tools = entry_points.get("axm.tools")
-        if isinstance(tools, dict) and tools:
+        if any(_nonempty_table(entry_points.get(g)) for g in TOOL_ENTRY_POINT_GROUPS):
             binaries.add("axm")
     return binaries
+
+
+def _nonempty_table(table: object) -> bool:
+    return isinstance(table, dict) and bool(table)
 
 
 def load_cli_binaries(pkg_root: Path) -> set[str]:

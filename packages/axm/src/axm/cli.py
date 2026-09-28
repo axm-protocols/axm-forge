@@ -1,8 +1,10 @@
 """AXM CLI — one command per tool, auto-generated and lazily dispatched.
 
-Every ``axm.tools`` entry point becomes a CLI command (``axm audit``,
+Every AXM tool entry point becomes a CLI command (``axm audit``,
 ``axm git_commit``, …) with the *same* typed signature as the tool's
-``execute`` — so a tool's CLI and its MCP schema never drift.
+``execute`` — so a tool's CLI and its MCP schema never drift. Names are
+resolved by :func:`axm.tools.discovery.tool_entry_points`, the resolver the MCP
+catalog shares (tribunal group first, legacy ``axm.tools`` second).
 
 Dispatch is **lazy**: a CLI process lives for one invocation, so we resolve
 the requested command from ``sys.argv`` and import only that one entry point.
@@ -35,13 +37,12 @@ from typing import Annotated, Any, Union
 
 import cyclopts
 
-from axm.tools._discovery import entry_points_for
+from axm.tools.discovery import DuplicateToolError, tool_entry_points
 
 __all__ = ["build_command_for_tool", "create_app", "main"]
 
 logger = logging.getLogger(__name__)
 
-_TOOLS_GROUP = "axm.tools"
 
 # Parameter annotations passed verbatim as a single CLI token (scalars).
 # Anything else is treated as non-scalar and round-tripped through JSON.
@@ -51,9 +52,13 @@ _SCALARS = (str, int, float, bool)
 # ── entry-point discovery (metadata only — no module import) ──────────────────
 
 
-def _entry_points(group: str) -> dict[str, importlib.metadata.EntryPoint]:
-    """Map name -> entry point for *group* (delegates to the shared helper)."""
-    return entry_points_for(group)
+def _tools_or_exit() -> dict[str, importlib.metadata.EntryPoint]:
+    """Resolve the tool catalog; an ambiguous one is a clean exit 1."""
+    try:
+        return tool_entry_points()
+    except DuplicateToolError as exc:
+        sys.stderr.write(f"axm: {exc}\n")
+        raise SystemExit(1) from exc
 
 
 def _load(ep: importlib.metadata.EntryPoint) -> Any:
@@ -356,7 +361,7 @@ def create_app() -> cyclopts.App:
     Intended for tests and introspection; main() dispatches lazily.
     """
     app = _new_app()
-    for name, ep in _entry_points(_TOOLS_GROUP).items():
+    for name, ep in tool_entry_points().items():
         try:
             app.command(build_command_for_tool(name, _load(ep)), name=name)
         except Exception:
@@ -402,7 +407,7 @@ def main() -> None:
 
         sys.stdout.write(f"{__version__}\n")
         return
-    tools = _entry_points(_TOOLS_GROUP)
+    tools = _tools_or_exit()
     cmd = _resolve_command(argv)
 
     if cmd is None or cmd not in tools:

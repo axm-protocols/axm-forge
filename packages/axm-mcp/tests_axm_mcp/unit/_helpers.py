@@ -11,7 +11,7 @@ from typing import Any, cast
 from axm_mcp.discovery import ToolEntry
 from axm_mcp.facade.catalog import ToolCatalog
 
-_DISCOVER = "axm_mcp.discovery.importlib.metadata.entry_points"
+_DISCOVER = "importlib.metadata.entry_points"
 
 
 class FakeMCP:
