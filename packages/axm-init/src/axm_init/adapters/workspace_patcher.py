@@ -75,8 +75,11 @@ def patch_makefile(root: Path, member_name: str) -> bool:
 def patch_mkdocs(root: Path, member_name: str) -> bool:
     """Add ``!include`` nav entry for *member_name*.
 
-    Appends a nav entry referencing the member's ``mkdocs.yml``
-    so the monorepo plugin picks it up.
+    Inserts a nav entry referencing the member's ``mkdocs.yml`` so the
+    monorepo plugin picks it up: right after the last member ``!include``
+    of the top-level ``nav`` (keeping the members grouped), else as the last
+    top-level ``nav`` item. Never outside ``nav``: without a block-style
+    top-level ``nav`` the file is left untouched.
     Idempotent — skips if entry already exists.
 
     Args:
@@ -85,7 +88,7 @@ def patch_mkdocs(root: Path, member_name: str) -> bool:
 
     Returns:
         ``True`` if ``mkdocs.yml`` was modified, ``False`` if the include
-        entry already existed (no-op).
+        entry already existed or there is no block ``nav`` (no-op).
 
     Raises:
         FileNotFoundError: If ``mkdocs.yml`` is missing.
@@ -98,12 +101,57 @@ def patch_mkdocs(root: Path, member_name: str) -> bool:
         logger.info("mkdocs.yml already includes %s — skipping", member_name)
         return False
 
-    # Append nav entry at the end of the nav section
-    entry = f"  - {member_name}: '{include}'\n"
-    content = content.rstrip("\n") + "\n" + entry
-    mkdocs.write_text(content)
+    lines = content.splitlines(keepends=True)
+    insertion = _nav_insertion(lines)
+    if insertion is None:
+        logger.info("mkdocs.yml has no block nav: — skipping %s", member_name)
+        return False
+    index, indent = insertion
+    if index and not lines[index - 1].endswith("\n"):
+        lines[index - 1] += "\n"
+    lines.insert(index, f"{indent}- {member_name}: '{include}'\n")
+    mkdocs.write_text("".join(lines))
     logger.info("Patched mkdocs.yml with !include for %s", member_name)
     return True
+
+
+def _nav_block(lines: list[str]) -> tuple[int, int] | None:
+    """Return the item range of the block-style top-level ``nav`` key.
+
+    The range starts after the ``nav:`` line and ends after its last
+    non-blank, non-comment line; ``None`` when ``nav`` is absent or inline.
+    """
+    start = _find_top_level_key_index(lines, "nav")
+    if start is None or lines[start].partition(":")[2].strip():
+        return None
+    end = start + 1
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if _is_ignored_yaml_scan_line(line):
+            continue
+        if not line[:1].isspace():
+            break
+        end = index + 1
+    return start + 1, end
+
+
+def _nav_insertion(lines: list[str]) -> tuple[int, str] | None:
+    """Where and at which indent a member ``!include`` joins the nav."""
+    block = _nav_block(lines)
+    if block is None:
+        return None
+    start, end = block
+    items = [i for i in range(start, end) if lines[i].lstrip().startswith("- ")]
+    includes = [i for i in items if "!include ./packages/" in lines[i]]
+    anchor = includes[-1] if includes else None
+    if anchor is not None:
+        return anchor + 1, _indent_of(lines[anchor])
+    top = min((_indent_of(lines[i]) for i in items), key=len, default="  ")
+    return end, top
+
+
+def _indent_of(line: str) -> str:
+    return line[: len(line) - len(line.lstrip())]
 
 
 def patch_pyproject(root: Path, member_name: str) -> bool:
