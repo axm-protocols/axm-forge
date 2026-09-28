@@ -40,4 +40,6 @@ def test_seam_builds_member_data_from_real_workspace(workspace_root: Path) -> No
         "license_holder": "acme",
         "author_name": "Ada",
         "author_email": "ada@example.com",
+        "repository": "acme/my-workspace",
+        "docs_url": "https://acme.github.io/my-workspace/axm-foo/",
     }

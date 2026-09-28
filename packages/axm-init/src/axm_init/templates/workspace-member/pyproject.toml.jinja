@@ -28,10 +28,10 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/{{ org }}/{{ workspace_name }}"
-Documentation = "https://{{ org }}.github.io/{{ workspace_name }}/"
-Repository = "https://github.com/{{ org }}/{{ workspace_name }}.git"
-Issues = "https://github.com/{{ org }}/{{ workspace_name }}/issues"
+Homepage = "https://github.com/{{ repository }}"
+Documentation = "{{ docs_url }}"
+Repository = "https://github.com/{{ repository }}.git"
+Issues = "https://github.com/{{ repository }}/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

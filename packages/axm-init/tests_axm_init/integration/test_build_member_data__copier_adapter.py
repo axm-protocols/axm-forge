@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from axm_init.adapters.copier import CopierAdapter, CopierConfig
-from axm_init.core import build_member_data
+from axm_init.core import WorkspaceIdentity, build_member_data
 from axm_init.core.templates import TemplateType, get_template_path
 
 
@@ -18,7 +18,7 @@ def generated_member(tmp_path: Path) -> Path:
     destination = tmp_path / "axm-sample"
     data = build_member_data(
         member_name="axm-sample",
-        workspace_name="axm-sample-workspace",
+        workspace="axm-sample-workspace",
         scaffold_data={
             "org": "axm-protocols",
             "author_name": "AXM Maintainer",
@@ -89,7 +89,7 @@ def _render_member(tmp_path: Path, description: str) -> tuple[bool, str, Path]:
     destination = tmp_path / "axm-long"
     data = build_member_data(
         member_name="axm-long",
-        workspace_name="axm-long-workspace",
+        workspace="axm-long-workspace",
         scaffold_data={
             "org": "axm-protocols",
             "author_name": "AXM Maintainer",
@@ -137,3 +137,47 @@ def test_member_refuses_a_summary_pypi_would_refuse(
 
     assert not success
     assert "Validation error for question 'description'" in message
+
+
+@pytest.mark.integration
+def test_member_urls_follow_the_workspace_repository(tmp_path: Path) -> None:
+    """Regression: URLs used the root project name (`axm-nexus-workspace`)."""
+    destination = tmp_path / "axm-tribunal"
+    identity = WorkspaceIdentity(
+        "axm-nexus-workspace",
+        "axm-protocols/axm-nexus",
+        "https://nexus.axm-protocols.io",
+    )
+    data = build_member_data(
+        "axm-tribunal",
+        identity,
+        {
+            "org": "axm-protocols",
+            "author_name": "AXM Maintainer",
+            "author_email": "maintainer@example.com",
+            "license": "Apache-2.0",
+        },
+    )
+    result = CopierAdapter().copy(
+        CopierConfig(
+            template_path=get_template_path(TemplateType.MEMBER),
+            destination=destination,
+            data=data,
+            trust_template=True,
+        )
+    )
+    assert result.success, result.message
+
+    with (destination / "pyproject.toml").open("rb") as stream:
+        urls = tomllib.load(stream)["project"]["urls"]
+    assert urls == {
+        "Homepage": "https://github.com/axm-protocols/axm-nexus",
+        "Documentation": "https://nexus.axm-protocols.io/axm-tribunal/",
+        "Repository": "https://github.com/axm-protocols/axm-nexus.git",
+        "Issues": "https://github.com/axm-protocols/axm-nexus/issues",
+    }
+    rendered = (destination / "README.md").read_text() + (
+        destination / "docs/index.md"
+    ).read_text()
+    assert "axm-nexus-workspace/" not in rendered
+    assert "axm-protocols/axm-nexus/gh-pages/badges/axm-tribunal" in rendered

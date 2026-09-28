@@ -47,7 +47,17 @@ license:
 
 workspace_name:
   type: str
-  help: "Parent workspace name (for URLs)"
+  help: "Parent workspace name"
+
+repository:
+  type: str
+  help: "GitHub repository of the workspace (owner/name), for URLs and badges"
+  default: "{{ org }}/{{ workspace_name }}"
+
+docs_url:
+  type: str
+  help: "URL of this member's documentation"
+  default: "https://{{ org }}.github.io/{{ workspace_name }}/{{ member_name }}/"
 
 private:
   type: bool

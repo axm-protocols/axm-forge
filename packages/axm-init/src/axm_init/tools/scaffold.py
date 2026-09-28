@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 from axm_init.core.scaffolder import (
     build_member_data,
+    read_workspace_identity,
     read_workspace_name,
     resolve_workspace_root,
 )
@@ -922,7 +923,7 @@ class InitScaffoldTool:
         )
         data = build_member_data(
             member_name,
-            read_workspace_name(workspace_root),
+            read_workspace_identity(workspace_root, scaffold_data["org"]),
             scaffold_data,
             license_holder=license_holder,
             private=private,

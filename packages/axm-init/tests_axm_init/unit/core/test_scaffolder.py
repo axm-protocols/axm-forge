@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from axm_init.core.scaffolder import (
+    WorkspaceIdentity,
     build_member_data,
     read_workspace_name,
     resolve_workspace_root,
@@ -45,7 +46,19 @@ class TestBuildMemberData:
             "license_holder": "acme",
             "author_name": "Ada",
             "author_email": "ada@example.com",
+            "repository": "acme/axm-demo",
+            "docs_url": "https://acme.github.io/axm-demo/axm-foo/",
         }
+
+    def test_resolved_identity_drives_the_links(self) -> None:
+        """A resolved identity replaces the name-derived GitHub defaults."""
+        identity = WorkspaceIdentity(
+            "axm-demo-workspace", "acme/axm-demo", "https://demo.acme.io"
+        )
+        payload = build_member_data("axm-foo", identity, _SCAFFOLD_DATA)
+        assert payload["workspace_name"] == "axm-demo-workspace"
+        assert payload["repository"] == "acme/axm-demo"
+        assert payload["docs_url"] == "https://demo.acme.io/axm-foo/"
 
     def test_explicit_license_holder_overrides_org(self) -> None:
         """An explicit ``license_holder`` wins over ``org``."""
