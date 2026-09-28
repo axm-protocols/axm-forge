@@ -18,8 +18,16 @@ The draft rule has weight 2 when at least one declaration is ready; an inventory
 containing only drafts produces a passing, zero-weight draft result. Without an
 applicable inventory, both rules return passing, zero-weight results.
 
-Graph entries come from `[project.entry-points."axm.graphs"]` in
-`pyproject.toml`. Resolution follows local imports, including relative imports,
+Graph entries come from the entry-point group of each recognised composition
+family in `pyproject.toml`: `[project.entry-points."axm.tribunal.graphs"]` for
+axm-tribunal and `[project.entry-points."axm.graphs"]` for the legacy axm-loom.
+A protocol's family is the one whose protocol call (`axm_tribunal.protocol` or
+`axm_loom.protocol`) its `build_protocol` factory makes; a ready protocol must be
+registered under that family's group, and an entry under the other family's group
+is reported with the group to move it to. When no composition call resolves, either
+group is accepted. The family names live in one table
+(`axm_init.checks._composition.COMPOSITION_FAMILIES`), so retiring a family deletes
+its row. Resolution follows local imports, including relative imports,
 and simple identifier aliases, with cycle detection. An absent module, absent
 symbol or binding to a different function cannot establish factory registration.
 Dynamic bindings are not executed to discover their value.
@@ -28,8 +36,9 @@ Collision detection considers declarations actually inspected in the selected
 package and, at a workspace root, its profiled members. Graph identities come
 from a literal protocol composition argument when resolvable, otherwise a
 literal `GRAPH_NAME` in `protocol.py`. Ticket identities come from literal
-`TICKET_TYPE` declarations in `ticket.py`. The `axm.graphs` and `axm.ticket_types`
-identity spaces are separate; a ticket's `GRAPH_NAME` reference is not another
+`TICKET_TYPE` declarations in `ticket.py`. Each graph group and `axm.ticket_types`
+is a separate identity space (a graph published under both `axm.graphs` and
+`axm.tribunal.graphs` during a switch is not a collision); a ticket's `GRAPH_NAME` reference is not another
 graph declaration. This is not an inventory of installed distributions or a
 validation of installed ticket entry points.
 

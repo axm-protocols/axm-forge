@@ -510,3 +510,83 @@ def test_inventory_and_disk_disagree_in_both_directions(tmp_path: Path) -> None:
     assert "local node 'ghost'" in orphan_details
     assert "is not inventoried" in orphan_details
     assert "orphan protocol module" in module_details
+
+
+# ─ Composition families: axm-tribunal is recognised beside axm-loom ─────────
+
+_TRIBUNAL_NODE = """from __future__ import annotations
+
+from axm_tribunal import ConfigTable, task
+
+__all__ = ["ROUTES", "build_node"]
+
+ROUTES = ConfigTable(key="work_kind", rows={})
+
+
+def build_node():
+    return task.agent("build", prompt="ok")
+"""
+
+_TRIBUNAL_PHASE = """from __future__ import annotations
+
+import axm_tribunal
+from axm_tribunal import evaluator
+
+from ..nodes.build import build_node
+
+__all__ = ["build_phase"]
+
+_LINT = evaluator.deterministic("lint", len, rules={})
+
+
+def build_phase():
+    return axm_tribunal.phase("build", work=[build_node()], evaluators=[_LINT])
+"""
+
+_TRIBUNAL_PROTOCOL = """from __future__ import annotations
+
+from axm_tribunal import protocol
+
+from .phases.build import build_phase
+
+__all__ = ["build_protocol"]
+
+
+def build_protocol():
+    return protocol("demo.work.exec", phases=[build_phase()])
+"""
+
+
+def _tribunal_project(root: Path, *, graph_name: str = "demo.work.exec") -> Path:
+    return _project(
+        root,
+        replacements={
+            "src/protocols_demo/work/exec/nodes/build.py": _TRIBUNAL_NODE,
+            "src/protocols_demo/work/exec/phases/build.py": _TRIBUNAL_PHASE,
+            "src/protocols_demo/work/exec/protocol.py": _TRIBUNAL_PROTOCOL.replace(
+                "demo.work.exec", graph_name
+            ),
+        },
+    )
+
+
+def test_accepts_tribunal_composition_forms(tmp_path: Path) -> None:
+    """Module-level tribunal factories are declarative, like loom's."""
+    result = _category(_tribunal_project(tmp_path / "tribunal"))
+    checks = {check.name: check for check in result.checks}
+
+    assert _CONTENT_CHECKS <= checks.keys()
+    failing = {
+        name: checks[name].details
+        for name in _CONTENT_CHECKS
+        if not checks[name].passed
+    }
+    assert not failing, failing
+
+
+def test_judges_the_tribunal_protocol_identity(tmp_path: Path) -> None:
+    """The graph name is read from ``axm_tribunal.protocol``'s first argument."""
+    details = _details(_tribunal_project(tmp_path / "wrong", graph_name="demo.x.y"))
+
+    assert "literal graph name 'demo.x.y' differs" in details
+    assert "non-verifiable" not in details
