@@ -92,7 +92,11 @@ in a filtered environment. It is a submodule contract, not a root export.
 
 A `detect-only` confinement does not confine anything: callers refuse it or
 report it, never treat it as a sandbox. A protected path inside a writable
-directory stays read-only.
+directory stays read-only. On macOS, `sandbox-exec` applies explicit write
+denials for protected paths after the writable allowances. On Linux,
+`bubblewrap` mounts the filesystem read-only, binds writable directories, then
+remounts every protected path read-only after those writable binds. Both
+platforms enforce the protection when `confinement` reports `sandbox`.
 
 ::: axm.sandbox.run_confined
     options:

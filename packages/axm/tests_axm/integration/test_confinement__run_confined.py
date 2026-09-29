@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -190,4 +191,40 @@ def test_on_linux_bubblewrap_confines_the_run_when_installed(
     confined = confinement([tmp_path], [JUDGED])
 
     assert confined.isolation == "sandbox"
-    assert confined.prefix == bubblewrap_argv(str(bwrap), [tmp_path])
+    assert confined.prefix == bubblewrap_argv(str(bwrap), [tmp_path], [JUDGED])
+
+
+def test_real_bubblewrap_blocks_a_protected_child_inside_a_writable_dir(
+    writable: Path,
+) -> None:
+    if not sys.platform.startswith("linux"):
+        pytest.skip("bubblewrap is a Linux sandbox")
+    if shutil.which("bwrap") is None:
+        pytest.skip("bubblewrap is not installed")
+    judged = writable / "judged"
+    judged.mkdir()
+    confined = confinement([writable], [judged])
+    if confined.isolation != "sandbox":
+        pytest.skip("bubblewrap cannot create a sandbox on this host")
+
+    outside = writable / "allowed.txt"
+    allowed = run_confined(
+        [sys.executable, "-c", _WRITE, str(outside)],
+        writable=[writable],
+        protected=[judged],
+        cwd=writable,
+        confined=confined,
+    )
+    blocked = run_confined(
+        [sys.executable, "-c", _WRITE, str(judged / "forbidden.txt")],
+        writable=[writable],
+        protected=[judged],
+        cwd=writable,
+        confined=confined,
+    )
+
+    assert allowed.isolation == blocked.isolation == "sandbox"
+    assert allowed.stdout.strip() == "written"
+    assert outside.read_text(encoding="utf-8") == "x"
+    assert blocked.stdout.strip() == "PermissionError"
+    assert not (judged / "forbidden.txt").exists()

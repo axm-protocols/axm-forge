@@ -53,6 +53,18 @@ def test_bubblewrap_binds_the_root_read_only_and_each_writable_dir() -> None:
     assert argv[-1] == "--"
 
 
+def test_bubblewrap_remounts_protected_paths_after_all_writable_binds() -> None:
+    judged = EXPORT / "judged"
+    sealed = SCRATCH / "sealed"
+    argv = bubblewrap_argv("/usr/bin/bwrap", [EXPORT, SCRATCH], [judged, sealed])
+
+    assert argv[8:11] == ("--bind", str(EXPORT.resolve()), str(EXPORT.resolve()))
+    assert argv[11:14] == ("--bind", str(SCRATCH.resolve()), str(SCRATCH.resolve()))
+    assert argv[14:17] == ("--ro-bind", str(judged.resolve()), str(judged.resolve()))
+    assert argv[17:20] == ("--ro-bind", str(sealed.resolve()), str(sealed.resolve()))
+    assert argv[20] == "--"
+
+
 def test_a_confinement_wraps_its_command() -> None:
     confined = Confinement(isolation="sandbox", prefix=("sbx", "-p", "profile"))
 

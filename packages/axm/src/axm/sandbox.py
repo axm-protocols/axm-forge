@@ -143,12 +143,19 @@ def darwin_profile(writable: Sequence[Path], protected: Sequence[Path] = ()) -> 
     )
 
 
-def bubblewrap_argv(bwrap: str, writable: Sequence[Path]) -> tuple[str, ...]:
-    """The ``bwrap`` prefix: everything read-only but the ``writable`` directories."""
+def bubblewrap_argv(
+    bwrap: str, writable: Sequence[Path], protected: Sequence[Path] = ()
+) -> tuple[str, ...]:
+    """The ``bwrap`` prefix: writable binds, then protected read-only binds."""
     binds = tuple(
         part
         for path in writable
         for part in ("--bind", str(path.resolve()), str(path.resolve()))
+    )
+    protected_binds = tuple(
+        part
+        for path in protected
+        for part in ("--ro-bind", str(path.resolve()), str(path.resolve()))
     )
     return (
         bwrap,
@@ -160,6 +167,7 @@ def bubblewrap_argv(bwrap: str, writable: Sequence[Path]) -> tuple[str, ...]:
         "/dev",
         "/dev",
         *binds,
+        *protected_binds,
         "--",
     )
 
@@ -171,7 +179,7 @@ def _candidate(
         return (SANDBOX_EXEC, "-p", darwin_profile(writable, protected))
     bwrap = shutil.which("bwrap")
     if sys.platform.startswith("linux") and bwrap:
-        return bubblewrap_argv(bwrap, writable)
+        return bubblewrap_argv(bwrap, writable, protected)
     return None
 
 
