@@ -20,7 +20,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -28,6 +28,7 @@ from axm.tools.write_scope import WriteContract
 
 from axm_mcp.concurrency import _DEFAULT_TIMEOUT, KeyedLock
 from axm_mcp.session_contracts import UnboundSessionError
+from axm_mcp.session_paths import path_defaults, resolve_session_paths
 
 if TYPE_CHECKING:
     from axm_mcp.discovery import (
@@ -120,6 +121,7 @@ class _WrapperCtx:
     should_trace: bool
     write_contract_resolver: Callable[[], WriteContract | None]
     shared_mode: bool
+    path_defaults: dict[str, object] = field(default_factory=dict)
 
 
 def _unwrap_nested_kwargs(kwargs: dict[str, object]) -> None:
@@ -255,18 +257,27 @@ def _write_refusal(
             ),
         }
 
+    _unwrap_nested_kwargs(tool_input)
+    if ctx.shared_mode or contract is not None:
+        try:
+            resolve_session_paths(tool_input, ctx.path_defaults, contract)
+        except (ValueError, OSError) as exc:
+            prefixes = contract.allowed_prefixes if contract is not None else ()
+            return {"success": False, "error": f"{exc}; allowed prefixes: {prefixes}"}
     decision = decide_write_access(contract, ctx.name, tool_input)
     if decision.allowed:
         return None
     return {"success": False, "error": decision.reason}
 
 
-def _build_plain_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
+def _build_plain_wrapper(
+    ctx: _WrapperCtx, tool: ToolEntry, *, prepared: bool = False
+) -> _SyncWrapper:
     """Build the wrapper for a plain dispatcher function."""
     _plain_tool = cast("PlainTool", tool)
 
     def _wrapper(**kwargs: object) -> dict[str, object] | str:
-        refusal = _write_refusal(ctx, kwargs)
+        refusal = None if prepared else _write_refusal(ctx, kwargs)
         if refusal is not None:
             return refusal
         _unwrap_nested_kwargs(kwargs)
@@ -284,12 +295,14 @@ def _build_plain_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
     return _wrapper
 
 
-def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
+def _build_tool_wrapper(
+    ctx: _WrapperCtx, tool: ToolEntry, *, prepared: bool = False
+) -> _SyncWrapper:
     """Build the wrapper for an ``AXMTool`` instance."""
     _tool_like = cast("ToolLike", tool)
 
     def _wrapper(**kwargs: object) -> dict[str, object] | str:
-        refusal = _write_refusal(ctx, kwargs)
+        refusal = None if prepared else _write_refusal(ctx, kwargs)
         if refusal is not None:
             return refusal
         _unwrap_nested_kwargs(kwargs)
@@ -453,6 +466,7 @@ def build_wrappers(
         should_trace=not name.startswith("protocol_"),
         write_contract_resolver=resolver,
         shared_mode=shared_mode,
+        path_defaults=path_defaults(getattr(tool, "execute", tool)),
     )
     base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
@@ -462,5 +476,21 @@ def build_wrappers(
 
     exec_doc = getattr(getattr(tool, "execute", tool), "__doc__", None)
     sync_wrapper.__doc__ = exec_doc or f"Execute {name} tool."
-    async_wrapper = _wrap_with_lock(sync_wrapper, name)
+    # Resolve before lock selection too: "." and the equivalent absolute path
+    # must serialize on the same repository key. Execution consumes the prepared
+    # payload without looking up the session or resolving it again.
+    execution = (
+        _build_plain_wrapper(ctx, tool, prepared=True)
+        if is_plain
+        else _build_tool_wrapper(ctx, tool, prepared=True)
+    )
+    locked = _wrap_with_lock(execution, name)
+
+    async def async_wrapper(**kwargs: object) -> dict[str, object] | str:
+        refusal = _write_refusal(ctx, kwargs)
+        if refusal is not None:
+            return refusal
+        return await locked(**kwargs)
+
+    async_wrapper.__doc__ = sync_wrapper.__doc__
     return sync_wrapper, async_wrapper

@@ -384,7 +384,7 @@ def test_unbound_batch_edit_executes_through_direct_and_facade_doors(
     register_facade(server, catalog)
     arguments: dict[str, object] = {
         "path": "/workspace",
-        "operations": [{"op": "create", "file": "out.txt", "content": "ok"}],
+        "operations": [{"op": "create", "file": "/workspace/out.txt", "content": "ok"}],
     }
 
     direct = _registered_text(server, "batch_edit", **arguments)
