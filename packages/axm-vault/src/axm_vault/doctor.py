@@ -64,7 +64,10 @@ def doctor_data(
         ``{layer, present}``, with an instance segment for multi-instance groups.
         ``layer`` is the first probed layer to supply the credential, or
         ``"missing"`` when none does; ``present`` mirrors that. The value
-        itself is NEVER included (security invariant).
+        itself is NEVER included (security invariant). Authentication
+        dependencies use a separate ``<group>.auth.<name>`` namespace,
+        the ``auth-session`` layer, their current status and login command.
+        Only their value-less status source is consulted.
     """
     cat = catalog if catalog is not None else load_catalog()
     groups = cat.for_package(package) if package is not None else cat.groups()
@@ -90,6 +93,14 @@ def doctor_data(
                     report_instance,
                     keyring_ok=keyring_ok,
                 )
+        for dependency in group.auth_dependencies:
+            status = dependency.status()
+            report[f"{group.id}.auth.{dependency.name}"] = {
+                "layer": "auth-session",
+                "present": status.value == "connected",
+                "status": status.value,
+                "login_command": dependency.login_command,
+            }
     return report
 
 

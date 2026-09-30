@@ -167,6 +167,8 @@ def doctor(package: str | None = None, instance: str | None = None) -> None:
         line = f"{key}\t{entry['layer']}\t{present}"
         if entry.get("keyring") == "unavailable":
             line += "\tkeyring:unavailable"
+        if "status" in entry:
+            line += f"\t{entry['status']}\tlogin: {entry['login_command']}"
         print(line)
 
 
