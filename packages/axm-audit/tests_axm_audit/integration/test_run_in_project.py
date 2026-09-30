@@ -40,8 +40,8 @@ class TestRunInProjectIntegration:
             run_in_project(["ruff", "check", "src"], tmp_path)
 
             args = mock_popen.call_args[0][0]
-            assert args[:4] == ["uv", "run", "--directory", str(tmp_path)]
-            assert args[4:] == ["ruff", "check", "src"]
+            assert args[:5] == ["uv", "run", "--no-sync", "--directory", str(tmp_path)]
+            assert args[5:] == ["ruff", "check", "src"]
 
     @pytest.mark.parametrize(
         ("build_layout",),
@@ -128,6 +128,7 @@ class TestRunInProjectIntegration:
             assert args == [
                 "uv",
                 "run",
+                "--no-sync",
                 "--with",
                 "pytest-json-report",
                 "--with",
@@ -152,7 +153,15 @@ class TestRunInProjectIntegration:
             run_in_project(["ruff", "check"], tmp_path, with_packages=None)
 
             args = mock_popen.call_args[0][0]
-            assert args == ["uv", "run", "--directory", str(tmp_path), "ruff", "check"]
+            assert args == [
+                "uv",
+                "run",
+                "--no-sync",
+                "--directory",
+                str(tmp_path),
+                "ruff",
+                "check",
+            ]
 
 
 def _pid_alive(pid: int) -> bool:

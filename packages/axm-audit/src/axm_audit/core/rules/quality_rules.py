@@ -31,6 +31,9 @@ __all__ = [
     "FormattingRule",
     "LintingRule",
     "TypeCheckRule",
+    "build_lint_cmd",
+    "build_quality_commands",
+    "build_type_cmd",
     "detect_env_incompleteness",
 ]
 
@@ -54,6 +57,24 @@ _ENV_FAILURE_SCORE_CAP: int = 50
 Matches the mypy convention so lint and type behave symmetrically: an
 incomplete env is capped (never a green 100), and falls to 0 when there
 are no parseable findings to score against."""
+
+
+def build_lint_cmd(targets: list[str]) -> list[str]:
+    """Build the lint gate command, also used by readiness."""
+    return ["ruff", "check", "--output-format=json", *targets]
+
+
+def build_quality_commands(project_path: Path) -> dict[str, list[str]]:
+    """Build applicable lint/type commands with the gates' target policy."""
+    if LintingRule().check_src(project_path) is not None:
+        return {}
+    targets, _ = _get_audit_targets(project_path)
+    return {"ruff": build_lint_cmd(targets), "mypy": build_type_cmd(targets)}
+
+
+def build_type_cmd(targets: list[str]) -> list[str]:
+    """Build the type gate command, also used by readiness."""
+    return ["mypy", "--no-error-summary", "--output", "json", *targets]
 
 
 def detect_env_incompleteness(stdout: str, returncode: int) -> str | None:
@@ -169,7 +190,7 @@ class LintingRule(ProjectRule):
         targets, checked = _get_audit_targets(project_path)
 
         result = run_in_project(
-            ["ruff", "check", "--output-format=json", *targets],
+            build_lint_cmd(targets),
             project_path,
             with_packages=["ruff"],
             capture_output=True,
@@ -379,7 +400,7 @@ class TypeCheckRule(ProjectRule):
         targets, checked = _get_audit_targets(project_path)
 
         result = run_in_project(
-            ["mypy", "--no-error-summary", "--output", "json", *targets],
+            build_type_cmd(targets),
             project_path,
             capture_output=True,
             text=True,

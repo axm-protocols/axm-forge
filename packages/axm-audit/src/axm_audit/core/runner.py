@@ -174,7 +174,10 @@ def run_in_project(  # noqa: PLR0913
     or in an ancestor directory (for uv monorepo workspace members).
     Detached worktrees reuse the source checkout environment with candidate
     sources first, without uv synchronization or dependency mutation. Ordinary
-    projects use ``uv run --directory``. When runtime packages are requested without a
+    projects use ``uv run --no-sync --directory``. Runtime packages are overlaid
+    without synchronising the target venv or writing its lock. Worktrees use
+    the source checkout venv and preserve the candidate source overlay.
+    When runtime packages are requested without a
     project environment, uses an isolated uv environment; otherwise falls back
     to the command directly with ``cwd`` set.
 
@@ -214,6 +217,22 @@ def run_in_project(  # noqa: PLR0913
         full_cmd = resolved.command(cmd)
         cwd = str(project_path)
         child_env = resolved.variables()
+        if with_packages:
+            overlay_flags = [flag for pkg in with_packages for flag in ("--with", pkg)]
+            full_cmd = [
+                "uv",
+                "run",
+                "--no-sync",
+                "--active",
+                "--project",
+                str(resolved.source),
+                *overlay_flags,
+                *(
+                    ["python", "-m", *cmd]
+                    if cmd[0] in {"pytest", "ruff", "mypy"}
+                    else cmd
+                ),
+            ]
     elif venv is not None or with_packages:
         with_flags: list[str] = []
         for pkg in with_packages or []:
@@ -222,6 +241,7 @@ def run_in_project(  # noqa: PLR0913
         full_cmd = [
             "uv",
             "run",
+            "--no-sync",
             *isolation,
             *with_flags,
             "--directory",

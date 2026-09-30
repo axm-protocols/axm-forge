@@ -214,10 +214,12 @@ class TestPackageRootAll:
     """Garde-fou : promoted helpers ne doivent pas fuiter dans axm_audit.__all__."""
 
     def test_package_root_all_unchanged(self) -> None:
-        """Root __all__ identical to the pre-refactor snapshot."""
+        """Root keeps the baseline plus the documented readiness entry point."""
         import axm_audit
 
-        assert set(axm_audit.__all__) == set(_PRE_REFACTOR_ALL)
+        assert set(axm_audit.__all__) == set(_PRE_REFACTOR_ALL) | {
+            "validation_readiness"
+        }
 
     def test_promoted_symbols_not_in_root_all(self) -> None:
         """Promoted helpers are *internal* public — must not appear in root __all__."""
