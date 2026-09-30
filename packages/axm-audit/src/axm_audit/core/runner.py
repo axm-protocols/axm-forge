@@ -15,6 +15,8 @@ import subprocess
 from enum import Enum
 from pathlib import Path
 
+from axm_ingot.validation import worktree_environment
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT: int = 300
@@ -170,8 +172,9 @@ def run_in_project(  # noqa: PLR0913
 
     Locates the nearest ``.venv/`` — either in ``project_path`` itself
     or in an ancestor directory (for uv monorepo workspace members).
-    Uses ``uv run --directory`` to execute the command within the
-    correct environment. When runtime packages are requested without a
+    Detached worktrees reuse the source checkout environment with candidate
+    sources first, without uv synchronization or dependency mutation. Ordinary
+    projects use ``uv run --directory``. When runtime packages are requested without a
     project environment, uses an isolated uv environment; otherwise falls back
     to the command directly with ``cwd`` set.
 
@@ -205,7 +208,13 @@ def run_in_project(  # noqa: PLR0913
     venv = find_venv(project_path)
     cwd: str | None = None
 
-    if venv is not None or with_packages:
+    resolved = worktree_environment(project_path)
+    child_env = None
+    if resolved is not None:
+        full_cmd = resolved.command(cmd)
+        cwd = str(project_path)
+        child_env = resolved.variables()
+    elif venv is not None or with_packages:
         with_flags: list[str] = []
         for pkg in with_packages or []:
             with_flags.extend(["--with", pkg])
@@ -231,6 +240,7 @@ def run_in_project(  # noqa: PLR0913
         stderr=pipe,
         text=text,
         cwd=cwd,
+        env=child_env,
         start_new_session=new_session,
         creationflags=creation_flags,
     )
