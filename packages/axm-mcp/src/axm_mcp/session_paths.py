@@ -57,7 +57,8 @@ def _resolve(raw: str, base: Path | None, boundary: Path | None) -> str:
     resolved = (
         base / candidate if relative and base is not None else candidate
     ).resolve()
-    if relative and boundary is not None and not resolved.is_relative_to(boundary):
+    scoped = relative or (boundary is not None and candidate.is_relative_to(boundary))
+    if scoped and boundary is not None and not resolved.is_relative_to(boundary):
         raise ValueError(
             f"path escapes session execution_root {boundary}: {raw} -> {resolved}"
         )

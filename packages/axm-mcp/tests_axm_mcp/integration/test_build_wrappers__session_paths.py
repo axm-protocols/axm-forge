@@ -102,10 +102,16 @@ def test_absolute_write_is_limited_to_session_root(trees):
     assert not (server / "outside.py").exists()
 
 
-@pytest.mark.parametrize("escape", ["../server", "escape"])
-def test_relative_read_escape_is_refused(trees, escape):
+@pytest.mark.parametrize(
+    "escape", ["../server", "escape", "absolute_symlink", "absolute_parent"]
+)
+def test_read_escape_is_refused(trees, escape):
     server, root = trees
     (root / "escape").symlink_to(server, target_is_directory=True)
+    if escape == "absolute_symlink":
+        escape = str(root / "escape")
+    elif escape == "absolute_parent":
+        escape = str(root / ".." / "server")
     result = _wrapper("ast_context", ContextTool(), root)(path=escape)
     assert isinstance(result, dict) and result["success"] is False
     assert "escapes" in result["error"]
