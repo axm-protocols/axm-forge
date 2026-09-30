@@ -231,6 +231,12 @@ def get_package(path: Path) -> PackageInfo:
     Returns:
         Cached or freshly parsed ``PackageInfo``.
     """
+    from axm.tools.dependency_reads import current_read_contract
+
+    if current_read_contract() is not None:
+        from axm_ast.core.analyzer import analyze_package
+
+        return analyze_package(path)
     return _cache.get(path)
 
 

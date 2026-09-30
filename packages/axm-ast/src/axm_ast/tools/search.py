@@ -352,6 +352,13 @@ class SearchTool(AXMTool):
             ToolResult with matching symbols.
         """
         pkg = _load_package(path)
+        if name and "." in name:
+            from axm_ast.tools.dependency import dependency_package
+
+            external = dependency_package(name)
+            if external is not None:
+                pkg, member = external
+                name = member.rsplit(".", 1)[-1] if member else None
         if isinstance(pkg, ToolResult):
             return pkg
 

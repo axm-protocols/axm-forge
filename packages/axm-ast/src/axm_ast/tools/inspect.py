@@ -15,7 +15,6 @@ from .inspect_detail import (
 from .inspect_resolve import (
     find_symbol_abs_path,
     find_symbol_file,
-    inspect_dotted,
     inspect_module,
     resolve_module,
     resolve_path,
@@ -150,7 +149,9 @@ class InspectTool(AXMTool):
         pkg = get_package(project_path)
 
         if "." in symbol:
-            return inspect_dotted(pkg, symbol, source=source)
+            from axm_ast.tools.dependency import inspect_with_dependencies
+
+            return inspect_with_dependencies(pkg, symbol, source=source)
 
         # --- Simple name: function or class ---
         results = search_symbols(

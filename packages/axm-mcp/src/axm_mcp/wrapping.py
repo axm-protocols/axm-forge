@@ -260,7 +260,10 @@ def _write_refusal(
     _unwrap_nested_kwargs(tool_input)
     if ctx.shared_mode or contract is not None:
         try:
-            resolve_session_paths(tool_input, ctx.path_defaults, contract)
+            from axm.tools.dependency_reads import dependency_read_context
+
+            with dependency_read_context(contract):
+                resolve_session_paths(tool_input, ctx.path_defaults, contract)
         except (ValueError, OSError) as exc:
             prefixes = contract.allowed_prefixes if contract is not None else ()
             return {"success": False, "error": f"{exc}; allowed prefixes: {prefixes}"}
@@ -309,7 +312,16 @@ def _build_tool_wrapper(
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
         try:
-            result = _tool_like.execute(**kwargs)
+            from axm.tools.dependency_reads import dependency_read_context
+
+            try:
+                read_contract = ctx.write_contract_resolver()
+            except UnboundSessionError:
+                if not ctx.shared_mode:
+                    raise
+                read_contract = None
+            with dependency_read_context(read_contract):
+                result = _tool_like.execute(**kwargs)
         except Exception as exc:
             error = _flatten_exception(ctx.name, exc)
             _trace_step(ctx, kwargs, False, str(error), start_ns)

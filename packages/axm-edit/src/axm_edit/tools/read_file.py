@@ -11,7 +11,7 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.utils import is_binary, resolve_safe
+from axm_edit.utils import is_binary
 
 __all__ = ["ReadFileTool"]
 
@@ -56,7 +56,9 @@ def _resolve_file(
             f"Root is not a directory: {root_str}",
         )
 
-    resolved = resolve_safe(root, file_rel)
+    from axm.tools.dependency_reads import resolve_read_path
+
+    resolved = resolve_read_path(root, file_rel)
     if resolved is None:
         return _failure_result(
             _ReadFileError.ESCAPE,
