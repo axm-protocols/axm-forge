@@ -24,7 +24,6 @@ from contextvars import ContextVar
 from functools import partial
 from typing import TypedDict, Unpack, cast
 
-from mcp.server.mcpserver import MCPServer
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER, EventStore
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
@@ -48,6 +47,7 @@ from axm_mcp.session_contracts import (
     parse_write_contract_header,
 )
 from axm_mcp.settings import resolve_serve_mode
+from axm_mcp.tool_surface import ToolSurfaceMiddleware, ToolSurfaceServer
 from axm_mcp.verify import VerifyTool
 from axm_mcp.web_fetch import WebFetchTool
 
@@ -180,7 +180,7 @@ class _HttpAppOptions(TypedDict, total=False):
     host: str
 
 
-class _SessionAwareMCPServer(MCPServer[object]):
+class _SessionAwareMCPServer(ToolSurfaceServer):
     """MCPServer variant whose HTTP transport binds shared-session contracts."""
 
     def streamable_http_app(self, **kwargs: Unpack[_HttpAppOptions]) -> Starlette:
@@ -190,6 +190,7 @@ class _SessionAwareMCPServer(MCPServer[object]):
         # and passes every unit test, then fails at boot when the transport
         # supplies them -- so relay whatever the caller sent.
         app = super().streamable_http_app(**kwargs)
+        app.add_middleware(ToolSurfaceMiddleware)
         # An explicit ``serve --shared`` reaches this process only through the
         # registration switch (``AXM_MCP_SHARED``), which outranks the
         # environment/file policy exactly as the CLI option does.

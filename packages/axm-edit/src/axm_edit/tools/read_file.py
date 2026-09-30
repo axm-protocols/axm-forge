@@ -176,6 +176,8 @@ class ReadFileTool:
     Registered as ``read_file`` via axm.tools entry point.
     """
 
+    expose_directly = True
+
     agent_hint: str = (
         "Read file content with line numbers. Supports partial reads"
         " via start_line/end_line (1-indexed)."
