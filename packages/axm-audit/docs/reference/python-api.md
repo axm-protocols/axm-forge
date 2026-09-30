@@ -14,6 +14,15 @@ monorepo builds and makes the entry points discoverable in navigation.
 
 ::: axm_audit.get_rules_for_category
 
+::: axm_audit.validation_readiness
+
+`validation_readiness(Path(...))` returns an instrument-to-cause mapping, empty
+when collection and the applicable lint/type gates can run. It shares the
+validation command builders, reporting dependencies, environment policy and
+timeouts; it never synchronises the target environment. Code findings in lint
+or type output are left to the gate; collection and environment failures refuse
+admission.
+
 ## Result models
 
 ::: axm_audit.AuditResult

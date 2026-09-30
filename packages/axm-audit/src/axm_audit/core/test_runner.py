@@ -28,6 +28,7 @@ __all__ = [
     "TestCase",
     "TestOutcome",
     "TestReport",
+    "run_pytest",
     "run_tests",
 ]
 
@@ -332,6 +333,7 @@ def build_pytest_cmd(
     files: list[str] | None,
     markers: list[str] | None,
     stop_on_first: bool,
+    collect_only: bool = False,
 ) -> list[str]:
     """Build the pytest command line."""
     cmd = [
@@ -344,7 +346,9 @@ def build_pytest_cmd(
         "-q",
     ]
 
-    if coverage_path is not None:
+    if collect_only:
+        cmd.extend(["--collect-only", "--no-cov"])
+    elif coverage_path is not None:
         cmd.extend(["--cov", f"--cov-report=json:{coverage_path}"])
     elif files:
         cmd.append("--no-cov")
@@ -359,6 +363,27 @@ def build_pytest_cmd(
         cmd.extend(files)
 
     return cmd
+
+
+def run_pytest(
+    cmd: list[str],
+    project_path: Path,
+    *,
+    timeout: int = _COVERAGE_RUN_TIMEOUT,
+    capture_output: bool = True,
+    text: bool = True,
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run tests or collection with runner-owned reporting plugins."""
+    return run_in_project(
+        cmd,
+        project_path,
+        timeout=timeout,
+        with_packages=["pytest-json-report", "pytest-cov"],
+        capture_output=capture_output,
+        text=text,
+        check=check,
+    )
 
 
 def _collected_count(report_data: dict[str, object]) -> int:
@@ -499,11 +524,10 @@ def run_tests(
         )
 
         logger.debug("Running: %s", " ".join(cmd))
-        result = run_in_project(
+        result = run_pytest(
             cmd,
             project_path,
             timeout=_COVERAGE_RUN_TIMEOUT,
-            with_packages=["pytest-json-report", "pytest-cov"],
             capture_output=True,
             text=True,
             check=False,

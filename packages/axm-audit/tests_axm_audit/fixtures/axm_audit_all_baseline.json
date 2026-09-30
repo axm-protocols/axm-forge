@@ -4,5 +4,6 @@
   "Severity",
   "__version__",
   "audit_project",
-  "get_rules_for_category"
+  "get_rules_for_category",
+  "validation_readiness"
 ]

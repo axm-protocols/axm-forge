@@ -112,6 +112,7 @@ class TestRunInProjectUnit:
             assert args == [
                 "uv",
                 "run",
+                "--no-sync",
                 "--isolated",
                 "--with",
                 "pytest-json-report",

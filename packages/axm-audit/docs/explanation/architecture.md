@@ -39,7 +39,20 @@ limits and the current override/quick-mode caveats.
 
 Python subprocess checks use `run_in_project` where implemented.
 It resolves the nearest project environment and optionally requests runtime
-packages with uv. Type checking uses the project's own mypy.
+packages with uv. The runner uses `--no-sync`: validation never synchronises
+project dependencies, changes the target venv, or writes its lock. Reporting
+dependencies (`pytest-json-report`, `pytest-cov`) belong to the runner and are
+provided through a disposable uv overlay; a tested package need not declare
+them. Candidate worktrees retain their candidate source overlay and source
+checkout interpreter while receiving the same reporting dependencies.
+Type checking uses the project's own mypy.
+
+`validation_readiness` shares `build_pytest_cmd` / `run_pytest` with
+`audit_test`. It adds collection-only mode without inventing another pytest
+argv. Lint and type admission share their gate command builders and execution
+policies; code findings are runnable, collection/configuration/environment
+errors are not. It uses the gate timeouts, rather than a shorter admission
+budget that could reject an otherwise runnable project.
 Its default timeout is 300 seconds; pytest/coverage uses 900 seconds.
 On timeout the shared runner kills the process group and returns exit 124,
 or re-raises under `check=True`.
