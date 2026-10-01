@@ -29,6 +29,18 @@ def _symbols(module: ModuleInfo) -> list[tuple[str, int, int]]:
     return rows
 
 
+def _selected_symbols(
+    rows: Sequence[tuple[str, int, int]], intervals: Sequence[tuple[int, int]]
+) -> list[str]:
+    selected = [name for name, start, end in rows if _overlaps(start, end, intervals)]
+    outside = any(
+        count > 0
+        and not any(start <= line and line + count - 1 <= end for _, start, end in rows)
+        for line, count in intervals
+    )
+    return [name for name, _, _ in rows] if outside else selected
+
+
 def symbols_for_lines(
     package: Path,
     file: Path,
@@ -49,12 +61,5 @@ def symbols_for_lines(
     if parts and parts[-1] == "__init__":
         parts.pop()
     prefix = ".".join([pkg.name, *parts])
-    rows = _symbols(module)
-    selected = [name for name, start, end in rows if _overlaps(start, end, intervals)]
-    outside = any(
-        count > 0 and not any(start <= line <= end for _, start, end in rows)
-        for line, count in intervals
-    )
-    if outside:
-        selected = [name for name, _, _ in rows]
+    selected = _selected_symbols(_symbols(module), intervals)
     return tuple(sorted({prefix + "." + name for name in selected}))

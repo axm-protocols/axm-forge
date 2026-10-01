@@ -18,6 +18,7 @@ pytestmark = pytest.mark.integration
         ((1, 1), ("tiny.ops.Counter", "tiny.ops.Counter.tick", "tiny.ops.add")),
         ((7, 1), ("tiny.ops.Counter", "tiny.ops.Counter.tick")),
         ((3, 0), ()),
+        ((3, 2), ("tiny.ops.Counter", "tiny.ops.Counter.tick", "tiny.ops.add")),
     ],
 )
 def test_symbols_for_lines(tmp_path: Path, interval, expected):
