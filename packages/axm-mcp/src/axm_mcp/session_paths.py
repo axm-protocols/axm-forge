@@ -59,6 +59,10 @@ def _resolve(raw: str, base: Path | None, boundary: Path | None) -> str:
     ).resolve()
     scoped = relative or (boundary is not None and candidate.is_relative_to(boundary))
     if scoped and boundary is not None and not resolved.is_relative_to(boundary):
+        from axm.tools.dependency_reads import session_readable
+
+        if session_readable(resolved):
+            return str(resolved)
         raise ValueError(
             f"path escapes session execution_root {boundary}: {raw} -> {resolved}"
         )

@@ -198,7 +198,15 @@ def _discover_py_files(root: Path) -> list[Path]:
     Returns:
         List of discovered ``.py`` file paths.
     """
-    return _discover_py_files_inner(root, _find_git_root(root))
+    from axm.tools.dependency_reads import current_read_contract
+
+    paths = _discover_py_files_inner(root, _find_git_root(root))
+    contract = current_read_contract()
+    return (
+        paths
+        if contract is None
+        else [path for path in paths if contract.readable(str(path.resolve()))]
+    )
 
 
 def _should_skip_source_directory(path: Path) -> bool:

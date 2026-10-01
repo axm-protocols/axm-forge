@@ -6,6 +6,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from axm.tools.dependency_reads import DependencyEnvironment, dependency_sources
+
 __all__ = [
     "WRITE_CONTRACT_ENV",
     "WriteAccessDecision",
@@ -75,6 +77,7 @@ class WriteContract:
     execution_root: str
     allowed_prefixes: tuple[str, ...] = ()
     markdown_only_prefixes: tuple[str, ...] = ()
+    dependency_environment: DependencyEnvironment | None = None
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object]) -> WriteContract:
@@ -85,7 +88,19 @@ class WriteContract:
         root = os.path.realpath(raw_root.strip())
         prefixes = _normalized_prefixes(raw, "allowed_prefixes", root)
         markdown_only = _normalized_prefixes(raw, "markdown_only_prefixes", root)
+        environment = raw.get("dependency_environment")
+        if environment is not None and not isinstance(environment, Mapping):
+            raise ValueError("dependency_environment must be an object")
+        if isinstance(environment, Mapping):
+            read_env = DependencyEnvironment.from_mapping(environment)
+            if read_env.package_root != root:
+                raise ValueError("dependency package_root must match execution_root")
         return cls(
+            dependency_environment=(
+                DependencyEnvironment.from_mapping(environment)
+                if isinstance(environment, Mapping)
+                else None
+            ),
             execution_root=root,
             allowed_prefixes=prefixes,
             markdown_only_prefixes=tuple(
@@ -123,9 +138,17 @@ class WriteContract:
             return True
         return location.casefold().endswith(_MARKDOWN_SUFFIXES)
 
+    def readable(self, location: str) -> bool:
+        """Accept local reads and declared sources resolved by the test interpreter."""
+        if self.contains(os.path.realpath(location)):
+            return True
+        return self.dependency_environment is not None and dependency_sources(
+            self.dependency_environment
+        ).permits(location)
+
     def contains(self, location: str) -> bool:
         """Return whether a resolved location is under the execution root."""
-        root = self.execution_root
+        root = os.path.realpath(self.execution_root)
         return location == root or location.startswith(root + os.sep)
 
 
@@ -266,6 +289,31 @@ def _decide_declared_mutation(
     )
 
 
+def _decide_read_access(
+    canonical: str,
+    payload: Mapping[str, object],
+    contract: WriteContract,
+) -> WriteAccessDecision:
+    base = payload.get("path", contract.execution_root)
+    if not isinstance(base, (str, os.PathLike)):
+        return _denied(str(base), contract, canonical)
+    base = str(base)
+    candidates = [base]
+    for key in ("file", "files"):
+        raw = payload.get(key, ())
+        values = [raw] if isinstance(raw, str) else raw
+        if isinstance(values, (tuple, list)):
+            candidates.extend(contract.resolve(base, str(p)) for p in values)
+    for candidate in candidates:
+        location = contract.resolve(contract.execution_root, candidate)
+        if not contract.readable(location):
+            return _denied(location, contract, f"{canonical} read")
+    return WriteAccessDecision(
+        allowed=True,
+        reason="no filesystem mutation; resolved read source is authorized",
+    )
+
+
 def decide_write_access(
     contract: WriteContract | Mapping[str, object] | None,
     tool_name: str,
@@ -287,6 +335,8 @@ def decide_write_access(
             reason=facade_error,
             consulted_prefixes=resolved_contract.allowed_prefixes,
         )
+    if canonical == "read_file" or canonical.startswith("ast_"):
+        return _decide_read_access(canonical, payload, resolved_contract)
     shape = _MUTATION_TOOLS.get(canonical)
     if shape is None:
         return _unclassified_tool_decision(canonical, payload, resolved_contract)

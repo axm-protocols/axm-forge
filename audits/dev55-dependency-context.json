@@ -1,0 +1,24 @@
+{
+  "execution_root": "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-cron",
+  "allowed_prefixes": [
+    "src/axm_cron/tools/emit_tool.py",
+    "pyproject.toml",
+    "tests_axm_cron/integration/test_cron_emit_success.py",
+    "tests_axm_cron/integration/test_cron_emit_failure.py",
+    "tests_axm_cron/integration/test_cron_emit_record_failure.py",
+    "docs/reference/cli.md",
+    "README.md"
+  ],
+  "dependency_environment": {
+    "interpreter": "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/axm-hub-devchain-repo/.venv/bin/python",
+    "package_root": "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-cron",
+    "pythonpath": [
+      "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-cloudflare/src",
+      "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-daemon/src",
+      "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-mail/src",
+      "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-sweep/src",
+      "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-ticket/src",
+      "/Users/gabriel/Documents/Code/python/axm-tribunal-wt/.axm-feature-worktrees/.axm-worktrees/axm-hub-devchain-repo-6d5ccdb8894150d8-b9a32fe5702a490c985ebdfd9927b50f-f462f15326dc/packages/axm-warden/src"
+    ]
+  }
+}
