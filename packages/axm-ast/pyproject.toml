@@ -53,6 +53,7 @@ Issues = "https://github.com/axm-protocols/axm-ast/issues"
 # Entry points — auto-discovered by axm-mcp
 # ---------------------------------------------------------------------------
 [project.entry-points."axm.tools"]
+ast_changed_lines = "axm_ast.tools.changed_lines:ChangedLinesTool"
 ast_context  = "axm_ast.tools.context:ContextTool"
 ast_describe = "axm_ast.tools.describe:DescribeTool"
 ast_search   = "axm_ast.tools.search:SearchTool"
