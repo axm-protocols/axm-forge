@@ -11,6 +11,7 @@ import json
 import logging
 import subprocess
 import tempfile
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
@@ -28,6 +29,8 @@ __all__ = [
     "TestCase",
     "TestOutcome",
     "TestReport",
+    "build_pytest_cmd",
+    "read_test_report",
     "run_pytest",
     "run_tests",
 ]
@@ -326,6 +329,19 @@ def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]
     return total_pct, per_file
 
 
+def _coverage_sources(project_path: Path | None) -> list[str]:
+    if project_path is None:
+        return []
+    manifest = project_path / "pyproject.toml"
+    config = tomllib.loads(manifest.read_text()) if manifest.is_file() else {}
+    sources = (
+        config.get("tool", {}).get("coverage", {}).get("run", {}).get("source", [])
+    )
+    if isinstance(sources, list) and sources:
+        return [str(source) for source in sources]
+    return ["src"] if (project_path / "src").is_dir() else []
+
+
 def build_pytest_cmd(
     *,
     report_path: Path,
@@ -334,6 +350,7 @@ def build_pytest_cmd(
     markers: list[str] | None,
     stop_on_first: bool,
     collect_only: bool = False,
+    project_path: Path | None = None,
 ) -> list[str]:
     """Build the pytest command line."""
     cmd = [
@@ -349,7 +366,9 @@ def build_pytest_cmd(
     if collect_only:
         cmd.extend(["--collect-only", "--no-cov"])
     elif coverage_path is not None:
-        cmd.extend(["--cov", f"--cov-report=json:{coverage_path}"])
+        sources = _coverage_sources(project_path)
+        cmd.extend([f"--cov={source}" for source in sources] if sources else ["--cov"])
+        cmd.append(f"--cov-report=json:{coverage_path}")
     elif files:
         cmd.append("--no-cov")
 
@@ -478,6 +497,41 @@ def _build_target_statuses(
 # ---------------------------------------------------------------------------
 
 
+def read_test_report(
+    project_path: Path,
+    *,
+    report_path: Path,
+    coverage_path: Path | None,
+    return_code: int,
+    files: list[str] | None = None,
+    include_cases: bool = False,
+    stdout: str = "",
+    stderr: str = "",
+    allow_collection_errors: bool = False,
+) -> TestReport:
+    """Read runner-owned pytest artifacts through the canonical report builders."""
+    report_data = parse_json_report(report_path)
+    total_cov, per_file_cov = (
+        parse_coverage(coverage_path) if coverage_path is not None else (None, {})
+    )
+    report = build_test_report(
+        report_data=report_data,
+        total_cov=total_cov,
+        per_file_cov=per_file_cov,
+        include_cases=include_cases,
+        allow_collection_errors=allow_collection_errors,
+        return_code=return_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
+    report.record_execution(
+        return_code=return_code,
+        collected=_collected_count(report_data),
+        target_statuses=_build_target_statuses(project_path, files, report_data),
+    )
+    return report
+
+
 def run_tests(
     project_path: Path,
     *,
@@ -521,6 +575,7 @@ def run_tests(
             files=files,
             markers=markers,
             stop_on_first=stop_on_first,
+            project_path=project_path,
         )
 
         logger.debug("Running: %s", " ".join(cmd))
@@ -558,34 +613,20 @@ def run_tests(
         # corrupt file and hides the real cause, which only the captured stderr
         # carries. Re-raise it enriched instead.
         try:
-            report_data = parse_json_report(report_path)
+            parse_json_report(report_path)
         except ValueError as exc:
             raise _subprocess_failure(exc, result) from exc
 
-        # Parse coverage
-        total_cov, per_file_cov = (
-            parse_coverage(coverage_path) if not files else (None, {})
-        )
-
-        report = build_test_report(
-            report_data=report_data,
-            total_cov=total_cov,
-            per_file_cov=per_file_cov,
+        return read_test_report(
+            project_path,
+            report_path=report_path,
+            coverage_path=effective_cov_path,
+            files=files,
             include_cases=include_cases,
             return_code=result.returncode,
             stdout=result.stdout or "",
             stderr=result.stderr or "",
         )
-        report.record_execution(
-            return_code=result.returncode,
-            collected=_collected_count(report_data),
-            target_statuses=_build_target_statuses(
-                project_path,
-                files,
-                report_data,
-            ),
-        )
-        return report
 
     finally:
         report_path.unlink(missing_ok=True)
@@ -719,6 +760,7 @@ def build_test_report(
     return_code: int = 0,
     stdout: str = "",
     stderr: str = "",
+    allow_collection_errors: bool = False,
 ) -> TestReport:
     """Build a ``TestReport`` from pytest JSON and coverage data.
 
@@ -742,7 +784,7 @@ def build_test_report(
     failures.extend(parse_collector_errors(collectors_list))
     if include_cases:
         collection_failure = _collection_failure_detail(collectors_list)
-        if collection_failure is not None:
+        if collection_failure is not None and not allow_collection_errors:
             raise ValueError(collection_failure)
 
     return TestReport(

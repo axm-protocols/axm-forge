@@ -18,6 +18,8 @@ from axm_audit.models.results import CheckResult, Severity
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from axm_audit.core.test_runner import TestReport
+
 # ── Auto-discovery registry ───────────────────────────────────────────
 #
 # Rule classes decorate themselves with ``@register_rule("lint")``
@@ -154,6 +156,13 @@ class ProjectRule(ABC):
 
     Each rule defines a single check that a project must satisfy.
     """
+
+    runs_tests: bool = False
+    """Suite-running rules must declare this and implement check_measured."""
+
+    def check_measured(self, project_path: Path, report: TestReport) -> CheckResult:
+        """Consume an existing suite measurement; never fall back to execution."""
+        raise NotImplementedError(f"{self.rule_id} cannot consume precomputed tests")
 
     @property
     @abstractmethod

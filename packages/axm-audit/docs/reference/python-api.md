@@ -14,6 +14,19 @@ monorepo builds and makes the entry points discoverable in navigation.
 
 ::: axm_audit.get_rules_for_category
 
+`audit_project(package, test_reports={package.resolve(): report})` consumes a
+precomputed `TestReport` for every rule declaring `runs_tests=True`. Static
+rules still run normally. Passing an empty mapping refuses missing suite
+evidence; it never falls back to another pytest run. Omitting `test_reports`
+preserves the standalone audit behavior.
+
+The measurement owner exports coverage JSON and pytest JSON in its own run,
+using `axm_audit.core.test_runner.build_pytest_cmd`, then loads both through
+`read_test_report(include_cases=True)`. These are the same builders used by
+`audit_test`. The owner must bind the report to the measured tree and
+environment before reusing it. A test-running rule must implement
+`check_measured`; missing support fails closed.
+
 ::: axm_audit.validation_readiness
 
 `validation_readiness(Path(...))` returns an instrument-to-cause mapping, empty
