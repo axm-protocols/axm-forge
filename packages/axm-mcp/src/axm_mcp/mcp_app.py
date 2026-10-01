@@ -94,12 +94,17 @@ async def _bind_initialize_response(
     if message["type"] == "http.response.start":
         response_session_id = Headers(raw=message["headers"]).get(MCP_SESSION_ID_HEADER)
         if response_session_id is None:
-            logging.getLogger(__name__).warning(
-                "initialize response has no MCP session id for write contract"
+            logging.getLogger(__name__).debug(
+                "request contract enforced without an MCP session id"
             )
         else:
             session_contract_registry.bind(response_session_id, contract)
     await send(message)
+
+
+_current_request_contract = ContextVar[WriteContract | None](
+    "axm_mcp_current_request_contract", default=None
+)
 
 
 class _SessionContractMiddleware:
@@ -153,6 +158,8 @@ class _SessionContractMiddleware:
                     return
             token = _current_session_id.set(session_id)
 
+        request_token = _current_request_contract.set(declared_contract)
+
         try:
             response_send = (
                 partial(_bind_initialize_response, send=send, contract=pending_contract)
@@ -161,6 +168,7 @@ class _SessionContractMiddleware:
             )
             await self._app(scope, receive, response_send)
         finally:
+            _current_request_contract.reset(request_token)
             if token is not None:
                 _current_session_id.reset(token)
 
@@ -265,6 +273,9 @@ def _on_session_end(*, registry: SessionContractRegistry, session_id: str) -> No
 
 def _resolve_session_contract() -> WriteContract:
     """Resolve the contract belonging to the current MCP session."""
+    declared = _current_request_contract.get()
+    if declared is not None:
+        return declared
     return contract_for_session_id(current_session_id())
 
 

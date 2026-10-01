@@ -164,7 +164,7 @@ def test_built_http_app_binds_contract_from_ordinary_request(
 
     contract = mcp_app.contract_for_session_id("sid-1")
     assert contract.execution_root == payload["execution_root"]
-    assert contract.allowed_prefixes == payload["allowed_prefixes"]
+    assert contract.allowed_prefixes == tuple(payload["allowed_prefixes"])
 
 
 def test_session_identity_header_lookup_is_case_insensitive() -> None:

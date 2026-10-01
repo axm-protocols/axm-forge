@@ -62,6 +62,27 @@ def _normalized_prefixes(
     return tuple(dict.fromkeys(_absolute_location(root, prefix) for prefix in value))
 
 
+def _read_aliases(
+    raw: object,
+    roots: tuple[str, ...],
+) -> tuple[tuple[str, str], ...]:
+    if not isinstance(raw, (tuple, list)):
+        raise ValueError("read_path_aliases must be a sequence of path pairs")
+    aliases = []
+    for pair in raw:
+        if (
+            not isinstance(pair, (tuple, list))
+            or len(pair) != len(("source", "target"))
+            or any(not isinstance(p, str) or not os.path.isabs(p) for p in pair)
+        ):
+            raise ValueError("read_path_aliases require absolute source and target")
+        source, target = (os.path.realpath(p) for p in pair)
+        if target not in roots:
+            raise ValueError("read alias target must be a declared read root")
+        aliases.append((source, target))
+    return tuple(aliases)
+
+
 @dataclass(frozen=True)
 class WriteContract:
     """Validated wire representation of a session filesystem write scope.
@@ -78,6 +99,9 @@ class WriteContract:
     allowed_prefixes: tuple[str, ...] = ()
     markdown_only_prefixes: tuple[str, ...] = ()
     dependency_environment: DependencyEnvironment | None = None
+    read_roots: tuple[str, ...] = ()
+    read_path_aliases: tuple[tuple[str, str], ...] = ()
+    dependency_environments: tuple[DependencyEnvironment, ...] = ()
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object]) -> WriteContract:
@@ -87,6 +111,8 @@ class WriteContract:
             raise ValueError("execution_root must be a non-empty string")
         root = os.path.realpath(raw_root.strip())
         prefixes = _normalized_prefixes(raw, "allowed_prefixes", root)
+        reads = _normalized_prefixes(raw, "read_roots", root) or (root,)
+        aliases = _read_aliases(raw.get("read_path_aliases", ()), reads)
         markdown_only = _normalized_prefixes(raw, "markdown_only_prefixes", root)
         environment = raw.get("dependency_environment")
         if environment is not None and not isinstance(environment, Mapping):
@@ -95,13 +121,23 @@ class WriteContract:
             read_env = DependencyEnvironment.from_mapping(environment)
             if read_env.package_root != root:
                 raise ValueError("dependency package_root must match execution_root")
+        extra = raw.get("dependency_environments", ())
+        if not isinstance(extra, (tuple, list)) or any(
+            not isinstance(env, Mapping) for env in extra
+        ):
+            raise ValueError("dependency_environments must be a sequence of objects")
         return cls(
+            dependency_environments=tuple(
+                DependencyEnvironment.from_mapping(env) for env in extra
+            ),
             dependency_environment=(
                 DependencyEnvironment.from_mapping(environment)
                 if isinstance(environment, Mapping)
                 else None
             ),
             execution_root=root,
+            read_roots=reads,
+            read_path_aliases=aliases,
             allowed_prefixes=prefixes,
             markdown_only_prefixes=tuple(
                 prefix for prefix in markdown_only if prefix in prefixes
@@ -140,11 +176,16 @@ class WriteContract:
 
     def readable(self, location: str) -> bool:
         """Accept local reads and declared sources resolved by the test interpreter."""
-        if self.contains(os.path.realpath(location)):
+        location = os.path.realpath(location)
+        if any(
+            location == root or location.startswith(root + os.sep)
+            for root in (self.read_roots or (self.execution_root,))
+        ):
             return True
-        return self.dependency_environment is not None and dependency_sources(
-            self.dependency_environment
-        ).permits(location)
+        environments = self.dependency_environments
+        if self.dependency_environment is not None:
+            environments = (self.dependency_environment, *environments)
+        return any(dependency_sources(env).permits(location) for env in environments)
 
     def contains(self, location: str) -> bool:
         """Return whether a resolved location is under the execution root."""
@@ -294,6 +335,14 @@ def _decide_read_access(
     payload: Mapping[str, object],
     contract: WriteContract,
 ) -> WriteAccessDecision:
+    from axm.tools.session_paths import resolve_session_paths
+
+    resolved = dict(payload)
+    try:
+        resolve_session_paths(resolved, {"path": "."}, contract)
+    except ValueError as exc:
+        return WriteAccessDecision(allowed=False, reason=str(exc))
+    payload = resolved
     base = payload.get("path", contract.execution_root)
     if not isinstance(base, (str, os.PathLike)):
         return _denied(str(base), contract, canonical)

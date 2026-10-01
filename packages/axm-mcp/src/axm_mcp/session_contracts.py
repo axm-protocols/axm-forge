@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from threading import Lock
-from typing import TypedDict, cast
+from typing import NotRequired, TypedDict
 
 from axm.tools.write_scope import WriteContract
 from pydantic import TypeAdapter, ValidationError
@@ -24,6 +24,10 @@ class _WriteContractPayload(TypedDict):
     execution_root: str
     allowed_prefixes: list[str]
     markdown_only_prefixes: list[str]
+    read_roots: NotRequired[list[str]]
+    read_path_aliases: NotRequired[list[tuple[str, str]]]
+    dependency_environment: NotRequired[dict[str, object] | None]
+    dependency_environments: NotRequired[list[dict[str, object]]]
 
 
 _WRITE_CONTRACT_ADAPTER = TypeAdapter(_WriteContractPayload)
@@ -41,13 +45,7 @@ def parse_write_contract_header(raw: str) -> WriteContract:
         raise WriteContractHeaderError(
             f"invalid X-AXM-Write-Contract header: {exc}"
         ) from exc
-    return WriteContract(
-        execution_root=payload["execution_root"],
-        allowed_prefixes=cast("tuple[str, ...]", payload["allowed_prefixes"]),
-        markdown_only_prefixes=cast(
-            "tuple[str, ...]", payload["markdown_only_prefixes"]
-        ),
-    )
+    return WriteContract.from_mapping(payload)
 
 
 class SessionContractRegistry:
