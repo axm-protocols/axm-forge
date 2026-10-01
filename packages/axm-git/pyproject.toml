@@ -22,6 +22,7 @@ dependencies = [
 ]
 
 [project.entry-points."axm.tools"]
+git_range_diff = "axm_git.tools.range_diff:RangeDiffTool"
 git_tag         = "axm_git.tools.tag:GitTagTool"
 git_preflight   = "axm_git.tools.commit_preflight:GitPreflightTool"
 git_commit      = "axm_git.tools.commit:GitCommitTool"
