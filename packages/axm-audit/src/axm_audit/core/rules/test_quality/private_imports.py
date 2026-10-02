@@ -317,7 +317,12 @@ def _iter_private_attributes(
 @dataclass
 @register_rule("test_quality")
 class PrivateImportsRule(ProjectRule):
-    """Report test imports of private package symbols."""
+    """Report imports and attribute access to private package symbols from tests.
+
+    Detect underscore-prefixed first-party symbols imported by tests or accessed
+    through imported modules and classes. Dunders are excluded; private constants
+    are excluded unless include_constants is enabled.
+    """
 
     include_constants: bool = False
 
