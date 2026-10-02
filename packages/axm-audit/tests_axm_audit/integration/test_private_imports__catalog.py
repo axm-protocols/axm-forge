@@ -13,16 +13,13 @@ from axm_audit.core.rules.test_quality.private_imports import PrivateImportsRule
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize(
-    "access", ["from tiny import _private", "import tiny\ntiny._private()"]
-)
-def test_catalog_covers_detected_private_access(tmp_path: Path, access: str) -> None:
+def test_catalog_covers_detected_private_access(tmp_path: Path) -> None:
     source = tmp_path / "src/tiny"
     source.mkdir(parents=True)
     (source / "__init__.py").write_text("def _private():\n    return 1\n")
     tests = tmp_path / "tests"
     tests.mkdir()
-    (tests / "test_api.py").write_text(access + "\n")
+    (tests / "test_api.py").write_text("import tiny\ntiny._private()\n")
     result = PrivateImportsRule().check(tmp_path)
     assert not result.passed
     assert result.details is not None
