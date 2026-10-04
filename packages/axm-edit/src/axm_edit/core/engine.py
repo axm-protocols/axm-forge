@@ -649,7 +649,7 @@ def _syntax_errors(
     grouped: _GroupedOps,
     resolved_by_file: dict[str, list[ResolvedEdit]],
 ) -> list[ValidationError]:
-    """Refuse the batch when it would leave a Python file unparseable."""
+    """Refuse Python, TOML or JSON syntax regressions before writing."""
     errors: list[ValidationError] = []
     for file_rel, before, after in _planned_contents(root, grouped, resolved_by_file):
         error = syntax_regression(file_rel, before, after)
@@ -666,8 +666,10 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     * **Validation is the gate.** All operations are validated first; if any
       fails the batch is rejected wholesale (``success=False``) before a
       single byte is written — a true all-or-nothing guarantee. Validation
-      includes the syntax gate: a batch that would leave a parseable Python
-      file unparseable is refused (:mod:`axm_edit.core.syntax_gate`).
+      includes the syntax gate: a batch that would leave a parseable Python, TOML
+      or JSON file unparseable is refused (:mod:`axm_edit.core.syntax_gate`).
+      JSON comments and trailing commas are tolerated; new JSON files are
+      unchecked.
     * **Apply is best-effort with automatic rollback.** Once validation
       passes, a targeted checkpoint of every touched path is captured and the
       operations are applied. If *any* exception occurs mid-apply (anchor

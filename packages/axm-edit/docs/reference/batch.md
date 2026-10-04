@@ -48,8 +48,12 @@ An empty `new` deletes the matched block without leaving a blank line.
 
 For tool calls, copy indentation, omit trailing newlines from `old` and
 `new`. Use a unique, small anchor. Triple-quoted strings are valid anchors;
-a batch that would leave a parseable Python file unparseable is refused before
-any write, whatever the anchor.
+a batch that would leave a parseable Python, TOML or JSON file unparseable is refused before
+any write, whatever the anchor. New Python and TOML files must parse; new
+JSON files are unchecked. JSON comments (`//` and `/* */`) and trailing
+commas are tolerated. Existing files that already fail parsing remain editable.
+Data parser recursion limits produce no verdict and do not block edits.
+Other suffixes are unchecked.
 The engine can recover shifted lines, normalized quotes and dedented matches;
 these fallbacks are not semantic code analysis. Overlapping edits and unresolved
 ambiguous anchors are rejected. The preflight resolves anchors with the same
