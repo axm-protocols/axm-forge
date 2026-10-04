@@ -21,6 +21,7 @@ __all__ = [
     "dependency_sources",
     "resolve_read_path",
     "session_dependencies",
+    "session_dependency_environment",
     "session_readable",
     "unresolved_dependency_refusals",
 ]
@@ -303,3 +304,39 @@ def unresolved_dependency_refusals(
                     f"{name} {location} arguments={dict(arguments)!r}: {text}"
                 )
     return tuple(failed.values())
+
+
+def session_dependency_environment(
+    project_path: str | Path,
+) -> DependencyEnvironment | None:
+    """Resolve a declared runtime, refusing implicit execution via read authority.
+
+    Return None only without a transport/local contract. Under a contract a
+    matching declared environment is mandatory, including for readable roots.
+    Keep the interpreter's lexical venv path; resolving its symlink loses venv
+    activation semantics.
+    """
+    contract = current_read_contract()
+    if contract is None:
+        return None
+    environments = contract.dependency_environments
+    if contract.dependency_environment is not None:
+        environments = (contract.dependency_environment, *environments)
+    root = Path(project_path).resolve()
+    matches = [
+        env
+        for env in environments
+        if root.is_relative_to(Path(env.package_root).resolve())
+    ]
+    if not matches:
+        raise ValueError(f"no declared runtime for: {root}")
+    depth = max(len(Path(env.package_root).parts) for env in matches)
+    deepest = {env for env in matches if len(Path(env.package_root).parts) == depth}
+    if len(deepest) != 1:
+        raise ValueError(f"ambiguous declared runtime for: {root}")
+    selected = deepest.pop()
+    if not Path(selected.interpreter).is_file():
+        raise ValueError(
+            f"declared runtime interpreter missing: {selected.interpreter}"
+        )
+    return selected

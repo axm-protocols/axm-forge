@@ -114,3 +114,12 @@ and result types. [CLI reference](cli.md#python-api) documents launcher helpers.
 The workspace build also generates module reference pages from
 `docs/gen_ref_pages.py`. This curated reference renders directly from the same
 source, so it works in both package-only and monorepo builds.
+
+## Declared instrument runtime
+
+`axm.DependencyEnvironment` is the immutable runtime transported with a phase
+contract. `axm.session_dependency_environment(project_path)` returns the matching
+declared environment, or None only without a contract. A missing or ambiguous
+runtime, an unrelated readable root, or a missing interpreter fails explicitly.
+The interpreter retains its lexical virtualenv path. Resolving this runtime does
+not grant additional filesystem write authority.

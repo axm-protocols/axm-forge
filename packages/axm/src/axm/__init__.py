@@ -6,6 +6,10 @@ from importlib.metadata import PackageNotFoundError, version
 
 from axm.tools import ToolMetadata, ToolNodeError, tool_metadata, tool_node
 from axm.tools.base import AXMTool, ToolResult
+from axm.tools.dependency_reads import (
+    DependencyEnvironment,
+    session_dependency_environment,
+)
 from axm.witnesses import ValidationFeedback, WitnessResult, WitnessRule
 
 try:
@@ -15,6 +19,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "AXMTool",
+    "DependencyEnvironment",
     "ToolMetadata",
     "ToolNodeError",
     "ToolResult",
@@ -22,6 +27,7 @@ __all__ = [
     "WitnessResult",
     "WitnessRule",
     "__version__",
+    "session_dependency_environment",
     "tool_metadata",
     "tool_node",
 ]
