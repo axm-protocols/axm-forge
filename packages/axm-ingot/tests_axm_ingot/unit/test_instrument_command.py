@@ -18,6 +18,8 @@ def test_instrument_command_ignores_contaminated_environment(
     source.mkdir(parents=True)
     monkeypatch.setenv("PYTHONPATH", "/contaminated")
     monkeypatch.setenv("VIRTUAL_ENV", "/contaminated/.venv")
+    monkeypatch.setenv("PYTHONHOME", "/contaminated/python")
+    monkeypatch.setenv("PYTHONNOUSERSITE", "0")
     command, env = instrument_command(
         ["pytest", "--version"],
         interpreter=str(python),
@@ -27,6 +29,8 @@ def test_instrument_command_ignores_contaminated_environment(
     assert command == [str(python), "-m", "pytest", "--version"]
     assert env["PYTHONPATH"] == str(source)
     assert "VIRTUAL_ENV" not in env
+    assert "PYTHONHOME" not in env
+    assert env["PYTHONNOUSERSITE"] == "1"
     assert env["PATH"].split(":")[0] == str(python.parent)
 
 

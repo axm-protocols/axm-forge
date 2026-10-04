@@ -109,4 +109,5 @@ trusted inputs. It neither discovers virtualenvs nor installs dependencies.
 Python instruments run as the declared interpreter's modules; other named
 instruments must be confined to its bin directory. Paths and uv are refused.
 PYTHONPATH contains only the declared overlay in order; inherited virtualenv
-selection variables are removed. Missing modules fail in the declared runtime.
+selection variables and PYTHONHOME are removed; PYTHONNOUSERSITE=1 prevents
+user-site contamination. Missing modules fail in the declared runtime.

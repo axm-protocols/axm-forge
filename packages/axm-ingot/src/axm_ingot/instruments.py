@@ -32,6 +32,8 @@ def instrument_command(
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath))
     env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
+    env.pop("PYTHONHOME", None)
+    env["PYTHONNOUSERSITE"] = "1"
     env.pop("VIRTUAL_ENV", None)
     env.pop("UV_PROJECT_ENVIRONMENT", None)
     return [*prefix, *command[1:]], env
