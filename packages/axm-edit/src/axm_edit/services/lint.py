@@ -16,43 +16,85 @@ different root re-probes.
 from __future__ import annotations
 
 import subprocess
+from contextvars import ContextVar
 from pathlib import Path
 
-__all__ = ["filter_ruff_lines", "ruff_available"]
+from axm import session_dependency_environment
+from axm_ingot import instrument_command
+
+__all__ = ["filter_ruff_lines", "ruff_available", "run_ruff"]
 
 _RUFF_NOISE_PREFIXES = ("Found ", "[*] ", "No fixes")
 
 # Per-root availability cache: resolved absolute root -> ruff available?
 _RUFF_AVAILABLE_CACHE: dict[Path, bool] = {}
+_RUFF_PROBE_FAILURE: ContextVar[str] = ContextVar("ruff_probe_failure", default="")
+
+
+def _ruff_command(
+    root: Path, args: list[str]
+) -> tuple[list[str], dict[str, str] | None]:
+    """Use the declared runtime; retain uv discovery only without a contract."""
+    declared = session_dependency_environment(root)
+    if declared is None:
+        return ["uv", "run", "ruff", *args], None
+    return instrument_command(
+        ["ruff", *args],
+        interpreter=declared.interpreter,
+        package_root=declared.package_root,
+        pythonpath=declared.pythonpath,
+    )
+
+
+def run_ruff(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run one bounded lint step without changing a declared environment."""
+    command, env = _ruff_command(root, args)
+    if env is not None:
+        return subprocess.run(
+            command,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+    return subprocess.run(
+        command,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
 
 
 def ruff_available(root: Path) -> bool:
     """Return whether ruff can run inside *root*'s environment.
 
-    Probes ``uv run ruff --version`` with ``cwd=root`` and treats ruff as
+    Under a contract, probes the declared interpreter without installing or
+    caching by root. Otherwise probes ``uv run ruff --version``. Treats ruff as
     available iff the subprocess returns 0. A missing ``uv``/ruff binary
     (``FileNotFoundError``) or any OS-level failure counts as *absent* (a
     clean skip), never as a crash. The verdict is memoized on the resolved
     absolute root; a distinct root re-probes.
     """
     resolved = Path(root).resolve()
-    cached = _RUFF_AVAILABLE_CACHE.get(resolved)
+    declared = session_dependency_environment(root)
+    cached = _RUFF_AVAILABLE_CACHE.get(resolved) if declared is None else None
     if cached is not None:
         return cached
 
     try:
-        result = subprocess.run(
-            ["uv", "run", "ruff", "--version"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = run_ruff(root, ["--version"])
         available = result.returncode == 0
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        if declared is not None:
+            detail = (result.stderr or result.stdout).strip()[-2000:]
+            _RUFF_PROBE_FAILURE.set(f"exit {result.returncode}: {detail}")
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        _RUFF_PROBE_FAILURE.set(str(exc)[-2000:])
         available = False
 
-    _RUFF_AVAILABLE_CACHE[resolved] = available
+    if declared is None:
+        _RUFF_AVAILABLE_CACHE[resolved] = available
     return available
 
 
@@ -63,3 +105,14 @@ def filter_ruff_lines(stdout: str) -> list[str]:
         for line in stdout.strip().splitlines()
         if line.strip() and not line.startswith(_RUFF_NOISE_PREFIXES)
     ]
+
+
+def ruff_failure(root: Path) -> str:
+    """Report the failed declared probe without implying a completed lint check."""
+    declared = session_dependency_environment(root)
+    if declared is None:
+        return "ruff not found, lint skipped"
+    return (
+        f"ruff unavailable in declared runtime {declared.interpreter}: "
+        f"{_RUFF_PROBE_FAILURE.get()}; lint skipped"
+    )

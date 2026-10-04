@@ -15,6 +15,8 @@ import subprocess
 from enum import Enum
 from pathlib import Path
 
+from axm import session_dependency_environment
+from axm_ingot import instrument_command
 from axm_ingot.validation import worktree_environment
 
 logger = logging.getLogger(__name__)
@@ -158,6 +160,79 @@ def _kill_process_group(proc: subprocess.Popen[str]) -> None:
             proc.kill()
 
 
+def _overlay_command(cmd: list[str], source: Path, packages: list[str]) -> list[str]:
+    """Retain the existing legacy uv runtime overlay outside contracts."""
+    flags = [flag for pkg in packages for flag in ("--with", pkg)]
+    instrument = ["python", "-m", *cmd] if cmd[0] in {"pytest", "ruff", "mypy"} else cmd
+    return [
+        "uv",
+        "run",
+        "--no-sync",
+        "--active",
+        "--project",
+        str(source),
+        *flags,
+        *instrument,
+    ]
+
+
+def _legacy_project_command(
+    cmd: list[str],
+    project_path: Path,
+    with_packages: list[str] | None,
+) -> tuple[list[str], str | None, dict[str, str] | None]:
+    """Preserve environment discovery only outside a declared contract."""
+    venv = find_venv(project_path)
+    cwd: str | None = None
+
+    resolved = worktree_environment(project_path)
+    child_env = None
+    if resolved is not None:
+        full_cmd = resolved.command(cmd)
+        cwd = str(project_path)
+        child_env = resolved.variables()
+        if with_packages:
+            full_cmd = _overlay_command(cmd, resolved.source, with_packages)
+    elif venv is not None or with_packages:
+        with_flags: list[str] = []
+        for pkg in with_packages or []:
+            with_flags.extend(["--with", pkg])
+        isolation = ["--isolated"] if venv is None else []
+        full_cmd = [
+            "uv",
+            "run",
+            "--no-sync",
+            *isolation,
+            *with_flags,
+            "--directory",
+            str(project_path),
+            *cmd,
+        ]
+    else:
+        full_cmd = cmd
+        cwd = str(project_path)
+
+    return full_cmd, cwd, child_env
+
+
+def _project_command(
+    cmd: list[str],
+    project_path: Path,
+    with_packages: list[str] | None,
+) -> tuple[list[str], str | None, dict[str, str] | None]:
+    """Give the transport contract priority over any discovered virtualenv."""
+    declared = session_dependency_environment(project_path)
+    if declared is None:
+        return _legacy_project_command(cmd, project_path, with_packages)
+    command, environment = instrument_command(
+        cmd,
+        interpreter=declared.interpreter,
+        package_root=declared.package_root,
+        pythonpath=declared.pythonpath,
+    )
+    return command, str(project_path), environment
+
+
 def run_in_project(  # noqa: PLR0913
     cmd: list[str],
     project_path: Path,
@@ -169,6 +244,10 @@ def run_in_project(  # noqa: PLR0913
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command in the target project's environment.
+
+    A declared session runtime takes priority and never invokes uv or installs
+    runtime packages; missing instruments fail in that interpreter. Without a
+    contract, retains the legacy environment discovery described below.
 
     Locates the nearest ``.venv/`` — either in ``project_path`` itself
     or in an ancestor directory (for uv monorepo workspace members).
@@ -208,49 +287,7 @@ def run_in_project(  # noqa: PLR0913
         such as ``uv`` and every process it forked (the inner ``python``,
         worker threads, …) are reaped together instead of being orphaned.
     """
-    venv = find_venv(project_path)
-    cwd: str | None = None
-
-    resolved = worktree_environment(project_path)
-    child_env = None
-    if resolved is not None:
-        full_cmd = resolved.command(cmd)
-        cwd = str(project_path)
-        child_env = resolved.variables()
-        if with_packages:
-            overlay_flags = [flag for pkg in with_packages for flag in ("--with", pkg)]
-            full_cmd = [
-                "uv",
-                "run",
-                "--no-sync",
-                "--active",
-                "--project",
-                str(resolved.source),
-                *overlay_flags,
-                *(
-                    ["python", "-m", *cmd]
-                    if cmd[0] in {"pytest", "ruff", "mypy"}
-                    else cmd
-                ),
-            ]
-    elif venv is not None or with_packages:
-        with_flags: list[str] = []
-        for pkg in with_packages or []:
-            with_flags.extend(["--with", pkg])
-        isolation = ["--isolated"] if venv is None else []
-        full_cmd = [
-            "uv",
-            "run",
-            "--no-sync",
-            *isolation,
-            *with_flags,
-            "--directory",
-            str(project_path),
-            *cmd,
-        ]
-    else:
-        full_cmd = cmd
-        cwd = str(project_path)
+    full_cmd, cwd, child_env = _project_command(cmd, project_path, with_packages)
 
     pipe = subprocess.PIPE if capture_output else None
     new_session, creation_flags = _process_group_isolation()

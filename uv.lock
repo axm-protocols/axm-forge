@@ -615,6 +615,7 @@ source = { editable = "packages/axm-edit" }
 dependencies = [
     { name = "axm" },
     { name = "axm-ast" },
+    { name = "axm-ingot" },
     { name = "pydantic" },
 ]
 
@@ -641,6 +642,7 @@ docs = [
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "axm-ast", editable = "packages/axm-ast" },
+    { name = "axm-ingot", editable = "packages/axm-ingot" },
     { name = "pydantic", specifier = ">=2.0.0" },
 ]
 

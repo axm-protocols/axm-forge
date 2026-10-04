@@ -29,7 +29,12 @@ from axm_edit.models.operations import (
     ReplaceOp,
     RewriteOp,
 )
-from axm_edit.services.lint import filter_ruff_lines, ruff_available
+from axm_edit.services.lint import (
+    filter_ruff_lines,
+    ruff_available,
+    ruff_failure,
+    run_ruff,
+)
 from axm_edit.services.lint_diff import (
     compute_lint_diffs,
     extract_import_removals,
@@ -134,20 +139,8 @@ def _ruff_check(
 ) -> list[str]:
     """Run ``ruff check`` and return diagnostic lines."""
     try:
-        result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "ruff",
-                "check",
-                "--output-format=concise",
-                *extend,
-                *str_files,
-            ],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
+        result = run_ruff(
+            root, ["check", "--output-format=concise", *extend, *str_files]
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
         if warnings is not None:
@@ -164,6 +157,12 @@ def _ruff_check(
     return []
 
 
+def _lint_warning(warnings: list[str] | None, message: str) -> None:
+    """Append an optional lint diagnostic without changing lint policy."""
+    if warnings is not None:
+        warnings.append(message)
+
+
 def _run_ruff(
     root: Path,
     files: list[Path],
@@ -177,7 +176,7 @@ def _run_ruff(
     """
     if not ruff_available(root):
         if warnings is not None:
-            warnings.append("ruff not found, lint skipped")
+            warnings.append(ruff_failure(root))
         return [], []
 
     str_files = [str(f) for f in files]
@@ -188,30 +187,16 @@ def _run_ruff(
 
     # Auto-fix what we can
     try:
-        subprocess.run(
-            ["uv", "run", "ruff", "check", "--fix", "--exit-zero", *extend, *str_files],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        run_ruff(root, ["check", "--fix", "--exit-zero", *extend, *str_files])
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
-        if warnings is not None:
-            warnings.append(f"ruff fix failed: {exc}")
+        _lint_warning(warnings, f"ruff fix failed: {exc}")
         return [], []
 
     # Format files
     try:
-        subprocess.run(
-            ["uv", "run", "ruff", "format", *str_files],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        run_ruff(root, ["format", *str_files])
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
-        if warnings is not None:
-            warnings.append(f"ruff format failed: {exc}")
+        _lint_warning(warnings, f"ruff format failed: {exc}")
 
     # Check remaining after fix
     remaining = _ruff_check(root, str_files, extend, warnings=warnings)

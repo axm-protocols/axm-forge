@@ -160,3 +160,12 @@ A diff entry contains `file`, `rules` and a compact `diff`, or
 Formatting-only changes may not appear in `lint_diffs`, because the current
 code generates them only when diagnostics were counted as auto-fixed.
 Always reread files when exact output matters.
+
+## Lint runtime in autonomous sessions
+
+The probe, both checks, fix and format share the phase contract's declared
+interpreter and PYTHONPATH. They never invoke uv or create a worktree virtualenv.
+Legacy availability caching by project is bypassed under a contract. Optional
+lint still skips when unavailable, with a warning naming the declared runtime
+and a bounded probe failure; this warning is not evidence of a clean lint run.
+Without a contract, existing uv discovery and project caching are retained.

@@ -330,13 +330,21 @@ def session_dependency_environment(
     ]
     if not matches:
         raise ValueError(f"no declared runtime for: {root}")
-    depth = max(len(Path(env.package_root).parts) for env in matches)
-    deepest = {env for env in matches if len(Path(env.package_root).parts) == depth}
-    if len(deepest) != 1:
-        raise ValueError(f"ambiguous declared runtime for: {root}")
-    selected = deepest.pop()
+    selected = _unambiguous_runtime(matches, root)
     if not Path(selected.interpreter).is_file():
         raise ValueError(
             f"declared runtime interpreter missing: {selected.interpreter}"
         )
     return selected
+
+
+def _unambiguous_runtime(
+    matches: list[DependencyEnvironment],
+    root: Path,
+) -> DependencyEnvironment:
+    """Select the most specific root, refusing equally specific conflicts."""
+    depth = max(len(Path(env.package_root).parts) for env in matches)
+    deepest = {env for env in matches if len(Path(env.package_root).parts) == depth}
+    if len(deepest) != 1:
+        raise ValueError(f"ambiguous declared runtime for: {root}")
+    return deepest.pop()

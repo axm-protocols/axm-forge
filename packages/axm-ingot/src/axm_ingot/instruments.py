@@ -28,22 +28,26 @@ def instrument_command(
         raise ValueError("instrument requires an absolute package root and command")
     if any(not Path(path).is_absolute() for path in pythonpath):
         raise ValueError("instrument pythonpath must be absolute")
-    if Path(command[0]).name != command[0] or command[0] == "uv":
-        raise ValueError("instrument must be a name; uv bootstrapping is forbidden")
-    if command[0] in {"python", "pytest", "ruff", "mypy", "deptry", "bandit"}:
-        prefix = (
-            [str(python)] if command[0] == "python" else [str(python), "-m", command[0]]
-        )
-    else:
-        binary = python.parent / command[0]
-        if not binary.is_file() or not binary.resolve().is_relative_to(
-            python.parent.resolve()
-        ):
-            raise ValueError(f"declared instrument missing: {binary}")
-        prefix = [str(binary)]
+    prefix = _instrument_prefix(command[0], python)
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath))
     env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
     env.pop("VIRTUAL_ENV", None)
     env.pop("UV_PROJECT_ENVIRONMENT", None)
     return [*prefix, *command[1:]], env
+
+
+def _instrument_prefix(name: str, python: Path) -> list[str]:
+    """Refuse installer and path escape commands; require named instruments."""
+    if Path(name).name != name or name == "uv":
+        raise ValueError("instrument must be a name; uv bootstrapping is forbidden")
+    if name == "python":
+        return [str(python)]
+    if name in {"pytest", "ruff", "mypy", "deptry", "bandit"}:
+        return [str(python), "-m", name]
+    binary = python.parent / name
+    if not binary.is_file() or not binary.resolve().is_relative_to(
+        python.parent.resolve()
+    ):
+        raise ValueError(f"declared instrument missing: {binary}")
+    return [str(binary)]

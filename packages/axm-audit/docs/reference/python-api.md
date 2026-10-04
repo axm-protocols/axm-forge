@@ -80,3 +80,13 @@ For exact transport behavior, parameter tables and known limits, use the
 [CLI/tools reference](cli.md), [results guide](../howto/results.md) and
 [framework reference](frameworks.md). Source docstrings can lag the runtime;
 the narrative describes the checked behavior.
+
+## Session runtime
+
+Under a transported phase contract, audit commands use its matching
+DependencyEnvironment: absolute lexical interpreter, declared package root, and
+declared PYTHONPATH. A local worktree virtualenv never overrides it. Runtime
+package requests do not install or overlay packages in this mode; missing
+instruments fail in the declared interpreter. A readable dependency path alone
+does not authorize execution there. Without a contract, legacy virtualenv/uv
+discovery and runtime overlays remain unchanged.
