@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,7 @@ def test_cli_rename_old_new(tmp_path: Path) -> None:
 
     proc = subprocess.run(
         [
-            "axm",
+            str(Path(sys.executable).parent / "axm"),
             "anvil_rename",
             "--path",
             str(tmp_path),
