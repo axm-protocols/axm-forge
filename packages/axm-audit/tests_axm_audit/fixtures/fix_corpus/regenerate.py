@@ -50,7 +50,12 @@ def regenerate_case(name: str) -> None:
             ["git", "init", "--quiet"], cwd=tmp_pkg, check=True, capture_output=True
         )
         result = subprocess.run(
-            ["axm", "audit_fix", str(tmp_pkg), "--apply"],
+            [
+                str(Path(sys.executable).parent / "axm"),
+                "audit_fix",
+                str(tmp_pkg),
+                "--apply",
+            ],
             check=False,
             capture_output=True,
             text=True,

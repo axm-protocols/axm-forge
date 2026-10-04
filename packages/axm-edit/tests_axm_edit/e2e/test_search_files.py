@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -11,14 +10,11 @@ import pytest
 
 
 def _axm_bin() -> str:
-    """Locate the ``axm`` console script (PATH, else beside the interpreter)."""
-    found = shutil.which("axm")
-    if found:
-        return found
+    """Locate the ``axm`` console script beside the running interpreter."""
     candidate = Path(sys.executable).parent / "axm"
     if candidate.exists():
         return str(candidate)
-    pytest.skip("axm console script not found on PATH or in venv")
+    pytest.skip("axm console script not found beside the interpreter")
 
 
 @pytest.mark.e2e

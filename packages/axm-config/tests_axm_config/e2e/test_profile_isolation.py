@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,12 @@ def test_profile_isolation_command_reports_state_paths(
     env["AXM_HOME"] = str(tmp_path)
 
     result = subprocess.run(
-        ["axm", "profile_isolation", "--profile", "scratch"],
+        [
+            str(Path(sys.executable).parent / "axm"),
+            "profile_isolation",
+            "--profile",
+            "scratch",
+        ],
         env=env,
         capture_output=True,
         text=True,

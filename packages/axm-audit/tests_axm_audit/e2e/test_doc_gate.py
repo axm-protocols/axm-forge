@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,12 @@ def test_doc_gate_on_mini_docs_tree(tmp_path: Path) -> None:
     _write_docs_tree(tmp_path)
 
     proc = subprocess.run(  # noqa: S603
-        ["axm", "doc_gate", "--path", str(tmp_path)],  # noqa: S607
+        [
+            str(Path(sys.executable).parent / "axm"),
+            "doc_gate",
+            "--path",
+            str(tmp_path),
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -53,9 +59,7 @@ def test_doc_gate_on_mini_docs_tree(tmp_path: Path) -> None:
 
 def test_doc_gate_degrades_when_mkdocs_unavailable(tmp_path: Path) -> None:
     """AC3/AC4: ``axm doc_gate`` degrades cleanly with no mkdocs on PATH."""
-    axm_bin = shutil.which("axm")
-    if axm_bin is None:
-        pytest.skip("axm binary not found on PATH")
+    axm_bin = str(Path(sys.executable).parent / "axm")
     _write_docs_tree(tmp_path)
     empty_bin = tmp_path / "empty-bin"
     empty_bin.mkdir()

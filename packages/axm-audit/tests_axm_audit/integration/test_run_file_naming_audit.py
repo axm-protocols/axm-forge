@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -11,14 +11,14 @@ import pytest
 
 pytestmark = [
     pytest.mark.integration,
-    # The CLI is resolved dynamically via shutil.which, so the
+    # The CLI is resolved dynamically next to the interpreter, so the
     # NO_PACKAGE_SYMBOL heuristic can't statically reconstruct the argv.
     # The test does exercise the package — declare it explicitly.
     pytest.mark.no_package_symbol_ok,
 ]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_AXM_BIN = shutil.which("axm")
+_AXM_BIN = Path(sys.executable).parent / "axm"
 
 
 def _findings_in(payload: dict[str, object]) -> list[dict[str, object]]:
@@ -62,11 +62,11 @@ def test_cli_audit_test_quality_on_synthetic_collision(tmp_path: Path) -> None:
         "from mypkg import Rule\n\ndef test_y():\n    Rule()\n"
     )
 
-    if _AXM_BIN is None:
-        pytest.skip("axm CLI not on PATH")
+    if not _AXM_BIN.exists():
+        pytest.skip("axm CLI not installed next to the interpreter")
     # Same controlled-test context as the first subprocess call above.
     proc = subprocess.run(  # noqa: S603
-        [_AXM_BIN, "audit", str(project), "--category", "test_quality"],
+        [str(_AXM_BIN), "audit", str(project), "--category", "test_quality"],
         capture_output=True,
         text=True,
         check=False,

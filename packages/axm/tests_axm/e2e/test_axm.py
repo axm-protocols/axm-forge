@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 import sys
 from importlib.metadata import entry_points
@@ -34,7 +33,8 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
     """Invoke the ``axm`` package CLI as a subprocess, capturing text I/O.
 
     Drives the installed ``axm`` console-script declared in
-    ``[project.scripts]`` when it is on PATH; otherwise falls back to
+    ``[project.scripts]`` next to the running interpreter (never a PATH
+    lookup, which could reach another checkout); otherwise falls back to
     ``[sys.executable, "-m", "axm.cli"]`` so the suite still runs in a bare
     env (e.g. CI before the package is pip-installed with its entry point).
     Both forms invoke the package's own CLI entrypoint end-to-end.
@@ -42,9 +42,10 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
     # Console-script first (declared in ``[project.scripts]``); module fallback
     # for bare envs. Each branch passes a direct list literal so the package
     # entrypoint (``axm`` / ``-m axm.cli``) stays statically visible (e2e).
-    if shutil.which("axm"):
+    axm_bin = Path(sys.executable).parent / "axm"
+    if axm_bin.exists():
         return subprocess.run(  # noqa: S603 - trusted, locally-resolved axm CLI
-            ["axm", *args],  # noqa: S607 - intentional PATH lookup of axm script
+            [str(axm_bin), *args],
             capture_output=True,
             text=True,
             timeout=60,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -164,7 +165,9 @@ def _paper_project(root: Path) -> Path:
 def test_check_on_a_paper_routes_to_lab(tmp_path: Path) -> None:
     project = _paper_project(tmp_path / "paper-x")
     result = subprocess.run(
-        ["axm", "init_check", str(project)], capture_output=True, text=True
+        [str(Path(sys.executable).parent / "axm"), "init_check", str(project)],
+        capture_output=True,
+        text=True,
     )
     assert result.returncode != 0
     assert "paper_check" in result.stdout + result.stderr
