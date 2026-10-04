@@ -10,6 +10,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from axm import DependencyEnvironment
+from axm.tools.dependency_reads import dependency_read_context
+from axm.tools.write_scope import WriteContract
+
+from axm_audit.core.runner import run_in_project
 
 pytestmark = pytest.mark.integration
 
@@ -266,3 +271,31 @@ def test_success_returns_completed_process(tmp_path: Path) -> None:
         text=True,
     )
     assert result.returncode == 0
+
+
+def test_declared_runtime_beats_empty_local_venv(tmp_path: Path) -> None:
+    """Runtime package requests do not replace the admitted interpreter."""
+    local = tmp_path / ".venv/bin/python"
+    local.parent.mkdir(parents=True)
+    local.write_text("empty runtime")
+    source = tmp_path / "src"
+    source.mkdir()
+    env = DependencyEnvironment(sys.executable, str(tmp_path), (str(source),))
+    contract = WriteContract(str(tmp_path), dependency_environment=env)
+    proc = MagicMock()
+    proc.communicate.return_value = ("ok", "")
+    proc.returncode = 0
+    with (
+        dependency_read_context(contract),
+        patch("axm_audit.core.runner.subprocess.Popen", return_value=proc) as spawn,
+    ):
+        result = run_in_project(
+            ["pytest", "--version"],
+            tmp_path,
+            with_packages=["pytest-json-report"],
+            capture_output=True,
+            text=True,
+        )
+    assert result.returncode == 0
+    assert spawn.call_args.args[0] == [sys.executable, "-m", "pytest", "--version"]
+    assert spawn.call_args.kwargs["env"]["PYTHONPATH"] == str(source)
