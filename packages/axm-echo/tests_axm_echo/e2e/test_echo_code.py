@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -65,7 +66,12 @@ def test_cli_echo_code(tmp_path: Path) -> None:
 
     env = {**os.environ, "HOME": str(home)}
     proc = subprocess.run(
-        ["axm", "echo_code", "--backend", "tfidf"],
+        [
+            str(Path(sys.executable).parent / "axm"),
+            "echo_code",
+            "--backend",
+            "tfidf",
+        ],
         capture_output=True,
         text=True,
         check=False,
