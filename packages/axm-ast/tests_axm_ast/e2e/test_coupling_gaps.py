@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,7 @@ def test_cli_prints_report(tmp_path: Path) -> None:
     """AC4: `axm ast_coupling_gaps <pkg>` exits 0 and prints the report."""
     pkg = _build_fixture_pkg(tmp_path)
     proc = subprocess.run(
-        ["axm", "ast_coupling_gaps", str(pkg)],
+        [str(Path(sys.executable).parent / "axm"), "ast_coupling_gaps", str(pkg)],
         capture_output=True,
         text=True,
     )

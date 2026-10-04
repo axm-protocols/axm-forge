@@ -85,8 +85,7 @@ def test_doc_impact_reports_only_real_gap(mixed_pkg: Path) -> None:
 
 def _axm_bin() -> str:
     """Locate the ``axm`` console script next to the running interpreter."""
-    candidate = Path(sys.executable).with_name("axm")
-    return str(candidate) if candidate.exists() else "axm"
+    return str(Path(sys.executable).parent / "axm")
 
 
 def test_doc_impact_help_surfaces_lexical_caveat() -> None:

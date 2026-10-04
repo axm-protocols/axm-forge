@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -35,7 +36,7 @@ def test_ast_inspect_cli_surfaces_abstract_kind(abstract_pkg: Path) -> None:
     """AC1: ``axm-ast inspect --json`` reports ``abstract`` for the ABC method."""
     proc = subprocess.run(
         [
-            "axm-ast",
+            str(Path(sys.executable).parent / "axm-ast"),
             "inspect",
             str(abstract_pkg),
             "--symbol",
@@ -57,7 +58,7 @@ def test_ast_inspect_cli_explains_ambiguous_symbol() -> None:
 
     proc = subprocess.run(
         [
-            "axm",
+            str(Path(sys.executable).parent / "axm"),
             "ast_inspect",
             "--path",
             str(package_root),
