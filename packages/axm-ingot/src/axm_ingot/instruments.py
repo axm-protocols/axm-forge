@@ -18,8 +18,9 @@ def instrument_command(
     """Build a command from trusted inputs, never probing or bootstrapping venvs.
 
     The interpreter path stays lexical for venv activation. PYTHONPATH contains
-    only declared paths, in declared order. Missing Python modules fail in that
-    interpreter; other instruments must exist beside it.
+    the primary package source, then declared supplemental paths in order.
+    Missing Python modules fail in that interpreter; other instruments must
+    exist beside it.
     """
     python = Path(interpreter)
     if not python.is_absolute() or not python.is_file():
@@ -30,10 +31,11 @@ def instrument_command(
         raise ValueError("instrument pythonpath must be absolute")
     prefix = _instrument_prefix(command[0], python)
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath))
+    env["PYTHONPATH"] = os.pathsep.join(_source_overlay(package_root, pythonpath))
     env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
     env.pop("PYTHONHOME", None)
     env["PYTHONNOUSERSITE"] = "1"
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     env.pop("VIRTUAL_ENV", None)
     env.pop("UV_PROJECT_ENVIRONMENT", None)
     return [*prefix, *command[1:]], env
@@ -53,3 +55,14 @@ def _instrument_prefix(name: str, python: Path) -> list[str]:
     ):
         raise ValueError(f"declared instrument missing: {binary}")
     return [str(binary)]
+
+
+def _source_overlay(package_root: str, pythonpath: tuple[str, ...]) -> tuple[str, ...]:
+    """Prepend the primary candidate source without expanding declared authority."""
+    root = Path(package_root).resolve()
+    candidate = root / "src"
+    source = candidate.resolve() if candidate.is_dir() else root
+    extras = tuple(str(Path(path).resolve()) for path in pythonpath)
+    if not source.is_relative_to(root) and str(source) not in extras:
+        raise ValueError(f"candidate source escapes declared package root: {source}")
+    return tuple(dict.fromkeys((str(source), *extras)))

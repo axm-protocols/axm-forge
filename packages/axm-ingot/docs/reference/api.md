@@ -108,6 +108,10 @@ pythonpath=...)` returns command arguments and a child environment from explicit
 trusted inputs. It neither discovers virtualenvs nor installs dependencies.
 Python instruments run as the declared interpreter's modules; other named
 instruments must be confined to its bin directory. Paths and uv are refused.
-PYTHONPATH contains only the declared overlay in order; inherited virtualenv
+PYTHONPATH starts with the primary package_root/src when present, otherwise
+package_root (flat layout), followed by canonicalized supplemental pythonpath
+entries, deduplicated in order. An escaping src symlink is refused unless its
+destination is already an explicitly declared supplemental path. Inherited virtualenv
 selection variables and PYTHONHOME are removed; PYTHONNOUSERSITE=1 prevents
-user-site contamination. Missing modules fail in the declared runtime.
+user-site contamination; PYTHONDONTWRITEBYTECODE=1 keeps imports read-only.
+Missing modules fail in the declared runtime.

@@ -24,7 +24,7 @@ def test_instrument_command_ignores_contaminated_environment(
         ["pytest", "--version"],
         interpreter=str(python),
         pythonpath=(str(source),),
-        package_root=str(tmp_path),
+        package_root=str(source.parent),
     )
     assert command == [str(python), "-m", "pytest", "--version"]
     assert env["PYTHONPATH"] == str(source)
