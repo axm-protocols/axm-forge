@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -26,8 +25,7 @@ def _axm_binary() -> Path:
     ``axm`` is a declared dependency of ``axm-edit``: a missing binary is a
     genuine failure, never a reason to skip.
     """
-    found = shutil.which("axm")
-    binary = Path(found) if found else Path(sys.executable).with_name("axm")
+    binary = Path(sys.executable).parent / "axm"
     assert binary.exists(), f"axm console script not found at {binary}"
     return binary
 
