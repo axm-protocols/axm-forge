@@ -84,3 +84,61 @@ can also leave earlier staging work in place. Re-run preflight and inspect
 the index before retrying; do not replay successful commits.
 
 For author selection, see [identity](identity.md).
+
+
+## Declare a dependency runtime
+
+`GitCommitTool.DEPENDENCY_ENVIRONMENT_VERSION == 1` is the public capability
+for consumers that require an explicit runtime. Check it before calling an
+older backend: old tools accepted arbitrary keyword arguments and could
+silently ignore this contract. Upgrade Forge before enabling the caller.
+
+```python
+from axm.tools.dependency_reads import DependencyEnvironment
+from axm_git.tools.commit import GitCommitTool
+
+assert GitCommitTool.DEPENDENCY_ENVIRONMENT_VERSION == 1
+result = GitCommitTool().execute(
+    path="/absolute/candidate",
+    commits=[{"files": ["packages/example/src/example.py"], "message": "fix: example"}],
+    dependency_environment=DependencyEnvironment(
+        interpreter="/absolute/read-only-venv/bin/python",
+        package_root="/absolute/candidate/packages/example",
+        pythonpath=("/absolute/declared/dependency/src",),
+    ),
+)
+```
+
+The same parameter accepts a JSON mapping with `interpreter`, `package_root`
+and optional `pythonpath` list. Locations must be absolute, the interpreter
+must be an existing executable, and `package_root` must belong to the candidate.
+Invalid contracts return `dependency_environment.status="invalid"` before
+staging. They are input errors, not automatically instrument failures.
+
+The interpreter path remains lexical: symlink resolution must not erase its
+virtual-environment identity. Its directory precedes the inherited `PATH`.
+The candidate package's `src`, package root and sibling `packages/*/src`
+precede the explicitly declared dependency paths in `PYTHONPATH`; the
+service's ambient `PYTHONPATH` is not added. Hooks can consume
+`AXM_DEPENDENCY_INTERPRETER` and `AXM_DEPENDENCY_PACKAGE_ROOT` directly.
+Bytecode writes are disabled. No venv is created or prepared by this transport.
+
+Each invocation uses an immutable scoped snapshot and each subprocess gets
+its own copy, including root discovery, staging, restoration and autofix
+retries. Nested scopes and exceptions restore the previous context; concurrent
+invocations remain independent. `os.environ` is never modified. Without an
+explicit dependency environment, the existing behavior is preserved.
+
+`run_git(env=...)` accepts a complete subprocess environment outside such a
+scope. Inside it, supplied Git-local options such as `GIT_INDEX_FILE` overlay
+the scoped snapshot, while declared Python runtime keys remain authoritative.
+Neither caller mapping is mutated.
+
+This feature transports the environment and preserves the repository's hooks,
+selection, filters, stages, arguments, autofix and commit-message veto. It does
+**not** certify arbitrary hooks as free of bootstrap, prevent their manager
+from creating environments, or change their commands. In particular, the Hub
+configuration's remote prek hooks and `uv --isolated` are not validated by this
+change. Their activation remains blocked operationally until an independent
+public readiness/no-prepare provider or proven confinement is available.
+Passing environment variables alone cannot supply that guarantee.

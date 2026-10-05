@@ -32,6 +32,10 @@ def test_hook_receives_declared_python_and_candidate_sources(
 ) -> None:
     """The hook gets an isolated environment while the service remains intact."""
     environment = _environment(commit_repo)
+    external = commit_repo.with_name(commit_repo.name + "-dependency")
+    external.mkdir()
+    (external / "runtime_marker.py").write_text("VALUE = 'dependency'\n")
+    environment["pythonpath"] = [str(external)]
     monkeypatch.setenv("PYTHONPATH", "/service/source")
     before = dict(os.environ)
     hook = commit_repo / ".git" / "hooks" / "pre-commit"
@@ -80,6 +84,13 @@ def test_autofix_keeps_the_declared_environment_on_retry(
     """Explicit transport preserves the existing autofix and retry behavior."""
     repo = install_hook("autofix")
     environment = _environment(repo)
+    hook = repo / ".git/hooks/pre-commit"
+    body = hook.read_text().split("\n", 1)[1]
+    hook.write_text(
+        "#!/bin/sh\n"
+        '"$AXM_DEPENDENCY_INTERPRETER" -c \'import runtime_marker; '
+        'print(runtime_marker.VALUE)\' >> .git/runtime-calls\n' + body
+    )
     (repo / "fix_me.py").write_text("value = 1\n")
     result = GitCommitTool().execute(
         path=str(repo),
@@ -89,6 +100,9 @@ def test_autofix_keeps_the_declared_environment_on_retry(
     assert result.success, result.error
     assert result.data is not None
     assert result.data["hook_autofixed_files"] == ["fix_me.py"]
+    assert (repo / ".git/runtime-calls").read_text().splitlines() == [
+        "candidate", "candidate"
+    ]
 
 
 def test_commit_message_veto_preserves_preexisting_index(commit_repo: Path) -> None:
@@ -115,3 +129,42 @@ def test_commit_message_veto_preserves_preexisting_index(commit_repo: Path) -> N
     assert run_git(["diff", "--cached", "--name-only"], commit_repo).stdout.strip() == (
         "README.md"
     )
+
+
+
+def test_two_real_commit_invocations_keep_distinct_candidate_sources(
+    commit_repo: Path,
+) -> None:
+    """Overlapping fixture hooks cannot import the other invocation's candidate."""
+    from concurrent.futures import ThreadPoolExecutor
+    from shutil import copytree
+
+    peer = commit_repo.with_name(commit_repo.name + "-peer")
+    copytree(commit_repo, peer)
+    environments = {}
+    for repo, marker in ((commit_repo, "first"), (peer, "second")):
+        environments[repo] = _environment(repo)
+        (repo / "packages/demo/src/runtime_marker.py").write_text(
+            f"VALUE = {marker!r}\n"
+        )
+        (repo / "candidate.txt").write_text(marker + "\n")
+        hook = repo / ".git/hooks/pre-commit"
+        hook.write_text(
+            "#!/bin/sh\n"
+            '"$AXM_DEPENDENCY_INTERPRETER" -c \'from pathlib import Path; '
+            'import runtime_marker,time; time.sleep(0.05); '
+            'Path(".git/observed").write_text(runtime_marker.VALUE)\'\n'
+        )
+        hook.chmod(0o755)
+
+    def commit(repo: Path) -> bool:
+        return GitCommitTool().execute(
+            path=str(repo),
+            commits=[{"files": ["candidate.txt"], "message": "feat: isolated"}],
+            dependency_environment=environments[repo],
+        ).success
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        assert list(executor.map(commit, (commit_repo, peer))) == [True, True]
+    assert (commit_repo / ".git/observed").read_text() == "first"
+    assert (peer / ".git/observed").read_text() == "second"
