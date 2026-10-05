@@ -246,6 +246,15 @@ def _opt_str_option(options: dict[str, object], key: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _unit_declaration_option(
+    options: dict[str, object],
+) -> dict[str, object] | str | None:
+    value = options.get("unit_declaration")
+    if value is None or isinstance(value, (str, dict)):
+        return value
+    raise ValueError("unit_declaration must be a JSON object")
+
+
 def _protocols_option(
     options: dict[str, object],
 ) -> list[dict[str, object]] | str | None:
@@ -484,6 +493,7 @@ class InitScaffoldTool:
         domain: str | None = None,
         unit: str | None = None,
         protocols: list[dict[str, object]] | str | None = None,
+        unit_declaration: dict[str, object] | str | None = None,
         preview: bool = False,
     ) -> ToolResult:
         """Initialize a new Python project.
@@ -510,6 +520,7 @@ class InitScaffoldTool:
             domain: Protocol domain to scaffold.
             unit: Protocol unit to scaffold.
             protocols: Protocol definitions, as objects or a JSON string.
+            unit_declaration: Shared contracts and ticket binding for this unit.
             preview: If True, report the planned protocol scaffold
                 without writing it.
 
@@ -538,6 +549,7 @@ class InitScaffoldTool:
                 "domain": domain,
                 "unit": unit,
                 "protocols": protocols,
+                "unit_declaration": unit_declaration,
                 "preview": preview,
             },
             check_pypi=check_pypi,
@@ -611,6 +623,7 @@ class InitScaffoldTool:
             ),
             unit=_opt_str_option(protocol_options, "unit"),
             protocols=_protocols_option(protocol_options),
+            unit_declaration=_unit_declaration_option(protocol_options),
             preview=bool(protocol_options.get("preview", False)),
             framework=framework,
         )

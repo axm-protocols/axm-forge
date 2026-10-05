@@ -27,6 +27,7 @@ from axm_init.checks._composition import (
     family_named,
     family_of_protocol_call,
 )
+from axm_init.checks._shared_ticket import shared_ticket_findings
 from axm_init.models.check import CheckResult
 
 __all__ = [
@@ -474,6 +475,32 @@ def _inspect_record(
         record.skeleton_findings = _skeleton_findings(project, inspected)
 
 
+def _inspect_shared_record(
+    project: Path, root: Path, package: PackageInfo, record: ProtocolRecord
+) -> None:
+    shared = next(
+        (module for module in package.modules if module.path == root / "ticket.py"),
+        None,
+    )
+    claim = None if shared is None else _constant_claim(shared, "TICKET_TYPE")
+    if claim is not None and shared is not None:
+        identity, line = claim
+        record.claims.append(
+            (
+                "axm.tribunal.ticket_types",
+                identity,
+                _location(project, shared, line),
+            )
+        )
+    if record.state == "ready":
+        contexts = [
+            module
+            for module in package.modules
+            if module.path.is_relative_to(root / "contracts")
+        ]
+        record.skeleton_findings.extend(_skeleton_findings(project, contexts))
+
+
 def protocol_inventory(project: Path) -> list[ProtocolRecord]:
     """Inspect declared protocols without importing their modules or registries."""
     context = _protocol_package(project)
@@ -514,6 +541,8 @@ def protocol_inventory(project: Path) -> list[ProtocolRecord]:
         record.registration_findings = _registration_findings(
             record, groups, modules, text
         )
+        if declaration.get("unit_ticket") is not None:
+            _inspect_shared_record(project, root / unit, package, record)
         records.append(record)
     return records
 
@@ -1057,7 +1086,7 @@ def _ticket_declarations(
     """Index action metadata and announcement locations by ticket path."""
     text = (project / "pyproject.toml").read_text(encoding="utf-8")
     profile = _nested(tomllib.loads(text), "tool", "axm-init", "protocols") or {}
-    return {
+    declarations = {
         (root / unit / action / "ticket.py").resolve(): (
             declaration,
             _ticket_announcement_line(text, unit, action),
@@ -1066,6 +1095,10 @@ def _ticket_declarations(
             _tables(profile.get("units")) or []
         )
     }
+    for unit in _tables(profile.get("units")) or []:
+        if unit.get("ticket_type") and isinstance(unit.get("name"), str):
+            declarations[(root / str(unit["name"]) / "ticket.py").resolve()] = (unit, 1)
+    return declarations
 
 
 def _ticket_reference_findings(
@@ -1155,6 +1188,8 @@ def _ticket_findings(
             continue
         relative_path = path.relative_to(root.resolve())
         graph_name = ".".join((domain, *relative_path.parts[:-1]))
+        if len(relative_path.parts) == 2 and declaration.get("entry_action"):
+            graph_name += f".{declaration['entry_action']}"
         details.extend(
             _ticket_module_findings(project, module, declaration, graph_name)
         )
@@ -1165,6 +1200,25 @@ def check_protocol_ticket(project: Path) -> CheckResult:
     """Validate ticket presence and references without importing inspected code."""
     context = _protocol_package(project)
     details = [] if context is None else _ticket_findings(project, *context)
+    if context is not None:
+        data = cast(
+            "dict[str, object]",
+            tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8")),
+        )
+        profile = _nested(data, "tool", "axm-init", "protocols") or {}
+        entries = {
+            group: _nested(data, "project", "entry-points", group) or {}
+            for group in (
+                *GRAPH_GROUPS,
+                "axm.ticket_types",
+                "axm.tribunal.ticket_types",
+            )
+        }
+        details.extend(
+            shared_ticket_findings(
+                project, context[0], _tables(profile.get("units")) or [], entries
+            )
+        )
     return _content_result("protocol_ticket", details, applicable=context is not None)
 
 
@@ -1632,7 +1686,7 @@ def check_protocols_profile(project: Path) -> CheckResult:
 
     details: list[str] = []
     schema_version = profile.get("schema_version")
-    if schema_version != _SCHEMA_VERSION:
+    if schema_version not in (_SCHEMA_VERSION, 2):
         details.append(
             _finding(
                 text,
@@ -1644,6 +1698,15 @@ def check_protocols_profile(project: Path) -> CheckResult:
 
     domain = _validate_identity(data, profile, text, details)
     units = _validate_units(text, profile, details)
+    if schema_version != 2 and any("ticket_type" in unit for unit in units):
+        details.append(
+            _finding(
+                text,
+                "schema_version",
+                "shared units require schema_version = 2",
+                "upgrade the shared profile to schema_version = 2",
+            )
+        )
     if domain is not None:
         _validate_wheel_inclusion(data, text, domain, details)
         _validate_protocol_tree(project, text, domain, units, details)

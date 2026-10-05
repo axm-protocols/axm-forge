@@ -16,6 +16,7 @@ from axm_init.models.protocol_scaffold import (
     PhaseDecl,
     PromptDecl,
     ProtocolScaffoldDecl,
+    ProtocolUnitDecl,
     TicketDecl,
 )
 
@@ -24,6 +25,7 @@ __all__ = [
     "PlanStatus",
     "ProtocolScaffoldPlan",
     "plan_protocol_scaffold",
+    "plan_protocol_unit",
 ]
 
 _SKELETON_MARKER = "# axm-init: incomplete-skeleton"
@@ -105,6 +107,99 @@ def _render_phase(declaration: PhaseDecl) -> str:
         f"def {declaration.factory_name}() -> None:\n"
         '    """Raise until the generated phase is implemented."""\n'
         '    raise NotImplementedError("Scaffold: implementation required")\n'
+    )
+
+
+def _render_shared_protocol(
+    declaration: ProtocolScaffoldDecl, shared: ProtocolUnitDecl
+) -> str:
+    if (declaration.domain, declaration.unit, declaration.unit_ticket) != (
+        shared.domain,
+        shared.unit,
+        shared.ticket.ticket_type,
+    ):
+        raise ValueError("unit_ticket must reference this domain/unit shared ticket")
+    contract = next(
+        item for item in shared.contracts if item.name == shared.ticket.input_contract
+    )
+    module = f"protocols_{shared.domain}.{shared.unit}"
+    return (
+        f"{_python_header()}\n"
+        f"from {module}.contracts.{contract.name} import {contract.model_name}\n"
+        f"from {module}.ticket import get_ticket_type\n\n"
+        f"__all__ = [{contract.model_name!r}, 'get_ticket_type']\n\n"
+        f"{_SKELETON_MARKER}\n"
+        f"GRAPH_NAME = {declaration.graph_name!r}\n"
+        f"UNIT_TICKET = {declaration.unit_ticket!r}\n"
+    )
+
+
+def _shared_profile_owned(metadata: str, declaration: ProtocolUnitDecl) -> bool:
+    current: object = parse(metadata)
+    for key in ("tool", "axm-init", "protocols"):
+        if not isinstance(current, (dict, Table)):
+            return False
+        current = current.get(key)
+    if not isinstance(current, Table):
+        return False
+    units = current.get("units", [])
+    return any(
+        item.get("name") == declaration.unit and "ticket_type" in item for item in units
+    )
+
+
+def plan_protocol_unit(
+    declaration: ProtocolUnitDecl,
+    metadata: str,
+    inventory: Mapping[str, str],
+) -> ProtocolScaffoldPlan:
+    """Plan a single shared ticket and context without action-local copies."""
+    from axm_init.core.protocol_unit import merge_protocol_unit
+
+    root = f"src/protocols_{declaration.domain}/{declaration.unit}"
+    model = next(
+        item
+        for item in declaration.contracts
+        if item.name == declaration.ticket.input_contract
+    )
+    content = (
+        f"{_python_header()}\n"
+        "from protocols_core import TicketTypeDef\n"
+        f"from protocols_{declaration.domain}.{declaration.unit}"
+        f".contracts.{model.name} "
+        f"import {model.model_name}\n\n"
+        "__all__ = ['get_ticket_type']\n\n"
+        f"TICKET_TYPE = {declaration.ticket.ticket_type!r}\n"
+        f"INPUT_CONTRACT = {declaration.ticket.input_contract!r}\n"
+        f"GRAPH_NAME = {declaration.graph_name!r}\n\n"
+        "def get_ticket_type() -> TicketTypeDef:\n"
+        '    """Return the single unit ticket definition."""\n'
+        "    return TicketTypeDef(\n"
+        f"        name=TICKET_TYPE, context_model={model.model_name},\n"
+        "        graph=GRAPH_NAME,\n"
+        "    )\n"
+    )
+    planned = [
+        _fixed_file(
+            f"src/protocols_{declaration.domain}/__init__.py", _render_initializer()
+        ),
+        _fixed_file(f"{root}/__init__.py", _render_initializer()),
+        _fixed_file(f"{root}/contracts/__init__.py", _render_initializer()),
+        _fixed_file(f"{root}/ticket.py", content),
+        *[
+            _fixed_file(f"{root}/contracts/{item.name}.py", _render_contract(item))
+            for item in declaration.contracts
+        ],
+    ]
+    owned = _shared_profile_owned(metadata, declaration)
+    operations = tuple(
+        _classify(
+            item, inventory, profile_owned=owned or item.path.name == "__init__.py"
+        )
+        for item in sorted(planned, key=lambda item: item.path)
+    )
+    return ProtocolScaffoldPlan(
+        operations=operations, metadata=merge_protocol_unit(metadata, declaration)
     )
 
 
@@ -258,6 +353,8 @@ def plan_protocol_scaffold(
     declaration: ProtocolScaffoldDecl,
     metadata: str,
     inventory: Mapping[str, str],
+    *,
+    unit_declaration: ProtocolUnitDecl | None = None,
 ) -> ProtocolScaffoldPlan:
     """Compute a deterministic scaffold plan without mutating caller state."""
     merged_metadata = merge_protocol_metadata(metadata, declaration)
@@ -266,4 +363,19 @@ def plan_protocol_scaffold(
         _classify(planned, inventory, profile_owned=profile_owned)
         for planned in _planned_files(declaration)
     )
+    if declaration.unit_ticket is not None:
+        if unit_declaration is None:
+            raise ValueError("unit_ticket requires a resolved shared declaration")
+        content = _render_shared_protocol(declaration, unit_declaration)
+        path = PurePosixPath(
+            f"src/protocols_{declaration.domain}/{declaration.unit}/{declaration.action}/protocol.py"
+        )
+        operations = tuple(
+            _classify(
+                _fixed_file(str(path), content), inventory, profile_owned=profile_owned
+            )
+            if item.path == path
+            else item
+            for item in operations
+        )
     return ProtocolScaffoldPlan(operations=operations, metadata=merged_metadata)
