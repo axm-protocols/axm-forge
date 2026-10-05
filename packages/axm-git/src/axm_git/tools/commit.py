@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import ClassVar, cast
 
 from axm.tools.base import AXMTool, ToolResult
+from axm.tools.dependency_reads import DependencyEnvironment
 
 from axm_git.core.branch_naming import (
     CONVENTIONAL_COMMIT_FORMAT,
@@ -426,7 +428,57 @@ class GitCommitTool(AXMTool):
         """Tool name used for MCP registration."""
         return "git_commit"
 
+    DEPENDENCY_ENVIRONMENT_VERSION: ClassVar[int] = 1
+    """Versioned capability: execute consumes the declared dependency runtime."""
+
     def execute(
+        self,
+        *,
+        path: str = ".",
+        commits: list[dict[str, object]] | None = None,
+        profile: str | None = None,
+        strict: bool = False,
+        dependency_environment: Mapping[str, object]
+        | DependencyEnvironment
+        | None = None,
+        **kwargs: object,
+    ) -> ToolResult:
+        """Commit with an optional explicit, invocation-local dependency runtime.
+
+        The interpreter stays lexical; candidate sources precede the declared
+        dependency paths. The environment applies to every subprocess and retry,
+        then is restored even after an exception. Invalid contracts refuse
+        before staging. This transports an environment; it does not certify
+        arbitrary hooks as bootstrap-free or change their veto/autofix semantics.
+        """
+        from axm_git.core.commit_environment import (
+            commit_environment,
+        )
+        from axm_git.core.commit_environment import (
+            dependency_environment as resolve_environment,
+        )
+
+        try:
+            environment = resolve_environment(
+                Path(path).resolve(), dependency_environment
+            )
+        except ValueError as exc:
+            error = str(exc)
+            data: dict[str, object] = {
+                "dependency_environment": {"status": "invalid", "version": 1}
+            }
+            return ToolResult(
+                success=False,
+                error=error,
+                data=data,
+                text=render_failure_text(error=error, data=data),
+            )
+        with commit_environment(environment):
+            return self._execute_batch(
+                path=path, commits=commits, profile=profile, strict=strict, **kwargs
+            )
+
+    def _execute_batch(
         self,
         *,
         path: str = ".",
