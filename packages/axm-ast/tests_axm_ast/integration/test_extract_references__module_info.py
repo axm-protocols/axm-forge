@@ -39,3 +39,20 @@ def test_extract_references_handles_indirect_dispatch(
     refs = extract_references(mod)
 
     assert "my_func" in refs
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "source",
+    ["register(_Base[int])", "registry = [pkg._Base[int]]", "return pkg._Base[int]"],
+    ids=["argument", "container", "return"],
+)
+def test_generic_values_reference_their_subscripted_symbol(
+    tmp_path: Path, source: str
+) -> None:
+    """The value of subscription remains a reference outside direct calls."""
+    path = tmp_path / "generic.py"
+    path.write_text(f"def consume():\n    {source}\n", encoding="utf-8")
+    references = extract_references(ModuleInfo(path=path))
+    assert "_Base" in references
+    assert "_Unused" not in references

@@ -11,6 +11,40 @@ from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.dead_code import find_dead_code
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("imports", "base"),
+    [
+        ("from .base import _Base", "_Base"),
+        ("from .base import _Base", "_Base[int]"),
+        ("from . import base", "base._Base"),
+        ("from . import base", "base._Base[int]"),
+    ],
+    ids=["plain", "generic", "qualified", "qualified-generic"],
+)
+def test_inherited_generic_reference_preserves_base_and_method_liveness(
+    tmp_path: Path, imports: str, base: str
+) -> None:
+    """Subscription changes syntax, not the use of a base or inherited method."""
+    root = tmp_path / "pair"
+    root.mkdir()
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    (root / "base.py").write_text(
+        "class _Base[T]:\n"
+        "    def inherited(self):\n        return 1\n\n"
+        "class _Unused:\n    pass\n",
+        encoding="utf-8",
+    )
+    (root / "consumer.py").write_text(
+        f"{imports}\n\nclass Child({base}):\n    pass\n",
+        encoding="utf-8",
+    )
+    dead = {symbol.name for symbol in find_dead_code(analyze_package(root))}
+    assert "_Base" not in dead
+    assert "_Base.inherited" not in dead
+    assert {"_Unused", "Child"} <= dead
+
+
 def test_genuinely_dead_symbol_with_no_forward_ref_stays_dead(
     tmp_path: Path,
 ) -> None:
