@@ -46,7 +46,9 @@ def staged_delta(before: set[str], after: set[str]) -> list[str]:
     return sorted(after - before)
 
 
-def reset_paths(paths: list[str], git_root: Path) -> None:
+def reset_paths(
+    paths: list[str], git_root: Path
+) -> subprocess.CompletedProcess[str] | None:
     """Unstage exactly *paths* via a scoped ``git reset -- <paths>``.
 
     Restoration is strictly scoped to *paths*: it never runs a bare
@@ -55,8 +57,8 @@ def reset_paths(paths: list[str], git_root: Path) -> None:
     no-op when *paths* is empty.
     """
     if not paths:
-        return
-    run_git(["reset", "--quiet", "--", *paths], git_root)
+        return None
+    return run_git(["reset", "--quiet", "--", *paths], git_root)
 
 
 def stage_spec_files(

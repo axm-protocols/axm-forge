@@ -142,3 +142,22 @@ configuration's remote prek hooks and `uv --isolated` are not validated by this
 change. Their activation remains blocked operationally until an independent
 public readiness/no-prepare provider or proven confinement is available.
 Passing environment variables alone cannot supply that guarantee.
+
+### Commit timeouts
+
+A timeout during the first commit attempt or the single autofix retry stops the
+batch. No additional commit attempt is made. The tool resets only the staging
+delta introduced by this invocation; entries staged before it remain staged.
+The refusal includes `failed_commit.cause = "timeout"`, `timeout_seconds`,
+`index_restored`, `restored_paths`, retry/autofix metadata, and the captured
+stdout/stderr in `precommit_output` (at most 8192 characters per stream).
+
+The default timeout is 30 seconds **per Git subprocess**, not a deadline for the
+whole batch. A commit may have one autofix retry; staging, probes and restoration
+have their own subprocess timeouts. This mechanism does not certify termination
+of every descendant of a hook or establish hook-environment readiness.
+
+If the scoped reset is refused or times out, the original cause remains intact,
+`index_restored` is false, `restored_paths` is empty and `restore_error` records
+the restoration failure (bounded to 8192 characters). No restoration is claimed
+without a successful Git reset.
