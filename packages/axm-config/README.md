@@ -81,7 +81,9 @@ honouring configured overrides and creating nothing. See the
 
 Import the public helpers from `axm_config`. Use `get` for raw resolution,
 `get_file` to omit environment overrides, and `load(namespace, model)` to bind
-settings to a Pydantic model. See [typed consumer configuration](docs/howto/load-a-consumer-config.md)
+settings to a Pydantic model. Use `get_file_namespace(namespace)` when validating
+the complete persisted tree, including unknown keys and nested tables, rather
+than selecting only declared fields. See [typed consumer configuration](docs/howto/load-a-consumer-config.md)
 and the [Python contracts](docs/reference/contracts.md).
 
 ### Profiles and persistence limits

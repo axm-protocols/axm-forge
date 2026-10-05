@@ -42,6 +42,31 @@ apply. Required missing fields and validation errors become `ConfigError`.
 Pydantic performs conversions; `get` itself keeps environment values as strings.
 Aliases are not used as configuration lookup keys.
 
+## Validate every persisted key
+
+For file-only validation of the complete namespace, use the public snapshot API.
+Unlike `load`, it does not limit discovery to declared field names. Pydantic's
+`extra="forbid"` can therefore detect unknown persisted settings, including nested
+tables when their child models also forbid extras.
+
+```python
+from pydantic import BaseModel, ConfigDict
+from axm_config import get_file_namespace
+
+class ConsumerConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    timeout: int = 30
+
+cfg = ConsumerConfig.model_validate(get_file_namespace("research.consumer"))
+assert isinstance(cfg.timeout, int)
+```
+
+This example reads but creates nothing. Business environment overrides do not
+apply; profile/sandbox selection still does. Validation errors here are native
+Pydantic errors because the consumer calls `model_validate` directly. See the
+[snapshot contract](../reference/contracts.md#complete-persisted-namespace-snapshots)
+for compatibility precedence and multi-file consistency limits.
+
 ## Diagnose an override
 
 Run both commands with the same profile and environment as the consumer:

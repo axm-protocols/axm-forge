@@ -40,6 +40,7 @@ __all__ = [
     "get",
     "get_execution_policy",
     "get_file",
+    "get_file_namespace",
     "list_execution_policies",
     "load",
     "set_",
@@ -572,6 +573,24 @@ def _get_file_value(namespace: str, key: str, default: object) -> object:
             cursor = nested
         cursor[relative_path[-1]] = _store.read(descendant)
     return mapping
+
+
+def get_file_namespace(namespace: str) -> dict[str, object]:
+    """Return a detached, complete effective file-only namespace tree.
+
+    Includes unknown keys, child tables, arrays and present-empty tables.
+    Preserves :func:`get_file` precedence, including direct legacy dictionaries
+    and execution overlays, without applying business environment overrides.
+    The active profile path and central TOML are captured once; selected legacy
+    files are read lazily at most once. This is not an atomic multi-file
+    transaction and does not create, migrate or write configuration.
+
+    Raises:
+        ConfigError: If the namespace is invalid or the home is unsafe.
+        ValueError: If a selected store path escapes the AXM home.
+    """
+    validate_segment(namespace, kind="namespace")
+    return _store._read_namespace(namespace)
 
 
 def get_file(namespace: str, key: str, *, default: object = None) -> object:
