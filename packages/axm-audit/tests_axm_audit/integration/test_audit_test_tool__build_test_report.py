@@ -146,6 +146,7 @@ def test_passes():
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("full_pytest_environment")
 def test_corrupt_json_report_fails_closed_without_cases(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -160,7 +161,7 @@ def test_corrupt_json_report_fails_closed_without_cases(
         _project_path: Path,
         **_kwargs: object,
     ) -> MagicMock:
-        report_arg = next(arg for arg in cmd if arg.startswith("--json-report-file="))
+        report_arg = next(arg for arg in cmd if arg.startswith("--axm-report-file="))
         Path(report_arg.split("=", 1)[1]).write_text("{not-json")
         return MagicMock(returncode=1, stdout="", stderr="corrupt report")
 

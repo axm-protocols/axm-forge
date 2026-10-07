@@ -41,9 +41,18 @@ Python subprocess checks use `run_in_project` where implemented.
 It resolves the nearest project environment and optionally requests runtime
 packages with uv. The runner uses `--no-sync`: validation never synchronises
 project dependencies, changes the target venv, or writes its lock. Reporting
-dependencies (`pytest-json-report`, `pytest-cov`) belong to the runner and are
-provided through a disposable uv overlay; a tested package need not declare
-them. Candidate worktrees retain their candidate source overlay and source
+reporting belongs to the runner, which ships its own single-module pytest
+plugin (`axm_audit._report_plugin`, standard library and pytest hooks only). It
+is loaded into the target's pytest with `-p` and its directory on the
+subprocess `PYTHONPATH`, so any interpreter that has pytest (7.0 or later)
+works and nothing is installed in it, including under a declared session
+runtime where uv is never invoked. A tested package need not declare any
+reporting plugin. Coverage (`pytest-cov`) is the only optional capability: it
+is overlaid through a disposable uv overlay where uv resolves the environment,
+and otherwise probed; a target without it still runs its tests and the report
+carries `coverage_unavailable` with the reason instead of failing on pytest's
+usage error. A target interpreter without pytest, or with a pytest older than
+7.0, raises `PytestEnvironmentError` naming the interpreter and what is missing. Candidate worktrees retain their candidate source overlay and source
 checkout interpreter while receiving the same reporting dependencies.
 Type checking uses the project's own mypy.
 

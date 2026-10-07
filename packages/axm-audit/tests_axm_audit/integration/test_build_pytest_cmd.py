@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from axm_audit.core.pytest_env import PLUGIN_MODULE
 from axm_audit.core.test_runner import build_pytest_cmd
 
 
@@ -15,7 +16,9 @@ class TestBuildPytestCmd:
             stop_on_first=False,
         )
         assert "pytest" in cmd
-        assert "--json-report" in cmd
+        assert cmd[cmd.index("-p") + 1] == PLUGIN_MODULE
+        assert f"--axm-report-file={tmp_path / 'r.json'}" in cmd
+        assert not any(arg.startswith("--json-report") for arg in cmd)
         assert "-x" not in cmd
 
     def test_stop_on_first(self, tmp_path: Path) -> None:

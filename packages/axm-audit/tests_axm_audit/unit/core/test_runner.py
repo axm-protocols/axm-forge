@@ -198,6 +198,7 @@ def test_find_venv_private_alias_removed() -> None:
 _DEAD_PROJECT = Path("/nonexistent/project")
 
 
+@pytest.mark.usefixtures("full_pytest_environment")
 def test_run_tests_timeout_does_not_report_partial_coverage() -> None:
     """AC1: a timed-out subprocess (returncode 124) must not yield a
     coverage percentage parsed from partial JSON; coverage is unmeasured.
@@ -227,6 +228,7 @@ def test_run_tests_timeout_does_not_report_partial_coverage() -> None:
     parse_cov.assert_not_called()
 
 
+@pytest.mark.usefixtures("full_pytest_environment")
 def test_run_tests_passes_explicit_timeout() -> None:
     """AC3: ``run_tests`` passes an explicit elevated ``timeout`` to
     ``run_in_project`` for the coverage run (>= 900s), not the implicit 300.
@@ -302,6 +304,7 @@ def test_parse_json_report_rejects_missing_summary(tmp_path: Path) -> None:
         parse_json_report(report_path)
 
 
+@pytest.mark.usefixtures("full_pytest_environment")
 def test_run_tests_normal_run_unaffected() -> None:
     """AC4: a non-timeout run (returncode 0) parses and reports coverage
     exactly as before — regression guard for the happy path.
@@ -382,3 +385,23 @@ def test_run_in_project_check_false_returns_synthetic_on_timeout(
     ):
         result = run_in_project(["ruff"], tmp_path, check=False)
     assert result.returncode == 124
+
+
+def test_run_in_project_prepends_extra_pythonpath_to_the_child_environment(
+    tmp_path: Path,
+) -> None:
+    """The runner's plugin directory reaches the child ahead of any PYTHONPATH."""
+    from axm_audit.core.runner import run_in_project
+
+    plugin = tmp_path / "plugin"
+    with (
+        patch.dict("os.environ", {"PYTHONPATH": "/already/there"}),
+        patch("axm_audit.core.runner.subprocess.Popen") as popen,
+    ):
+        popen.return_value = _fake_popen()
+        run_in_project(["ruff", "check"], tmp_path, extra_pythonpath=(plugin,))
+
+    assert popen.call_args.kwargs["env"]["PYTHONPATH"].split(":")[:2] == [
+        str(plugin),
+        "/already/there",
+    ]

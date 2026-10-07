@@ -12,6 +12,7 @@ import logging
 import os
 import signal
 import subprocess
+from collections.abc import Sequence
 from enum import Enum
 from pathlib import Path
 
@@ -233,12 +234,25 @@ def _project_command(
     return command, str(project_path), environment
 
 
+def _with_pythonpath(
+    env: dict[str, str] | None, directories: Sequence[Path]
+) -> dict[str, str]:
+    """Return *env* (default: this process's) with *directories* first on PYTHONPATH."""
+    merged = dict(os.environ if env is None else env)
+    existing = merged.get("PYTHONPATH")
+    merged["PYTHONPATH"] = os.pathsep.join(
+        [*(str(path) for path in directories), *([existing] if existing else [])]
+    )
+    return merged
+
+
 def run_in_project(  # noqa: PLR0913
     cmd: list[str],
     project_path: Path,
     *,
     timeout: int = _DEFAULT_TIMEOUT,
     with_packages: list[str] | None = None,
+    extra_pythonpath: Sequence[Path] = (),
     capture_output: bool = False,
     text: bool = False,
     check: bool = False,
@@ -269,6 +283,10 @@ def run_in_project(  # noqa: PLR0913
             ``uv run --with <pkg>``. Without a project ``.venv/``, uv uses an
             isolated environment so the audited tree is not mutated. Allows
             audit tools to be available without declared dependencies.
+        extra_pythonpath: Directories prepended to the child's ``PYTHONPATH``
+            (after any environment the selection itself builds). Lets the
+            runner load its own pytest plugin into the target interpreter
+            without installing anything in it.
         capture_output: Capture stdout/stderr (piped). Preserves the prior
             ``subprocess.run`` contract.
         text: Decode output as text. Preserves the prior contract.
@@ -288,6 +306,8 @@ def run_in_project(  # noqa: PLR0913
         worker threads, …) are reaped together instead of being orphaned.
     """
     full_cmd, cwd, child_env = _project_command(cmd, project_path, with_packages)
+    if extra_pythonpath:
+        child_env = _with_pythonpath(child_env, extra_pythonpath)
 
     pipe = subprocess.PIPE if capture_output else None
     new_session, creation_flags = _process_group_isolation()

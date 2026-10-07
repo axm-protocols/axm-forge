@@ -34,7 +34,12 @@ retains `ToolResult.data` and `ToolResult.text`.
 ```
 
 `audit_test` returns a pytest report; a real failed test session is a
-successful measurement with `verdict=false`. `audit_fix` previews only;
+successful measurement with `verdict=false`. It runs the target's own pytest
+(7.0 or later) and needs no reporting plugin installed there: the report comes
+from a plugin `axm-audit` ships and injects for the run. Each failure carries a
+bounded excerpt (head and tail of the failure text, so the assertion message is
+kept). Without `pytest-cov` in the target, tests still run and the result
+states `coverage_unavailable` with the reason. `audit_fix` previews only;
 its [apply behavior](../fix_pipeline.md) has additional stages and limits.
 
 ## One-shot verification

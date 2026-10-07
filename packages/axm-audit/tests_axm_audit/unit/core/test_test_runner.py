@@ -119,10 +119,27 @@ class TestParseFailures:
         assert f.line == 54
 
     def test_traceback_truncated(self) -> None:
-        """Traceback longer than 5 lines is truncated."""
+        """A short failure text is kept whole; a long one keeps head and tail."""
         result = parse_failures(_FAILING_REPORT["tests"])
-        tb_lines = result[0].traceback.splitlines()
-        assert len(tb_lines) <= 5
+        assert result[0].traceback.splitlines() == [f"line{n}" for n in range(1, 8)]
+
+        long_text = "\n".join(f"frame {n}" for n in range(500))
+        long_tests = [
+            {
+                "nodeid": "t.py::test_long",
+                "outcome": "failed",
+                "call": {
+                    "crash": {"message": "AssertionError: x"},
+                    "longrepr": long_text,
+                },
+            }
+        ]
+        excerpt = parse_failures(long_tests)[0].traceback.splitlines()
+        assert excerpt[0] == "frame 0"
+        assert excerpt[-1] == "frame 499"
+        assert excerpt[-40] == "frame 460"
+        assert any("lines elided" in line for line in excerpt)
+        assert len(excerpt) < 70
 
     def test_error_outcome_included(self) -> None:
         result = parse_failures(_FAILING_REPORT["tests"])

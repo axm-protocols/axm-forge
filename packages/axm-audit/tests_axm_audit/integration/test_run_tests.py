@@ -9,9 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from axm_audit.core.pytest_env import PLUGIN_DIR, PLUGIN_MODULE
 from axm_audit.core.test_runner import (
     run_tests,
 )
+
+pytestmark = pytest.mark.usefixtures("full_pytest_environment")
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -93,7 +96,7 @@ class TestRunTestsCompact:
         ) -> MagicMock:
             # Write report file at the path specified in --json-report-file
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             # Write coverage file at the path in --cov-report=json:
@@ -119,7 +122,7 @@ class TestRunTestsCompact:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_FAILING_REPORT))
             for arg in cmd:
@@ -150,7 +153,7 @@ class TestRunTestsFailures:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_FAILING_REPORT))
             for arg in cmd:
@@ -176,7 +179,7 @@ class TestRunTestsFailures:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             for arg in cmd:
@@ -210,7 +213,7 @@ class TestCoverageByFileExposure:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             for arg in cmd:
@@ -236,7 +239,7 @@ class TestCoverageByFileExposure:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             for arg in cmd:
@@ -266,7 +269,7 @@ class TestRunTestsTargeted:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             return MagicMock(returncode=0)
@@ -288,7 +291,7 @@ class TestRunTestsTargeted:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             return MagicMock(returncode=0)
@@ -315,7 +318,7 @@ class TestWarnings:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             for arg in cmd:
@@ -355,7 +358,7 @@ class TestEdgeCases:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(empty_report))
             for arg in cmd:
@@ -378,7 +381,7 @@ class TestEdgeCases:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             # Don't write coverage file — simulate missing pytest-cov
@@ -404,7 +407,7 @@ class TestRunTestsFilesCoverage:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             # No coverage file written — --cov should not be in cmd
@@ -427,7 +430,7 @@ class TestRunTestsFilesCoverage:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             for arg in cmd:
@@ -455,7 +458,7 @@ class TestRunTestsFilesCoverageEdgeCases:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             for arg in cmd:
@@ -479,7 +482,7 @@ class TestRunTestsFilesCoverageEdgeCases:
             cmd: list[str], project_path: Path, **kwargs: Any
         ) -> MagicMock:
             for arg in cmd:
-                if arg.startswith("--json-report-file="):
+                if arg.startswith("--axm-report-file="):
                     rpath = Path(arg.split("=", 1)[1])
                     rpath.write_text(json.dumps(_PASSING_REPORT))
             assert "--cov" not in cmd
@@ -495,7 +498,7 @@ class TestRunTestsFilesCoverageEdgeCases:
 
 
 def test_run_tests_injects_pytest_plugins(tmp_path: Path) -> None:
-    """run_tests passes with_packages=["pytest-json-report", "pytest-cov"]."""
+    """run_tests overlays pytest-cov only and loads its own report plugin."""
     import json
 
     from axm_audit.core.test_runner import run_tests
@@ -518,7 +521,7 @@ def test_run_tests_injects_pytest_plugins(tmp_path: Path) -> None:
 
     def _side_effect(cmd: list[str], project_path: Path, **kwargs: object) -> MagicMock:
         for arg in cmd:
-            if arg.startswith("--json-report-file="):
+            if arg.startswith("--axm-report-file="):
                 Path(arg.split("=", 1)[1]).write_text(json.dumps(passing_report))
             if arg.startswith("--cov-report=json:"):
                 Path(arg.split(":", 1)[1]).write_text(json.dumps(coverage_data))
@@ -527,10 +530,10 @@ def test_run_tests_injects_pytest_plugins(tmp_path: Path) -> None:
     with patch("axm_audit.core.test_runner.run_in_project") as mock:
         mock.side_effect = _side_effect
         run_tests(tmp_path, mode="compact")
-        assert mock.call_args[1]["with_packages"] == [
-            "pytest-json-report",
-            "pytest-cov",
-        ]
+        assert mock.call_args[1]["with_packages"] == ["pytest-cov"]
+        assert mock.call_args[1]["extra_pythonpath"] == (PLUGIN_DIR,)
+        cmd = mock.call_args[0][0]
+        assert cmd[cmd.index("-p") + 1] == PLUGIN_MODULE
 
 
 @pytest.mark.integration

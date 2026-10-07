@@ -12,7 +12,7 @@ from axm_audit.core.readiness import validation_readiness
 
 
 @pytest.fixture(autouse=True)
-def fake_project():
+def fake_project(full_pytest_environment: None):
     with (
         patch(
             "axm_audit.core.rules.quality_rules.LintingRule.check_src",
