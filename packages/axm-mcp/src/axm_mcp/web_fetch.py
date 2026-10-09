@@ -36,9 +36,9 @@ try:
 
     _HAS_SCRAPLING = True
 except ImportError:
-    Fetcher = None
-    DynamicFetcher = None
-    StealthyFetcher = None
+    Fetcher = None  # type: ignore[assignment,misc,unused-ignore]
+    DynamicFetcher = None  # type: ignore[assignment,misc,unused-ignore]
+    StealthyFetcher = None  # type: ignore[assignment,misc,unused-ignore]
     _HAS_SCRAPLING = False
 
 
