@@ -84,7 +84,6 @@ def test_axm_git_commit_commits_a_deletion(tmp_path: Path) -> None:
     assert "drop.py" not in tracked.splitlines()
 
 
-
 def test_axm_git_commit_transports_dependency_environment(tmp_path: Path) -> None:
     """The black-box CLI passes the JSON runtime through to an unchanged hook."""
     repo = tmp_path / "candidate"

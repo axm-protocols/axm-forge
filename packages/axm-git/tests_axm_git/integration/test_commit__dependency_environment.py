@@ -89,7 +89,7 @@ def test_autofix_keeps_the_declared_environment_on_retry(
     hook.write_text(
         "#!/bin/sh\n"
         '"$AXM_DEPENDENCY_INTERPRETER" -c \'import runtime_marker; '
-        'print(runtime_marker.VALUE)\' >> .git/runtime-calls\n' + body
+        "print(runtime_marker.VALUE)' >> .git/runtime-calls\n" + body
     )
     (repo / "fix_me.py").write_text("value = 1\n")
     result = GitCommitTool().execute(
@@ -101,7 +101,8 @@ def test_autofix_keeps_the_declared_environment_on_retry(
     assert result.data is not None
     assert result.data["hook_autofixed_files"] == ["fix_me.py"]
     assert (repo / ".git/runtime-calls").read_text().splitlines() == [
-        "candidate", "candidate"
+        "candidate",
+        "candidate",
     ]
 
 
@@ -131,7 +132,6 @@ def test_commit_message_veto_preserves_preexisting_index(commit_repo: Path) -> N
     )
 
 
-
 def test_two_real_commit_invocations_keep_distinct_candidate_sources(
     commit_repo: Path,
 ) -> None:
@@ -152,17 +152,21 @@ def test_two_real_commit_invocations_keep_distinct_candidate_sources(
         hook.write_text(
             "#!/bin/sh\n"
             '"$AXM_DEPENDENCY_INTERPRETER" -c \'from pathlib import Path; '
-            'import runtime_marker,time; time.sleep(0.05); '
+            "import runtime_marker,time; time.sleep(0.05); "
             'Path(".git/observed").write_text(runtime_marker.VALUE)\'\n'
         )
         hook.chmod(0o755)
 
     def commit(repo: Path) -> bool:
-        return GitCommitTool().execute(
-            path=str(repo),
-            commits=[{"files": ["candidate.txt"], "message": "feat: isolated"}],
-            dependency_environment=environments[repo],
-        ).success
+        return (
+            GitCommitTool()
+            .execute(
+                path=str(repo),
+                commits=[{"files": ["candidate.txt"], "message": "feat: isolated"}],
+                dependency_environment=environments[repo],
+            )
+            .success
+        )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         assert list(executor.map(commit, (commit_repo, peer))) == [True, True]
