@@ -780,6 +780,16 @@ def impact(
             ),
         ),
     ] = False,
+    transitive_depth: Annotated[
+        int,
+        cyclopts.Parameter(
+            name=["--transitive-depth"],
+            help=(
+                "Also list the tests of the symbol's callers up to N levels "
+                "(0 = off, 3 recommended, max 10)"
+            ),
+        ),
+    ] = 0,
     compact: Annotated[
         bool,
         cyclopts.Parameter(
@@ -799,6 +809,7 @@ def impact(
         exclude_tests=exclude_tests,
         test_filter=test_filter,
         precise_callers=precise_callers,
+        transitive_depth=transitive_depth,
         detail=detail,
     )
 
@@ -831,6 +842,11 @@ def _print_impact(result: ImpactResult, *, caller_paths: bool = False) -> None:
     _print_impact_type_refs(result.get("type_refs", []))
     _print_impact_list("📄 Affected modules", result.get("affected_modules", []))
     _print_impact_list("🧪 Tests to rerun", result.get("test_files", []))
+    if "transitive_test_file_paths" in result:
+        _print_impact_list(
+            "🧪 Tests to rerun (transitive)",
+            result.get("transitive_test_file_paths", []),
+        )
     _print_impact_list("📦 Re-exported in", result.get("reexports", []))
 
 

@@ -343,3 +343,36 @@ class TestWorkspaceImpact:
         result = analyze_impact_workspace(workspace, "helper")
 
         assert result["test_files"] == ["test_core.py", "test_other.py"]
+
+
+@pytest.mark.integration
+def test_workspace_transitive_tests_follow_callers(tmp_path: Path) -> None:
+    """Workspace mode walks the defining package and keeps root-relative paths."""
+    from axm_ast.core.impact import analyze_impact_workspace
+
+    _make_workspace(tmp_path, ["pkg-a"])
+    member = _make_member_package(
+        tmp_path,
+        "pkg-a",
+        py_files={
+            "core.py": (
+                "def _inner() -> int:\n    return 42\n\n\n"
+                "def helper() -> int:\n    return _inner()\n"
+            ),
+        },
+    )
+    test_file = member / "tests_pkg_a" / "unit" / "test_core.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text(
+        "from pkg_a.core import helper\n\n\n"
+        "def test_helper() -> None:\n    assert helper() == 42\n",
+        encoding="utf-8",
+    )
+
+    result = analyze_impact_workspace(tmp_path, "core._inner", transitive_depth=1)
+
+    assert result["test_file_paths"] == []
+    assert result["transitive_test_file_paths"] == [
+        "pkg-a/tests_pkg_a/unit/test_core.py"
+    ]
+    assert result["transitive_callers"] == ["core.helper"]
