@@ -26,7 +26,6 @@ wrapper's own guards, not for every argument error.
 
 from __future__ import annotations
 
-import importlib.metadata
 import inspect
 import json
 import logging
@@ -37,7 +36,9 @@ from typing import Annotated, Any, Union
 
 import cyclopts
 
-from axm.tools.discovery import DuplicateToolError, tool_entry_points
+from axm.tools.base import ToolResult
+from axm.tools.declarative import DeclarativeTool
+from axm.tools.discovery import ToolReference, tool_entry_points
 
 __all__ = ["build_command_for_tool", "create_app", "main"]
 
@@ -52,16 +53,16 @@ _SCALARS = (str, int, float, bool)
 # ── entry-point discovery (metadata only — no module import) ──────────────────
 
 
-def _tools_or_exit() -> dict[str, importlib.metadata.EntryPoint]:
+def _tools_or_exit() -> dict[str, ToolReference]:
     """Resolve the tool catalog; an ambiguous one is a clean exit 1."""
     try:
         return tool_entry_points()
-    except DuplicateToolError as exc:
+    except ValueError as exc:
         sys.stderr.write(f"axm: {exc}\n")
         raise SystemExit(1) from exc
 
 
-def _load(ep: importlib.metadata.EntryPoint) -> Any:
+def _load(ep: ToolReference) -> Any:
     """Load an entry point and instantiate it when it is a class."""
     obj = ep.load()
     return obj() if isinstance(obj, type) else obj
@@ -157,7 +158,15 @@ def _is_nonscalar(annotation: object, seen_aliases: frozenset[int]) -> bool:
 
 
 def _exec_callable(tool_obj: Any) -> Any:
-    """Return the tool's executable (``.execute`` or the object if plain)."""
+    """Return the executable, adapting declared tools to one JSON CLI argument."""
+    if isinstance(tool_obj, DeclarativeTool):
+
+        def declarative_arguments(arguments: dict[str, object]) -> ToolResult:
+            """Invoke a declarative tool with functional arguments as JSON."""
+            return tool_obj.execute(**arguments)
+
+        declarative_arguments.__doc__ = tool_obj.definition.description
+        return declarative_arguments
     if callable(tool_obj) and not hasattr(tool_obj, "execute"):
         return tool_obj
     return tool_obj.execute
@@ -425,7 +434,7 @@ def main() -> None:
 
 def _build_single_app(
     cmd: str,
-    tools: dict[str, importlib.metadata.EntryPoint],
+    tools: dict[str, ToolReference],
 ) -> cyclopts.App:
     """Build a one-command app from the requested AXMTool."""
     app = _new_app()

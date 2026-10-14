@@ -60,7 +60,7 @@ def test_groups_are_tribunal_first_then_legacy() -> None:
 def test_groups_queried_in_precedence_order(monkeypatch: pytest.MonkeyPatch) -> None:
     queried = _install(monkeypatch, {})
     assert tool_entry_points() == {}
-    assert queried == [_TRIBUNAL, _LEGACY]
+    assert queried == [_TRIBUNAL, _LEGACY, "axm.tool_manifests"]
 
 
 def test_name_in_both_groups_resolves_to_tribunal(

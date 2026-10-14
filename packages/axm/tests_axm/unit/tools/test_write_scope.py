@@ -9,6 +9,7 @@ from axm.tools.write_scope import (
     WRITE_CONTRACT_ENV,
     WriteContract,
     decide_write_access,
+    restrict_write_contract,
     write_contract_from_env,
 )
 
@@ -21,6 +22,53 @@ def test_contract_normalizes_relative_prefixes(tmp_path: object) -> None:
     )
 
     assert contract.allowed_prefixes == (f"{root}/src",)
+
+
+def test_intersection_keeps_live_metadata_but_never_unions_permissions():
+    current = WriteContract(
+        execution_root="/current",
+        allowed_prefixes=("/data",),
+        read_roots=("/data", "/only-current"),
+    )
+    origin = WriteContract(
+        execution_root="/origin",
+        allowed_prefixes=("/data/shared",),
+        read_roots=("/data/shared", "/only-origin"),
+    )
+    intersection = restrict_write_contract(current, (origin,))
+    assert intersection is not None
+    assert intersection.execution_root == current.execution_root
+    assert intersection.permits("/data/shared/record.db")
+    assert intersection.readable("/data/shared/record.db")
+    assert not intersection.permits("/data/private.db")
+    assert not intersection.readable("/data/private.db")
+    assert not intersection.readable("/only-current/record.db")
+    assert not intersection.readable("/only-origin/record.db")
+
+
+def test_intersection_preserves_markdown_nature_and_readonly_denial():
+    current = WriteContract(execution_root="/owned", allowed_prefixes=("/owned",))
+    markdown = WriteContract(
+        execution_root="/owned",
+        allowed_prefixes=("/owned",),
+        markdown_only_prefixes=("/owned",),
+    )
+    intersection = restrict_write_contract(current, (markdown,))
+    assert intersection is not None
+    assert intersection.permits("/owned/note.md")
+    assert not intersection.permits("/owned/data.db")
+    readonly = WriteContract(execution_root="/owned")
+    nested = restrict_write_contract(intersection, (readonly,))
+    assert nested is not None
+    assert nested.readable("/owned/note.md")
+    assert not nested.permits("/owned/note.md")
+
+
+def test_empty_restrictions_keep_legacy_contract_and_none_never_grants():
+    current = WriteContract(execution_root="/owned", allowed_prefixes=("/owned",))
+    assert restrict_write_contract(current, ()) is current
+    assert restrict_write_contract(current, (None,)) is None
+    assert restrict_write_contract(None, (current,)) is None
 
 
 @pytest.mark.parametrize(

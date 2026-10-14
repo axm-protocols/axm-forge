@@ -33,6 +33,13 @@ from axm_mcp.discovery import (
 )
 from tests_axm_mcp.unit._helpers import _DISCOVER, FakeMCP
 
+
+@pytest.fixture(autouse=True)
+def _legacy_catalog_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These legacy entry-point fakes intentionally contain no UI providers."""
+    monkeypatch.setattr("axm.tools.discovery.declarative_tool_references", lambda: {})
+
+
 # ─────────────────────────────── disable patterns ────────────────────────────
 
 

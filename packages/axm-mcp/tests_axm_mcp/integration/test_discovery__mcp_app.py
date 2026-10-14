@@ -59,7 +59,7 @@ class TestBuiltinToolsWired:
 #: ``axm`` modules the shell may import: the shared tool-name resolver is the
 #: discovery contract itself (one resolver for MCP, CLI and ``load_tool``), not
 #: core business logic.
-_SHARED_CONTRACTS = frozenset({"axm.tools.discovery"})
+_SHARED_CONTRACTS = frozenset({"axm.tools.discovery", "axm.tools.declarative"})
 
 
 def _imports_axm_core(module: ModuleType) -> bool:

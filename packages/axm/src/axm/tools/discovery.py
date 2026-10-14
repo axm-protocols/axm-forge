@@ -18,7 +18,9 @@ d'entree", same rule as the graph and ticket-type groups):
   "last entry point wins" that depended on the filesystem order;
 * the mapping is ordered by name, independent of ``sys.path`` or install order.
 
-Only metadata is read: no entry point is loaded here. Retiring the legacy group
+Python tool entry points are not loaded here; declarative providers additionally
+read their installed package resource. No Svelte is compiled or evaluated.
+Retiring the legacy group
 (tribunal phase 10) is dropping ``"axm.tools"`` from the tuple.
 """
 
@@ -27,7 +29,20 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 
-__all__ = ["TOOL_ENTRY_POINT_GROUPS", "DuplicateToolError", "tool_entry_points"]
+from axm.tools.access import tool_is_allowed
+from axm.tools.manifest_discovery import (
+    DeclarativeToolReference,
+    declarative_tool_references,
+)
+
+__all__ = [
+    "TOOL_ENTRY_POINT_GROUPS",
+    "DuplicateToolError",
+    "ToolReference",
+    "tool_entry_points",
+]
+
+type ToolReference = importlib.metadata.EntryPoint | DeclarativeToolReference
 
 logger = logging.getLogger(__name__)
 
@@ -55,17 +70,18 @@ class DuplicateToolError(ValueError):
         )
 
 
-def tool_entry_points() -> dict[str, importlib.metadata.EntryPoint]:
+def tool_entry_points() -> dict[str, ToolReference]:
     """Map every installed AXM tool name to the entry point that owns it.
 
     Returns:
         ``{name: EntryPoint}`` sorted by name; a tribunal entry point shadows
-        its legacy homonym. Nothing is loaded (pure metadata).
+        its legacy homonym. Python entries stay lazy; declarative resources
+        are read and validated to publish their names and exact schemas.
 
     Raises:
         DuplicateToolError: One group publishes a name twice.
     """
-    resolved: dict[str, importlib.metadata.EntryPoint] = {}
+    resolved: dict[str, ToolReference] = {}
     for group in TOOL_ENTRY_POINT_GROUPS:
         for name, ep in _group_entry_points(group).items():
             owner = resolved.setdefault(name, ep)
@@ -78,7 +94,15 @@ def tool_entry_points() -> dict[str, importlib.metadata.EntryPoint]:
                     _distribution_name(ep),
                     group,
                 )
-    return dict(sorted(resolved.items()))
+    for name, reference in declarative_tool_references().items():
+        if name in resolved:
+            raise ValueError(f"declarative tool collides with Python tool: {name}")
+        resolved[name] = reference
+    return {
+        name: reference
+        for name, reference in sorted(resolved.items())
+        if tool_is_allowed(name)
+    }
 
 
 def _group_entry_points(group: str) -> dict[str, importlib.metadata.EntryPoint]:
@@ -95,8 +119,10 @@ def _group_entry_points(group: str) -> dict[str, importlib.metadata.EntryPoint]:
     return published
 
 
-def _distribution_name(ep: importlib.metadata.EntryPoint) -> str:
+def _distribution_name(ep: ToolReference) -> str:
     """The distribution declaring *ep*, or its target when metadata lacks it."""
+    if isinstance(ep, DeclarativeToolReference):
+        return ep.value
     if ep.dist is not None:
         return str(ep.dist.name)
     return f"<unknown distribution of {ep.value}>"

@@ -24,6 +24,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
+from axm.tools.access import (
+    check_tool_execution,
+    guard_tool,
+    has_tool_execution_guard,
+)
 from axm.tools.write_scope import WriteContract
 
 from axm_mcp.concurrency import _DEFAULT_TIMEOUT, KeyedLock
@@ -31,6 +36,8 @@ from axm_mcp.session_contracts import UnboundSessionError
 from axm_mcp.session_paths import path_defaults, resolve_session_paths
 
 if TYPE_CHECKING:
+    from axm.tools.base import AXMTool
+
     from axm_mcp.discovery import (
         PlainTool,
         ToolEntry,
@@ -122,6 +129,7 @@ class _WrapperCtx:
     write_contract_resolver: Callable[[], WriteContract | None]
     shared_mode: bool
     path_defaults: dict[str, object] = field(default_factory=dict)
+    preserve_result: bool = False
 
 
 def _unwrap_nested_kwargs(kwargs: dict[str, object]) -> None:
@@ -212,9 +220,14 @@ def flatten_result(result: ToolResultLike) -> dict[str, object]:
             )
             output[namespaced] = output.pop(key)
     # ``success`` missing → False (never silently promoted to a passing result).
-    output["success"] = bool(getattr(result, "success", False))
+    success = getattr(result, "success", False)
+    output["success"] = success is True
     if getattr(result, "error", None):
         output["error"] = result.error
+    if not isinstance(success, bool):
+        output["error"] = "malformed ToolResult: success must be a boolean" + (
+            f"; {output['error']}" if output.get("error") else ""
+        )
     hint = getattr(result, "hint", None)
     if hint:
         output["hint"] = hint
@@ -230,11 +243,33 @@ def _flatten_exception(name: str, exc: Exception) -> dict[str, object]:
 UNSCOPED_EXECUTION_TOOLS: frozenset[str] = frozenset({"run_command"})
 
 
+def _path_refusal(
+    ctx: _WrapperCtx,
+    contract: WriteContract | None,
+    tool_input: dict[str, object],
+) -> dict[str, object] | None:
+    if not (ctx.shared_mode or contract is not None):
+        return None
+    try:
+        from axm.tools.dependency_reads import dependency_read_context
+
+        with dependency_read_context(contract):
+            resolve_session_paths(tool_input, ctx.path_defaults, contract)
+    except (ValueError, OSError) as exc:
+        prefixes = contract.allowed_prefixes if contract is not None else ()
+        return {"success": False, "error": f"{exc}; allowed prefixes: {prefixes}"}
+    return None
+
+
 def _write_refusal(
     ctx: _WrapperCtx,
     tool_input: dict[str, object],
 ) -> dict[str, object] | None:
-    """Resolve and enforce the current session's write perimeter."""
+    """Resolve and enforce the current session's tool and write perimeter."""
+    from axm.tools.access import tool_is_allowed
+
+    if not tool_is_allowed(ctx.name):
+        return {"success": False, "error": f"undeclared tool refused: {ctx.name}"}
     from axm.tools.write_scope import decide_write_access
 
     try:
@@ -258,15 +293,9 @@ def _write_refusal(
         }
 
     _unwrap_nested_kwargs(tool_input)
-    if ctx.shared_mode or contract is not None:
-        try:
-            from axm.tools.dependency_reads import dependency_read_context
-
-            with dependency_read_context(contract):
-                resolve_session_paths(tool_input, ctx.path_defaults, contract)
-        except (ValueError, OSError) as exc:
-            prefixes = contract.allowed_prefixes if contract is not None else ()
-            return {"success": False, "error": f"{exc}; allowed prefixes: {prefixes}"}
+    path_refusal = _path_refusal(ctx, contract, tool_input)
+    if path_refusal is not None:
+        return path_refusal
     decision = decide_write_access(contract, ctx.name, tool_input)
     if decision.allowed:
         return None
@@ -287,6 +316,7 @@ def _build_plain_wrapper(
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
         try:
+            check_tool_execution(ctx.name, kwargs, _plain_tool)
             result: dict[str, object] = _plain_tool(**kwargs)
         except Exception as exc:
             error = _flatten_exception(ctx.name, exc)
@@ -296,6 +326,50 @@ def _build_plain_wrapper(
         return result
 
     return _wrapper
+
+
+def _execute_tool(
+    ctx: _WrapperCtx, tool: ToolLike, kwargs: dict[str, object]
+) -> ToolResultLike:
+    from axm.tools.dependency_reads import dependency_read_context
+
+    try:
+        read_contract = ctx.write_contract_resolver()
+    except UnboundSessionError:
+        if not ctx.shared_mode:
+            raise
+        read_contract = None
+    with dependency_read_context(read_contract):
+        return cast(
+            "ToolResultLike",
+            guard_tool(ctx.name, cast("AXMTool", tool)).execute(**kwargs),
+        )
+
+
+def _render_tool_result(
+    ctx: _WrapperCtx,
+    result: ToolResultLike,
+    kwargs: dict[str, object],
+    start_ns: int,
+) -> dict[str, object] | str:
+    # Malformed results are failures, never silently promoted.
+    raw_success = getattr(result, "success", False)
+    success = raw_success is True
+    text = getattr(result, "text", None)
+    if (
+        isinstance(raw_success, bool)
+        and not ctx.preserve_result
+        and isinstance(text, str)
+        and (success or text)
+    ):
+        payload = text if success else _failure_text(result, text)
+        _trace_step(ctx, kwargs, success, payload, start_ns)
+        return payload
+    output = flatten_result(result)
+    if ctx.preserve_result and isinstance(text, str):
+        output["text"] = text
+    _trace_step(ctx, kwargs, success, str(output), start_ns)
+    return output
 
 
 def _build_tool_wrapper(
@@ -312,31 +386,12 @@ def _build_tool_wrapper(
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
         try:
-            from axm.tools.dependency_reads import dependency_read_context
-
-            try:
-                read_contract = ctx.write_contract_resolver()
-            except UnboundSessionError:
-                if not ctx.shared_mode:
-                    raise
-                read_contract = None
-            with dependency_read_context(read_contract):
-                result = _tool_like.execute(**kwargs)
+            result = _execute_tool(ctx, _tool_like, kwargs)
         except Exception as exc:
             error = _flatten_exception(ctx.name, exc)
             _trace_step(ctx, kwargs, False, str(error), start_ns)
             return error
-        # A missing ``success`` attribute is treated as failure (never defaulted
-        # to True): a malformed ToolResult-like never silently passes as success.
-        success = bool(getattr(result, "success", False))
-        text = getattr(result, "text", None)
-        if isinstance(text, str) and (success or text):
-            payload = text if success else _failure_text(result, text)
-            _trace_step(ctx, kwargs, success, payload, start_ns)
-            return payload
-        output = flatten_result(result)
-        _trace_step(ctx, kwargs, success, str(output), start_ns)
-        return output
+        return _render_tool_result(ctx, result, kwargs, start_ns)
 
     return _wrapper
 
@@ -409,7 +464,7 @@ def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
     """
 
     async def _async_wrapper(**kwargs: object) -> dict[str, object] | str:
-        if not _HTTP_MODE:
+        if not _HTTP_MODE and not has_tool_execution_guard():
             return wrapper(**kwargs)
         selected = _select_lock(name, kwargs)
         if selected is None or not selected[1]:
@@ -447,6 +502,7 @@ def build_wrappers(
     *,
     shared_mode: bool = False,
     write_contract_resolver: Callable[[], WriteContract | None] | None = None,
+    preserve_result: bool = False,
 ) -> tuple[_SyncWrapper, _AnyWrapper]:
     """Build the ``(sync, async)`` wrapper pair for one tool.
 
@@ -479,6 +535,7 @@ def build_wrappers(
         write_contract_resolver=resolver,
         shared_mode=shared_mode,
         path_defaults=path_defaults(getattr(tool, "execute", tool)),
+        preserve_result=preserve_result,
     )
     base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)

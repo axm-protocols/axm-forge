@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from contextvars import ContextVar
 from http import HTTPStatus
 
+from axm import DeclarativeTool
+from axm.tools.access import require_tool_access, tool_is_allowed
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
-from mcp_types import CallToolResult, InputRequiredResult, Tool
+from mcp_types import CallToolResult, InputRequiredResult, TextContent, Tool
 from starlette.datastructures import Headers
 from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -96,8 +99,26 @@ class ToolSurfaceMiddleware:
 class ToolSurfaceServer(MCPServer[object]):
     """Enforce the same declaration at tools/list and tools/call."""
 
+    def register_declarative(self, tool: DeclarativeTool) -> None:
+        """Register exact JSON schemas without deriving a kwargs signature."""
+        if not hasattr(self, "_ui_tools"):
+            self._ui_tools: dict[str, DeclarativeTool] = {}
+        if tool.name in self._ui_tools:
+            raise ValueError(f"duplicate declarative tool: {tool.name}")
+        self._ui_tools[tool.name] = tool
+
     async def list_tools(self) -> list[Tool]:
         tools = await super().list_tools()
+        tools.extend(
+            Tool(
+                name=name,
+                description=tool.definition.description,
+                input_schema=tool.definition.input_schema,
+                output_schema=tool.definition.output_schema,
+            )
+            for name, tool in getattr(self, "_ui_tools", {}).items()
+        )
+        tools = [tool for tool in tools if tool_is_allowed(tool.name)]
         allowed = _surface.get()
         return (
             tools
@@ -114,4 +135,24 @@ class ToolSurfaceServer(MCPServer[object]):
         allowed = _surface.get()
         if allowed is not None and name not in allowed:
             raise ToolError(f"undeclared tool refused: {name}")
+        require_tool_access(name)
+        ui_tool = getattr(self, "_ui_tools", {}).get(name)
+        if ui_tool is not None:
+            result = await asyncio.to_thread(ui_tool.execute, **arguments)
+            data = (
+                result.data
+                if result.success
+                else {
+                    "success": False,
+                    "data": result.data,
+                    "error": result.error,
+                }
+            )
+            return CallToolResult(
+                content=[
+                    TextContent(type="text", text=result.text or json.dumps(data))
+                ],
+                structured_content=data,
+                is_error=not result.success,
+            )
         return await super().call_tool(name, arguments, context)

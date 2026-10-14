@@ -13,6 +13,7 @@ __all__ = [
     "WriteAccessDecision",
     "WriteContract",
     "decide_write_access",
+    "restrict_write_contract",
     "write_contract_from_env",
 ]
 
@@ -191,6 +192,43 @@ class WriteContract:
         """Return whether a resolved location is under the execution root."""
         root = os.path.realpath(self.execution_root)
         return location == root or location.startswith(root + os.sep)
+
+
+@dataclass(frozen=True)
+class _RestrictedContract(WriteContract):
+    constraints: tuple[WriteContract, ...] = ()
+
+    def permits(self, location: str) -> bool:
+        return super().permits(location) and all(
+            constraint.permits(location) for constraint in self.constraints
+        )
+
+    def readable(self, location: str) -> bool:
+        return super().readable(location) and all(
+            constraint.readable(location) for constraint in self.constraints
+        )
+
+
+def restrict_write_contract(
+    contract: WriteContract | None, constraints: tuple[WriteContract | None, ...]
+) -> WriteContract | None:
+    """Intersect live and retained authority without widening either body's scope."""
+    if not constraints:
+        return contract
+    if contract is None or any(constraint is None for constraint in constraints):
+        return None
+    return _RestrictedContract(
+        execution_root=contract.execution_root,
+        allowed_prefixes=contract.allowed_prefixes,
+        markdown_only_prefixes=contract.markdown_only_prefixes,
+        dependency_environment=contract.dependency_environment,
+        read_roots=contract.read_roots,
+        read_path_aliases=contract.read_path_aliases,
+        dependency_environments=contract.dependency_environments,
+        constraints=tuple(
+            constraint for constraint in constraints if constraint is not None
+        ),
+    )
 
 
 @dataclass(frozen=True)

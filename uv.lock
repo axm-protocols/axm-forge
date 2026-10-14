@@ -149,6 +149,7 @@ name = "axm"
 source = { editable = "packages/axm" }
 dependencies = [
     { name = "cyclopts" },
+    { name = "jsonschema" },
     { name = "packaging" },
 ]
 
@@ -201,6 +202,7 @@ requires-dist = [
     { name = "axm-mcp", marker = "extra == 'all'", editable = "packages/axm-mcp" },
     { name = "axm-mcp", marker = "extra == 'mcp'", editable = "packages/axm-mcp" },
     { name = "cyclopts", specifier = ">=4.21.0" },
+    { name = "jsonschema", specifier = ">=4.26" },
     { name = "packaging", specifier = ">=24.2" },
 ]
 provides-extras = ["all", "audit", "bib", "init", "mcp"]
@@ -880,6 +882,7 @@ dependencies = [
     { name = "axm-config" },
     { name = "cyclopts" },
     { name = "httpx" },
+    { name = "jsonschema" },
     { name = "mcp", extra = ["cli"] },
     { name = "starlette" },
 ]
@@ -989,6 +992,7 @@ requires-dist = [
     { name = "axm-ticket", marker = "extra == 'ticket'" },
     { name = "cyclopts", specifier = ">=4.21.0" },
     { name = "httpx", specifier = ">=0.28" },
+    { name = "jsonschema", specifier = ">=4.26" },
     { name = "mcp", extras = ["cli"], specifier = ">=2.2.0" },
     { name = "scrapling", marker = "extra == 'web'" },
     { name = "starlette", specifier = ">=1.2" },

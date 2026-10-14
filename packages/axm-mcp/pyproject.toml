@@ -18,6 +18,7 @@ dependencies = [
     "axm-config",
     "cyclopts>=4.21.0",
     "httpx>=0.28",
+    "jsonschema>=4.26",
     # Plancher a la 2.2 : le code utilise MCPServer, run(host=, port=) et
     # mcp.server.mcpserver.exceptions. La bascule est a SENS UNIQUE -- rejoue
     # contre 1.29.1, ce paquet ne s'importe plus (11 modules en erreur). Un

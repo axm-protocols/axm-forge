@@ -7,6 +7,7 @@ from collections.abc import Callable
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
+from axm.tools.declarative import DeclarativeTool
 from axm.tools.discovery import tool_entry_points
 
 from axm_mcp.facade.catalog import render_list_tools
@@ -48,7 +49,7 @@ class ToolResultLike(Protocol):
     """Structural protocol matching ``axm.tools.base.ToolResult``.
 
     Declared locally so ``axm_mcp.discovery`` imports nothing from ``axm``
-    but the shared tool resolver — ``axm-mcp`` is a pure discovery shell
+    but shared resolver and declarative metadata — it remains a discovery shell
     (enforced by ``test_discovery__mcp_app.py``).
     """
 
@@ -80,7 +81,7 @@ class PlainTool(Protocol):
 
 
 # A discovered tool entry is either a ToolLike instance or a plain callable.
-ToolEntry = ToolLike | PlainTool
+ToolEntry = ToolLike | PlainTool | DeclarativeTool
 
 
 def discover_tools() -> dict[str, ToolEntry]:
@@ -192,6 +193,13 @@ def register_one(  # type: ignore[explicit-any]
         tool: Tool instance or plain function.
         override_module: For testing — module to search for ``_*_ACTIONS``.
     """
+    if isinstance(tool, DeclarativeTool):
+        from axm_mcp.tool_surface import ToolSurfaceServer
+
+        if not isinstance(mcp, ToolSurfaceServer):
+            raise TypeError("declarative schemas require ToolSurfaceServer")
+        mcp.register_declarative(tool)
+        return
     is_plain = callable(tool) and not hasattr(tool, "execute")
     exec_fn: IntrospectableFn = (
         cast(IntrospectableFn, tool)

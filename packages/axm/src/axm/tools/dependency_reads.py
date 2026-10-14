@@ -19,7 +19,9 @@ __all__ = [
     "current_read_contract",
     "dependency_read_context",
     "dependency_sources",
+    "read_context_bound",
     "resolve_read_path",
+    "restricted_read_context",
     "session_dependencies",
     "session_dependency_environment",
     "session_readable",
@@ -183,14 +185,40 @@ _READ_CONTRACT: ContextVar[object] = ContextVar(
 )
 
 
+_READ_RESTRICTIONS: ContextVar[tuple[WriteContract | None, ...]] = ContextVar(
+    "axm_retained_read_authority", default=()
+)
+
+
 def current_read_contract() -> WriteContract | None:
     """Return the transport-bound contract, falling back only for local CLI calls."""
-    from axm.tools.write_scope import WriteContract, write_contract_from_env
+    from axm.tools.write_scope import (
+        WriteContract,
+        restrict_write_contract,
+        write_contract_from_env,
+    )
 
     value = _READ_CONTRACT.get()
     if value is _UNBOUND:
-        return write_contract_from_env()
-    return value if isinstance(value, WriteContract) else None
+        contract = write_contract_from_env()
+    else:
+        contract = value if isinstance(value, WriteContract) else None
+    return restrict_write_contract(contract, _READ_RESTRICTIONS.get())
+
+
+def read_context_bound() -> bool:
+    """Whether a transport explicitly bound authority, including a denial None."""
+    return _READ_CONTRACT.get() is not _UNBOUND or bool(_READ_RESTRICTIONS.get())
+
+
+@contextmanager
+def restricted_read_context(contract: WriteContract | None) -> Iterator[None]:
+    """Retain an origin's authority; live caller authority can only narrow it."""
+    token = _READ_RESTRICTIONS.set((*_READ_RESTRICTIONS.get(), contract))
+    try:
+        yield
+    finally:
+        _READ_RESTRICTIONS.reset(token)
 
 
 @contextmanager
