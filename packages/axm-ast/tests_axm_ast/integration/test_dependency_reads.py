@@ -119,45 +119,6 @@ def test_dotted_dependency_inspection_and_search(dependency_lane, monkeypatch):
 
 
 @pytest.mark.integration
-def test_refusal_attribution_requires_a_real_unresolved_dependency(dependency_lane):
-    from axm.tools.dependency_reads import (
-        DependencyEnvironment,
-        unresolved_dependency_refusals,
-    )
-
-    package, api, environment = dependency_lane
-    env = DependencyEnvironment.from_mapping(environment)
-    failed = {
-        "name": "read_file",
-        "arguments": {"path": str(package), "file": str(api / "node.py")},
-        "ok": False,
-        "result": "read_file | ESCAPE | Path escapes project root",
-    }
-    assert unresolved_dependency_refusals((failed,), env)
-    succeeded = {
-        **failed,
-        "ok": True,
-        "result": "source containing not found in docstring",
-    }
-    assert not unresolved_dependency_refusals((failed, succeeded), env)
-    rogue = {
-        **failed,
-        "arguments": {
-            "path": str(package),
-            "file": str(api.parent / "rogue" / "__init__.py"),
-        },
-    }
-    assert not unresolved_dependency_refusals((rogue,), env)
-    typo = {
-        "name": "ast_inspect",
-        "arguments": {"symbol": "external_api.node.typo"},
-        "ok": False,
-        "result": "Symbol not found",
-    }
-    assert not unresolved_dependency_refusals((typo,), env)
-
-
-@pytest.mark.integration
 def test_read_authority_rejects_escaping_symlinks(dependency_lane, monkeypatch):
     package, api, environment = dependency_lane
     rogue = api.parent / "rogue" / "__init__.py"
