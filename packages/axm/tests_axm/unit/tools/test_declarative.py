@@ -179,12 +179,23 @@ def test_schema_annotations_and_property_names_are_data_not_reference_keywords()
         lambda raw: raw["tools"][0]["inputSchema"].update(
             {"$schema": "http://json-schema.org/draft-07/schema#"}
         ),
+        lambda raw: raw["tools"][0].update(unknown="field"),
+        lambda raw: raw["tools"][0].update(errors={"code": "x"}),
+        lambda raw: raw["tools"][0].update(errors=[{"code": "x"}]),
+        lambda raw: raw["tools"][0].update(errors=[{"code": "", "remedy": "r"}]),
     ],
 )
 def test_invalid_contract_is_rejected(raw, mutation):
     mutation(raw)
     with pytest.raises(ValueError):
         load_declarative_manifest(raw)
+
+
+def test_declared_failure_codes_are_an_optional_tool_field(raw):
+    raw["tools"][0]["errors"] = [
+        {"code": "view_not_ready", "remedy": "Read the state, then retry once."}
+    ]
+    assert load_declarative_manifest(raw).tools[0].name == raw["tools"][0]["name"]
 
 
 def test_cli_json_arguments_use_same_bound_adapter(raw, capsys):

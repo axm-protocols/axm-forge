@@ -28,6 +28,8 @@ _HASH = re.compile(r"^[0-9a-f]{64}$")
 _RESERVED = frozenset(
     {"axm_search", "axm_describe", "axm_call", "axm_capabilities", "list_tools"}
 )
+# Tool fields a host may add to the manifest; read by the host, not by forge.
+_OPTIONAL_TOOL_FIELDS = frozenset({"errors"})
 
 
 def tool_scope_sha256(names: frozenset[str]) -> str:
@@ -190,10 +192,25 @@ def _validate_manifest(manifest: DeclarativeToolManifest) -> None:
         raise ValueError("duplicate declarative tool name")
 
 
-def _object(value: object, keys: set[str]) -> dict[str, object]:
-    if not isinstance(value, dict) or set(value) != keys:
-        raise ValueError(f"expected exact manifest fields: {sorted(keys)}")
+def _object(
+    value: object, keys: set[str], optional: frozenset[str] = frozenset()
+) -> dict[str, object]:
+    if not isinstance(value, dict) or not keys <= set(value) <= keys | optional:
+        raise ValueError(
+            f"expected exact manifest fields: {sorted(keys)}"
+            + (f" (optional: {sorted(optional)})" if optional else "")
+        )
     return cast(dict[str, object], value)
+
+
+def _errors(raw: object) -> None:
+    """Check the optional failure codes a UI tool declares; the host owns them."""
+    if not isinstance(raw, list):
+        raise ValueError("tool errors must be a list")
+    for item in raw:
+        entry = _object(item, {"code", "remedy"})
+        if not (_string(entry["code"]).strip() and _string(entry["remedy"]).strip()):
+            raise ValueError("tool error code and remedy must be non-empty")
 
 
 def _string(value: object) -> str:
@@ -204,8 +221,12 @@ def _string(value: object) -> str:
 
 def _definition(raw: object) -> DeclarativeToolDefinition:
     data = _object(
-        raw, {"name", "description", "inputSchema", "outputSchema", "handler"}
+        raw,
+        {"name", "description", "inputSchema", "outputSchema", "handler"},
+        _OPTIONAL_TOOL_FIELDS,
     )
+    if "errors" in data:
+        _errors(data["errors"])
     schemas = (data["inputSchema"], data["outputSchema"])
     if not all(isinstance(schema, dict) for schema in schemas):
         raise ValueError("tool schemas must be JSON objects")
