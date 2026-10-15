@@ -1,11 +1,11 @@
 {
-  "score": 90.1,
-  "grade": "A",
+  "score": 86.7,
+  "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
-    "ARCH_COUPLING: Coupling: 7 module(s) above threshold (-21 pts)",
+    "ARCH_COUPLING: Coupling: 9 module(s) above threshold (-27 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_TESTS: Test coverage: 91% (91/100)",
+    "QUALITY_TESTS: Test coverage: 91% (90/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -16,7 +16,7 @@
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 90% (254/283)",
+      "message": "Docstring coverage: 90% (271/300)",
       "text": "     \u2022 axm_audit/core/fix/stages_execute.py: visit_Name\n     \u2022 axm_audit/core/fix/pipeline.py: run\n     \u2022 axm_audit/core/fix/extract_helpers.py: load_or_create_helpers_module, load_or_create_conftest_module\n     \u2022 axm_audit/core/fix/cst_rewrite.py: leave_Subscript, leave_Attribute, visit_Attribute, key_of, local_name, is_duplicate, record, keep_aliases, leave_Name, leave_FunctionDef, leave_ClassDef, leave_SimpleString, leave_Name, leave_FunctionDef, leave_SimpleString, leave_Subscript\n     \u2022 axm_audit/core/fix/report.py: format_report\n     \u2022 axm_audit/core/rules/test_quality/no_package_symbol.py: as_dict\n     \u2022 axm_audit/core/rules/test_quality/file_naming.py: current_name, distinct_non_empty_tuples, is_split, has_canonical, as_dict\n     \u2022 axm_audit/core/rules/test_quality/duplicate_tests.py: make_test_func\n     \u2022 axm_audit/core/rules/test_quality/_shared.py: load_conftest_fixtures",
       "fix_hint": "Add docstrings to public functions"
     },
@@ -70,21 +70,21 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 60/100 (4 high-complexity functions)",
-      "text": "\u2022 axm_audit/core/rules/practices/tool_secret_locations.py:_security_service_literals cc=13 (C) cog=21 [cc+cog]\n\u2022 axm_audit/core/test_runner.py:_target_was_collected cc=12 (C) cog=15 [cc]\n\u2022 axm_audit/doc_gate/tool.py:DocGateTool.execute cc=12 (C) cog=9 [cc]\n\u2022 axm_audit/core/rules/practices/tool_secret_locations.py:_call_service_literal cc=11 (C) cog=10 [cc]",
+      "message": "Complexity score: 40/100 (6 high-complexity functions)",
+      "text": "\u2022 axm_audit/core/rules/practices/tool_secret_locations.py:_security_service_literals cc=13 (C) cog=21 [cc+cog]\n\u2022 axm_audit/core/test_runner.py:_target_was_collected cc=12 (C) cog=15 [cc]\n\u2022 axm_audit/core/test_runner.py:build_pytest_cmd cc=11 (C) cog=14 [cc]\n\u2022 axm_audit/core/readiness.py:validation_readiness cc=11 (C) cog=12 [cc]\n\u2022 axm_audit/doc_gate/tool.py:DocGateTool.execute cc=12 (C) cog=9 [cc]\n\u2022 axm_audit/core/rules/practices/tool_secret_locations.py:_call_service_literal cc=11 (C) cog=10 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
       "rule_id": "DEPS_HYGIENE",
       "message": "2 dependency issue(s) found",
-      "text": "\u2022 DEP002 cyclopts: unused dep\n\u2022 DEP002 pytest-json-report: unused dep",
+      "text": "\u2022 DEP002 cyclopts: unused dep\n\u2022 DEP004 pytest: misplaced dev dep",
       "fix_hint": "Run: deptry . to see details"
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "message": "1 source module(s) without tests",
-      "text": "\u2022 untested: _base.py",
-      "fix_hint": "Create test files: tests_axm_audit/test__base.py"
+      "message": "2 source module(s) without tests",
+      "text": "\u2022 untested: _base.py axm_audit_report_plugin.py",
+      "fix_hint": "Create test files: tests_axm_audit/test__base.py, tests_axm_audit/test_axm_audit_report_plugin.py"
     },
     {
       "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
@@ -95,7 +95,7 @@
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
       "message": "10 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "text": "\u2022 [import] tests_axm_audit/integration/test_build_target_statuses.py:9 axm_audit.core.test_runner._build_target_statuses (function)\n\u2022 [import] tests_axm_audit/integration/test_extract_shared_helpers_once__project_import_index.py:6 axm_audit.core.fix.cst_rewrite._project_import_index (function)\n\u2022 [import] tests_axm_audit/integration/test_extract_shared_helpers_once__project_import_index.py:6 axm_audit.core.fix.cst_rewrite._synth_import_from_helpers (function)\n\u2022 [import] tests_axm_audit/integration/test_get_audit_targets.py:5 axm_audit.core.rules.quality_rules._get_audit_targets (function)\n\u2022 [import] tests_axm_audit/unit/core/rules/node/test__runner.py:7 axm_audit.core.rules.node._runner._resolve_cmd (function)\n\u2022 [import] tests_axm_audit/unit/core/test_non_test_cause.py:10 axm_audit.core.non_test_cause._truncate_excerpt (function)\n\u2022 [import] tests_axm_audit/unit/core/test_non_test_cause.py:173 axm_audit.core.test_runner._subprocess_failure (function)\n\u2022 [import] tests_axm_audit/unit/core/test_test_runner.py:13 axm_audit.core.test_runner._target_was_collected (function)\n\u2022 [import] tests_axm_audit/unit/core/test_test_runner.py:336 axm_audit.core.test_runner._subprocess_failure (function)\n\u2022 [import] tests_axm_audit/unit/test_score.py:8 axm_audit.score._has_scored_signal (function)",
+      "text": "\u2022 [import] tests_axm_audit/integration/test_build_target_statuses.py:9 axm_audit.core.test_runner._build_target_statuses (function)\n\u2022 [import] tests_axm_audit/integration/test_extract_shared_helpers_once__project_import_index.py:6 axm_audit.core.fix.cst_rewrite._project_import_index (function)\n\u2022 [import] tests_axm_audit/integration/test_extract_shared_helpers_once__project_import_index.py:6 axm_audit.core.fix.cst_rewrite._synth_import_from_helpers (function)\n\u2022 [import] tests_axm_audit/integration/test_get_audit_targets.py:5 axm_audit.core.rules.quality_rules._get_audit_targets (function)\n\u2022 [import] tests_axm_audit/unit/core/rules/node/test__runner.py:7 axm_audit.core.rules.node._runner._resolve_cmd (function)\n\u2022 [import] tests_axm_audit/unit/core/test_non_test_cause.py:10 axm_audit.core.non_test_cause._truncate_excerpt (function)\n\u2022 [import] tests_axm_audit/unit/core/test_non_test_cause.py:173 axm_audit.core.test_runner._subprocess_failure (function)\n\u2022 [import] tests_axm_audit/unit/core/test_test_runner.py:13 axm_audit.core.test_runner._target_was_collected (function)\n\u2022 [import] tests_axm_audit/unit/core/test_test_runner.py:353 axm_audit.core.test_runner._subprocess_failure (function)\n\u2022 [import] tests_axm_audit/unit/test_score.py:8 axm_audit.score._has_scored_signal (function)",
       "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]

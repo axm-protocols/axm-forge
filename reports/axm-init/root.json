@@ -1,10 +1,10 @@
 {
-  "score": 86,
+  "score": 84,
   "grade": "B",
   "context": "workspace",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
-  "passed_count": 34,
+  "passed_count": 33,
   "failures": [
     {
       "name": "changelog.gitcliff_config",
@@ -47,6 +47,14 @@
         "docs/index.md"
       ],
       "fix": "Either opt in by force-including the files:\n[tool.hatch.build.targets.wheel.force-include]\n\"docs/contributing.md\" = \"axm_forge_workspace/docs/contributing.md\"\n\"docs/index.md\" = \"axm_forge_workspace/docs/index.md\"\nor opt out by adding `[tool.axm-init.wheel-doc]` with `files = []`."
+    },
+    {
+      "name": "workspace.pytest_importmode",
+      "message": "import_mode not set to 'importlib'",
+      "details": [
+        "Key missing"
+      ],
+      "fix": "Add import_mode = \"importlib\" to [tool.pytest.ini_options]."
     }
   ]
 }

@@ -1,10 +1,9 @@
 {
-  "score": 91.6,
-  "grade": "A",
+  "score": 88.7,
+  "grade": "B",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
-    "ARCH_COUPLING: Coupling: 4 module(s) above threshold (-12 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
     "QUALITY_TESTS: Test coverage: 93% (93/100)",
     "QUALITY_DEAD_CODE: No dead code detected.",
@@ -13,14 +12,12 @@
     "QUALITY_DIFF_SIZE: No uncommitted changes",
     "DEPS_AUDIT: No known vulnerabilities",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
-    "PRACTICE_TEST_MIRROR: All source modules have test files",
-    "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "message": "Docstring coverage: 97% (75/77)",
-      "text": "     \u2022 axm_mcp/mcp_app.py: streamable_http_app\n     \u2022 axm_mcp/facade/catalog.py: signature_target",
+      "message": "Docstring coverage: 86% (81/94)",
+      "text": "     \u2022 axm_mcp/tool_surface.py: list_tools, call_tool, respond\n     \u2022 axm_mcp/wrapping.py: async_wrapper\n     \u2022 axm_mcp/scoped.py: schema, tools, describe, call, facade, list_tools, call_tool, guard\n     \u2022 axm_mcp/facade/catalog.py: signature_target",
       "fix_hint": "Add docstrings to public functions"
     },
     "PRACTICE_ENV_CREDENTIAL_READ: 0 credential environment read(s) found",
@@ -66,21 +63,39 @@
   ],
   "failed": [
     {
+      "rule_id": "ARCH_COUPLING",
+      "message": "Coupling: 6 module(s) above threshold (-22 pts)",
+      "text": "\u2022 scoped fo:23/10 \u2718\n\u2022 mcp_app fo:22/10 \u2718\n\u2022 tool_surface fo:14/10 \u26a0\n\u2022 wrapping fo:13/10 \u26a0\n\u2022 catalog fo:13/10 \u26a0\n\u2022 discovery fo:12/10 \u26a0",
+      "fix_hint": "Reduce imports in:\n  \u2022 axm_mcp.scoped (fan-out: 23)\n  \u2022 axm_mcp.mcp_app (fan-out: 22)\n  \u2022 axm_mcp.tool_surface (fan-out: 14)\n  \u2022 axm_mcp.wrapping (fan-out: 13)\n  \u2022 axm_mcp.facade.catalog (fan-out: 13)\n  \u2022 axm_mcp.discovery (fan-out: 12)"
+    },
+    {
       "rule_id": "QUALITY_COMPLEXITY",
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
-      "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=12 (C) cog=13 [cc]",
+      "message": "Complexity score: 60/100 (4 high-complexity functions)",
+      "text": "\u2022 axm_mcp/wrapping.py:_select_lock cc=14 (C) cog=19 [cc+cog]\n\u2022 axm_mcp/schema.py:_parse_numpy_params cc=10 (B) cog=17 [cog]\n\u2022 axm_mcp/cli.py:serve cc=12 (C) cog=13 [cc]\n\u2022 axm_mcp/mcp_app.py:_SessionContractMiddleware.__call__ cc=11 (C) cog=12 [cc]",
       "fix_hint": "Refactor complex functions into smaller units"
     },
     {
       "rule_id": "DEPS_HYGIENE",
-      "message": "3 dependency issue(s) found",
-      "text": "\u2022 DEP004 mkdocs_gen_files: misplaced dev dep\n\u2022 DEP003 pydantic: transitive dep\n\u2022 DEP003 pydantic: transitive dep",
+      "message": "4 dependency issue(s) found",
+      "text": "\u2022 DEP004 mkdocs_gen_files: misplaced dev dep\n\u2022 DEP003 pydantic: transitive dep\n\u2022 DEP003 pydantic: transitive dep\n\u2022 DEP003 mcp_types: transitive dep",
       "fix_hint": "Run: deptry . to see details"
     },
     {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "message": "2 source module(s) without tests",
+      "text": "\u2022 untested: session_paths.py tool_surface.py",
+      "fix_hint": "Create test files: tests_axm_mcp/test_session_paths.py, tests_axm_mcp/test_tool_surface.py"
+    },
+    {
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "message": "1 integration/e2e test(s) named after source modules",
+      "text": "\u2022 anti-mirror: tests_axm_mcp/integration/test_tool_surface.py",
+      "fix_hint": "tests_axm_mcp/integration/test_tool_surface.py \u2192 rename to test_<scenario>.py describing what the test verifies (scenario-named, not source-mirrored)"
+    },
+    {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
-      "message": "16 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
-      "text": "\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:107 axm_mcp._write_refusal (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:103 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_register_facade__session_contracts.py:70 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:72 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:85 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:98 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:104 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:203 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:349 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:378 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:353 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:382 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1029 axm_mcp._select_lock (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1039 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1086 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1087 axm_mcp._normalize_lock_key (function)",
+      "message": "20 private import(s) in tests/ \u2014 see docs/test_quality.md#private-imports",
+      "text": "\u2022 [import] tests_axm_mcp/integration/test_build_wrappers__session_paths.py:13 axm_mcp.wrapping._SyncWrapper (class)\n\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:108 axm_mcp._write_refusal (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_mcp_app__session_contracts.py:103 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/integration/test_register_facade__session_contracts.py:70 axm_mcp._resolve_session_contract (function)\n\u2022 [import] tests_axm_mcp/integration/test_resolve_session_contract__stateless_http.py:8 axm_mcp.mcp_app._resolve_session_contract (function)\n\u2022 [import] tests_axm_mcp/integration/test_resolve_session_contract__stateless_http.py:8 axm_mcp.mcp_app._SessionContractMiddleware (class)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:72 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:85 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:98 axm_mcp._on_session_start (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:104 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:203 axm_mcp._on_session_end (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:349 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:378 axm_mcp._register_direct (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:353 axm_mcp._resolve_session_contract (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_mcp_app.py:382 axm_mcp._resolve_session_contract (function)\n\u2022 [import] tests_axm_mcp/unit/test_scoped.py:11 axm_mcp.scoped._result (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1036 axm_mcp._select_lock (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1046 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1093 axm_mcp._normalize_lock_key (function)\n\u2022 [attribute] tests_axm_mcp/unit/test_wrapping.py:1094 axm_mcp._normalize_lock_key (function)",
       "fix_hint": "Re-export the symbol publicly or test via the public API"
     }
   ]

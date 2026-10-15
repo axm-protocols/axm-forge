@@ -1,12 +1,17 @@
 {
-  "score": 98.2,
+  "score": 96.5,
   "grade": "A",
   "passed": [
     "ARCH_CIRCULAR: 0 circular import(s) found",
     "ARCH_GOD_CLASS: 0 god class(es) found",
     "ARCH_COUPLING: Coupling: 1 module(s) above threshold (-3 pts)",
     "ARCH_DUPLICATION: 0 duplicate block(s) found",
-    "QUALITY_COMPLEXITY: Complexity score: 100/100 (0 high-complexity functions)",
+    {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "text": "\u2022 axm_vault/doctor.py:doctor_data cc=10 (B) cog=17 [cog]",
+      "fix_hint": "Refactor complex functions into smaller units"
+    },
     "QUALITY_DEAD_CODE: No dead code detected.",
     "QUALITY_LINT: Lint score: 100/100 (0 issues)",
     "QUALITY_FORMAT: Format score: 100/100 (0 unformatted)",
@@ -14,7 +19,6 @@
     "DEPS_AUDIT: No known vulnerabilities",
     "DEPS_HYGIENE: 1 dependency issue(s) found",
     "QUALITY_TYPE: Type score: 100/100 (0 errors)",
-    "PRACTICE_TEST_MIRROR: All source modules have test files",
     "PRACTICE_TEST_SCENARIO_NAMING: No anti-mirror naming violations",
     "PRACTICE_BARE_EXCEPT: 0 bare except(s) found",
     "PRACTICE_BLOCKING_IO: 0 blocking-IO violation(s) found",
@@ -66,6 +70,12 @@
       "message": "Test coverage: 90% (89/100)",
       "text": "\u2022 cov 90% \u2192 100%",
       "fix_hint": "Increase test coverage to >= 90%"
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "message": "2 orphan test(s)",
+      "text": "\u2022 orphan: tests_axm_vault/unit/test_doctor_auth.py tests_axm_vault/unit/test_doctor_auth_cli.py",
+      "fix_hint": "tests_axm_vault/unit/test_doctor_auth.py \u2192 rename to test_doctor.py or merge into tests_axm_vault/unit/test_doctor.py; tests_axm_vault/unit/test_doctor_auth_cli.py \u2192 delete or rename to a real source module"
     },
     {
       "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
