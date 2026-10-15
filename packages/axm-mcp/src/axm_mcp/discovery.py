@@ -217,6 +217,8 @@ def register_one(  # type: ignore[explicit-any]
             shared_mode=shared_mode,
             write_contract_resolver=write_contract_resolver,
         )
+    # Schema titles must identify the registered tool, not the transport closure.
+    wrapper.__name__ = name
     apply_signature(wrapper, exec_fn, override_module)
 
     # Register AFTER setting the signature so MCPServer sees it.

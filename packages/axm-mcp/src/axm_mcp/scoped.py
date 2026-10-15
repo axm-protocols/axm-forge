@@ -142,6 +142,50 @@ def _facade_tools() -> list[Tool]:
     ]
 
 
+def _backend_output_schema(*, tool_result: bool) -> dict[str, object]:
+    """Describe the preserved backend payload, not MCPServer's return wrapper.
+
+    AXMTool results have a flattened, strict boolean success envelope. A plain
+    dispatcher owns its dictionary and need not declare that envelope. Payload
+    fields remain open because AXMTool does not declare an output data model.
+    """
+    schema: dict[str, object] = {
+        "type": "object",
+        "properties": {"success": {"type": "boolean"}},
+        "additionalProperties": True,
+    }
+    if tool_result:
+        schema["required"] = ["success"]
+    return schema
+
+
+def _backend_result(wrapped: object, *, tool_result: bool) -> CallToolResult:
+    """Validate and render the exact backend contract advertised by tools/list."""
+    if not isinstance(wrapped, dict) or (
+        (tool_result or "success" in wrapped)
+        and not isinstance(wrapped.get("success"), bool)
+    ):
+        return _result(
+            ToolResult(
+                success=False,
+                error="malformed backend result: success must be a boolean",
+            )
+        )
+    Draft202012Validator(_backend_output_schema(tool_result=tool_result)).validate(
+        wrapped
+    )
+    failed = wrapped.get("success") is False
+    text = wrapped.get("text") if tool_result else None
+    content = text if isinstance(text, str) else json.dumps(wrapped)
+    if failed and isinstance(text, str) and wrapped.get("error"):
+        content = f"{wrapped['error']}\n\n{text}"
+    return CallToolResult(
+        content=[TextContent(type="text", text=content)],
+        structured_content=wrapped,
+        is_error=failed,
+    )
+
+
 class _ScopedCatalog:
     def __init__(
         self,
@@ -155,6 +199,11 @@ class _ScopedCatalog:
         self.definitions = dict(definitions)
         self.invoke = invoke
         self.contract = contract
+        self.result_tools = frozenset(
+            name
+            for name, tool in business.items()
+            if not (callable(tool) and not hasattr(tool, "execute"))
+        )
         self.business = ToolCatalog(
             business,
             shared_mode=True,
@@ -180,7 +229,16 @@ class _ScopedCatalog:
 
     async def tools(self) -> list[Tool]:
         return [
-            *await self.schema_server.list_tools(),
+            *(
+                tool.model_copy(
+                    update={
+                        "output_schema": _backend_output_schema(
+                            tool_result=tool.name in self.result_tools
+                        )
+                    }
+                )
+                for tool in await self.schema_server.list_tools()
+            ),
             *(
                 Tool(
                     name=definition.name,
@@ -219,18 +277,7 @@ class _ScopedCatalog:
         tool = self.business._get(name)
         arguments = self.business._bind_check(tool, arguments, name)
         wrapped = await self.wrappers[name](**arguments)
-        if isinstance(wrapped, str) or not isinstance(wrapped.get("success"), bool):
-            return _result(
-                ToolResult(
-                    success=False,
-                    error="malformed backend result: success must be a boolean",
-                )
-            )
-        return CallToolResult(
-            content=[TextContent(type="text", text=json.dumps(wrapped))],
-            structured_content=wrapped,
-            is_error=wrapped.get("success") is False,
-        )
+        return _backend_result(wrapped, tool_result=name in self.result_tools)
 
     async def facade(self, name: str, args: dict[str, object]) -> CallToolResult:
         schemas = {tool.name: tool.input_schema for tool in _facade_tools()}

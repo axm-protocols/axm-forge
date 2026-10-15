@@ -502,11 +502,11 @@ def test_retained_service_handle_intersects_both_live_body_authorities(
     [
         ("bare text without envelope", True),
         ({"success": 1}, True),
-        ({"value": "missing success"}, True),
+        ({"value": "plain dictionary without envelope"}, False),
         ({"success": True, "value": "valid"}, False),
     ],
 )
-def test_plain_backend_result_requires_a_boolean_structural_envelope(
+def test_plain_backend_success_is_strictly_boolean_when_present(
     tmp_path, payload, failed
 ):
     def backend(**kwargs):

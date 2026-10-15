@@ -93,6 +93,7 @@ class _AsyncWrapper(Protocol):
     """
 
     __doc__: str | None
+    __name__: str
 
     def __call__(self, **kwargs: object) -> Awaitable[_WrapperResult]: ...
 
