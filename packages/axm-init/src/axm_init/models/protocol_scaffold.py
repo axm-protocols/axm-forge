@@ -12,7 +12,9 @@ __all__ = [
     "PhaseDecl",
     "PromptDecl",
     "ProtocolScaffoldDecl",
+    "ProtocolUnitDecl",
     "TicketDecl",
+    "UnitTicketDecl",
 ]
 
 
@@ -100,6 +102,39 @@ class TicketDecl(_StrictDecl):  # type: ignore[explicit-any]
     input_contract: Segment
 
 
+class UnitTicketDecl(TicketDecl):  # type: ignore[explicit-any]
+    """Bind an independently named shared ticket to its entry action."""
+
+    entry_action: Segment
+
+
+class ProtocolUnitDecl(_StrictDecl):  # type: ignore[explicit-any]
+    """Declare the shared input contracts and single ticket for one unit."""
+
+    domain: Segment
+    unit: Segment
+    contracts: list[ContractDecl]
+    ticket: UnitTicketDecl
+
+    @property
+    def graph_name(self) -> str:
+        return ".".join((self.domain, self.unit, self.ticket.entry_action))
+
+    @model_validator(mode="after")
+    def _validate_binding(self) -> Self:
+        names = [contract.name for contract in self.contracts]
+        models = [contract.model_name for contract in self.contracts]
+        if len(names) != len(set(names)) or len(models) != len(set(models)):
+            raise ValueError("shared contract names and public models must be unique")
+        if self.ticket.input_contract not in names:
+            raise ValueError(
+                "unit ticket input_contract must reference a shared contract"
+            )
+        if self.ticket.ticket_type == self.graph_name:
+            raise ValueError("shared ticket_type must be distinct from its entry graph")
+        return self
+
+
 class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
     """Validate a complete protocol declaration and its component references."""
 
@@ -111,6 +146,7 @@ class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
     prompts: list[PromptDecl] = Field(default_factory=list)
     phases: list[PhaseDecl] = Field(default_factory=list)
     ticket: TicketDecl | None = None
+    unit_ticket: QualifiedName | None = None
 
     @property
     def graph_name(self) -> str:
@@ -168,6 +204,8 @@ class ProtocolScaffoldDecl(_StrictDecl):  # type: ignore[explicit-any]
         self._validate_phase_references()
 
     def _validate_ticket_binding(self) -> None:
+        if self.ticket is not None and self.unit_ticket is not None:
+            raise ValueError("local ticket and unit_ticket are mutually exclusive")
         if self.ticket is None:
             return
         declared_contracts = {contract.name for contract in self.contracts}

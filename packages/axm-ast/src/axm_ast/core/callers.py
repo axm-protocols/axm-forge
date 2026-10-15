@@ -152,9 +152,13 @@ def _extract_ref_name(node: Node) -> str | None:
     - ``identifier`` nodes → return the identifier text.
     - ``attribute`` nodes (e.g. ``self._method``) → return the last
       identifier segment (the attribute name).
+    - ``subscript`` nodes → inspect their value, e.g. ``Base[T]`` → ``Base``.
     - Everything else → ``None``.
     """
     node_type = node.type
+    if node_type == "subscript":
+        value = node.child_by_field_name("value")
+        return _extract_ref_name(value) if value is not None else None
     if node_type == "identifier":
         return node_text_safe(node) or None
     if node_type == "attribute":

@@ -16,6 +16,8 @@ classifiers = [
 
 dependencies = [
     "cyclopts>=4.21.0",
+    "packaging>=24.2",
+    "jsonschema>=4.26",
 ]
 
 [project.optional-dependencies]

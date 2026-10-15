@@ -12,13 +12,8 @@ classifiers = [
     {%- endif %}
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    {%- if license == "Apache-2.0" %}
-    "License :: OSI Approved :: Apache Software License",
-    {%- elif license == "MIT" %}
-    "License :: OSI Approved :: MIT License",
-    {%- elif license == "EUPL-1.2" %}
-    "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
-    {%- endif %}
+    {#- No `License ::` classifier: `license` is a PEP 639 SPDX expression, and
+        PEP 639 forbids pairing it with license classifiers. #}
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -28,10 +23,10 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/{{ org }}/{{ workspace_name }}"
-Documentation = "https://{{ org }}.github.io/{{ workspace_name }}/"
-Repository = "https://github.com/{{ org }}/{{ workspace_name }}.git"
-Issues = "https://github.com/{{ org }}/{{ workspace_name }}/issues"
+Homepage = "https://github.com/{{ repository }}"
+Documentation = "{{ docs_url }}"
+Repository = "https://github.com/{{ repository }}.git"
+Issues = "https://github.com/{{ repository }}/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

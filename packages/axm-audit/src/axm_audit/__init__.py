@@ -21,6 +21,7 @@ Example:
 
 from axm_audit._version import __version__
 from axm_audit.core.auditor import audit_project, get_rules_for_category
+from axm_audit.core.readiness import validation_readiness
 from axm_audit.models import AuditResult, CheckResult, Severity
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "__version__",
     "audit_project",
     "get_rules_for_category",
+    "validation_readiness",
 ]

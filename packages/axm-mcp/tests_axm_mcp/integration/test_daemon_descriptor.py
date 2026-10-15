@@ -30,16 +30,15 @@ def test_declared_probe_url_is_a_route_the_server_answers(
     from urllib.parse import urlsplit
 
     from axm_mcp.daemon import daemon_descriptor
-    from axm_mcp.mcp_app import mcp
+    from axm_mcp.server import mcp
 
     service = next(iter(daemon_descriptor().values()))
     probe = service["probe"]
     assert isinstance(probe, Mapping)
     declared = urlsplit(str(probe["url"])).path
 
-    #: Importing `server` is what registers the route on the shared instance:
-    #: the decorator runs at import time.
-    importlib.import_module("axm_mcp.server")
+    #: Inspect the instance actually served. Unit tests may reload mcp_app;
+    #: that replacement is not the instance retained by the server module.
     served = {
         getattr(route, "path", None) for route in mcp.streamable_http_app().routes
     }

@@ -83,7 +83,7 @@ class _CoverageMetrics:
             coverage_pct=coverage_pct,
             score=int(coverage_pct),
             has_failures=has_failures,
-            passed=coverage_pct >= effective and not has_failures,
+            passed=coverage_pct >= effective and bool(report.verdict),
             total_fails=report.failed + report.errors,
             failures=[
                 {"test": f.test, "traceback": f.message} for f in report.failures or []
@@ -100,7 +100,12 @@ class TestCoverageRule(ProjectRule):
     Pass threshold: 90%.
     """
 
+    runs_tests = True
     min_coverage: float = 90.0
+
+    def check_measured(self, project_path: Path, report: TestReport) -> CheckResult:
+        """Apply the ordinary rule to a previously measured test report."""
+        return self._report_to_result(report, read_coverage_config(project_path))
 
     @property
     def rule_id(self) -> str:

@@ -39,7 +39,29 @@ limits and the current override/quick-mode caveats.
 
 Python subprocess checks use `run_in_project` where implemented.
 It resolves the nearest project environment and optionally requests runtime
-packages with uv. Type checking uses the project's own mypy.
+packages with uv. The runner uses `--no-sync`: validation never synchronises
+project dependencies, changes the target venv, or writes its lock. Reporting
+reporting belongs to the runner, which ships its own single-module pytest
+plugin (`axm_audit._report_plugin`, standard library and pytest hooks only). It
+is loaded into the target's pytest with `-p` and its directory on the
+subprocess `PYTHONPATH`, so any interpreter that has pytest (7.0 or later)
+works and nothing is installed in it, including under a declared session
+runtime where uv is never invoked. A tested package need not declare any
+reporting plugin. Coverage (`pytest-cov`) is the only optional capability: it
+is overlaid through a disposable uv overlay where uv resolves the environment,
+and otherwise probed; a target without it still runs its tests and the report
+carries `coverage_unavailable` with the reason instead of failing on pytest's
+usage error. A target interpreter without pytest, or with a pytest older than
+7.0, raises `PytestEnvironmentError` naming the interpreter and what is missing. Candidate worktrees retain their candidate source overlay and source
+checkout interpreter while receiving the same reporting dependencies.
+Type checking uses the project's own mypy.
+
+`validation_readiness` shares `build_pytest_cmd` / `run_pytest` with
+`audit_test`. It adds collection-only mode without inventing another pytest
+argv. Lint and type admission share their gate command builders and execution
+policies; code findings are runnable, collection/configuration/environment
+errors are not. It uses the gate timeouts, rather than a shorter admission
+budget that could reject an otherwise runnable project.
 Its default timeout is 300 seconds; pytest/coverage uses 900 seconds.
 On timeout the shared runner kills the process group and returns exit 124,
 or re-raises under `check=True`.

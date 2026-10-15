@@ -29,8 +29,9 @@ overrides that resolution verbatim. For several processes, run them under
 distinct `AXM_PROFILE` values — they then pick distinct ports and PID files
 on their own; see [configuration](../reference/configuration.md).
 
-Dedicated HTTP can serve multiple clients, but it does not require a separate
-write contract from each. For cooperative per-session scopes, use the
+Dedicated HTTP can serve multiple clients. Configure them without an
+`X-AXM-Write-Contract` header: this mode rejects any request carrying one with
+HTTP 403. For cooperative per-session scopes, use the
 [shared-policy setup](../reference/shared-contracts.md), including its
 current limitations.
 
@@ -59,6 +60,14 @@ a stdio command definition cannot simply be reused as an HTTP definition.
 
 Reconnect and call `list_tools`, then make the read-only call from the
 [Quick Start](../tutorials/quickstart.md#step-3-make-a-read-only-call).
+
+For a shared server, configure the client to send a valid
+`X-AXM-Write-Contract` on `initialize`. That request has no `Mcp-Session-Id`;
+the server binds the contract to the ID in its response. Send that ID on later
+requests. You can omit the contract header on those requests; writes remain
+restricted to its declared prefixes. See the required JSON shape in
+[Shared write contracts](../reference/shared-contracts.md).
+
 Always pass explicit absolute paths. The server does not adopt a different
 working directory for each conversation; implicit paths may only produce a
 warning, rather than being rejected.
@@ -89,7 +98,9 @@ matching profile. If you installed launchd, use `axm-mcp uninstall`;
 | Connection refused | Foreground server logs, bind host, explicit port and the client's URL |
 | Address already in use | Select another port and use it consistently in serve/status/client configuration |
 | Missing tools | Installed environment, disabled patterns and entry-point loading logs |
-| Unbound session in shared mode | MCP session ID and valid contract header; discovery alone does not bind a contract |
+| HTTP 400 for a shared write contract | Send valid JSON with `execution_root`, `allowed_prefixes` and `markdown_only_prefixes` in the required shapes |
+| HTTP 403 for a dedicated write contract | Remove `X-AXM-Write-Contract` from every request, including `initialize`, or start in shared mode |
+| Unbound session in shared mode | Send a valid contract on `initialize` or on a later request with the returned session ID; discovery alone does not bind a contract |
 | PermissionError on macOS | Filesystem permissions and system privacy settings for the actual service process |
 | High CPU or stalled tool | Identify the responsible process/call first; stopping HTTP does not stop unrelated stdio children |
 

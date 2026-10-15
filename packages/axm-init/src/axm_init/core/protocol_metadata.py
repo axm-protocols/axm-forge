@@ -32,6 +32,8 @@ def _protocol_table(declaration: ProtocolScaffoldDecl) -> Table:
     if declaration.ticket is not None:
         protocol["ticket_type"] = declaration.ticket.ticket_type
         protocol["input_contract"] = declaration.ticket.input_contract
+    if declaration.unit_ticket is not None:
+        protocol["unit_ticket"] = declaration.unit_ticket
     return protocol
 
 
@@ -40,6 +42,12 @@ def _find_table(items: AoT, key: str, value: str) -> tuple[int, Table] | None:
         if item.get(key) == value:
             return index, item
     return None
+
+
+def _same_binding(current: Table, desired: Table) -> bool:
+    return set(current.keys()) == set(desired.keys()) and all(
+        current.get(key) == value for key, value in desired.items() if key != "state"
+    )
 
 
 def merge_protocol_metadata(
@@ -52,7 +60,7 @@ def merge_protocol_metadata(
     axm_init = table_at(tool, "axm-init")
     profile = table_at(axm_init, "protocols")
 
-    profile["schema_version"] = 1
+    profile["schema_version"] = max(1, int(profile.get("schema_version", 1)))
     profile["domain"] = declaration.domain
 
     units = _array_of_tables_at(profile, "units")
@@ -72,6 +80,8 @@ def merge_protocol_metadata(
         protocols.append(desired)
     else:
         index, current = protocol_match
+        if current.get("state") == "ready" and _same_binding(current, desired):
+            desired["state"] = "ready"
         if dumps(current) == dumps(desired):
             return metadata
         protocols[index] = desired

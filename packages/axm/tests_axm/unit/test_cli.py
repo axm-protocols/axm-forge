@@ -21,11 +21,12 @@ from axm.cli import (
 )
 from axm.tools.base import ToolResult
 
-_EP = "axm.tools._discovery.importlib.metadata.entry_points"
+_EP = "axm.tools.discovery.importlib.metadata.entry_points"
 _EXIT_BAD_ARGS = 2
 _EXIT_TOOL_ERROR = 1
 _COMMANDS_GROUP = "axm.commands"
 _TOOLS_GROUP = "axm.tools"
+_TRIBUNAL_GROUP = "axm.tribunal.tools"
 
 
 # ── fakes ─────────────────────────────────────────────────────────────────────
@@ -46,6 +47,18 @@ class _AuditTool:
             category: Optional filter.
         """
         return ToolResult(success=True, data={"score": 90}, text=f"audit {path}: 90")
+
+
+class _LegacyAuditTool:
+    """Legacy homonym of ``audit`` that a tribunal publication must shadow."""
+
+    def execute(self, *, path: str = ".") -> ToolResult:
+        """Audit a project the legacy way.
+
+        Args:
+            path: Project root.
+        """
+        return ToolResult(success=True, text=f"legacy {path}")
 
 
 class _LocalJsonOutputTool:
@@ -196,20 +209,28 @@ class _RecursiveTextAliasTool:
 
 
 class _FakeEP:
-    def __init__(self, name: str, obj: object) -> None:
+    dist = None
+
+    def __init__(self, name: str, obj: object, group: str = _TOOLS_GROUP) -> None:
         self.name = name
         self._obj = obj
+        self.group = group
+        self.value = f"fake_pkg:{name}"
 
     def load(self) -> object:
         return self._obj
 
 
 def _eps(
-    *, commands: dict[str, object] | None = None, tools: dict[str, object] | None = None
+    *,
+    commands: dict[str, object] | None = None,
+    tools: dict[str, object] | None = None,
+    tribunal: dict[str, object] | None = None,
 ) -> Callable[..., list[_FakeEP]]:
     """Return a fake entry_points(group=...) function."""
     commands = commands or {}
     tools = tools or {}
+    tribunal = tribunal or {}
 
     def _fn(*, group: str | None = None, **_: Any) -> list[_FakeEP]:
         src = (
@@ -217,9 +238,11 @@ def _eps(
             if group == _COMMANDS_GROUP
             else tools
             if group == _TOOLS_GROUP
+            else tribunal
+            if group == _TRIBUNAL_GROUP
             else {}
         )
-        return [_FakeEP(n, o) for n, o in src.items()]
+        return [_FakeEP(n, o, group or "") for n, o in src.items()]
 
     return _fn
 
@@ -578,6 +601,38 @@ class TestMainDispatch:
         ):
             main()  # early return, no SystemExit
         assert __version__ in capsys.readouterr().out
+
+    def test_tribunal_tool_shadows_its_legacy_homonym(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with (
+            patch(
+                _EP,
+                _eps(tools={"audit": _LegacyAuditTool}, tribunal={"audit": _AuditTool}),
+            ),
+            patch("sys.argv", ["axm", "audit", "--path", "/t"]),
+        ):
+            _run_main_ok()
+        assert "audit /t: 90" in capsys.readouterr().out
+
+    def test_name_published_twice_in_one_group_exits_1(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def _fn(*, group: str | None = None, **_: Any) -> list[_FakeEP]:
+            if group != _TOOLS_GROUP:
+                return []
+            return [_FakeEP("audit", _AuditTool), _FakeEP("audit", _AuditTool)]
+
+        with (
+            patch(_EP, _fn),
+            patch("sys.argv", ["axm", "audit"]),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main()
+        assert exc.value.code == _EXIT_TOOL_ERROR
+        err = capsys.readouterr().err
+        assert "'audit' is published twice" in err
+        assert "Traceback (most recent call last)" not in err
 
     def test_legacy_command_is_ignored_during_dispatch(
         self, capsys: pytest.CaptureFixture[str]

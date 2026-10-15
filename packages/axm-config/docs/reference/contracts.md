@@ -9,6 +9,7 @@ every root export, plus the separately registered diagnostic tool.
 |---|---|
 | `get(namespace, key, *, default=None)` | Environment > selected file > supplied default. Environment values stay strings; file values retain TOML types. |
 | `get_file(namespace, key, *, default=None)` | Reads persisted/compatible file data without environment overrides. |
+| `get_file_namespace(namespace) -> dict[str, object]` | Complete effective persisted tree, including unknown keys and child tables, without business environment overrides. |
 | `set_(namespace, key, value)` | Writes a TOML-compatible value; `None` delegates to deletion. Unsupported TOML values may raise serialization errors. |
 | `delete(namespace, key)` | Removes a key; a legacy fold may occur even when the key is absent. |
 | `load(namespace, model)` | Resolves each model field name and calls Pydantic validation; unresolved fields are omitted. |
@@ -18,6 +19,32 @@ An existing empty environment string still wins. Resolution is not cached.
 A malformed/unreadable TOML file generally behaves like an empty store.
 See [persistence limits](../explanation/architecture.md) for the consequences
 on the next write and the parent-namespace deletion defect.
+
+### Complete persisted namespace snapshots
+
+`get_file_namespace` returns deeply independent mutable dictionaries and arrays,
+including empty child tables and unknown settings. This lets a consumer validate
+the whole persisted namespace and reject unexpected keys rather than silently
+discarding them through field-by-field loading. Unknown table names are literal
+data, not legacy filesystem paths. The function validates the public namespace
+using the same grammar and errors as `get_file`.
+
+For existing readable keys it preserves `get_file` priority: central own keys win
+without merging an ignored legacy parent; selected direct legacy dictionaries
+win before reconstructing child tables; sorted descendants replace conflicting
+intermediate values. Direct child legacy files such as `demo.extra_args.toml`
+are supported even though namespace enumeration excludes underscore stems.
+Execution-policy compatibility overlays and tombstones remain effective.
+
+Each call captures the selected profile path and central TOML once, inventories
+relevant legacy names once, and lazily parses each selected legacy file at most
+once. Ignored legacy files are not opened to discover their keys. The result is
+a coherent per-call captured view, **not an atomic multi-file transaction**:
+concurrent edits to different legacy files can still be observed at different
+times. No files or directories are created, migrated or written. Profile and
+sandbox selection, unsafe-home/path guards, and malformed/unreadable-file
+fallbacks remain active. Business `AXM_<NAMESPACE>_<KEY>` overrides are excluded;
+`AXM_PROFILE` still selects the persisted profile.
 
 ### Names and environment mapping
 

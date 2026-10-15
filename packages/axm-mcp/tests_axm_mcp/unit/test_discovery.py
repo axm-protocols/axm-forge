@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pydantic
 import pytest
 from axm.tools.base import ToolResult
+from axm.tools.discovery import DuplicateToolError
 
 from axm_mcp.discovery import (
     discover_tools,
@@ -31,6 +32,13 @@ from axm_mcp.discovery import (
     register_tools,
 )
 from tests_axm_mcp.unit._helpers import _DISCOVER, FakeMCP
+
+
+@pytest.fixture(autouse=True)
+def _legacy_catalog_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These legacy entry-point fakes intentionally contain no UI providers."""
+    monkeypatch.setattr("axm.tools.discovery.declarative_tool_references", lambda: {})
+
 
 # ─────────────────────────────── disable patterns ────────────────────────────
 
@@ -100,7 +108,7 @@ def _mock_entry_points(group: str) -> list[_FakeEntryPoint]:
 class TestDiscoverToolsFiltering:
     """Integration tests for discover_tools with AXM_DISABLE_TOOLS."""
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_no_env_var_discovers_all(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without AXM_DISABLE_TOOLS, all tools are discovered."""
         monkeypatch.delenv("AXM_DISABLE_TOOLS", raising=False)
@@ -109,7 +117,7 @@ class TestDiscoverToolsFiltering:
         assert "ast_context" in tools
         assert "bib_search" in tools
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_exact_name_excludes_tool(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Exact name excludes a single tool."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", "ast_dead_code")
@@ -118,7 +126,7 @@ class TestDiscoverToolsFiltering:
         assert "ast_context" in tools
         assert len(tools) == 5
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_glob_pattern_excludes_group(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Glob pattern excludes an entire tool group."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", "bib_*")
@@ -128,7 +136,7 @@ class TestDiscoverToolsFiltering:
         assert "ast_context" in tools
         assert len(tools) == 4
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_multiple_patterns(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Multiple patterns (glob + exact) combine correctly."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", "bib_*,ast_dead_code")
@@ -140,14 +148,14 @@ class TestDiscoverToolsFiltering:
         assert "git_commit" in tools
         assert len(tools) == 3
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_empty_string_discovers_all(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Empty string means no filtering."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", "")
         tools = discover_tools()
         assert len(tools) == 6
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_whitespace_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Whitespace around patterns is stripped."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", " bib_* , ast_dead_code ")
@@ -156,14 +164,14 @@ class TestDiscoverToolsFiltering:
         assert "ast_dead_code" not in tools
         assert len(tools) == 3
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_wildcard_disables_all(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Wildcard '*' disables all tools."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", "*")
         tools = discover_tools()
         assert len(tools) == 0
 
-    @patch("axm_mcp.discovery.importlib.metadata.entry_points", _mock_entry_points)
+    @patch("importlib.metadata.entry_points", _mock_entry_points)
     def test_consecutive_commas_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Consecutive commas produce empty strings that are ignored."""
         monkeypatch.setenv("AXM_DISABLE_TOOLS", "bib_*,,ast_dead_code")
@@ -268,6 +276,38 @@ class TestToolDiscovery:
         mock_eps.return_value = []
         tools = discover_tools()
         assert tools == {}
+
+
+class TestToolGroupResolution:
+    """The catalog resolves names through the shared tribunal-first resolver."""
+
+    @staticmethod
+    def _by_group(
+        groups: dict[str, list[MagicMock]],
+    ) -> Any:
+        def _fn(*, group: str) -> list[MagicMock]:
+            return groups.get(group, [])
+
+        return _fn
+
+    def test_tribunal_tool_shadows_legacy_homonym(self) -> None:
+        tribunal = _make_bib_ep("graph_run")
+        legacy = _make_bib_ep("graph_run")
+        groups = {"axm.tribunal.tools": [tribunal], "axm.tools": [legacy]}
+        with patch(_DISCOVER, self._by_group(groups)):
+            tools = discover_tools()
+        assert list(tools) == ["graph_run"]
+        tribunal.load.assert_called_once()
+        legacy.load.assert_not_called()
+
+    def test_name_twice_in_one_group_refuses_the_catalog(self) -> None:
+        first, second = _make_bib_ep("audit"), _make_bib_ep("audit")
+        first.dist.name, second.dist.name = "pkg-b", "pkg-a"
+        with (
+            patch(_DISCOVER, self._by_group({"axm.tools": [first, second]})),
+            pytest.raises(DuplicateToolError, match="'pkg-a' and by 'pkg-b'"),
+        ):
+            discover_tools()
 
 
 class TestMCPRegistration:

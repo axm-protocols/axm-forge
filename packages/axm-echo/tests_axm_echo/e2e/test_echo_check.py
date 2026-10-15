@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -59,7 +60,7 @@ def test_cli_echo_check(tmp_path: Path) -> None:
     env = {**os.environ, "HOME": str(home)}
     proc = subprocess.run(
         [
-            "axm",
+            str(Path(sys.executable).parent / "axm"),
             "echo_check",
             "--intention",
             "Perform an HTTP request, retrying with backoff on transient errors",

@@ -35,6 +35,10 @@ keeps the active-profile behaviour unchanged. The containment guard then applies
 to the *requested* profile's root, and the `ConfigError` names that profile.
 `get_path(key, default, *, profile=...)` takes the same keyword.
 
+While a session sandbox is active (`AXM_SANDBOX_ROOT` set), the six state paths
+above, all except `warden_binary_path`, resolve under the sandbox root and
+follow a dedicated precedence; see [session sandbox](sandbox.md).
+
 The `protocols_dir` accessor remains a compatibility path setting. Its presence
 does not restore the decommissioned YAML engine or removed hooks.
 

@@ -34,10 +34,12 @@ nav:
       - Load a consumer config: howto/load-a-consumer-config.md
       - Profiles and isolation: howto/profiles.md
       - Execution policies: howto/execution-policies.md
+      - Isolate test sessions: howto/isolate-test-sessions.md
   - Reference:
       - CLI and tools: reference/cli.md
       - Python contracts: reference/contracts.md
       - Runtime settings: reference/runtime-settings.md
+      - Session sandbox: reference/sandbox.md
       - Python API: reference/api.md
   - Explanation:
       - Architecture and persistence: explanation/architecture.md

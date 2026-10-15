@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from axm_init.adapters.copier import CopierAdapter, CopierConfig
-from axm_init.core import build_member_data
+from axm_init.core import WorkspaceIdentity, build_member_data
 from axm_init.core.templates import TemplateType, get_template_path
 
 
@@ -18,7 +18,7 @@ def generated_member(tmp_path: Path) -> Path:
     destination = tmp_path / "axm-sample"
     data = build_member_data(
         member_name="axm-sample",
-        workspace_name="axm-sample-workspace",
+        workspace="axm-sample-workspace",
         scaffold_data={
             "org": "axm-protocols",
             "author_name": "AXM Maintainer",
@@ -77,3 +77,118 @@ def test_generated_seed_test_documents_mirror_exemption(
     assert docstring
     assert "mirror" in docstring.casefold()
     assert "exempt" in docstring.casefold()
+
+
+_LONG_SUMMARY = (
+    "Judged-phase composition on axm-dag: typed verdicts, classified evaluators,"
+    " one feedback turn, waivers on replayed proof."
+)
+
+
+def _render_member(tmp_path: Path, description: str) -> tuple[bool, str, Path]:
+    destination = tmp_path / "axm-long"
+    data = build_member_data(
+        member_name="axm-long",
+        workspace="axm-long-workspace",
+        scaffold_data={
+            "org": "axm-protocols",
+            "author_name": "AXM Maintainer",
+            "author_email": "maintainer@example.com",
+            "license": "MIT",
+            "description": description,
+        },
+    )
+    result = CopierAdapter().copy(
+        CopierConfig(
+            template_path=get_template_path(TemplateType.MEMBER),
+            destination=destination,
+            data=data,
+            trust_template=True,
+        )
+    )
+    return result.success, result.message, destination
+
+
+@pytest.mark.integration
+def test_member_accepts_a_pep621_summary_longer_than_80_chars(
+    tmp_path: Path,
+) -> None:
+    """A one-line summary beyond 80 chars is kept whole and wrapped in the docstring."""
+    assert len(_LONG_SUMMARY) > 88
+    success, message, destination = _render_member(tmp_path, _LONG_SUMMARY)
+
+    assert success, message
+    with (destination / "pyproject.toml").open("rb") as stream:
+        assert tomllib.load(stream)["project"]["description"] == _LONG_SUMMARY
+    init = (destination / "src/axm_long/__init__.py").read_text()
+    docstring = ast.get_docstring(ast.parse(init))
+    assert docstring is not None
+    assert " ".join(docstring.split()) == f"axm-long. {_LONG_SUMMARY}"
+    assert max(len(line) for line in init.splitlines()) <= 88
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("description", ["two\nlines", "x" * 513])
+def test_member_refuses_a_summary_pypi_would_refuse(
+    tmp_path: Path, description: str
+) -> None:
+    """Multi-line or over-512-char summaries are invalid core-metadata Summaries."""
+    success, message, _ = _render_member(tmp_path, description)
+
+    assert not success
+    assert "Validation error for question 'description'" in message
+
+
+@pytest.mark.integration
+def test_member_urls_follow_the_workspace_repository(tmp_path: Path) -> None:
+    """Regression: URLs used the root project name (`axm-nexus-workspace`)."""
+    destination = tmp_path / "axm-tribunal"
+    identity = WorkspaceIdentity(
+        "axm-nexus-workspace",
+        "axm-protocols/axm-nexus",
+        "https://nexus.axm-protocols.io",
+    )
+    data = build_member_data(
+        "axm-tribunal",
+        identity,
+        {
+            "org": "axm-protocols",
+            "author_name": "AXM Maintainer",
+            "author_email": "maintainer@example.com",
+            "license": "Apache-2.0",
+        },
+    )
+    result = CopierAdapter().copy(
+        CopierConfig(
+            template_path=get_template_path(TemplateType.MEMBER),
+            destination=destination,
+            data=data,
+            trust_template=True,
+        )
+    )
+    assert result.success, result.message
+
+    with (destination / "pyproject.toml").open("rb") as stream:
+        urls = tomllib.load(stream)["project"]["urls"]
+    assert urls == {
+        "Homepage": "https://github.com/axm-protocols/axm-nexus",
+        "Documentation": "https://nexus.axm-protocols.io/axm-tribunal/",
+        "Repository": "https://github.com/axm-protocols/axm-nexus.git",
+        "Issues": "https://github.com/axm-protocols/axm-nexus/issues",
+    }
+    rendered = (destination / "README.md").read_text() + (
+        destination / "docs/index.md"
+    ).read_text()
+    assert "axm-nexus-workspace/" not in rendered
+    assert "axm-protocols/axm-nexus/gh-pages/badges/axm-tribunal" in rendered
+
+
+@pytest.mark.integration
+def test_generated_member_license_is_pep639_only(generated_member: Path) -> None:
+    """Regression: an SPDX `license` is never paired with `License ::` classifiers."""
+    with (generated_member / "pyproject.toml").open("rb") as stream:
+        project = tomllib.load(stream)["project"]
+
+    assert project["license"] == "MIT"
+    assert not [c for c in project["classifiers"] if c.startswith("License ::")]
+    assert "Intended Audience :: Developers" in project["classifiers"]

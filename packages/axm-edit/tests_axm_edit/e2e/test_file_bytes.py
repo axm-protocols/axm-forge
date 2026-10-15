@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,12 @@ def test_axm_file_bytes_cli_reports_verdict_and_sha256(tmp_path: Path) -> None:
     expected_sha = hashlib.sha256(payload).hexdigest()
 
     completed = subprocess.run(
-        ["axm", "file_bytes", "--path", str(target)],
+        [
+            str(Path(sys.executable).parent / "axm"),
+            "file_bytes",
+            "--path",
+            str(target),
+        ],
         capture_output=True,
         text=True,
         timeout=120,

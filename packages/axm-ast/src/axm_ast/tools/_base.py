@@ -26,6 +26,15 @@ def safe_execute[**P](
     @functools.wraps(method)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> ToolResult:
         try:
+            from axm.tools.dependency_reads import current_read_contract
+            from axm.tools.write_scope import decide_write_access
+
+            tool_name = (
+                getattr(args[0], "name", "ast_unknown") if args else "ast_unknown"
+            )
+            decision = decide_write_access(current_read_contract(), tool_name, kwargs)
+            if not decision.allowed:
+                return ToolResult(success=False, error=decision.reason)
             return method(*args, **kwargs)
         except Exception as exc:
             tool_name = type(args[0]).__name__ if args else "<unknown>"

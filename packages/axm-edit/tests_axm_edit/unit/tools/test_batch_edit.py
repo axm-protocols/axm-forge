@@ -7,6 +7,7 @@ from pathlib import Path
 from pytest_mock import MockerFixture
 
 from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
+from axm_edit.core.operation_shapes import OPERATION_SHAPES_HINT
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -92,7 +93,8 @@ class TestRenderText:
             ReplaceOp(file="a.py", edits=[Edit(old="NOPE", new="y")]),
         ]
         text = render_text(result, parsed, {})
-        assert "✗ ROLLBACK" in text
+        assert "✗ REFUSED" in text
+        assert "ROLLBACK" not in text
         assert "Validation failed" in text
         assert "a.py: Content not found" in text
         assert "expected: NOPE" in text
@@ -118,6 +120,58 @@ class TestRenderText:
         assert "⚠ ruff slow" in text
         assert "lintme.py [F401]" in text
         assert "-import os" in text
+
+
+class TestFailureLabel:
+    """The failure header names what happened to the tree."""
+
+    def test_rolled_back_apply_is_labelled_rollback(self) -> None:
+        """A checkpoint restored in full: ROLLBACK, no partial-write alert."""
+        result = BatchResult(
+            success=False, checkpoint="{}", error="Apply aborted and rolled back"
+        )
+
+        text = render_text(result, [], {})
+
+        assert text.startswith("batch_edit | ✗ ROLLBACK | "), text
+        assert "rollback incomplete" not in text
+
+    def test_failed_rollback_is_labelled_and_alerted(self) -> None:
+        """An incomplete restore is named and tells how to recover."""
+        result = BatchResult(
+            success=False,
+            checkpoint="{}",
+            error="Apply aborted and rolled back",
+            rollback_failed=True,
+        )
+
+        text = render_text(result, [], {})
+
+        assert text.startswith("batch_edit | ✗ ROLLBACK FAILED | "), text
+        assert "rollback incomplete" in text
+        assert "batch_rollback" in text
+
+    def test_failed_rollback_reaches_the_payload(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """Agents reading data, not text, also learn of partial writes."""
+        (tmp_path / "a.txt").write_text("x\n", encoding="utf-8")
+        mocker.patch(
+            "axm_edit.tools.batch_edit.batch_apply",
+            return_value=BatchResult(
+                success=False, checkpoint="{}", error="boom", rollback_failed=True
+            ),
+        )
+
+        result = BatchEditTool().execute(
+            path=str(tmp_path),
+            operations=[
+                {"op": "replace", "file": "a.txt", "edits": [{"old": "x", "new": "y"}]}
+            ],
+        )
+
+        assert result.data is not None
+        assert result.data["rollback_failed"] is True
 
 
 class TestImportRemovalAlert:
@@ -400,8 +454,8 @@ class TestRenderRewriteOpLine:
 
 
 ANCHOR_RULE_MARKERS = (
-    "triple quote",
     "trailing newline",
+    "syntax gate",
     "whole line",
     "indentation",
 )
@@ -416,12 +470,29 @@ class TestAgentHintPublishesTheAnchorContract:
 
         assert ANCHOR_RULES_HINT in hint, hint
 
-    def test_hint_states_the_four_anchor_rules(self) -> None:
-        """AC2: the published hint carries the four rule markers."""
+    def test_hint_states_the_anchor_contract(self) -> None:
+        """AC2: the published hint carries the contract markers."""
         lowered = BatchEditTool().agent_hint.lower()
         missing = [marker for marker in ANCHOR_RULE_MARKERS if marker not in lowered]
 
         assert not missing, f"missing rule markers: {missing}"
+
+
+class TestOperationShapesArePublished:
+    """Both published texts carry the operation shapes."""
+
+    def test_hint_embeds_the_shapes(self) -> None:
+        """The agent hint composes OPERATION_SHAPES_HINT."""
+        assert OPERATION_SHAPES_HINT in BatchEditTool().agent_hint
+
+    def test_execute_doc_embeds_every_shape_line(self) -> None:
+        """The MCP description (execute docstring) lists every shape line."""
+        doc = BatchEditTool.execute.__doc__ or ""
+        missing = [
+            line for line in OPERATION_SHAPES_HINT.splitlines() if line not in doc
+        ]
+
+        assert not missing, missing
 
 
 ENRICHED_ANCHOR_EXCERPT = "return VALUE"
@@ -437,9 +508,9 @@ def _blocked_preflight_data() -> dict[str, object]:
                     "severity": "error",
                     "file": "pkg/mod.py",
                     "op_index": 0,
-                    "code": "ANCHOR_TRIPLE_QUOTE",
-                    "message": "the anchor contains a triple-quote delimiter",
-                    "hint": "Anchor on a quote-free line instead.",
+                    "code": "ANCHOR_NOT_WHOLE_LINE",
+                    "message": "the multi-line anchor starts or ends mid-line",
+                    "hint": "Extend the anchor to full lines.",
                     "edit_index": 1,
                     "anchor_excerpt": ENRICHED_ANCHOR_EXCERPT,
                 },
@@ -470,7 +541,7 @@ class TestRenderPreflightEnrichment:
 
         text = render_text(result, [], _blocked_preflight_data())
         lines = [line.strip() for line in text.splitlines()]
-        enriched = [line for line in lines if "ANCHOR_TRIPLE_QUOTE" in line]
+        enriched = [line for line in lines if "ANCHOR_NOT_WHOLE_LINE" in line]
         legacy = [line for line in lines if "UNKNOWN_EDIT_KEY" in line]
 
         assert len(enriched) == 1, text

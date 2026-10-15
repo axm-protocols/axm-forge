@@ -3,8 +3,10 @@ from __future__ import annotations
 import ast
 import re
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -18,6 +20,14 @@ from axm_ast import (
     search_symbols,
 )
 
+from axm_init.checks._composition import (
+    COMPOSITION_CALLS,
+    GRAPH_GROUPS,
+    CompositionFamily,
+    family_named,
+    family_of_protocol_call,
+)
+from axm_init.checks._shared_ticket import shared_ticket_findings
 from axm_init.models.check import CheckResult
 
 __all__ = [
@@ -153,6 +163,7 @@ class ProtocolRecord:
     state: str
     location: str
     factory: str
+    family: str | None = None
     claims: list[tuple[str, str, str]] = dataclass_field(default_factory=list)
     registration_findings: list[str] = dataclass_field(default_factory=list)
     skeleton_findings: list[str] = dataclass_field(default_factory=list)
@@ -238,33 +249,65 @@ def _constant_claim(module: ModuleInfo, name: str) -> tuple[str, int] | None:
     return None
 
 
-def _graph_claim(module: ModuleInfo) -> tuple[str, int] | None:
-    """Prefer the factory's actual composition identity over a metadata constant."""
-    factory = _assembly_factory(module, _parse(module))
-    if factory is not None:
-        identity = _composition_identity(factory[1], _import_bindings(module))
-        if isinstance(identity, ast.Constant) and isinstance(identity.value, str):
-            return identity.value, identity.lineno
-    return _constant_claim(module, "GRAPH_NAME")
+def _module_composition(
+    module: ModuleInfo,
+) -> tuple[CompositionFamily, ast.Call] | None:
+    """Return the family and protocol call composing a module's factory."""
+    tree = _parse(module)
+    factory = _assembly_factory(module, tree)
+    if factory is None:
+        return None
+    return _composition_call(factory[1], _import_bindings(tree))
 
 
-def _record_claims(project: Path, module: ModuleInfo) -> list[tuple[str, str, str]]:
-    claims = []
-    for registry, constant in (
-        ("axm.graphs", "GRAPH_NAME"),
-        ("axm.ticket_types", "TICKET_TYPE"),
-    ):
-        expected_file = "protocol.py" if registry == "axm.graphs" else "ticket.py"
-        if module.path.name != expected_file:
-            continue
-        claim = (
-            _graph_claim(module)
-            if registry == "axm.graphs"
-            else _constant_claim(module, constant)
-        )
-        if claim is not None:
-            claims.append((registry, claim[0], _location(project, module, claim[1])))
-    return claims
+_UNATTRIBUTED_REGISTRY = "unattributed"
+"""Claim space of a bare ``GRAPH_NAME``: no composition call, no graph-group entry."""
+
+
+def _call_identity(call: ast.Call) -> tuple[str, int] | None:
+    identity = call.args[0] if call.args else None
+    if isinstance(identity, ast.Constant) and isinstance(identity.value, str):
+        return identity.value, identity.lineno
+    return None
+
+
+def _graph_claims(
+    module: ModuleInfo, groups_of: Callable[[str], list[str]]
+) -> list[tuple[str, str, int]]:
+    """Prefer the factory's actual composition identity over a metadata constant.
+
+    The claim lives in its family's graph group. An identity declared without a
+    resolvable composition call belongs to the family of every group that
+    registers it (*groups_of*), and to :data:`_UNATTRIBUTED_REGISTRY` when no
+    group does: it is never assumed to belong to one family.
+    """
+    composition = _module_composition(module)
+    called = None if composition is None else _call_identity(composition[1])
+    if composition is not None and called is not None:
+        return [(composition[0].graphs_group, *called)]
+    claim = _constant_claim(module, "GRAPH_NAME")
+    if claim is None:
+        return []
+    if composition is not None:
+        return [(composition[0].graphs_group, *claim)]
+    return [
+        (group, *claim) for group in groups_of(claim[0]) or [_UNATTRIBUTED_REGISTRY]
+    ]
+
+
+def _record_claims(
+    project: Path, module: ModuleInfo, groups_of: Callable[[str], list[str]]
+) -> list[tuple[str, str, str]]:
+    claims: list[tuple[str, str, int]] = []
+    if module.path.name == "protocol.py":
+        claims = _graph_claims(module, groups_of)
+    elif module.path.name == "ticket.py":
+        ticket = _constant_claim(module, "TICKET_TYPE")
+        claims = [] if ticket is None else [("axm.ticket_types", *ticket)]
+    return [
+        (registry, identity, _location(project, module, line))
+        for registry, identity, line in claims
+    ]
 
 
 def _state_location(text: str, unit: str, action: str) -> str:
@@ -288,37 +331,109 @@ def _has_factory_entry(
     )
 
 
-def _registration_findings(
+def _resolves_entry(
+    record: ProtocolRecord, entries: dict[str, object], modules: dict[str, ModuleInfo]
+) -> bool:
+    target = entries.get(record.graph_name)
+    return isinstance(target, str) and _resolve_factory(target, modules) == (
+        record.factory
+    )
+
+
+def _expected_groups(record: ProtocolRecord) -> tuple[str, ...]:
+    """Groups a record may be published under: its family's, else any family's."""
+    family = family_named(record.family)
+    return GRAPH_GROUPS if family is None else (family.graphs_group,)
+
+
+def _target_findings(
     record: ProtocolRecord,
-    entries: dict[str, object],
+    groups: dict[str, dict[str, object]],
     modules: dict[str, ModuleInfo],
     text: str,
 ) -> list[str]:
-    target = entries.get(record.graph_name)
-    resolved = _resolve_factory(target, modules) if isinstance(target, str) else None
-    registered = target is not None or _has_factory_entry(
-        record.factory, entries, modules
-    )
+    return [
+        _finding(
+            text,
+            str(entries[record.graph_name]),
+            f"target {entries[record.graph_name]!r} does not resolve to the "
+            "protocol factory",
+            f"use {record.factory}",
+        )
+        for entries in groups.values()
+        if record.graph_name in entries
+        and not _resolves_entry(record, entries, modules)
+    ]
+
+
+def _registration_findings(
+    record: ProtocolRecord,
+    groups: dict[str, dict[str, object]],
+    modules: dict[str, ModuleInfo],
+    text: str,
+) -> list[str]:
+    """Judge a record's registration across every recognised graph group."""
+    registered = _registered_groups(record, groups, modules)
+    findings = _state_findings(record, groups, modules, registered)
+    findings.extend(_family_findings(record, registered))
+    findings.extend(_target_findings(record, groups, modules, text))
+    return findings
+
+
+def _groups_registering(
+    identity: str,
+    factory: str,
+    groups: dict[str, dict[str, object]],
+    modules: dict[str, ModuleInfo],
+) -> list[str]:
+    """Graph groups with an entry named *identity* or targeting *factory*."""
+    return [
+        group
+        for group, entries in groups.items()
+        if identity in entries or _has_factory_entry(factory, entries, modules)
+    ]
+
+
+def _registered_groups(
+    record: ProtocolRecord,
+    groups: dict[str, dict[str, object]],
+    modules: dict[str, ModuleInfo],
+) -> list[str]:
+    return _groups_registering(record.graph_name, record.factory, groups, modules)
+
+
+def _family_findings(record: ProtocolRecord, registered: list[str]) -> list[str]:
+    """Report entries published under another composition family's group."""
+    expected = _expected_groups(record)
+    return [
+        f"{record.location}: {record.family} protocol {record.graph_name} is "
+        f"registered under {group}. Correction: move its entry to {expected[0]}."
+        for group in registered
+        if group not in expected
+    ]
+
+
+def _state_findings(
+    record: ProtocolRecord,
+    groups: dict[str, dict[str, object]],
+    modules: dict[str, ModuleInfo],
+    registered: list[str],
+) -> list[str]:
+    """Judge registration against the declared draft or ready state."""
+    expected = _expected_groups(record)
     findings = []
     if record.state == "draft" and registered:
         findings.append(
             f"{record.location}: draft protocol {record.graph_name} is registered. "
-            "Correction: remove its axm.graphs entry until ready."
+            f"Correction: remove its {' and '.join(registered)} entry until ready."
         )
-    if record.state == "ready" and resolved != record.factory:
+    if record.state == "ready" and not any(
+        _resolves_entry(record, groups[group], modules) for group in expected
+    ):
         findings.append(
             f"{record.location}: ready protocol {record.graph_name} "
             "lacks its factory registration. "
-            f"Correction: register {record.factory} under axm.graphs."
-        )
-    if target is not None and resolved != record.factory:
-        findings.append(
-            _finding(
-                text,
-                str(target),
-                f"target {target!r} does not resolve to the protocol factory",
-                f"use {record.factory}",
-            )
+            f"Correction: register {record.factory} under {' or '.join(expected)}."
         )
     return findings
 
@@ -337,16 +452,53 @@ def _skeleton_findings(project: Path, modules: list[ModuleInfo]) -> list[str]:
 
 
 def _inspect_record(
-    project: Path, action_root: Path, package: PackageInfo, record: ProtocolRecord
+    project: Path,
+    action_root: Path,
+    package: PackageInfo,
+    record: ProtocolRecord,
+    groups_of: Callable[[str], list[str]],
 ) -> None:
     inspected = [
         module for module in package.modules if module.path.is_relative_to(action_root)
     ]
+    assembly = next(
+        (m for m in inspected if m.path == action_root / "protocol.py"), None
+    )
+    composition = None if assembly is None else _module_composition(assembly)
+    record.family = None if composition is None else composition[0].name
     record.claims = [
-        claim for module in inspected for claim in _record_claims(project, module)
+        claim
+        for module in inspected
+        for claim in _record_claims(project, module, groups_of)
     ]
     if record.state == "ready":
         record.skeleton_findings = _skeleton_findings(project, inspected)
+
+
+def _inspect_shared_record(
+    project: Path, root: Path, package: PackageInfo, record: ProtocolRecord
+) -> None:
+    shared = next(
+        (module for module in package.modules if module.path == root / "ticket.py"),
+        None,
+    )
+    claim = None if shared is None else _constant_claim(shared, "TICKET_TYPE")
+    if claim is not None and shared is not None:
+        identity, line = claim
+        record.claims.append(
+            (
+                "axm.tribunal.ticket_types",
+                identity,
+                _location(project, shared, line),
+            )
+        )
+    if record.state == "ready":
+        contexts = [
+            module
+            for module in package.modules
+            if module.path.is_relative_to(root / "contracts")
+        ]
+        record.skeleton_findings.extend(_skeleton_findings(project, contexts))
 
 
 def protocol_inventory(project: Path) -> list[ProtocolRecord]:
@@ -358,7 +510,10 @@ def protocol_inventory(project: Path) -> list[ProtocolRecord]:
     text = (project / "pyproject.toml").read_text(encoding="utf-8")
     data = cast("dict[str, object]", tomllib.loads(text))
     profile = _nested(data, "tool", "axm-init", "protocols") or {}
-    entries = _nested(data, "project", "entry-points", "axm.graphs") or {}
+    groups = {
+        group: _nested(data, "project", "entry-points", group) or {}
+        for group in GRAPH_GROUPS
+    }
     modules = _module_index(root, package)
     records = []
     for unit, action, declaration in _declared_actions(
@@ -371,10 +526,23 @@ def protocol_inventory(project: Path) -> list[ProtocolRecord]:
             location=_state_location(text, unit, action),
             factory=f"{qualified}:build_protocol",
         )
-        _inspect_record(project, root / unit / action, package, record)
-        record.registration_findings = _registration_findings(
-            record, entries, modules, text
+        _inspect_record(
+            project,
+            root / unit / action,
+            package,
+            record,
+            partial(
+                _groups_registering,
+                factory=record.factory,
+                groups=groups,
+                modules=modules,
+            ),
         )
+        record.registration_findings = _registration_findings(
+            record, groups, modules, text
+        )
+        if declaration.get("unit_ticket") is not None:
+            _inspect_shared_record(project, root / unit, package, record)
         records.append(record)
     return records
 
@@ -918,7 +1086,7 @@ def _ticket_declarations(
     """Index action metadata and announcement locations by ticket path."""
     text = (project / "pyproject.toml").read_text(encoding="utf-8")
     profile = _nested(tomllib.loads(text), "tool", "axm-init", "protocols") or {}
-    return {
+    declarations = {
         (root / unit / action / "ticket.py").resolve(): (
             declaration,
             _ticket_announcement_line(text, unit, action),
@@ -927,6 +1095,10 @@ def _ticket_declarations(
             _tables(profile.get("units")) or []
         )
     }
+    for unit in _tables(profile.get("units")) or []:
+        if unit.get("ticket_type") and isinstance(unit.get("name"), str):
+            declarations[(root / str(unit["name"]) / "ticket.py").resolve()] = (unit, 1)
+    return declarations
 
 
 def _ticket_reference_findings(
@@ -1016,6 +1188,8 @@ def _ticket_findings(
             continue
         relative_path = path.relative_to(root.resolve())
         graph_name = ".".join((domain, *relative_path.parts[:-1]))
+        if len(relative_path.parts) == 2 and declaration.get("entry_action"):
+            graph_name += f".{declaration['entry_action']}"
         details.extend(
             _ticket_module_findings(project, module, declaration, graph_name)
         )
@@ -1026,6 +1200,25 @@ def check_protocol_ticket(project: Path) -> CheckResult:
     """Validate ticket presence and references without importing inspected code."""
     context = _protocol_package(project)
     details = [] if context is None else _ticket_findings(project, *context)
+    if context is not None:
+        data = cast(
+            "dict[str, object]",
+            tomllib.loads((project / "pyproject.toml").read_text(encoding="utf-8")),
+        )
+        profile = _nested(data, "tool", "axm-init", "protocols") or {}
+        entries = {
+            group: _nested(data, "project", "entry-points", group) or {}
+            for group in (
+                *GRAPH_GROUPS,
+                "axm.ticket_types",
+                "axm.tribunal.ticket_types",
+            )
+        }
+        details.extend(
+            shared_ticket_findings(
+                project, context[0], _tables(profile.get("units")) or [], entries
+            )
+        )
     return _content_result("protocol_ticket", details, applicable=context is not None)
 
 
@@ -1039,51 +1232,66 @@ def check_protocol_components(project: Path) -> CheckResult:
 
 
 # Calls are composition only when their local binding resolves to this registry.
-_COMPOSITION_INTERFACES = frozenset(
+_SAFE_FACTORY_INTERFACES = COMPOSITION_CALLS | frozenset(
     {
-        ("axm_loom", "phase"),
-        ("axm_loom", "protocol"),
-        ("axm_loom", "router"),
-        ("axm_loom", "task"),
-    }
-)
-_SAFE_FACTORY_INTERFACES = _COMPOSITION_INTERFACES | frozenset(
-    {
-        ("contextvars", "ContextVar"),
-        ("logging", "getLogger"),
-        ("pydantic", "create_model"),
-        ("re", "compile"),
-        ("threading", "Lock"),
-        ("threading", "RLock"),
+        "contextvars.ContextVar",
+        "logging.getLogger",
+        "pydantic.create_model",
+        "re.compile",
+        "threading.Lock",
+        "threading.RLock",
     }
 )
 _SAFE_BUILTINS = frozenset({"dict", "frozenset", "list", "object", "set", "tuple"})
 
 
-def _import_bindings(module: ModuleInfo) -> dict[str, tuple[str, str]]:
-    """Map local names to resolved imports from typed axm-ast results."""
-    bindings: dict[str, tuple[str, str]] = {}
-    for imported in module.imports:
-        if imported.module is None:
-            for name in imported.names:
-                bindings[imported.alias or name] = (name, "")
-        else:
-            for name in imported.names:
-                bindings[imported.alias or name] = (imported.module, name)
+def _statement_bindings(node: ast.Import | ast.ImportFrom) -> dict[str, str]:
+    """Map the local names one import statement binds to qualified names."""
+    if isinstance(node, ast.Import):
+        bindings: dict[str, str] = {}
+        for alias in node.names:
+            head = alias.name.partition(".")[0]
+            bindings[alias.asname or head] = alias.name if alias.asname else head
+        return bindings
+    base = "." * node.level + (node.module or "")
+    separator = "." if node.module else ""
+    return {
+        alias.asname or alias.name: f"{base}{separator}{alias.name}"
+        for alias in node.names
+    }
+
+
+def _import_bindings(tree: ast.Module) -> dict[str, str]:
+    """Map local names to the qualified names their imports bind.
+
+    ``import a.b`` binds ``a``; ``import a.b as c`` binds ``c`` to ``a.b``;
+    ``from m import n`` binds ``n`` to ``m.n``. Relative imports keep their
+    leading dots, so they never pass for a third-party qualified name. Read
+    from the syntax tree: the typed import summary does not tell ``import a``
+    from ``from a import a``.
+    """
+    bindings: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            bindings.update(_statement_bindings(node))
     return bindings
 
 
-def _resolved_call(
-    call: ast.Call, bindings: dict[str, tuple[str, str]]
-) -> tuple[str, str] | None:
-    """Resolve a call target through typed import bindings."""
-    if isinstance(call.func, ast.Name):
-        return bindings.get(call.func.id)
-    if isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name):
-        imported = bindings.get(call.func.value.id)
-        if imported is not None:
-            return imported[0], call.func.attr
-    return None
+def _resolved_call(call: ast.Call, bindings: dict[str, str]) -> str | None:
+    """Resolve a call target to a qualified name through import bindings.
+
+    ``task.agent(...)`` after ``from axm_tribunal import task`` resolves to
+    ``axm_tribunal.task.agent``; a head name bound by no import resolves to
+    nothing, so a local homonym is never taken for a library call.
+    """
+    attributes: list[str] = []
+    target = call.func
+    while isinstance(target, ast.Attribute):
+        attributes.append(target.attr)
+        target = target.value
+    if not isinstance(target, ast.Name) or target.id not in bindings:
+        return None
+    return ".".join([bindings[target.id], *reversed(attributes)])
 
 
 def _parse(module: ModuleInfo) -> ast.Module:
@@ -1130,23 +1338,28 @@ def _assembly_factory(
     return info, factory
 
 
+def _composition_call(
+    factory: ast.FunctionDef | ast.AsyncFunctionDef,
+    bindings: dict[str, str],
+) -> tuple[CompositionFamily, ast.Call] | None:
+    """Return the first protocol composition call of any recognised family."""
+    for node in ast.walk(factory):
+        if isinstance(node, ast.Call):
+            family = family_of_protocol_call(_resolved_call(node, bindings))
+            if family is not None:
+                return family, node
+    return None
+
+
 def _composition_identity(
     factory: ast.FunctionDef | ast.AsyncFunctionDef,
-    bindings: dict[str, tuple[str, str]],
+    bindings: dict[str, str],
 ) -> ast.expr | None:
     """Return the first argument of the resolved composition call, when present."""
-    call = next(
-        (
-            node
-            for node in ast.walk(factory)
-            if isinstance(node, ast.Call)
-            and _resolved_call(node, bindings) == ("axm_loom", "protocol")
-        ),
-        None,
-    )
-    if call is None or not call.args:
+    composition = _composition_call(factory, bindings)
+    if composition is None or not composition[1].args:
         return None
-    return call.args[0]
+    return composition[1].args[0]
 
 
 def _literal_identity_findings(
@@ -1177,14 +1390,15 @@ def _assembly_findings(
     module = _assembly_module(package)
     if module is None:
         return []
-    resolved = _assembly_factory(module, _parse(module))
+    tree = _parse(module)
+    resolved = _assembly_factory(module, tree)
     if resolved is None:
         return [
             f"{_location(project, module, 1)}: non-conforming assembly: "
             "expected public factory 'build_protocol' is missing"
         ]
     info, factory = resolved
-    identity = _composition_identity(factory, _import_bindings(module))
+    identity = _composition_identity(factory, _import_bindings(tree))
     if identity is None:
         return [
             f"{_location(project, module, info.line_start)}: non-verifiable "
@@ -1245,7 +1459,7 @@ def _direct_io(value: ast.AST) -> ast.Call | None:
     return None
 
 
-def _safe_factory(call: ast.Call, bindings: dict[str, tuple[str, str]]) -> bool:
+def _safe_factory(call: ast.Call, bindings: dict[str, str]) -> bool:
     """Recognize calibrated declarative factories through imports."""
     if isinstance(call.func, ast.Name) and call.func.id in _SAFE_BUILTINS:
         return True
@@ -1256,7 +1470,7 @@ def _assignment_finding(
     project: Path,
     module: ModuleInfo,
     statement: ast.Assign | ast.AnnAssign,
-    bindings: dict[str, tuple[str, str]],
+    bindings: dict[str, str],
 ) -> str | None:
     """Classify an evaluated module-level assignment."""
     value = statement.value
@@ -1295,7 +1509,7 @@ def _statement_finding(
     project: Path,
     module: ModuleInfo,
     statement: ast.stmt,
-    bindings: dict[str, tuple[str, str]],
+    bindings: dict[str, str],
 ) -> str | None:
     """Classify one evaluated top-level statement conservatively."""
     if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
@@ -1323,8 +1537,9 @@ def _author_findings(project: Path, package: PackageInfo) -> list[str]:
     for module in package.modules:
         if module.path.name == "__init__.py":
             continue
-        bindings = _import_bindings(module)
-        for statement in _parse(module).body:
+        tree = _parse(module)
+        bindings = _import_bindings(tree)
+        for statement in tree.body:
             finding = _statement_finding(project, module, statement, bindings)
             if finding is not None:
                 details.append(finding)
@@ -1471,7 +1686,7 @@ def check_protocols_profile(project: Path) -> CheckResult:
 
     details: list[str] = []
     schema_version = profile.get("schema_version")
-    if schema_version != _SCHEMA_VERSION:
+    if schema_version not in (_SCHEMA_VERSION, 2):
         details.append(
             _finding(
                 text,
@@ -1483,6 +1698,15 @@ def check_protocols_profile(project: Path) -> CheckResult:
 
     domain = _validate_identity(data, profile, text, details)
     units = _validate_units(text, profile, details)
+    if schema_version != 2 and any("ticket_type" in unit for unit in units):
+        details.append(
+            _finding(
+                text,
+                "schema_version",
+                "shared units require schema_version = 2",
+                "upgrade the shared profile to schema_version = 2",
+            )
+        )
     if domain is not None:
         _validate_wheel_inclusion(data, text, domain, details)
         _validate_protocol_tree(project, text, domain, units, details)

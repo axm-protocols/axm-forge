@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import ClassVar, cast
 
 from axm.tools.base import AXMTool, ToolResult
+from axm.tools.dependency_reads import DependencyEnvironment
 
 from axm_git.core.branch_naming import (
     CONVENTIONAL_COMMIT_FORMAT,
@@ -116,7 +118,12 @@ def _attempt_commit(
         re-staging so it survives the subsequent ``git add``). Empty when
         no auto-fix occurred.
     """
-    first = run_git(commit_args, git_root)
+    from axm_git.core.commit_timeout import CommitTimeoutError
+
+    try:
+        first = run_git(commit_args, git_root)
+    except subprocess.TimeoutExpired as exc:
+        raise CommitTimeoutError(exc) from exc
     retry = attempt_commit_with_autofix_retry(
         commit_args, files, git_root, first, working_dir=working_dir
     )
@@ -233,6 +240,81 @@ def _build_failure_data(  # noqa: PLR0913
     }
 
 
+def _attempt_or_timeout(
+    args: list[str],
+    files: list[str],
+    root: Path,
+    working_dir: Path,
+) -> tuple[bool, bool, str, list[str], dict[str, object]]:
+    """Convert only commit timeouts into definitive bounded refusals."""
+    from axm_git.core.commit_timeout import CommitTimeoutError
+
+    try:
+        ok, retried, output, fixed = _attempt_commit(
+            args, files, root, working_dir=working_dir
+        )
+        return ok, retried, output, fixed, {}
+    except CommitTimeoutError as exc:
+        details: dict[str, object] = {
+            "cause": "timeout",
+            "timeout_seconds": exc.seconds,
+            "diagnostic": str(exc),
+        }
+        return False, exc.retried, exc.output, exc.auto_fixed, details
+
+
+def _refusal_message(index: int, restored: bool, timeout: dict[str, object]) -> str:
+    """Name timeout causality while preserving existing hook-refusal text."""
+    reason = timeout.get("diagnostic", "hook check failed")
+    suffix = " (index restored)" if restored else ""
+    return f"Commit {index}: {reason}{suffix}"
+
+
+def _commit_arguments(message: str, body: str | None, identity: list[str]) -> list[str]:
+    """Build Git commit arguments without changing hook execution."""
+    args = ["commit", "-m", message]
+    if body:
+        args.extend(["-m", body])
+    return [*args, *identity]
+
+
+def _restore_commit_index(recorded: list[str], root: Path) -> tuple[bool, str]:
+    """Report reset success honestly without replacing the original refusal."""
+    if not recorded:
+        return False, ""
+    try:
+        result = reset_paths(recorded, root)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, str(exc)[:8192]
+    if result is None:
+        return False, "git reset returned no confirmation"
+    if result.returncode:
+        return False, (result.stderr or result.stdout or "git reset failed")[:8192]
+    return True, ""
+
+
+def _refuse_commit(
+    error: str, data: dict[str, object], recorded: list[str], root: Path
+) -> ToolResult:
+    """Restore only this invocation's staging delta before returning refusal."""
+    restored, restore_error = _restore_commit_index(recorded, root)
+    failed = cast("dict[str, object]", data["failed_commit"])
+    failed.update(
+        index_restored=restored,
+        restored_paths=recorded if restored else [],
+        restore_error=restore_error,
+    )
+    error = error.removesuffix(" (index restored)")
+    if restored:
+        error += " (index restored)"
+    return ToolResult(
+        success=False,
+        error=error,
+        data=data,
+        text=render_failure_text(error=error, data=data),
+    )
+
+
 def _process_single_commit(  # noqa: PLR0913, PLR0917
     spec: dict[str, object],
     index: int,
@@ -304,8 +386,6 @@ def _process_single_commit(  # noqa: PLR0913, PLR0917
     )
     if unexpected:
         restored = bool(recorded)
-        if restored:
-            reset_paths(recorded, git_root)
         offending = ", ".join(unexpected)
         error = "Commit {i}: index holds staged paths outside the spec: {p}{r}".format(
             i=index, p=offending, r=" (index restored)" if restored else ""
@@ -322,33 +402,21 @@ def _process_single_commit(  # noqa: PLR0913, PLR0917
             restored_paths=recorded,
             unexpected_staged=unexpected,
         )
-        return ToolResult(
-            success=False,
-            error=error,
-            data=data,
-            text=render_failure_text(error=error, data=data),
-        )
+        return _refuse_commit(error, data, recorded, git_root)
 
     # Build commit command
-    commit_args = ["commit", "-m", message]
-    if body:
-        commit_args.extend(["-m", body])
-    commit_args.extend(identity_args)
+    commit_args = _commit_arguments(message, body, identity_args)
 
     # Attempt commit with auto-retry
-    ok, retried, output, auto_fixed = _attempt_commit(
-        commit_args, files, git_root, working_dir=path
+    ok, retried, output, auto_fixed, timeout = _attempt_or_timeout(
+        commit_args, files, git_root, path
     )
 
     if not ok:
         # Definitive refusal (post auto-fix retry): scoped-reset only the paths
         # this operation staged, leaving the index otherwise as it was (AC1/AC2).
         restored = bool(recorded)
-        if restored:
-            reset_paths(recorded, git_root)
-        error = "Commit {i}: hook check failed{r}".format(
-            i=index, r=" (index restored)" if restored else ""
-        )
+        error = _refusal_message(index, restored, timeout)
         data = _build_failure_data(
             results,
             index=index,
@@ -360,12 +428,8 @@ def _process_single_commit(  # noqa: PLR0913, PLR0917
             index_restored=restored,
             restored_paths=recorded,
         )
-        return ToolResult(
-            success=False,
-            error=error,
-            data=data,
-            text=render_failure_text(error=error, data=data),
-        )
+        cast("dict[str, object]", data["failed_commit"]).update(timeout)
+        return _refuse_commit(error, data, recorded, git_root)
 
     # The commit landed. Record any hook-mutated paths captured during the
     # autofix-retry (empty on the clean path) so the caller surfaces them.
@@ -426,7 +490,57 @@ class GitCommitTool(AXMTool):
         """Tool name used for MCP registration."""
         return "git_commit"
 
+    DEPENDENCY_ENVIRONMENT_VERSION: ClassVar[int] = 1
+    """Versioned capability: execute consumes the declared dependency runtime."""
+
     def execute(
+        self,
+        *,
+        path: str = ".",
+        commits: list[dict[str, object]] | None = None,
+        profile: str | None = None,
+        strict: bool = False,
+        dependency_environment: Mapping[str, object]
+        | DependencyEnvironment
+        | None = None,
+        **kwargs: object,
+    ) -> ToolResult:
+        """Commit with an optional explicit, invocation-local dependency runtime.
+
+        The interpreter stays lexical; candidate sources precede the declared
+        dependency paths. The environment applies to every subprocess and retry,
+        then is restored even after an exception. Invalid contracts refuse
+        before staging. This transports an environment; it does not certify
+        arbitrary hooks as bootstrap-free or change their veto/autofix semantics.
+        """
+        from axm_git.core.commit_environment import (
+            commit_environment,
+        )
+        from axm_git.core.commit_environment import (
+            dependency_environment as resolve_environment,
+        )
+
+        try:
+            environment = resolve_environment(
+                Path(path).resolve(), dependency_environment
+            )
+        except ValueError as exc:
+            error = str(exc)
+            data: dict[str, object] = {
+                "dependency_environment": {"status": "invalid", "version": 1}
+            }
+            return ToolResult(
+                success=False,
+                error=error,
+                data=data,
+                text=render_failure_text(error=error, data=data),
+            )
+        with commit_environment(environment):
+            return self._execute_batch(
+                path=path, commits=commits, profile=profile, strict=strict, **kwargs
+            )
+
+    def _execute_batch(
         self,
         *,
         path: str = ".",

@@ -75,8 +75,11 @@ def patch_makefile(root: Path, member_name: str) -> bool:
 def patch_mkdocs(root: Path, member_name: str) -> bool:
     """Add ``!include`` nav entry for *member_name*.
 
-    Appends a nav entry referencing the member's ``mkdocs.yml``
-    so the monorepo plugin picks it up.
+    Inserts a nav entry referencing the member's ``mkdocs.yml`` so the
+    monorepo plugin picks it up: right after the last member ``!include``
+    of the top-level ``nav`` (keeping the members grouped), else as the last
+    top-level ``nav`` item. Never outside ``nav``: without a block-style
+    top-level ``nav`` the file is left untouched.
     Idempotent — skips if entry already exists.
 
     Args:
@@ -85,7 +88,7 @@ def patch_mkdocs(root: Path, member_name: str) -> bool:
 
     Returns:
         ``True`` if ``mkdocs.yml`` was modified, ``False`` if the include
-        entry already existed (no-op).
+        entry already existed or there is no block ``nav`` (no-op).
 
     Raises:
         FileNotFoundError: If ``mkdocs.yml`` is missing.
@@ -98,12 +101,57 @@ def patch_mkdocs(root: Path, member_name: str) -> bool:
         logger.info("mkdocs.yml already includes %s — skipping", member_name)
         return False
 
-    # Append nav entry at the end of the nav section
-    entry = f"  - {member_name}: '{include}'\n"
-    content = content.rstrip("\n") + "\n" + entry
-    mkdocs.write_text(content)
+    lines = content.splitlines(keepends=True)
+    insertion = _nav_insertion(lines)
+    if insertion is None:
+        logger.info("mkdocs.yml has no block nav: — skipping %s", member_name)
+        return False
+    index, indent = insertion
+    if index and not lines[index - 1].endswith("\n"):
+        lines[index - 1] += "\n"
+    lines.insert(index, f"{indent}- {member_name}: '{include}'\n")
+    mkdocs.write_text("".join(lines))
     logger.info("Patched mkdocs.yml with !include for %s", member_name)
     return True
+
+
+def _nav_block(lines: list[str]) -> tuple[int, int] | None:
+    """Return the item range of the block-style top-level ``nav`` key.
+
+    The range starts after the ``nav:`` line and ends after its last
+    non-blank, non-comment line; ``None`` when ``nav`` is absent or inline.
+    """
+    start = _find_top_level_key_index(lines, "nav")
+    if start is None or lines[start].partition(":")[2].strip():
+        return None
+    end = start + 1
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if _is_ignored_yaml_scan_line(line):
+            continue
+        if not line[:1].isspace():
+            break
+        end = index + 1
+    return start + 1, end
+
+
+def _nav_insertion(lines: list[str]) -> tuple[int, str] | None:
+    """Where and at which indent a member ``!include`` joins the nav."""
+    block = _nav_block(lines)
+    if block is None:
+        return None
+    start, end = block
+    items = [i for i in range(start, end) if lines[i].lstrip().startswith("- ")]
+    includes = [i for i in items if "!include ./packages/" in lines[i]]
+    anchor = includes[-1] if includes else None
+    if anchor is not None:
+        return anchor + 1, _indent_of(lines[anchor])
+    top = min((_indent_of(lines[i]) for i in items), key=len, default="  ")
+    return end, top
+
+
+def _indent_of(line: str) -> str:
+    return line[: len(line) - len(line.lstrip())]
 
 
 def patch_pyproject(root: Path, member_name: str) -> bool:
@@ -455,12 +503,81 @@ def _find_top_level_key_index(lines: list[str], key: str) -> int | None:
     return None
 
 
+def _tag_patterns(lines: list[str]) -> list[str]:
+    """Return the items of the first ``tags:`` sequence, unquoted."""
+    bounds = _find_yaml_list_range(lines, "tags:")
+    if bounds is None:
+        return []
+    start, end = bounds
+    span = _inline_yaml_sequence_span(lines[start], "tags:")
+    if span is not None:
+        items = lines[start][span[0] + 1 : span[1]].split(",")
+    else:
+        items = [
+            line.strip().removeprefix("- ")
+            for line in lines[start:end]
+            if line.strip().startswith("- ")
+        ]
+    return [item.strip().strip("'\"") for item in items if item.strip()]
+
+
+def _filter_regex(pattern: str) -> str:
+    """Translate a filter built from ``*`` and ``**`` only into a regex.
+
+    ``*`` stops at ``/``, ``**`` does not (GitHub Actions filter semantics).
+    """
+    return "".join(
+        ".*" if part == "**" else "[^/]*" if part == "*" else re.escape(part)
+        for part in re.split(r"(\*\*|\*)", pattern)
+    )
+
+
+def _filter_covers(pattern: str, prefix: str) -> bool:
+    """Whether filter *pattern* matches every tag ``<prefix><version>``.
+
+    Decided on the pattern's structure, not on a sample tag: the pattern must
+    end with a wildcard, and what precedes that wildcard must match a leading
+    part of *prefix* exactly, the wildcard absorbing the rest of *prefix* and
+    any version (a version never contains ``/``). ``*/v*`` and ``<member>/v*``
+    cover ``<member>/v``; ``<member>/v0*`` or ``<member>/v1.*`` do not, since
+    they only match some versions. Patterns using any other filter operator
+    are not interpreted and never cover, so an unknown pattern can only cause
+    an explicit tag to be added, never one to be dropped.
+    """
+    if any(operator in pattern for operator in "?+[]!"):
+        return False
+    wildcard = "**" if pattern.endswith("**") else "*"
+    if not pattern.endswith(wildcard):
+        return False
+    head = re.compile(_filter_regex(pattern.removesuffix(wildcard)))
+    return any(
+        head.fullmatch(prefix[:cut]) is not None
+        and (wildcard == "**" or "/" not in prefix[cut:])
+        for cut in range(len(prefix) + 1)
+    )
+
+
+def _tags_cover(lines: list[str], tag_pattern: str) -> bool:
+    """Whether the workflow's tag filter triggers on every tag of *tag_pattern*.
+
+    *tag_pattern* is the member's own ``<prefix>*`` entry. A negated pattern
+    (``!…``) anywhere makes the answer ``False``: the order-dependent
+    semantics are left to an explicit entry.
+    """
+    patterns = _tag_patterns(lines)
+    if any(pattern.startswith("!") for pattern in patterns):
+        return False
+    prefix = tag_pattern.removesuffix("*")
+    return any(_filter_covers(pattern, prefix) for pattern in patterns)
+
+
 def patch_publish(root: Path, member_name: str) -> bool:
     """Add tag trigger pattern for *member_name*.
 
     Adds a ``<member_name>/v*`` tag pattern to the publish workflow's
     ``on.push.tags`` or ``on.release`` trigger.
-    Idempotent — skips if already present.
+    Idempotent — skips if already present, or if an existing pattern
+    (such as the template's ``*/v*``) already matches the member's tags.
 
     Args:
         root: Workspace root directory.
@@ -480,6 +597,9 @@ def patch_publish(root: Path, member_name: str) -> bool:
     tag_pattern = f"{member_name}/v*"
     if tag_pattern in content:
         logger.info("publish.yml already contains %s tag — skipping", member_name)
+        return False
+    if _tags_cover(content.splitlines(keepends=True), tag_pattern):
+        logger.info("publish.yml tags already match %s — skipping", member_name)
         return False
 
     # If there's a tags section, add the pattern there
@@ -519,7 +639,8 @@ def patch_release(root: Path, member_name: str) -> bool:
 
     Adds a ``<member_name>/v*`` tag pattern and a corresponding
     detect block (elif branch) to the release workflow so git-cliff
-    scopes changelogs per-package.
+    scopes changelogs per-package. The tag pattern is not added when an
+    existing pattern (such as the template's ``*/v*``) already matches.
     Idempotent — skips if already present.
 
     Args:
@@ -547,9 +668,11 @@ def patch_release(root: Path, member_name: str) -> bool:
     if tag_pattern in content:
         logger.info("release.yml already contains %s — skipping", member_name)
         return False
+    covered = _tags_cover(lines, tag_pattern)
 
-    # 1. Add tag pattern — reuse the shared YAML list inserter
-    if "tags:" in content:
+    # 1. Add tag pattern — reuse the shared YAML list inserter, unless an
+    #    existing pattern (e.g. the template's ``*/v*``) already matches.
+    if "tags:" in content and not covered:
         lines, _ = _insert_into_yaml_list(
             lines,
             tag_pattern if has_inline_tags else f'"{tag_pattern}"',

@@ -195,3 +195,49 @@ def test_inline_tags_patch_keeps_real_yaml_steps(
         isinstance(step, dict) and ("uses" in step or "run" in step) for step in steps
     )
     assert _steps_block(content) == steps_before
+
+
+def test_wildcard_tag_already_covering_the_member_is_kept_alone(
+    tmp_path: Path,
+) -> None:
+    """Regression: the template's `*/v*` release trigger gets no per-member tag."""
+    ci_dir = tmp_path / ".github" / "workflows"
+    ci_dir.mkdir(parents=True)
+    body = (
+        "name: Release\n\non:\n  push:\n    tags:\n"
+        '      - "*/v*"\n\npermissions:\n  contents: write\n\n'
+        "jobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n"
+        "      - uses: ./.github/actions/detect-package\n"
+    )
+    (ci_dir / "release.yml").write_text(body)
+
+    assert patch_release(tmp_path, "my-lib") is False
+    assert (ci_dir / "release.yml").read_text() == body
+
+
+def test_covered_tag_still_gets_its_detect_branch(release_root: Path) -> None:
+    """Coverage only spares the tag entry; a legacy detect chain still grows."""
+    release = release_root / ".github" / "workflows" / "release.yml"
+    release.write_text(release.read_text().replace('"v*"', '"**"'))
+
+    assert patch_release(release_root, "my-lib") is True
+    content = release.read_text()
+    assert "my-lib/v*" not in content
+    assert 'elif [[ "$TAG" == my-lib/* ]]' in content
+
+
+@pytest.mark.parametrize("partial", ['"my-lib/v0*"', '"my-lib/v1.*"'])
+def test_partial_filter_does_not_spare_the_member_tag(
+    tmp_path: Path, partial: str
+) -> None:
+    """Regression: `my-lib/v0*` misses `my-lib/v1.0.0`, so `my-lib/v*` is added."""
+    ci_dir = tmp_path / ".github" / "workflows"
+    ci_dir.mkdir(parents=True)
+    (ci_dir / "release.yml").write_text(
+        "name: Release\n\non:\n  push:\n    tags:\n"
+        f"      - {partial}\n\njobs:\n  release:\n    runs-on: ubuntu-latest\n"
+    )
+
+    assert patch_release(tmp_path, "my-lib") is True
+    tags = yaml.safe_load((ci_dir / "release.yml").read_text())[True]["push"]["tags"]
+    assert tags == [partial.strip('"'), "my-lib/v*"]

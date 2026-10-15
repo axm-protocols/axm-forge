@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Protocol, TypedDict, cast
+from typing import Protocol, TypedDict, Unpack, cast
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -16,6 +16,7 @@ from axm_ast.core.analyzer import (
 )
 from axm_ast.core.cache import get_package
 from axm_ast.core.impact import ImpactResult
+from axm_ast.core.impact_tests import validate_transitive_depth
 from axm_ast.tools._base import log_and_fallback, safe_execute
 from axm_ast.tools.impact_text import (
     render_impact_batch_text,
@@ -27,37 +28,108 @@ logger = logging.getLogger(__name__)
 _COMPACT_LINE_THRESHOLD = 5
 
 
-class _TestFilterKwargs(TypedDict, total=False):
-    """Optional ``test_filter`` pass-through for single-symbol analysis.
+class _ImpactOptions(TypedDict, total=False):
+    """Opt-in analysis options forwarded to the core, present only when set.
 
-    Typing the splat as a TypedDict (rather than ``dict[str, str | None]``)
-    tells mypy the unpack can *only* provide ``test_filter`` -- so it never
-    ambiguously targets the sibling ``include_module_importers: bool`` param
-    when the toggle is deliberately omitted (default path, AC2).
+    Omitting a disabled option (rather than passing its default) keeps the
+    default delegation byte-for-byte identical to the legacy call, so a core
+    or a test double that predates an option is never handed it.
     """
 
     test_filter: str | None
+    include_module_importers: bool
+    precise_callers: bool
+    transitive_depth: int
 
 
-__all__ = [
-    "ImpactTool",
-    "format_impact_compact",
-    "format_impact_compact_multi",
-    "render_impact_batch_text",
-    "render_impact_text",
-]
+def _impact_options(
+    *,
+    test_filter: str | None,
+    include_module_importers: bool,
+    precise_callers: bool,
+    transitive_depth: int,
+) -> _ImpactOptions:
+    """Collect the enabled opt-ins, dropping every option left at its default."""
+    opts: _ImpactOptions = {}
+    if test_filter is not None:
+        opts["test_filter"] = test_filter
+    if include_module_importers:
+        opts["include_module_importers"] = True
+    if precise_callers:
+        opts["precise_callers"] = True
+    if transitive_depth:
+        opts["transitive_depth"] = transitive_depth
+    return opts
+
+
+def _invalid_request(project_path: Path, transitive_depth: int) -> str | None:
+    """Return the error message of an unusable request, ``None`` when valid."""
+    if not project_path.is_dir():
+        return f"Not a directory: {project_path}"
+    try:
+        validate_transitive_depth(transitive_depth)
+    except ValueError as exc:
+        return str(exc)
+    return None
 
 
 class _PreciseWorkspaceAnalyzer(Protocol):
-    def __call__(
+    def __call__(  # noqa: PLR0913 - mirrors the workspace core option surface
         self,
         ws_path: Path,
         symbol: str,
         *,
         exclude_tests: bool = False,
         test_filter: str | None = None,
+        transitive_depth: int = 0,
         precise_callers: bool = False,
     ) -> ImpactResult: ...
+
+
+def _analyze_workspace(
+    project_path: Path,
+    symbol: str,
+    exclude_tests: bool,
+    opts: _ImpactOptions,
+) -> ImpactResult:
+    """Run the workspace core; raises ``ValueError`` outside a workspace.
+
+    ``include_module_importers`` is not forwarded: the workspace core does not
+    accept the reverse-import toggle yet (documented residual). A core that
+    does not accept ``precise_callers`` is retried without it.
+    """
+    from axm_ast.core.impact import analyze_impact_workspace
+
+    analyzer = cast("_PreciseWorkspaceAnalyzer", analyze_impact_workspace)
+    test_filter = opts.get("test_filter")
+    depth = opts.get("transitive_depth", 0)
+    if opts.get("precise_callers"):
+        try:
+            return analyzer(
+                project_path,
+                symbol,
+                exclude_tests=exclude_tests,
+                test_filter=test_filter,
+                transitive_depth=depth,
+                precise_callers=True,
+            )
+        except TypeError as exc:
+            if "unexpected keyword argument 'precise_callers'" not in str(exc):
+                raise
+    if depth:
+        return analyze_impact_workspace(
+            project_path,
+            symbol,
+            exclude_tests=exclude_tests,
+            test_filter=test_filter,
+            transitive_depth=depth,
+        )
+    return analyze_impact_workspace(
+        project_path,
+        symbol,
+        exclude_tests=exclude_tests,
+        test_filter=test_filter,
+    )
 
 
 class ImpactTool(AXMTool):
@@ -74,7 +146,7 @@ class ImpactTool(AXMTool):
         return "ast_impact"
 
     @safe_execute
-    def execute(  # noqa: PLR0913 - opt-in module-importers toggle joins the existing option surface
+    def execute(  # noqa: PLR0913 - opt-in toggles join the existing option surface
         self,
         *,
         path: str = ".",
@@ -84,6 +156,7 @@ class ImpactTool(AXMTool):
         detail: str | None = None,
         include_module_importers: bool = False,
         precise_callers: bool = False,
+        transitive_depth: int = 0,
         **kwargs: object,
     ) -> ToolResult:
         """Analyze change impact for a symbol.
@@ -91,9 +164,10 @@ class ImpactTool(AXMTool):
         Args:
             path: Path to package or workspace directory.
             symbol: Symbol name to analyze (required if symbols is not provided).
-                An ambiguous bare name expands to one report per module-qualified
-                candidate; use one of those qualified names to replay a targeted
-                query.
+                Accepts ``func``, ``Class.method``, ``module.func`` and
+                ``module.Class.method``. An ambiguous bare name expands to one
+                report per module-qualified candidate; use one of those
+                qualified names to replay a targeted query.
             symbols: Optional list of symbol names for batch inspection.
             exclude_tests: If True, exclude test files from impact analysis.
             detail: Output detail level. Use ``"compact"`` for a markdown
@@ -113,6 +187,14 @@ class ImpactTool(AXMTool):
                 discard callers proven to import a distinct homonymous symbol.
                 Ambiguous, unresolvable, or unreadable imports remain included
                 (fail-open).
+            transitive_depth: OPT-IN (default ``0``, off). When ``> 0``, the
+                data adds ``transitive_test_file_paths``: the tests of the
+                symbol AND of its in-package callers up to this many levels
+                (a superset of ``test_file_paths``, which stays the direct
+                references), plus ``transitive_callers`` (walked symbols) and
+                ``transitive_truncated`` (visited-symbol budget hit). ``3`` is
+                the measured sweet spot; at most ``10``. Off, data and text
+                are the legacy output.
             **kwargs: Extra options. ``test_filter`` (``"none"``,
                 ``"all"``, ``"related"``) controls test caller filtering.
 
@@ -130,74 +212,51 @@ class ImpactTool(AXMTool):
             return ToolResult(success=False, error="symbol parameter is required")
 
         project_path = Path(path).resolve()
-        if not project_path.is_dir():
-            return ToolResult(success=False, error=f"Not a directory: {project_path}")
+        invalid = _invalid_request(project_path, transitive_depth)
+        if invalid is not None:
+            return ToolResult(success=False, error=invalid)
 
         raw_filter = kwargs.get("test_filter")
-        test_filter: str | None = raw_filter if isinstance(raw_filter, str) else None
-        tf: _TestFilterKwargs = (
-            {"test_filter": test_filter} if test_filter is not None else {}
+        opts = _impact_options(
+            test_filter=raw_filter if isinstance(raw_filter, str) else None,
+            include_module_importers=include_module_importers,
+            precise_callers=precise_callers,
+            transitive_depth=transitive_depth,
         )
 
         try:
             if symbols is not None:
                 return self._execute_batch(
-                    project_path,
-                    symbols,
-                    exclude_tests,
-                    detail,
-                    include_module_importers=include_module_importers,
-                    precise_callers=precise_callers,
-                    **tf,
+                    project_path, symbols, exclude_tests, detail, opts
                 )
-
             if symbol is None:
                 return ToolResult(success=False, error="symbol parameter is required")
             return self._execute_symbol(
-                project_path,
-                symbol,
-                exclude_tests,
-                detail,
-                include_module_importers=include_module_importers,
-                precise_callers=precise_callers,
-                **tf,
+                project_path, symbol, exclude_tests, detail, opts
             )
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
 
-    def _execute_symbol(  # noqa: PLR0913 - mirrors the public option surface
+    def _execute_symbol(
         self,
         project_path: Path,
         symbol: str,
         exclude_tests: bool,
         detail: str | None,
-        *,
-        test_filter: str | None = None,
-        include_module_importers: bool = False,
-        precise_callers: bool = False,
+        opts: _ImpactOptions | None = None,
     ) -> ToolResult:
+        opts = opts or {}
         candidates = self._qualified_candidates(project_path, symbol)
-        target_symbols = sorted(candidates) if len(candidates) > 1 else None
-        if target_symbols is not None:
+        if len(candidates) > 1:
             return self._execute_batch(
                 project_path,
-                target_symbols,
+                sorted(candidates),
                 exclude_tests,
                 detail,
-                test_filter=test_filter,
-                include_module_importers=include_module_importers,
-                precise_callers=precise_callers,
+                opts,
                 definition_files=candidates,
             )
-        return self._execute_single(
-            project_path,
-            symbol,
-            exclude_tests,
-            detail,
-            test_filter=test_filter,
-            include_module_importers=include_module_importers,
-            precise_callers=precise_callers,
-        )
+        return self._execute_single(project_path, symbol, exclude_tests, detail, opts)
 
     @staticmethod
     def _qualified_candidates(project_path: Path, symbol: str) -> dict[str, str]:
@@ -224,10 +283,8 @@ class ImpactTool(AXMTool):
         symbols: list[str],
         exclude_tests: bool,
         detail: str | None,
+        opts: _ImpactOptions | None = None,
         *,
-        test_filter: str | None = None,
-        include_module_importers: bool = False,
-        precise_callers: bool = False,
         definition_files: Mapping[str, str] | None = None,
     ) -> ToolResult:
         """Run batch impact analysis for multiple symbols.
@@ -240,32 +297,13 @@ class ImpactTool(AXMTool):
             return ToolResult(success=False, error="symbols parameter must be a list")
         if not symbols:
             return ToolResult(success=False, error="symbols list must not be empty")
-        results: list[ImpactResult] = []
-        for sym in symbols:
-            tf: _TestFilterKwargs = (
-                {"test_filter": test_filter} if test_filter is not None else {}
+        options: _ImpactOptions = opts or {}
+        results: list[ImpactResult] = [
+            self._analyze_single(
+                project_path, sym, exclude_tests=exclude_tests, **options
             )
-            if precise_callers:
-                results.append(
-                    self._analyze_single(
-                        project_path,
-                        sym,
-                        exclude_tests=exclude_tests,
-                        include_module_importers=include_module_importers,
-                        precise_callers=True,
-                        **tf,
-                    )
-                )
-            else:
-                results.append(
-                    self._analyze_single(
-                        project_path,
-                        sym,
-                        exclude_tests=exclude_tests,
-                        include_module_importers=include_module_importers,
-                        **tf,
-                    )
-                )
+            for sym in symbols
+        ]
         if definition_files is not None:
             for result in results:
                 candidate_file = definition_files.get(result.get("symbol", ""))
@@ -296,198 +334,45 @@ class ImpactTool(AXMTool):
             pass
         return None
 
-    def _execute_single(  # noqa: PLR0913 - opt-in toggles join the existing option surface
+    def _execute_single(
         self,
         project_path: Path,
         symbol: str,
         exclude_tests: bool,
         detail: str | None,
-        *,
-        test_filter: str | None = None,
-        include_module_importers: bool = False,
-        precise_callers: bool = False,
+        opts: _ImpactOptions | None = None,
     ) -> ToolResult:
         """Run single-symbol impact analysis with optional compact output.
 
         In compact mode, returns formatted markdown via ``ToolResult.text``
-        with an empty ``data`` dict. Otherwise delegates to
-        ``_analyze_single_result``.
+        with an empty ``data`` dict. Otherwise returns the full report.
         """
-        tf: _TestFilterKwargs = (
-            {"test_filter": test_filter} if test_filter is not None else {}
-        )
-        if detail == "compact":
-            if precise_callers:
-                result = self._analyze_single(
-                    project_path,
-                    symbol,
-                    exclude_tests=exclude_tests,
-                    include_module_importers=include_module_importers,
-                    precise_callers=True,
-                    **tf,
-                )
-            else:
-                result = self._analyze_single(
-                    project_path,
-                    symbol,
-                    exclude_tests=exclude_tests,
-                    include_module_importers=include_module_importers,
-                    **tf,
-                )
-            return ToolResult(
-                success=True,
-                data={},
-                text=format_impact_compact(result),
+        options: _ImpactOptions = opts or {}
+        if detail != "compact":
+            return self._analyze_single_result(
+                project_path, symbol, exclude_tests=exclude_tests, **options
             )
-        return self._analyze_single_result(
-            project_path,
-            symbol,
-            exclude_tests=exclude_tests,
-            include_module_importers=include_module_importers,
-            precise_callers=precise_callers,
-            **tf,
+        result = self._analyze_single(
+            project_path, symbol, exclude_tests=exclude_tests, **options
+        )
+        return ToolResult(
+            success=True,
+            data={},
+            text=format_impact_compact(result),
         )
 
-    def _analyze_single(  # noqa: PLR0913 - opt-in toggles join the option surface
+    def _analyze_single_result(
         self,
         project_path: Path,
         symbol: str,
         *,
         exclude_tests: bool = False,
-        test_filter: str | None = None,
-        include_module_importers: bool = False,
-        precise_callers: bool = False,
-    ) -> ImpactResult:
-        """Run impact analysis for a single symbol.
-
-        The analysis seeds from *symbol* exactly as received (Volet B): the
-        real edit-target, never a derived proxy. ``include_module_importers``
-        is forwarded to the single-package core path only -- the workspace path
-        (``analyze_impact_workspace``) does not yet accept the toggle, so the
-        opt-in is a best-effort no-op there (documented residual).
-
-        Returns:
-            Impact dict with ``score`` key on success,
-            or ``{"symbol": name, "error": msg}`` on failure.
-        """
-        try:
-            try:
-                from axm_ast.core.impact import analyze_impact_workspace
-
-                # Residual: the workspace core does not accept the reverse-import
-                # toggle yet, so it is intentionally not forwarded here.
-                if precise_callers:
-                    try:
-                        workspace_analyzer = cast(
-                            "_PreciseWorkspaceAnalyzer", analyze_impact_workspace
-                        )
-                        impact = workspace_analyzer(
-                            project_path,
-                            symbol,
-                            exclude_tests=exclude_tests,
-                            test_filter=test_filter,
-                            precise_callers=True,
-                        )
-                    except TypeError as exc:
-                        if "unexpected keyword argument 'precise_callers'" not in str(
-                            exc
-                        ):
-                            raise
-                        impact = analyze_impact_workspace(
-                            project_path,
-                            symbol,
-                            exclude_tests=exclude_tests,
-                            test_filter=test_filter,
-                        )
-                else:
-                    impact = analyze_impact_workspace(
-                        project_path,
-                        symbol,
-                        exclude_tests=exclude_tests,
-                        test_filter=test_filter,
-                    )
-            except ValueError:
-                from axm_ast.core.impact import analyze_impact
-
-                if precise_callers:
-                    impact = analyze_impact(
-                        project_path,
-                        symbol,
-                        exclude_tests=exclude_tests,
-                        test_filter=test_filter,
-                        include_module_importers=include_module_importers,
-                        precise_callers=True,
-                    )
-                else:
-                    impact = analyze_impact(
-                        project_path,
-                        symbol,
-                        exclude_tests=exclude_tests,
-                        test_filter=test_filter,
-                        include_module_importers=include_module_importers,
-                    )
-
-            if impact.get("definition") is None:
-                return cast(
-                    "ImpactResult",
-                    {"symbol": symbol, "error": f"Symbol '{symbol}' not found"},
-                )
-            return impact
-        except Exception as exc:  # noqa: BLE001 — final boundary
-            return cast(
-                "ImpactResult",
-                log_and_fallback(logger, exc, {"symbol": symbol, "error": str(exc)}),
-            )
-
-    def _analyze_single_result(  # noqa: PLR0913 - opt-in toggles join the option surface
-        self,
-        project_path: Path,
-        symbol: str,
-        *,
-        exclude_tests: bool = False,
-        test_filter: str | None = None,
-        include_module_importers: bool = False,
-        precise_callers: bool = False,
+        **opts: Unpack[_ImpactOptions],
     ) -> ToolResult:
         """Run single-symbol impact analysis and return a ToolResult."""
-        tf: _TestFilterKwargs = (
-            {"test_filter": test_filter} if test_filter is not None else {}
+        result = self._analyze_single(
+            project_path, symbol, exclude_tests=exclude_tests, **opts
         )
-        # Omit the toggle entirely when off so the default delegation stays
-        # byte-for-byte identical to the legacy call (AC2); forward it verbatim
-        # only when opted-in.
-        if include_module_importers and precise_callers:
-            result = self._analyze_single(
-                project_path,
-                symbol,
-                exclude_tests=exclude_tests,
-                include_module_importers=True,
-                precise_callers=True,
-                **tf,
-            )
-        elif include_module_importers:
-            result = self._analyze_single(
-                project_path,
-                symbol,
-                exclude_tests=exclude_tests,
-                include_module_importers=True,
-                **tf,
-            )
-        elif precise_callers:
-            result = self._analyze_single(
-                project_path,
-                symbol,
-                exclude_tests=exclude_tests,
-                precise_callers=True,
-                **tf,
-            )
-        else:
-            result = self._analyze_single(
-                project_path,
-                symbol,
-                exclude_tests=exclude_tests,
-                **tf,
-            )
         if "error" in result:
             err = result.get("error", "")
             return ToolResult(
@@ -503,6 +388,55 @@ class ImpactTool(AXMTool):
             data=cast("dict[str, object]", result),
             text=text,
         )
+
+    def _analyze_single(  # noqa: PLR0913 - opt-in toggles join the option surface
+        self,
+        project_path: Path,
+        symbol: str,
+        *,
+        exclude_tests: bool = False,
+        test_filter: str | None = None,
+        include_module_importers: bool = False,
+        precise_callers: bool = False,
+        transitive_depth: int = 0,
+    ) -> ImpactResult:
+        """Run impact analysis for a single symbol.
+
+        The analysis seeds from *symbol* exactly as received (Volet B): the
+        real edit-target, never a derived proxy. Workspace analysis is tried
+        first; a non-workspace path falls back to the single-package core.
+
+        Returns:
+            Impact dict with ``score`` key on success,
+            or ``{"symbol": name, "error": msg}`` on failure.
+        """
+        opts = _impact_options(
+            test_filter=test_filter,
+            include_module_importers=include_module_importers,
+            precise_callers=precise_callers,
+            transitive_depth=transitive_depth,
+        )
+        try:
+            try:
+                impact = _analyze_workspace(project_path, symbol, exclude_tests, opts)
+            except ValueError:
+                from axm_ast.core.impact import analyze_impact
+
+                impact = analyze_impact(
+                    project_path, symbol, exclude_tests=exclude_tests, **opts
+                )
+
+            if impact.get("definition") is None:
+                return cast(
+                    "ImpactResult",
+                    {"symbol": symbol, "error": f"Symbol '{symbol}' not found"},
+                )
+            return impact
+        except Exception as exc:  # noqa: BLE001 — final boundary
+            return cast(
+                "ImpactResult",
+                log_and_fallback(logger, exc, {"symbol": symbol, "error": str(exc)}),
+            )
 
 
 def _caller_fields(c: Mapping[str, object]) -> tuple[str, int | None, str | None]:

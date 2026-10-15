@@ -157,6 +157,81 @@ inspected package. At a workspace root, the existing engine aggregation keeps
 the canonical rule name and prefixes member findings with their member identity.
 See [checking and repairing declarations](../howto/scaffold-protocols.md#check-and-repair-ticket-declarations).
 
+## Shared unit tickets (schema version 2)
+
+The public `InitScaffoldTool.execute` API accepts an optional
+`unit_declaration` object (or JSON object string). It contains shared
+`contracts` and one `ticket` binding; `domain` and `unit` come from the
+request. The strict `ProtocolUnitDecl` model validates the binding:
+
+```json
+{
+  "contracts": [{"name": "run_context"}],
+  "ticket": {
+    "ticket_type": "ml.run",
+    "input_contract": "run_context",
+    "entry_action": "exec"
+  }
+}
+```
+
+Each consuming action declares `"unit_ticket": "ml.run"`, alongside its
+usual action-local components. A local `ticket` and `unit_ticket` are
+mutually exclusive. The reference resolves only within the requested
+domain and unit, including declarations persisted by a previous request.
+A later action can therefore reference the same ticket without repeating
+`unit_declaration`.
+
+The planner generates one shared context under
+`src/protocols_ml/run/contracts/run_context.py` and one factory under
+`src/protocols_ml/run/ticket.py`. Each consuming action's `protocol.py`
+explicitly imports the shared context and `get_ticket_type`; there is no
+action-local ticket copy. The factory returns the public
+`protocols_core.TicketTypeDef` with independent identities:
+
+- ticket type: `ml.run`;
+- context model: `RunContext`;
+- entry graph: `ml.run.exec`, selected by required `entry_action`.
+
+The entry action must exist in the requested or persisted action inventory.
+Shared contract names and derived model names must be unique. A changed
+persisted unit declaration, unresolved/cross-unit reference, or a local
+ticket claiming a shared type is refused before filesystem mutation.
+Existing unowned shared files produce plan conflicts. Reapplication keeps
+implemented user files and the ready state of an unchanged action binding.
+
+Shared unit metadata uses `schema_version = 2`, with `contracts`,
+`ticket_type`, `input_contract`, and `entry_action` on the unit table,
+and `unit_ticket` on consuming action tables. Old per-action declarations
+remain supported in versions 1 and 2. Reapplying an old action never
+downgrades a version-2 profile or converts its ticket to a shared binding.
+
+Scaffolding does not register the type or create a runnable graph: actions
+remain draft. Once the entry graph and shared context are implemented and
+the entry action is ready, registration is explicit and unique:
+
+```toml
+[project.entry-points."axm.tribunal.graphs"]
+"ml.run.exec" = "protocols_ml.run.exec.protocol:build_protocol"
+
+[project.entry-points."axm.tribunal.ticket_types"]
+"ml.run" = "protocols_ml.run.ticket:get_ticket_type"
+```
+
+Static checks resolve the shared context, factory, constant identities,
+consumer imports and entry graph. A registration while the entry is draft,
+a second factory alias, a legacy `axm.ticket_types` copy, or an incorrect
+entry-graph target fails the checks. Ready consumers also require an
+implemented shared context. No runtime Tribunal dependency is added to
+the minimal `axm-init` package: generated code is inspected statically.
+The Forge repository's explicit qualification at
+`qualifications/protocols/README.md` checks the generated factory against
+the real protocols environment; it
+is not part of standard package CI until `protocols-core` is published.
+The generic generated definition retains `TicketTypeDef` defaults;
+domain-specific authors may set additional public factory options such as
+`repository_writes=False` without changing the shared binding.
+
 ## Registration and declared state
 
 The explicit category also checks factory registration and ready-state skeleton

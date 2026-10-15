@@ -12,11 +12,17 @@ Implements the validate-then-apply strategy from the axm-edit spec:
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias
 
+from axm_edit.core.anchor_match import (
+    anchor_matches_at,
+    old_line_count,
+    reindent,
+    resolve_anchor,
+    split_lines,
+)
 from axm_edit.core.atomic_write import atomic_replace
 from axm_edit.core.checkpoint import create_checkpoint, rollback
 from axm_edit.core.diagnostics import (
@@ -31,6 +37,7 @@ from axm_edit.core.rewrite import (
     classify_rewrite_target,
     compute_checksum,
 )
+from axm_edit.core.syntax_gate import syntax_regression
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -50,7 +57,6 @@ logger = logging.getLogger(__name__)
 # ``axm_edit.utils.resolve_safe`` directly.
 _resolve_safe = resolve_safe
 
-_MIN_AMBIGUOUS_HITS = 2
 
 # Preserved verbatim: callers (and tests) match on this exact wording. The
 # hint-miss explanation is APPENDED to it, never substituted.
@@ -69,14 +75,6 @@ class ResolvedEdit:
     indent: str = ""  # indent prefix to apply to new (from dedent match)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
-
-
-def _old_line_count(old: str) -> int:
-    """Return the number of file lines spanned by *old*."""
-    return old.rstrip("\n").count("\n") + 1
-
-
 def _detect_eol(path: Path) -> str:
     """Return the dominant end-of-line style of *path* (``\\r\\n`` or ``\\n``).
 
@@ -91,268 +89,13 @@ def _detect_eol(path: Path) -> str:
     return "\r\n" if crlf > lf else "\n"
 
 
-def _common_ws_prefix(lines: list[str]) -> str:
-    """Return the literal longest common leading-whitespace prefix.
-
-    The prefix is computed across *non-empty* lines and is treated as an
-    opaque character sequence: tabs and spaces are compared by identity, so
-    a tab never collapses into spaces (or vice versa). This is the single
-    whitespace model shared by :func:`_detect_indent`, :func:`_dedent_block`
-    and :func:`_reindent`, guaranteeing detection and stripping always agree.
-    """
-    non_empty = [ln for ln in lines if ln.strip()]
-    if not non_empty:
-        return ""
-    leads = [ln[: len(ln) - len(ln.lstrip())] for ln in non_empty]
-    prefix = leads[0]
-    for lead in leads[1:]:
-        limit = min(len(prefix), len(lead))
-        i = 0
-        while i < limit and prefix[i] == lead[i]:
-            i += 1
-        prefix = prefix[:i]
-        if not prefix:
-            break
-    return prefix
-
-
-def _dedent_block(text: str) -> str:
-    """Fully dedent a block of text for comparison.
-
-    Strips the literal longest common leading-whitespace prefix (see
-    :func:`_common_ws_prefix`) from every non-empty line, then trims wrapping
-    newlines. Unlike :func:`textwrap.dedent`, the prefix is matched
-    character-for-character, so tab- and space-indented blocks dedent
-    consistently with how their indent is detected and re-applied.
-    """
-    raw_lines = text.splitlines(keepends=True)
-    common = _common_ws_prefix(raw_lines)
-    if not common:
-        return text.strip("\n")
-    width = len(common)
-    stripped = "".join((ln[width:] if ln.strip() else ln) for ln in raw_lines)
-    return stripped.strip("\n")
-
-
-def _detect_indent(lines: list[str], start: int, num_lines: int) -> str:
-    """Detect the common leading whitespace of a block in the file.
-
-    Returns the literal longest common leading-whitespace prefix across the
-    block's non-empty lines (see :func:`_common_ws_prefix`). Tabs and spaces
-    are compared as opaque characters, so the prefix returned here is exactly
-    what :func:`_reindent` strips and re-applies — the two never disagree on
-    tab/mixed input.
-    """
-    block_lines = lines[start - 1 : start - 1 + num_lines]
-    return _common_ws_prefix(block_lines)
-
-
-def _reindent(text: str, indent: str) -> str:
-    """Dedent *text* fully, then prepend *indent* to each non-empty line.
-
-    Dedenting strips the literal longest common leading-whitespace prefix of
-    *text* (see :func:`_common_ws_prefix`) — the same opaque tab/space model
-    used by :func:`_detect_indent`, so a detected tab or mixed prefix is
-    re-applied consistently rather than being mishandled by char-count or
-    common-character semantics. Relative indentation within the block is
-    preserved; blank lines are kept verbatim.
-    """
-    raw_lines = text.splitlines(keepends=True)
-    common = _common_ws_prefix(raw_lines)
-    width = len(common)
-    result_lines = []
-    for line in raw_lines:
-        if line.strip():  # non-empty line
-            stripped = line[width:] if width else line
-            result_lines.append(indent + stripped)
-        else:
-            result_lines.append(line)  # keep blank lines as-is
-    return "".join(result_lines)
-
-
-# ── Normalization helpers ─────────────────────────────────────────────────
-
-_SMART_QUOTE_MAP: dict[str, str] = {
-    "\u201c": '"',  # left double
-    "\u201d": '"',  # right double
-    "\u2018": "'",  # left single
-    "\u2019": "'",  # right single
-}
-
-
-def _normalize_quotes(text: str) -> str:
-    """Replace smart (curly) quotes with their ASCII equivalents."""
-    for smart, straight in _SMART_QUOTE_MAP.items():
-        text = text.replace(smart, straight)
-    return text
-
-
-def _try_normalize_old(old: str) -> list[str]:
-    """Return normalized variants of *old* to retry matching.
-
-    Variants tried (in order):
-    1. Smart-quote normalization (curly → straight).
-    2. Strip wrapping double-quotes (LLM artifact).
-
-    Returns only variants that differ from the original.
-    """
-    variants: list[str] = []
-
-    # Variant 1: smart quotes → straight
-    normalized = _normalize_quotes(old)
-    if normalized != old:
-        variants.append(normalized)
-
-    # Variant 2: strip wrapping quotes
-    if old.startswith('"') and old.endswith('"') and len(old) > len('""'):
-        stripped = old[1:-1]
-        if stripped and stripped != old:
-            variants.append(stripped)
-
-    return variants
-
-
-# ── Match helpers ─────────────────────────────────────────────────────────
-
-_MatchFn: TypeAlias = Callable[[int], bool]  # noqa: UP040 — radon crashes on `type` stmt
-_MatchResult: TypeAlias = "tuple[int, str] | None"  # noqa: UP040
-
-
-def _make_matchers(
-    lines: list[str],
-    old: str,
-) -> tuple[_MatchFn, _MatchFn, int]:
-    """Build exact and dedented match functions for *old* against *lines*.
-
-    Returns ``(match_exact, match_dedented, num_lines)``.
-    """
-    old_stripped = old.rstrip("\n")
-    old_dedented = _dedent_block(old)
-    num_lines = _old_line_count(old)
-
-    def match_exact(start: int) -> bool:
-        """Check if *old* matches at 1-indexed *start* (exact)."""
-        if start < 1 or start + num_lines - 1 > len(lines):
-            return False
-        block = "".join(lines[start - 1 : start - 1 + num_lines])
-        return block.rstrip("\n") == old_stripped
-
-    def match_dedented(start: int) -> bool:
-        """Check if *old* matches at *start* after dedenting both."""
-        if start < 1 or start + num_lines - 1 > len(lines):
-            return False
-        block = "".join(lines[start - 1 : start - 1 + num_lines])
-        return _dedent_block(block) == old_dedented
-
-    return match_exact, match_dedented, num_lines
-
-
-def _search_near_hint(
-    lines: list[str],
-    hint_line: int,
-    match_fn: _MatchFn,
-    num_lines: int,
-    *,
-    dedented: bool = False,
-) -> _MatchResult:
-    """Search at *hint_line* then expand ±5 lines.
-
-    Returns ``(line, indent)`` on match, ``None`` otherwise.
-    """
-
-    def _get_indent(start: int) -> str:
-        return _detect_indent(lines, start, num_lines) if dedented else ""
-
-    if match_fn(hint_line):
-        return (hint_line, _get_indent(hint_line))
-    for delta in range(1, 6):
-        for candidate in (hint_line - delta, hint_line + delta):
-            if match_fn(candidate):
-                return (candidate, _get_indent(candidate))
-    return None
-
-
-def _collect_hits(lines: list[str], match_fn: _MatchFn, num_lines: int) -> list[int]:
-    """Return every 1-based line number where *match_fn* fires."""
-    return [start for start in range(1, len(lines) - num_lines + 2) if match_fn(start)]
-
-
-def _scan_all_lines(
-    lines: list[str],
-    match_fn: _MatchFn,
-    num_lines: int,
-    *,
-    dedented: bool = False,
-) -> _MatchResult:
-    """Full-file scan for a single unambiguous match.
-
-    Returns ``(line, indent)`` if exactly one match, ``None`` otherwise.
-    """
-    hits = _collect_hits(lines, match_fn, num_lines)
-    if len(hits) == 1:
-        indent = _detect_indent(lines, hits[0], num_lines) if dedented else ""
-        return (hits[0], indent)
-    return None
-
-
-# ── Main search orchestrator ──────────────────────────────────────────────
-
-
-def _find_old(
-    lines: list[str],
-    old: str,
-    hint_line: int | None,
-) -> _MatchResult:
-    """Find *old* content in *lines*, returning (1-indexed line, indent_prefix).
-
-    Strategy:
-        1. If *hint_line* given → check at that exact position first.
-        2. Expand outward ±5 lines from the hint.
-        3. Fall back to full-file scan.
-        4. If *hint_line* is ``None`` → full-file scan immediately.
-
-    Matching modes (tried in order):
-        - **Exact**: ``old`` matches the file block byte-for-byte.
-          Returns ``indent=""`` (no re-indent needed).
-        - **Indent-normalized**: both ``old`` and the file block are
-          fully dedented before comparison.
-          Returns the file block's indent prefix so ``new`` can be
-          re-indented to match.
-
-    Returns ``None`` if zero or multiple matches are found (ambiguous).
-    """
-    match_exact, match_dedented, num_lines = _make_matchers(lines, old)
-
-    # ── Pass 1: exact match
-    if hint_line is not None:
-        result = _search_near_hint(lines, hint_line, match_exact, num_lines)
-        if result:
-            return result
-    result = _scan_all_lines(lines, match_exact, num_lines)
-    if result:
-        return result
-
-    # ── Pass 2: indent-normalized match
-    if hint_line is not None:
-        result = _search_near_hint(
-            lines,
-            hint_line,
-            match_dedented,
-            num_lines,
-            dedented=True,
-        )
-        if result:
-            return result
-    return _scan_all_lines(lines, match_dedented, num_lines, dedented=True)
-
-
 def _check_overlaps(
     resolved: list[ResolvedEdit],
 ) -> list[ValidationError]:
     """Check for overlapping edit ranges within a single file."""
     errors: list[ValidationError] = []
 
-    spans = [(r, r.line, r.line + _old_line_count(r.old) - 1) for r in resolved]
+    spans = [(r, r.line, r.line + old_line_count(r.old) - 1) for r in resolved]
     spans.sort(key=lambda t: t[1])
 
     for i in range(len(spans) - 1):
@@ -368,20 +111,6 @@ def _check_overlaps(
                 ),
             )
     return errors
-
-
-def _all_match_lines(lines: list[str], old: str) -> list[int]:
-    """Return all 1-based line numbers matching *old* (exact, else dedented).
-
-    Exact matches take precedence; the dedented matcher is consulted only
-    when the exact one finds nothing, mirroring the resolution order in
-    :func:`_find_old`.
-    """
-    match_exact, match_dedented, num_lines = _make_matchers(lines, old)
-    exact_hits = _collect_hits(lines, match_exact, num_lines)
-    if exact_hits:
-        return exact_hits
-    return _collect_hits(lines, match_dedented, num_lines)
 
 
 def _hint_miss_message(old: str, actual: str | None, line_count: int) -> str:
@@ -416,12 +145,13 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
     transposes its verdict into the structured ``line``/``actual`` fields.
 
     The ambiguous branch is bounded the same way: the full hit list stays
-    available in :func:`_all_match_lines`, but its rendering goes through
+    available from :func:`~axm_edit.core.anchor_match.resolve_anchor`, but
+    its rendering goes through
     :func:`axm_edit.core.diagnostics.format_match_lines`, which lists the
     first few lines and summarises the rest as ``(+N more)``.
     """
     if edit.line is not None:
-        actual = _actual_at(lines, edit.line, _old_line_count(edit.old))
+        actual = _actual_at(lines, edit.line, old_line_count(edit.old))
         return ValidationError(
             file=file_rel,
             line=edit.line,
@@ -430,8 +160,9 @@ def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationE
             error=_hint_miss_message(edit.old, actual, len(lines)),
         )
 
-    hits = _all_match_lines(lines, edit.old)
-    if len(hits) >= _MIN_AMBIGUOUS_HITS:
+    match = resolve_anchor(lines, edit.old, None)
+    if match.status == "ambiguous":
+        hits = list(match.hits)
         line_list = format_match_lines(hits)
         return ValidationError(
             file=file_rel,
@@ -463,26 +194,15 @@ def _append_not_found_error(
 
 
 def _resolve_one_edit(lines: list[str], edit: Edit) -> ResolvedEdit | None:
-    """Resolve a single edit's position, trying normalization variants."""
-    result = _find_old(lines, edit.old, edit.line)
-    effective_old = edit.old
-
-    if result is None:
-        for variant in _try_normalize_old(edit.old):
-            result = _find_old(lines, variant, edit.line)
-            if result is not None:
-                effective_old = variant
-                break
-
-    if result is None:
+    """Resolve a single edit's position through the shared anchor resolver."""
+    match = resolve_anchor(lines, edit.old, edit.line)
+    if match.status != "found" or match.line is None:
         return None
-
-    found_line, indent = result
     return ResolvedEdit(
-        line=found_line,
-        old=effective_old,
+        line=match.line,
+        old=match.old,
         new=edit.new,
-        indent=indent,
+        indent=match.indent,
     )
 
 
@@ -516,7 +236,7 @@ def _read_editable_lines(
         msg = f"Cannot edit a non-UTF-8 file: {exc}"
         return None, [ValidationError(file=file_rel, error=msg)]
 
-    return content.splitlines(keepends=True), []
+    return split_lines(content), []
 
 
 def _validate_replace(
@@ -581,8 +301,54 @@ def _anchor_still_matches(lines: list[str], edit: ResolvedEdit) -> bool:
     Uses the same exact/dedented matchers the resolver relied on, so the
     check stays consistent with how the position was originally found.
     """
-    match_exact, match_dedented, _ = _make_matchers(lines, edit.old)
-    return match_exact(edit.line) or match_dedented(edit.line)
+    return anchor_matches_at(lines, edit.old, edit.line)
+
+
+def _replacement_lines(edit: ResolvedEdit) -> list[str]:
+    """Return the lines replacing the block matched by *edit*.
+
+    An empty ``new`` is a pure deletion of the matched block: no lines, rather
+    than a residual blank line.
+    """
+    new_content = reindent(edit.new, edit.indent) if edit.indent else edit.new
+    if new_content == "":
+        return []
+    if not new_content.endswith("\n"):
+        new_content += "\n"
+    return split_lines(new_content)
+
+
+def _splice(
+    lines: list[str],
+    resolved: list[ResolvedEdit],
+    file_rel: str,
+) -> list[str]:
+    """Return a copy of *lines* with every resolved edit spliced in.
+
+    Edits are spliced bottom-to-top so upper edits don't shift. Before each
+    splice the resolved range is re-verified against ``old`` (TOCTOU guard).
+
+    Raises:
+        _AnchorDriftError: When a resolved range no longer matches its anchor.
+    """
+    spliced = list(lines)
+    for edit in sorted(resolved, key=lambda e: e.line, reverse=True):
+        if not _anchor_still_matches(spliced, edit):
+            raise _AnchorDriftError(
+                ValidationError(
+                    file=file_rel,
+                    line=edit.line,
+                    expected=edit.old,
+                    error=(
+                        "File changed between validation and apply: "
+                        f"content at line {edit.line} no longer matches the "
+                        "'old' anchor (aborted to avoid a wrong-location splice)"
+                    ),
+                )
+            )
+        end = edit.line + old_line_count(edit.old) - 1
+        spliced[edit.line - 1 : end] = _replacement_lines(edit)
+    return spliced
 
 
 def _apply_replace(
@@ -606,44 +372,9 @@ def _apply_replace(
         )
 
     eol = _detect_eol(target)
-    lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
-
-    # Sort bottom-to-top so upper edits don't shift
-    sorted_edits = sorted(resolved, key=lambda e: e.line, reverse=True)
-
-    for edit in sorted_edits:
-        # TOCTOU guard: confirm the anchor is still where validation found it.
-        if not _anchor_still_matches(lines, edit):
-            raise _AnchorDriftError(
-                ValidationError(
-                    file=file_rel,
-                    line=edit.line,
-                    expected=edit.old,
-                    error=(
-                        "File changed between validation and apply: "
-                        f"content at line {edit.line} no longer matches the "
-                        "'old' anchor (aborted to avoid a wrong-location splice)"
-                    ),
-                )
-            )
-        start = edit.line
-        end = start + _old_line_count(edit.old) - 1
-        # Build replacement lines, preserving trailing newline style
-        new_content = edit.new
-        # Re-indent if match was indent-normalized
-        if edit.indent:
-            new_content = _reindent(new_content, edit.indent)
-        if new_content == "":
-            # An empty replacement is a *pure deletion* of the matched block:
-            # emit no lines rather than a residual blank line.
-            new_lines: list[str] = []
-        else:
-            if not new_content.endswith("\n"):
-                new_content += "\n"
-            new_lines = new_content.splitlines(keepends=True)
-        lines[start - 1 : end] = new_lines
-
-    target.write_text("".join(lines), encoding="utf-8", newline=eol)
+    lines = split_lines(target.read_text(encoding="utf-8"))
+    spliced = _splice(lines, resolved, file_rel)
+    target.write_text("".join(spliced), encoding="utf-8", newline=eol)
     return len(resolved)
 
 
@@ -877,6 +608,56 @@ def _apply_rewrites(root: Path, rewrites: list[RewriteOp]) -> int:
     return count
 
 
+def _current_text(root: Path, file_rel: str) -> str | None:
+    """Read *file_rel* as UTF-8 text, ``None`` when absent or unreadable."""
+    target = _resolve_safe(root, file_rel)
+    if target is None or not target.is_file():
+        return None
+    try:
+        return target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _planned_contents(
+    root: Path,
+    grouped: _GroupedOps,
+    resolved_by_file: dict[str, list[ResolvedEdit]],
+) -> Iterator[tuple[str, str | None, str]]:
+    """Yield ``(file, before, after)`` for every file the batch would write.
+
+    A replace target that drifted since its resolution is skipped: the apply
+    step re-detects the drift and rolls the batch back.
+    """
+    for file_rel, resolved in resolved_by_file.items():
+        before = _current_text(root, file_rel)
+        if before is None:
+            continue
+        try:
+            spliced = _splice(split_lines(before), resolved, file_rel)
+        except _AnchorDriftError:
+            continue
+        yield file_rel, before, "".join(spliced)
+    for create_op in grouped.creates:
+        yield create_op.file, _current_text(root, create_op.file), create_op.content
+    for rewrite_op in grouped.rewrites:
+        yield rewrite_op.file, _current_text(root, rewrite_op.file), rewrite_op.content
+
+
+def _syntax_errors(
+    root: Path,
+    grouped: _GroupedOps,
+    resolved_by_file: dict[str, list[ResolvedEdit]],
+) -> list[ValidationError]:
+    """Refuse Python, TOML or JSON syntax regressions before writing."""
+    errors: list[ValidationError] = []
+    for file_rel, before, after in _planned_contents(root, grouped, resolved_by_file):
+        error = syntax_regression(file_rel, before, after)
+        if error is not None:
+            errors.append(error)
+    return errors
+
+
 def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     """Validate and apply a batch of file operations.
 
@@ -884,7 +665,11 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
 
     * **Validation is the gate.** All operations are validated first; if any
       fails the batch is rejected wholesale (``success=False``) before a
-      single byte is written — a true all-or-nothing guarantee.
+      single byte is written — a true all-or-nothing guarantee. Validation
+      includes the syntax gate: a batch that would leave a parseable Python, TOML
+      or JSON file unparseable is refused (:mod:`axm_edit.core.syntax_gate`).
+      JSON comments and trailing commas are tolerated; new JSON files are
+      unchecked.
     * **Apply is best-effort with automatic rollback.** Once validation
       passes, a targeted checkpoint of every touched path is captured and the
       operations are applied. If *any* exception occurs mid-apply (anchor
@@ -906,6 +691,8 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
     root = root.resolve()
     grouped = _group_operations(root, operations)
     resolved_by_file, errors = _validate_all(root, grouped)
+    if not errors:
+        errors = _syntax_errors(root, grouped, resolved_by_file)
 
     if errors:
         return BatchResult(

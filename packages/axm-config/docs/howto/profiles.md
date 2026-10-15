@@ -160,6 +160,31 @@ exported, every profile answers that number, and the comparison above tells you
 nothing about a clash. Clear the port variables before comparing derived
 allocations.
 
+## Start the dev services with the same profile
+
+Embedded warden writes require the dev HTTP MCP to enforce session contracts:
+
+```bash
+AXM_PROFILE=dev /absolute/runtime/.venv/bin/axm-mcp serve --shared
+AXM_PROFILE=dev /absolute/runtime/.venv/bin/axm-warden serve
+```
+
+Dedicated MCP mode reports `write_contracts_enforced: false` at `/health` and
+the executor refuses it. Use `--shared`; selecting `AXM_PROFILE=dev` alone does
+not enable enforcement. Start Orison's backend with `AXM_PROFILE=dev` too.
+
+From Orison's `frontend` directory, an explicitly pinned development frontend
+can be started as follows, with the URL of the dev backend actually launched:
+
+```bash
+AXM_PROFILE=dev ORISON_PORT=5399 ORISON_API=http://127.0.0.1:32960 npm run dev
+```
+
+`ORISON_PORT` binds Vite; `ORISON_API` selects its backend proxy. Without these
+overrides, Vite resolves both through `orison web --print-target --profile dev`.
+Put the intended runtime's absolute `.venv/bin` first on `PATH` for that lookup.
+Check `/api/profile` through the frontend to verify it reaches the dev backend.
+
 ## AXM_HOME is not a store override
 
 `axm_home`, `NamespaceStore`, `get`, `set_`, `load` and profile storage

@@ -14,6 +14,28 @@ monorepo builds and makes the entry points discoverable in navigation.
 
 ::: axm_audit.get_rules_for_category
 
+`audit_project(package, test_reports={package.resolve(): report})` consumes a
+precomputed `TestReport` for every rule declaring `runs_tests=True`. Static
+rules still run normally. Passing an empty mapping refuses missing suite
+evidence; it never falls back to another pytest run. Omitting `test_reports`
+preserves the standalone audit behavior.
+
+The measurement owner exports coverage JSON and pytest JSON in its own run,
+using `axm_audit.core.test_runner.build_pytest_cmd`, then loads both through
+`read_test_report(include_cases=True)`. These are the same builders used by
+`audit_test`. The owner must bind the report to the measured tree and
+environment before reusing it. A test-running rule must implement
+`check_measured`; missing support fails closed.
+
+::: axm_audit.validation_readiness
+
+`validation_readiness(Path(...))` returns an instrument-to-cause mapping, empty
+when collection and the applicable lint/type gates can run. It shares the
+validation command builders, reporting dependencies, environment policy and
+timeouts; it never synchronises the target environment. Code findings in lint
+or type output are left to the gate; collection and environment failures refuse
+admission.
+
 ## Result models
 
 ::: axm_audit.AuditResult
@@ -58,3 +80,13 @@ For exact transport behavior, parameter tables and known limits, use the
 [CLI/tools reference](cli.md), [results guide](../howto/results.md) and
 [framework reference](frameworks.md). Source docstrings can lag the runtime;
 the narrative describes the checked behavior.
+
+## Session runtime
+
+Under a transported phase contract, audit commands use its matching
+DependencyEnvironment: absolute lexical interpreter, declared package root, and
+declared PYTHONPATH. A local worktree virtualenv never overrides it. Runtime
+package requests do not install or overlay packages in this mode; missing
+instruments fail in the declared interpreter. A readable dependency path alone
+does not authorize execution there. Without a contract, legacy virtualenv/uv
+discovery and runtime overlays remain unchanged.

@@ -866,7 +866,14 @@ def test_shared_wrapper_resolves_contract_for_each_emitting_session() -> None:
     allowed = wrapper(**request)
 
     assert allowed == {"success": True}
-    assert calls == [request]
+    assert calls == [
+        {
+            **request,
+            "operations": [
+                {"op": "create", "file": "/workspace/b/out.txt", "content": "session-b"}
+            ],
+        }
+    ]
 
 
 def test_shared_wrapper_refuses_run_command_only_with_bound_contract() -> None:
@@ -951,7 +958,7 @@ def test_shared_wrapper_executes_batch_when_resolver_returns_no_contract() -> No
         write_contract_resolver=lambda: None,
     )[0]
 
-    operations = [{"op": "create", "file": "out.txt", "content": "ok"}]
+    operations = [{"op": "create", "file": "/workspace/out.txt", "content": "ok"}]
     result = wrapper(path="/workspace", operations=operations)
 
     assert result == {"success": True}

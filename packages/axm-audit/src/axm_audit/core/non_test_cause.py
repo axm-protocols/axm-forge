@@ -85,7 +85,7 @@ def _truncate_excerpt(text: str) -> str:
 # ``type: ignore[explicit-any]``: the pydantic mypy plugin synthesizes
 # ``__init__(**data: Any)``, which strict ``disallow_any_explicit`` rejects on the
 # class line. Same waiver as models/results.py and doc_gate/findings.py.
-class NonTestCause(BaseModel):  # type: ignore[explicit-any]
+class NonTestCause(BaseModel):
     """Machine-readable cause of a red no test failure accounts for."""
 
     code: NonTestCauseCode

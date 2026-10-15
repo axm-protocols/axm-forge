@@ -149,7 +149,9 @@ async def test_unbound_registered_batch_edit_creates_requested_file(
 
     await wrapper(
         path=str(tmp_path),
-        operations=[{"op": "create", "file": "out.txt", "content": "ok"}],
+        operations=[
+            {"op": "create", "file": str(tmp_path / "out.txt"), "content": "ok"}
+        ],
     )
 
     assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "ok"

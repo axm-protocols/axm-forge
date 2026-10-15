@@ -102,6 +102,7 @@ def test_cross_session_write_is_refused_with_requesting_identity(
         should_trace=False,
         write_contract_resolver=mcp_app._resolve_session_contract,
         shared_mode=True,
+        path_defaults={},
     )
 
     refusal = wrapping._write_refusal(

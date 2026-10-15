@@ -16,18 +16,20 @@ Imports from axm core are limited to ``axm.tools.base`` (shared types +
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from collections.abc import Mapping
 from contextvars import ContextVar
+from functools import partial
 from typing import TypedDict, Unpack, cast
 
-from mcp.server.mcpserver import MCPServer
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER, EventStore
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.responses import PlainTextResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from axm_mcp.discovery import (
     ToolEntry,
@@ -42,8 +44,10 @@ from axm_mcp.session_contracts import (
     SessionContractRegistry,
     UnboundSessionError,
     WriteContract,
+    parse_write_contract_header,
 )
 from axm_mcp.settings import resolve_serve_mode
+from axm_mcp.tool_surface import ToolSurfaceMiddleware, ToolSurfaceServer
 from axm_mcp.verify import VerifyTool
 from axm_mcp.web_fetch import WebFetchTool
 
@@ -84,11 +88,31 @@ def session_id_from_headers(headers: Mapping[str, str]) -> str:
 __all__ = ["build_http_app"]
 
 
+async def _bind_initialize_response(
+    message: Message, send: Send, contract: WriteContract
+) -> None:
+    if message["type"] == "http.response.start":
+        response_session_id = Headers(raw=message["headers"]).get(MCP_SESSION_ID_HEADER)
+        if response_session_id is None:
+            logging.getLogger(__name__).debug(
+                "request contract enforced without an MCP session id"
+            )
+        else:
+            session_contract_registry.bind(response_session_id, contract)
+    await send(message)
+
+
+_current_request_contract = ContextVar[WriteContract | None](
+    "axm_mcp_current_request_contract", default=None
+)
+
+
 class _SessionContractMiddleware:
     """Bind per-session write contracts before MCP request dispatch."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, *, mode: str) -> None:
         self._app = app
+        self._mode = mode
 
     async def __call__(
         self,
@@ -100,19 +124,51 @@ class _SessionContractMiddleware:
             await self._app(scope, receive, send)
             return
         headers = Headers(scope=scope)
-        token = None
-        try:
-            token = _current_session_id.set(session_id_from_headers(headers))
-        except UnboundSessionError:
-            pass
-        if headers.get(_WRITE_CONTRACT_HEADER) is not None:
+        raw_contract = headers.get(_WRITE_CONTRACT_HEADER)
+        declared_contract: WriteContract | None = None
+        if raw_contract is not None:
+            if self._mode == "dedicated":
+                reason = "write contracts are not enforced by a dedicated server"
+                logging.getLogger(__name__).warning(reason)
+                await PlainTextResponse(reason, status_code=403)(scope, receive, send)
+                return
             try:
-                bind_session_from_headers(headers)
-            except (UnboundSessionError, ValueError):
-                pass
+                declared_contract = parse_write_contract_header(raw_contract)
+            except ValueError as exc:
+                reason = f"invalid write contract: {exc}"
+                logging.getLogger(__name__).warning(reason)
+                await PlainTextResponse(reason, status_code=400)(scope, receive, send)
+                return
+        token = None
+        pending_contract: WriteContract | None = None
         try:
-            await self._app(scope, receive, send)
+            session_id = session_id_from_headers(headers)
+        except UnboundSessionError:
+            pending_contract = declared_contract
+        else:
+            if raw_contract is not None:
+                try:
+                    bind_session_from_headers(headers)
+                except ValueError as exc:
+                    reason = f"invalid write contract: {exc}"
+                    logging.getLogger(__name__).warning(reason)
+                    await PlainTextResponse(reason, status_code=400)(
+                        scope, receive, send
+                    )
+                    return
+            token = _current_session_id.set(session_id)
+
+        request_token = _current_request_contract.set(declared_contract)
+
+        try:
+            response_send = (
+                partial(_bind_initialize_response, send=send, contract=pending_contract)
+                if pending_contract is not None
+                else send
+            )
+            await self._app(scope, receive, response_send)
         finally:
+            _current_request_contract.reset(request_token)
             if token is not None:
                 _current_session_id.reset(token)
 
@@ -132,21 +188,24 @@ class _HttpAppOptions(TypedDict, total=False):
     host: str
 
 
-class _SessionAwareMCPServer(MCPServer[object]):
+class _SessionAwareMCPServer(ToolSurfaceServer):
     """MCPServer variant whose HTTP transport binds shared-session contracts."""
 
     def streamable_http_app(self, **kwargs: Unpack[_HttpAppOptions]) -> Starlette:
+        """Install request contract validation for the resolved serving mode."""
         # mcp 2.x calls this with transport keywords (streamable_http_path,
         # json_response, session_idle_timeout...). A no-arg override compiles
         # and passes every unit test, then fails at boot when the transport
         # supplies them -- so relay whatever the caller sent.
         app = super().streamable_http_app(**kwargs)
+        app.add_middleware(ToolSurfaceMiddleware)
         # An explicit ``serve --shared`` reaches this process only through the
         # registration switch (``AXM_MCP_SHARED``), which outranks the
         # environment/file policy exactly as the CLI option does.
         explicit = "shared" if _SHARED_MODE else None
-        if resolve_serve_mode(explicit) == "shared":
-            app.add_middleware(_SessionContractMiddleware)
+        app.add_middleware(
+            _SessionContractMiddleware, mode=resolve_serve_mode(explicit)
+        )
         return app
 
 
@@ -214,6 +273,9 @@ def _on_session_end(*, registry: SessionContractRegistry, session_id: str) -> No
 
 def _resolve_session_contract() -> WriteContract:
     """Resolve the contract belonging to the current MCP session."""
+    declared = _current_request_contract.get()
+    if declared is not None:
+        return declared
     return contract_for_session_id(current_session_id())
 
 

@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 import shutil
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 from axm.tools.base import ToolResult
+
+from axm_git.core.commit_environment import environment_options
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +46,9 @@ def staged_delta(before: set[str], after: set[str]) -> list[str]:
     return sorted(after - before)
 
 
-def reset_paths(paths: list[str], git_root: Path) -> None:
+def reset_paths(
+    paths: list[str], git_root: Path
+) -> subprocess.CompletedProcess[str] | None:
     """Unstage exactly *paths* via a scoped ``git reset -- <paths>``.
 
     Restoration is strictly scoped to *paths*: it never runs a bare
@@ -52,8 +57,8 @@ def reset_paths(paths: list[str], git_root: Path) -> None:
     no-op when *paths* is empty.
     """
     if not paths:
-        return
-    run_git(["reset", "--quiet", "--", *paths], git_root)
+        return None
+    return run_git(["reset", "--quiet", "--", *paths], git_root)
 
 
 def stage_spec_files(
@@ -282,6 +287,7 @@ def find_git_root(path: Path) -> Path | None:
             text=True,
             check=False,
             timeout=DEFAULT_GIT_TIMEOUT,
+            **environment_options(),
         )
     except subprocess.TimeoutExpired:
         logger.warning("git rev-parse timed out after %ss", DEFAULT_GIT_TIMEOUT)
@@ -296,6 +302,7 @@ def run_git(
     cwd: Path,
     *,
     timeout: float | None = DEFAULT_GIT_TIMEOUT,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a git command in the given directory.
 
@@ -320,6 +327,7 @@ def run_git(
             capture_output=True,
             text=True,
             check=False,
+            **environment_options(env),
         )
     except subprocess.TimeoutExpired:
         logger.warning("git %s timed out after %ss", args[0] if args else "", timeout)

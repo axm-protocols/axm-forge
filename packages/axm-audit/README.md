@@ -77,6 +77,11 @@ uv run axm doc_gate .
 `audit_fix` previews Python test-tree changes by default. Read its
 [scope and rollback limits](docs/fix_pipeline.md) before using `--apply`.
 
+`audit_test` runs the target project's own pytest (7.0 or later) and needs no
+reporting plugin in that environment: `axm-audit` ships a small plugin and
+injects it for the run. Without `pytest-cov` the tests still run and the result
+reports coverage as unavailable, with the reason.
+
 A successful command means the tool produced a result. In JSON, inspect
 `failed` for an audit, `verdict` for tests, and `count` for documentation
 findings. A grade A can coexist with failed checks.

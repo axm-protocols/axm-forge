@@ -6,11 +6,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from axm.tools.dependency_reads import DependencyEnvironment, dependency_sources
+
 __all__ = [
     "WRITE_CONTRACT_ENV",
     "WriteAccessDecision",
     "WriteContract",
     "decide_write_access",
+    "restrict_write_contract",
     "write_contract_from_env",
 ]
 
@@ -60,6 +63,27 @@ def _normalized_prefixes(
     return tuple(dict.fromkeys(_absolute_location(root, prefix) for prefix in value))
 
 
+def _read_aliases(
+    raw: object,
+    roots: tuple[str, ...],
+) -> tuple[tuple[str, str], ...]:
+    if not isinstance(raw, (tuple, list)):
+        raise ValueError("read_path_aliases must be a sequence of path pairs")
+    aliases = []
+    for pair in raw:
+        if (
+            not isinstance(pair, (tuple, list))
+            or len(pair) != len(("source", "target"))
+            or any(not isinstance(p, str) or not os.path.isabs(p) for p in pair)
+        ):
+            raise ValueError("read_path_aliases require absolute source and target")
+        source, target = (os.path.realpath(p) for p in pair)
+        if target not in roots:
+            raise ValueError("read alias target must be a declared read root")
+        aliases.append((source, target))
+    return tuple(aliases)
+
+
 @dataclass(frozen=True)
 class WriteContract:
     """Validated wire representation of a session filesystem write scope.
@@ -75,6 +99,10 @@ class WriteContract:
     execution_root: str
     allowed_prefixes: tuple[str, ...] = ()
     markdown_only_prefixes: tuple[str, ...] = ()
+    dependency_environment: DependencyEnvironment | None = None
+    read_roots: tuple[str, ...] = ()
+    read_path_aliases: tuple[tuple[str, str], ...] = ()
+    dependency_environments: tuple[DependencyEnvironment, ...] = ()
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object]) -> WriteContract:
@@ -84,9 +112,33 @@ class WriteContract:
             raise ValueError("execution_root must be a non-empty string")
         root = os.path.realpath(raw_root.strip())
         prefixes = _normalized_prefixes(raw, "allowed_prefixes", root)
+        reads = _normalized_prefixes(raw, "read_roots", root) or (root,)
+        aliases = _read_aliases(raw.get("read_path_aliases", ()), reads)
         markdown_only = _normalized_prefixes(raw, "markdown_only_prefixes", root)
+        environment = raw.get("dependency_environment")
+        if environment is not None and not isinstance(environment, Mapping):
+            raise ValueError("dependency_environment must be an object")
+        if isinstance(environment, Mapping):
+            read_env = DependencyEnvironment.from_mapping(environment)
+            if read_env.package_root != root:
+                raise ValueError("dependency package_root must match execution_root")
+        extra = raw.get("dependency_environments", ())
+        if not isinstance(extra, (tuple, list)) or any(
+            not isinstance(env, Mapping) for env in extra
+        ):
+            raise ValueError("dependency_environments must be a sequence of objects")
         return cls(
+            dependency_environments=tuple(
+                DependencyEnvironment.from_mapping(env) for env in extra
+            ),
+            dependency_environment=(
+                DependencyEnvironment.from_mapping(environment)
+                if isinstance(environment, Mapping)
+                else None
+            ),
             execution_root=root,
+            read_roots=reads,
+            read_path_aliases=aliases,
             allowed_prefixes=prefixes,
             markdown_only_prefixes=tuple(
                 prefix for prefix in markdown_only if prefix in prefixes
@@ -123,10 +175,60 @@ class WriteContract:
             return True
         return location.casefold().endswith(_MARKDOWN_SUFFIXES)
 
+    def readable(self, location: str) -> bool:
+        """Accept local reads and declared sources resolved by the test interpreter."""
+        location = os.path.realpath(location)
+        if any(
+            location == root or location.startswith(root + os.sep)
+            for root in (self.read_roots or (self.execution_root,))
+        ):
+            return True
+        environments = self.dependency_environments
+        if self.dependency_environment is not None:
+            environments = (self.dependency_environment, *environments)
+        return any(dependency_sources(env).permits(location) for env in environments)
+
     def contains(self, location: str) -> bool:
         """Return whether a resolved location is under the execution root."""
-        root = self.execution_root
+        root = os.path.realpath(self.execution_root)
         return location == root or location.startswith(root + os.sep)
+
+
+@dataclass(frozen=True)
+class _RestrictedContract(WriteContract):
+    constraints: tuple[WriteContract, ...] = ()
+
+    def permits(self, location: str) -> bool:
+        return super().permits(location) and all(
+            constraint.permits(location) for constraint in self.constraints
+        )
+
+    def readable(self, location: str) -> bool:
+        return super().readable(location) and all(
+            constraint.readable(location) for constraint in self.constraints
+        )
+
+
+def restrict_write_contract(
+    contract: WriteContract | None, constraints: tuple[WriteContract | None, ...]
+) -> WriteContract | None:
+    """Intersect live and retained authority without widening either body's scope."""
+    if not constraints:
+        return contract
+    if contract is None or any(constraint is None for constraint in constraints):
+        return None
+    return _RestrictedContract(
+        execution_root=contract.execution_root,
+        allowed_prefixes=contract.allowed_prefixes,
+        markdown_only_prefixes=contract.markdown_only_prefixes,
+        dependency_environment=contract.dependency_environment,
+        read_roots=contract.read_roots,
+        read_path_aliases=contract.read_path_aliases,
+        dependency_environments=contract.dependency_environments,
+        constraints=tuple(
+            constraint for constraint in constraints if constraint is not None
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -266,6 +368,39 @@ def _decide_declared_mutation(
     )
 
 
+def _decide_read_access(
+    canonical: str,
+    payload: Mapping[str, object],
+    contract: WriteContract,
+) -> WriteAccessDecision:
+    from axm.tools.session_paths import resolve_session_paths
+
+    resolved = dict(payload)
+    try:
+        resolve_session_paths(resolved, {"path": "."}, contract)
+    except ValueError as exc:
+        return WriteAccessDecision(allowed=False, reason=str(exc))
+    payload = resolved
+    base = payload.get("path", contract.execution_root)
+    if not isinstance(base, (str, os.PathLike)):
+        return _denied(str(base), contract, canonical)
+    base = str(base)
+    candidates = [base]
+    for key in ("file", "files"):
+        raw = payload.get(key, ())
+        values = [raw] if isinstance(raw, str) else raw
+        if isinstance(values, (tuple, list)):
+            candidates.extend(contract.resolve(base, str(p)) for p in values)
+    for candidate in candidates:
+        location = contract.resolve(contract.execution_root, candidate)
+        if not contract.readable(location):
+            return _denied(location, contract, f"{canonical} read")
+    return WriteAccessDecision(
+        allowed=True,
+        reason="no filesystem mutation; resolved read source is authorized",
+    )
+
+
 def decide_write_access(
     contract: WriteContract | Mapping[str, object] | None,
     tool_name: str,
@@ -287,6 +422,8 @@ def decide_write_access(
             reason=facade_error,
             consulted_prefixes=resolved_contract.allowed_prefixes,
         )
+    if canonical == "read_file" or canonical.startswith("ast_"):
+        return _decide_read_access(canonical, payload, resolved_contract)
     shape = _MUTATION_TOOLS.get(canonical)
     if shape is None:
         return _unclassified_tool_decision(canonical, payload, resolved_contract)

@@ -100,3 +100,18 @@ A frozen dataclass with `name: str` and `path: Path`. For resolver-produced
 values, name is the **directory basename**, not `[project].name`, and path
 is absolute and resolved. Two members can share a name; use paths as keys when
 uniqueness matters. Constructors do not validate or normalize supplied values.
+
+## Explicit instruments
+
+`axm_ingot.instrument_command(command, interpreter=..., package_root=...,
+pythonpath=...)` returns command arguments and a child environment from explicit
+trusted inputs. It neither discovers virtualenvs nor installs dependencies.
+Python instruments run as the declared interpreter's modules; other named
+instruments must be confined to its bin directory. Paths and uv are refused.
+PYTHONPATH starts with the primary package_root/src when present, otherwise
+package_root (flat layout), followed by canonicalized supplemental pythonpath
+entries, deduplicated in order. An escaping src symlink is refused unless its
+destination is already an explicitly declared supplemental path. Inherited virtualenv
+selection variables and PYTHONHOME are removed; PYTHONNOUSERSITE=1 prevents
+user-site contamination; PYTHONDONTWRITEBYTECODE=1 keeps imports read-only.
+Missing modules fail in the declared runtime.

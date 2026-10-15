@@ -62,6 +62,8 @@ constraint-dependencies = [
     "prek==0.5.3",
     "requests>=2.33.0",
     "pygments>=2.20.0",
+    "pyjwt>=2.15.0",
+    "urllib3>=2.8.0",
 ]
 
 [tool.uv.workspace]
@@ -102,7 +104,8 @@ pythonpath = [
     "packages/axm-audit/tests_axm_audit",
 ]
 
-import_mode = "importlib"
+addopts = ["--import-mode=importlib"]
+asyncio_mode = "auto"
 testpaths = [
     "packages/axm/tests_axm",
     "packages/axm-anvil/tests_axm_anvil",

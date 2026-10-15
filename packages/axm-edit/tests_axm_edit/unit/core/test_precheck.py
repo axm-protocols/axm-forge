@@ -7,7 +7,6 @@ from typing import cast
 
 from axm_edit.core import precheck
 from axm_edit.core.precheck import (
-    check_anchor_quotes,
     check_anchor_whole_line,
     check_edit_keys,
     run_static_checks,
@@ -51,23 +50,6 @@ class TestCheckEditKeys:
     def test_conforming_edit_produces_no_key_diagnostic(self) -> None:
         """AC2: a mapping holding only Edit keys is clean."""
         assert check_edit_keys(0, "a.py", {"old": "a", "new": "b"}) == []
-
-
-class TestCheckAnchorQuotes:
-    """AC3: triple-quoted anchors are rejected."""
-
-    def test_triple_quoted_anchor_reports_anchor_triple_quote(self) -> None:
-        """AC3: an old containing \"\"\" yields ANCHOR_TRIPLE_QUOTE."""
-        diagnostics = check_anchor_quotes(1, "a.py", 'def f():\n    """doc"""')
-
-        assert len(diagnostics) == 1
-        assert diagnostics[0].code == "ANCHOR_TRIPLE_QUOTE"
-        assert diagnostics[0].severity == "error"
-        assert diagnostics[0].op_index == 1
-
-    def test_quote_free_anchor_produces_nothing(self) -> None:
-        """AC3: an anchor without triple-quotes is clean."""
-        assert check_anchor_quotes(0, "a.py", "x = 1") == []
 
 
 class TestCheckAnchorWholeLine:
@@ -122,18 +104,16 @@ class TestRunStaticChecks:
         """AC5: AC3 + AC4 findings are merged and ordered by op_index."""
         operations = [
             ReplaceOp(file="a.py", edits=[Edit(old="f():\n    return", new="g")]),
-            ReplaceOp(file="b.py", edits=[Edit(old='"""doc"""', new="pass")]),
+            ReplaceOp(file="b.py", edits=[Edit(old="1\n    y", new="pass")]),
         ]
         contents = {
             "a.py": ["def f():", "    return 1", ""],
-            "b.py": ['"""doc"""', ""],
+            "b.py": ["x = 1", "    y = 2", ""],
         }
 
         diagnostics = run_static_checks(operations, contents)
 
-        codes = {d.code for d in diagnostics}
-        assert "ANCHOR_NOT_WHOLE_LINE" in codes
-        assert "ANCHOR_TRIPLE_QUOTE" in codes
+        assert {d.code for d in diagnostics} == {"ANCHOR_NOT_WHOLE_LINE"}
         indexes = [d.op_index for d in diagnostics]
         assert indexes == sorted(indexes)
         assert set(indexes) == {0, 1}
@@ -187,19 +167,6 @@ class TestCheckRewriteKeys:
 class TestAnchorDiagnosticsLocateTheirEdit:
     """AC2-AC6: anchor diagnostics name their edit slot and echo the anchor."""
 
-    def test_triple_quote_anchor_carries_its_edit_index_and_excerpt(self) -> None:
-        """AC2: ANCHOR_TRIPLE_QUOTE carries the edit slot and an anchor prefix."""
-        anchor = 'x = """doc"""'
-
-        diagnostics = check_anchor_quotes(0, "a.py", anchor, edit_index=1)
-
-        assert len(diagnostics) == 1
-        diagnostic = diagnostics[0]
-        assert diagnostic.code == "ANCHOR_TRIPLE_QUOTE"
-        assert diagnostic.edit_index == 1
-        assert diagnostic.anchor_excerpt
-        assert anchor.startswith(diagnostic.anchor_excerpt)
-
     def test_mid_line_multiline_anchor_carries_its_edit_index(self) -> None:
         """AC3: a multi-line anchor off column 0 names its edit slot."""
         lines = ["def f():", "    return 1", ""]
@@ -240,9 +207,10 @@ class TestAnchorDiagnosticsLocateTheirEdit:
     def test_long_anchor_excerpt_is_bounded_and_marked(self) -> None:
         """AC5: a 300-char anchor is truncated to 80 chars, marker included."""
         body = "a" * 150
-        anchor = f'"""\n{body}\n{body}\n"""'
+        anchor = f"{body}\n{body}"
+        lines = [f"x = {body}", body, ""]
 
-        diagnostics = check_anchor_quotes(0, "a.py", anchor, edit_index=3)
+        diagnostics = check_anchor_whole_line(0, "a.py", lines, anchor, edit_index=3)
 
         assert len(diagnostics) == 1
         excerpt = diagnostics[0].anchor_excerpt
@@ -258,7 +226,7 @@ class TestAnchorDiagnosticsLocateTheirEdit:
                 file="a.py",
                 edits=[
                     Edit(old="    return 1", new="    return 2"),
-                    Edit(old='x = """doc"""', new="x = 1"),
+                    Edit(old="f():\n    return", new="g"),
                 ],
             )
         ]
@@ -268,6 +236,6 @@ class TestAnchorDiagnosticsLocateTheirEdit:
 
         assert len(diagnostics) == 1
         diagnostic = diagnostics[0]
-        assert diagnostic.code == "ANCHOR_TRIPLE_QUOTE"
+        assert diagnostic.code == "ANCHOR_NOT_WHOLE_LINE"
         assert diagnostic.op_index == 0
         assert diagnostic.edit_index == 1

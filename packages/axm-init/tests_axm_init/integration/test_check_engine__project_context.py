@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from axm_init.checks._workspace import ProjectContext
+from axm_init.checks.protocols import protocol_inventory
 from axm_init.core import checker
 from axm_init.core.checker import ALL_CHECKS, CheckEngine, get_check_name
 from axm_init.core.protocol_planner import plan_protocol_scaffold
@@ -344,12 +345,12 @@ def _registration_project(
     return root
 
 
-def _register_graph(root: Path, target: str) -> None:
+def _register_graph(root: Path, target: str, group: str = "axm.graphs") -> None:
     """Declare a distribution entry point without loading its target."""
     metadata = root / "pyproject.toml"
     metadata.write_text(
         metadata.read_text(encoding="utf-8")
-        + '\n[project.entry-points."axm.graphs"]\n'
+        + f'\n[project.entry-points."{group}"]\n'
         + f'"demo.work.exec" = "{target}"\n',
         encoding="utf-8",
     )
@@ -518,6 +519,180 @@ def test_remonter_enregistrement_et_etat_sous_leurs_regles(tmp_path: Path) -> No
                     f"protocols-{name}" in item and detail in item
                     for item in aggregated.details
                 ), aggregated.details
+
+
+TRIBUNAL_GROUP = "axm.tribunal.graphs"
+LOOM_GROUP = "axm.graphs"
+EXEC_FACTORY = "protocols_demo.work.exec.protocol:build_protocol"
+
+
+def _compose_with_tribunal(root: Path) -> None:
+    """Rewrite the exec assembly with the axm-tribunal composition API."""
+    (root / "src/protocols_demo/work/exec/protocol.py").write_text(
+        "from __future__ import annotations\n"
+        "from axm_tribunal import protocol\n"
+        "__all__ = ['build_protocol']\n"
+        "def build_protocol():\n"
+        "    return protocol('demo.work.exec', phases=[])\n",
+        encoding="utf-8",
+    )
+
+
+def _registration_result(project: Path) -> CheckResult:
+    checks = CheckEngine(project, category="protocols").run().checks
+    return next(check for check in checks if check.name == REGISTRATION_RULE)
+
+
+@pytest.mark.integration
+def test_accepter_chaque_famille_sous_son_groupe(tmp_path: Path) -> None:
+    """A ready protocol passes when published under its own family's group."""
+    for family, group in (("tribunal", TRIBUNAL_GROUP), ("loom", LOOM_GROUP)):
+        project = _registration_project(tmp_path / family)
+        if family == "tribunal":
+            _compose_with_tribunal(project)
+        _register_graph(project, EXEC_FACTORY, group)
+        result = _registration_result(project)
+        assert result.passed, (family, result.details)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("family", "published", "expected"),
+    [("tribunal", LOOM_GROUP, TRIBUNAL_GROUP), ("loom", TRIBUNAL_GROUP, LOOM_GROUP)],
+)
+def test_refuser_publication_sous_le_groupe_d_une_autre_famille(
+    tmp_path: Path, family: str, published: str, expected: str
+) -> None:
+    """A graph published under the other family's group names the right one."""
+    project = _registration_project(tmp_path / family)
+    if family == "tribunal":
+        _compose_with_tribunal(project)
+    _register_graph(project, EXEC_FACTORY, published)
+    result = _required_protocol_failure(project, REGISTRATION_RULE)
+    assert any(
+        f"{family} protocol demo.work.exec is registered under {published}" in detail
+        and f"move its entry to {expected}" in detail
+        for detail in result.details
+    ), result.details
+
+
+@pytest.mark.integration
+def test_collisions_confinees_a_un_groupe(tmp_path: Path) -> None:
+    """One graph name in the legacy and the tribunal group is a switch, not a clash."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["members/*"]\n',
+        encoding="utf-8",
+    )
+    for name, group in (("legacy", LOOM_GROUP), ("tribunal", TRIBUNAL_GROUP)):
+        member = _registration_project(workspace / "members" / name)
+        metadata = member / "pyproject.toml"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8").replace(
+                'name = "protocols-demo"', f'name = "protocols-{name}"'
+            ),
+            encoding="utf-8",
+        )
+        if group == TRIBUNAL_GROUP:
+            _compose_with_tribunal(member)
+        _register_graph(member, EXEC_FACTORY, group)
+    result = _registration_result(workspace)
+    assert result.passed, result.details
+
+
+def _declare_bare_graph_name(root: Path) -> None:
+    """Rewrite the exec assembly with a GRAPH_NAME and no composition call."""
+    (root / "src/protocols_demo/work/exec/protocol.py").write_text(
+        "from __future__ import annotations\n"
+        "__all__ = ['build_protocol']\n"
+        "GRAPH_NAME = 'demo.work.exec'\n"
+        "def build_protocol():\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+
+def _protocol_workspace(
+    tmp_path: Path, members: dict[str, tuple[str, str | None]]
+) -> Path:
+    """One workspace whose members compose ``demo.work.exec`` as described.
+
+    Each member maps to its composition (``tribunal``, ``loom`` or ``bare``)
+    and the graph group it is registered in (``None``: a draft, unregistered).
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["members/*"]\n',
+        encoding="utf-8",
+    )
+    for name, (composition, group) in members.items():
+        member = _registration_project(
+            workspace / "members" / name,
+            state="draft" if group is None else "ready",
+        )
+        metadata = member / "pyproject.toml"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8").replace(
+                'name = "protocols-demo"', f'name = "protocols-{name}"'
+            ),
+            encoding="utf-8",
+        )
+        if composition == "tribunal":
+            _compose_with_tribunal(member)
+        elif composition == "bare":
+            _declare_bare_graph_name(member)
+        if group is not None:
+            _register_graph(member, EXEC_FACTORY, group)
+    return workspace
+
+
+@pytest.mark.integration
+def test_graph_name_nu_legacy_hors_de_l_espace_tribunal(tmp_path: Path) -> None:
+    """Regression: a bare GRAPH_NAME registered under axm.graphs is a loom claim.
+
+    It used to default to the first (tribunal) family and collide with the
+    same name composed and published with axm-tribunal.
+    """
+    workspace = _protocol_workspace(
+        tmp_path,
+        {"legacy": ("bare", LOOM_GROUP), "tribunal": ("tribunal", TRIBUNAL_GROUP)},
+    )
+    records = protocol_inventory(workspace / "members" / "legacy")
+    assert [claim[:2] for claim in records[0].claims] == [
+        (LOOM_GROUP, "demo.work.exec")
+    ]
+    result = _registration_result(workspace)
+    assert result.passed, result.details
+
+
+@pytest.mark.integration
+def test_graph_name_nu_collisionne_dans_son_groupe(tmp_path: Path) -> None:
+    """A bare GRAPH_NAME still collides inside the group that registers it."""
+    workspace = _protocol_workspace(
+        tmp_path, {"legacy": ("bare", LOOM_GROUP), "loom": ("loom", LOOM_GROUP)}
+    )
+    result = _required_protocol_failure(workspace, REGISTRATION_RULE)
+    assert any(
+        f"{LOOM_GROUP} identifier 'demo.work.exec' collides" in detail
+        for detail in result.details
+    ), result.details
+
+
+@pytest.mark.integration
+def test_graph_name_nu_non_enregistre_reste_non_attribue(tmp_path: Path) -> None:
+    """An unregistered bare GRAPH_NAME is reported unattributed, in no family."""
+    workspace = _protocol_workspace(
+        tmp_path,
+        {"draft": ("bare", None), "tribunal": ("tribunal", TRIBUNAL_GROUP)},
+    )
+    records = protocol_inventory(workspace / "members" / "draft")
+    assert [claim[:2] for claim in records[0].claims] == [
+        ("unattributed", "demo.work.exec")
+    ]
+    result = _registration_result(workspace)
+    assert result.passed, result.details
 
 
 TICKET_RULE = "protocols.protocol_ticket"

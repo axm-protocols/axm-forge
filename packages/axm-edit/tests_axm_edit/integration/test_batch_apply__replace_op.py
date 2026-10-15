@@ -650,11 +650,13 @@ def test_replace_mixed_tab_space_block(tmp_path: Path) -> None:
     silently leaving the replacement un-dedented), preserving the relative
     four-space indent carried inside ``new``.
     """
-    target = tmp_path / "mod.py"
+    # A non-Python file: the resulting indent is not valid Python, and this
+    # test pins the reindent mechanics, not the syntax gate.
+    target = tmp_path / "mod.txt"
     target.write_text("def f():\n\t  old_a\n\t  old_b\n", encoding="utf-8")
 
     op = ReplaceOp(
-        file="mod.py",
+        file="mod.txt",
         edits=[Edit(old="old_a\nold_b", new="new_a\n    new_b")],
     )
     result = batch_apply(tmp_path, [op])

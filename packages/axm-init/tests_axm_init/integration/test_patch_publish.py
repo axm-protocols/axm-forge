@@ -152,3 +152,54 @@ def test_patch_publish_skips_when_no_top_level_jobs(tmp_path: Path) -> None:
 
     assert changed is False
     assert publish_yml.read_text() == body
+
+
+@pytest.mark.parametrize(
+    "wildcard", ['"*/v*"', "'**'", '"my-*/v*"', '"my-lib/*"', '"my-lib/v**"']
+)
+def test_wildcard_tag_already_covering_the_member_is_kept_alone(
+    tmp_path: Path, wildcard: str
+) -> None:
+    """Regression: `*/v*` already triggers on `my-lib/v1.0.0`; no redundant entry."""
+    body = (
+        "name: Publish\n\non:\n  push:\n    tags:\n"
+        f"      - {wildcard}\n\njobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+    )
+    publish = _publish_with(tmp_path, body)
+
+    assert patch_publish(tmp_path, "my-lib") is False
+    assert publish.read_text() == body
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    [
+        '"other/v*"',
+        '"v*"',
+        '"my-lib/*/v*"',
+        '"!*"',
+        '"*"',
+        '"my-lib/v0*"',
+        '"my-lib/v1.*"',
+        '"my-lib/v1.0.0"',
+        '"*/v0.*"',
+    ],
+)
+def test_pattern_not_covering_the_member_still_gets_its_tag(
+    tmp_path: Path, pattern: str
+) -> None:
+    """Regression: a filter matching only some versions (`my-lib/v0*`) is no cover.
+
+    `my-lib/v0*` matches `my-lib/v0.0.0` but not `my-lib/v1.0.0`; `*` stops at
+    `/`; a negation or another prefix never counts as coverage either.
+    """
+    body = (
+        "name: Publish\n\non:\n  push:\n    tags:\n"
+        f"      - {pattern}\n\njobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+    )
+    publish = _publish_with(tmp_path, body)
+
+    assert patch_publish(tmp_path, "my-lib") is True
+    assert yaml.safe_load(publish.read_text())[True]["push"]["tags"][-1] == (
+        "my-lib/v*"
+    )

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,8 +12,8 @@ import pytest
 
 NBSP = chr(0xA0)  # U+00A0 NO-BREAK SPACE (built, so the source stays ASCII)
 ANCHOR_RULE_MARKERS = (
-    "triple quote",
     "trailing newline",
+    "syntax gate",
     "whole line",
     "indentation",
 )
@@ -26,8 +25,7 @@ def _axm_binary() -> Path:
     ``axm`` is a declared dependency of ``axm-edit``: a missing binary is a
     genuine failure, never a reason to skip.
     """
-    found = shutil.which("axm")
-    binary = Path(found) if found else Path(sys.executable).with_name("axm")
+    binary = Path(sys.executable).parent / "axm"
     assert binary.exists(), f"axm console script not found at {binary}"
     return binary
 
@@ -74,7 +72,7 @@ def test_batch_edit_reports_nbsp_near_miss_with_locator(tmp_path: Path) -> None:
 
 @pytest.mark.e2e
 def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
-    """AC4: the CLI prints a bounded ``Ambiguous match:`` candidate list."""
+    """AC4: the CLI refuses the batch with a bounded ambiguous candidate list."""
     anchor = "value = compute(x)"
     target = tmp_path / "pkg" / "mod.py"
     target.parent.mkdir(parents=True)
@@ -110,7 +108,7 @@ def test_batch_edit_reports_truncated_ambiguous_match(tmp_path: Path) -> None:
 
     combined = proc.stdout + proc.stderr
     reported = "\n".join(
-        line for line in combined.splitlines() if "Ambiguous match:" in line
+        line for line in combined.splitlines() if "ANCHOR_AMBIGUOUS" in line
     )
 
     assert proc.returncode != 0, combined
@@ -249,7 +247,7 @@ def test_batch_edit_applies_a_rewrite_operation(tmp_path: Path) -> None:
 
 @pytest.mark.e2e
 def test_batch_edit_help_prints_the_anchor_contract() -> None:
-    """AC4: `axm batch_edit --help` publishes the four anchor rules."""
+    """AC4: `axm batch_edit --help` publishes the anchor contract."""
     proc = subprocess.run(
         [str(_axm_binary()), "batch_edit", "--help"],
         capture_output=True,
@@ -290,7 +288,7 @@ def test_batch_edit_names_the_failing_edit_slot_of_a_refused_batch(
             "edits": [
                 {"old": "VALUE = 1", "new": "VALUE = 2"},
                 {
-                    "old": '    """Return the value."""',
+                    "old": '    """Return the missing value."""',
                     "new": '    """Return the stored value."""',
                 },
             ],

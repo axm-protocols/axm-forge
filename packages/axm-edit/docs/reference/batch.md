@@ -47,11 +47,20 @@ All edits for a file are resolved before apply, then spliced bottom to top.
 An empty `new` deletes the matched block without leaving a blank line.
 
 For tool calls, copy indentation, omit trailing newlines from `old` and
-`new`, and avoid triple quotes in `old`. Use a unique, small anchor.
+`new`. Use a unique, small anchor. Triple-quoted strings are valid anchors;
+a batch that would leave a parseable Python, TOML or JSON file unparseable is refused before
+any write, whatever the anchor. New Python and TOML files must parse; new
+JSON files are unchecked. JSON comments (`//` and `/* */`) and trailing
+commas are tolerated. Existing files that already fail parsing remain editable.
+Data parser recursion limits produce no verdict and do not block edits.
+Other suffixes are unchecked.
 The engine can recover shifted lines, normalized quotes and dedented matches;
 these fallbacks are not semantic code analysis. Overlapping edits and unresolved
-ambiguous anchors are rejected. A preflight warning about ambiguity does not
-mean engine validation will accept it.
+ambiguous anchors are rejected. The preflight resolves anchors with the same
+resolver as the engine: it blocks exactly the anchors the engine would refuse
+(`ANCHOR_NOT_FOUND`, `ANCHOR_AMBIGUOUS` with the candidate lines), and flags a
+match found only through a fallback as an `ANCHOR_NORMALIZED` warning. Lines
+are split on `\n` only, so a form feed stays inside its line.
 
 Replacements preserve detected LF or CRLF style. New replacement content
 receives a terminating newline when nonempty. Use rewrite when exact whole-file
@@ -151,3 +160,12 @@ A diff entry contains `file`, `rules` and a compact `diff`, or
 Formatting-only changes may not appear in `lint_diffs`, because the current
 code generates them only when diagnostics were counted as auto-fixed.
 Always reread files when exact output matters.
+
+## Lint runtime in autonomous sessions
+
+The probe, both checks, fix and format share the phase contract's declared
+interpreter and PYTHONPATH. They never invoke uv or create a worktree virtualenv.
+Legacy availability caching by project is bypassed under a contract. Optional
+lint still skips when unavailable, with a warning naming the declared runtime
+and a bounded probe failure; this warning is not evidence of a clean lint run.
+Without a contract, existing uv discovery and project caching are retained.

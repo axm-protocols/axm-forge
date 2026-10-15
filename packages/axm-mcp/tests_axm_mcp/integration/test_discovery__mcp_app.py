@@ -56,14 +56,21 @@ class TestBuiltinToolsWired:
         assert "verify" in await _registered_tool_names()
 
 
+#: ``axm`` modules the shell may import: the shared tool-name resolver is the
+#: discovery contract itself (one resolver for MCP, CLI and ``load_tool``), not
+#: core business logic.
+_SHARED_CONTRACTS = frozenset({"axm.tools.discovery", "axm.tools.declarative"})
+
+
 def _imports_axm_core(module: ModuleType) -> bool:
-    """True if the imported module imports from the ``axm`` core namespace."""
+    """True if the module imports ``axm`` core beyond the shared contracts."""
     assert module.__file__ is not None
     tree = ast.parse(Path(module.__file__).read_text())
     return any(
         isinstance(node, ast.ImportFrom)
         and node.module is not None
         and (node.module == "axm" or node.module.startswith("axm."))
+        and node.module not in _SHARED_CONTRACTS
         for node in ast.walk(tree)
     )
 

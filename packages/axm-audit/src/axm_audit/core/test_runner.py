@@ -1,7 +1,10 @@
 """Agent-optimized test runner with structured output.
 
-Wraps pytest with ``pytest-json-report`` to produce compact,
-token-efficient results for AI coding agents.
+Runs the *target's* pytest with a reporting plugin the runner ships itself
+(:mod:`axm_audit._report_plugin`, standard library + pytest hooks only), loaded
+through ``-p`` with its directory on the subprocess ``PYTHONPATH``. Any
+interpreter that has pytest therefore works, and nothing is installed in it.
+Results are compact and token-efficient for AI coding agents.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ import json
 import logging
 import subprocess
 import tempfile
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
@@ -21,6 +25,12 @@ from axm_audit.core.non_test_cause import (
     _truncate_excerpt,
     classify_non_test_cause,
 )
+from axm_audit.core.pytest_env import (
+    PLUGIN_DIR,
+    PLUGIN_MODULE,
+    PytestCapabilities,
+    probe_pytest,
+)
 from axm_audit.core.runner import run_in_project
 
 __all__ = [
@@ -28,6 +38,9 @@ __all__ = [
     "TestCase",
     "TestOutcome",
     "TestReport",
+    "build_pytest_cmd",
+    "read_test_report",
+    "run_pytest",
     "run_tests",
 ]
 
@@ -39,6 +52,11 @@ logger = logging.getLogger(__name__)
 # truncated into a fabricated partial coverage %. Other subprocess rules keep
 # the lower ``run_in_project`` default.
 _COVERAGE_RUN_TIMEOUT = 900
+
+# Runtime overlay requested where the project environment is resolved through
+# uv (never in a declared session runtime, where nothing is installed). Only
+# coverage: reporting is done by the plugin the runner ships.
+_OVERLAY_PACKAGES = ("pytest-cov",)
 
 # Synthetic returncode set by ``run_in_project`` on ``subprocess.TimeoutExpired``.
 _TIMEOUT_RETURNCODE = 124
@@ -68,10 +86,21 @@ class FailureDetail:
     """Line number of the assertion / raising statement."""
 
     traceback: str
-    """Short traceback (truncated to ``_MAX_TB_LINES``)."""
+    """Bounded failure excerpt: head and tail of the failure text.
+
+    The first ``_FULL_EXCERPT_FAILURES`` failures of a run carry the full
+    excerpt (see :func:`_failure_excerpt`); later ones only their last
+    ``_MAX_TB_LINES`` lines, so a run with hundreds of reds stays compact.
+    """
 
 
 _MAX_TB_LINES = 5
+_FULL_EXCERPT_FAILURES = 5
+_EXCERPT_HEAD_LINES = 10
+_EXCERPT_TAIL_LINES = 50
+_EXCERPT_MAX_CHARS = 6000
+_EXCERPT_HEAD_CHARS = 1500
+_MESSAGE_MAX_CHARS = 2000
 
 
 type TestOutcome = Literal[
@@ -117,6 +146,8 @@ class TestReport:
     target_statuses: list[dict[str, str]] = field(default_factory=list)
     verdict: bool | None = None
     non_test_cause: NonTestCauseDetail | None = None
+    coverage_unavailable: str | None = None
+    """Why coverage was requested but could not be measured, else ``None``."""
 
     def __post_init__(self) -> None:
         """Populate additive execution metadata for directly-built reports."""
@@ -174,8 +205,42 @@ def _failure_error_type(message: str) -> str:
     return "Error"
 
 
+def _elide_middle(text: str, max_chars: int, head_chars: int) -> str:
+    """Return *text* whole, or its head and tail around an explicit marker."""
+    if len(text) <= max_chars:
+        return text
+    elided = len(text) - max_chars
+    return (
+        f"{text[:head_chars]}\n[... {elided} characters elided ...]\n"
+        f"{text[-(max_chars - head_chars) :]}"
+    )
+
+
+def _failure_excerpt(text: str, *, full: bool = True) -> str:
+    """Bound a failure text for an agent: head and tail, never only line one.
+
+    A pytest traceback carries the test's own frame first and the assertion
+    message last, so both ends matter. A text longer than
+    ``_EXCERPT_HEAD_LINES + _EXCERPT_TAIL_LINES`` lines keeps that head and
+    tail around an elision marker, and the result is capped at
+    ``_EXCERPT_MAX_CHARS`` characters the same way. ``full=False`` keeps only
+    the last ``_MAX_TB_LINES`` lines.
+    """
+    lines = text.strip().splitlines()
+    if not full:
+        return "\n".join(lines[-_MAX_TB_LINES:])
+    if len(lines) > _EXCERPT_HEAD_LINES + _EXCERPT_TAIL_LINES:
+        elided = len(lines) - _EXCERPT_HEAD_LINES - _EXCERPT_TAIL_LINES
+        lines = [
+            *lines[:_EXCERPT_HEAD_LINES],
+            f"[... {elided} lines elided ...]",
+            *lines[-_EXCERPT_TAIL_LINES:],
+        ]
+    return _elide_middle("\n".join(lines), _EXCERPT_MAX_CHARS, _EXCERPT_HEAD_CHARS)
+
+
 def parse_failures(tests: list[dict[str, object]]) -> list[FailureDetail]:
-    """Extract ``FailureDetail`` items from pytest-json-report tests list."""
+    """Extract ``FailureDetail`` items from the report's ``tests`` list."""
     failures: list[FailureDetail] = []
     for test in tests:
         outcome = test.get("outcome", "")
@@ -189,15 +254,14 @@ def parse_failures(tests: list[dict[str, object]]) -> list[FailureDetail]:
         crash = cast("dict[str, object]", call_info.get("crash", {}))
         tb_text = cast(str, call_info.get("longrepr", ""))
 
-        # Truncate traceback to _MAX_TB_LINES
-        tb_lines = tb_text.strip().splitlines()
-        if len(tb_lines) > _MAX_TB_LINES:
-            tb_lines = tb_lines[-_MAX_TB_LINES:]
-        short_tb = "\n".join(tb_lines)
+        short_tb = _failure_excerpt(
+            tb_text, full=len(failures) < _FULL_EXCERPT_FAILURES
+        )
 
         # Extract error type from the crash message
         message = cast(str, crash.get("message", ""))
         error_type = _failure_error_type(message)
+        message = _elide_middle(message, _MESSAGE_MAX_CHARS, _MESSAGE_MAX_CHARS // 2)
 
         failures.append(
             FailureDetail(
@@ -215,7 +279,7 @@ def parse_failures(tests: list[dict[str, object]]) -> list[FailureDetail]:
 def parse_collector_errors(
     collectors: list[dict[str, object]],
 ) -> list[FailureDetail]:
-    """Extract ``FailureDetail`` items from pytest-json-report collectors list.
+    """Extract ``FailureDetail`` items from the report's ``collectors`` list.
 
     Collector errors occur before test discovery completes (e.g.
     ``SyntaxError`` in a test file, broken imports).
@@ -228,11 +292,9 @@ def parse_collector_errors(
 
         nodeid = cast(str, collector.get("nodeid", "unknown"))
 
-        # Truncate traceback
-        tb_lines = longrepr.strip().splitlines()
-        if len(tb_lines) > _MAX_TB_LINES:
-            tb_lines = tb_lines[-_MAX_TB_LINES:]
-        short_tb = "\n".join(tb_lines)
+        short_tb = _failure_excerpt(
+            longrepr, full=len(failures) < _FULL_EXCERPT_FAILURES
+        )
 
         # Extract error type from last line (e.g. "SyntaxError: invalid syntax")
         last_line = longrepr.strip().splitlines()[-1] if longrepr.strip() else ""
@@ -279,7 +341,7 @@ def _subprocess_failure(
 
 
 def parse_json_report(report_path: Path) -> dict[str, object]:
-    """Read and parse a pytest-json-report JSON file."""
+    """Read and parse the JSON file written by the runner's pytest plugin."""
     try:
         raw_report = json.loads(report_path.read_text())
     except (json.JSONDecodeError, OSError) as exc:
@@ -325,6 +387,19 @@ def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]
     return total_pct, per_file
 
 
+def _coverage_sources(project_path: Path | None) -> list[str]:
+    if project_path is None:
+        return []
+    manifest = project_path / "pyproject.toml"
+    config = tomllib.loads(manifest.read_text()) if manifest.is_file() else {}
+    sources = (
+        config.get("tool", {}).get("coverage", {}).get("run", {}).get("source", [])
+    )
+    if isinstance(sources, list) and sources:
+        return [str(source) for source in sources]
+    return ["src"] if (project_path / "src").is_dir() else []
+
+
 def build_pytest_cmd(
     *,
     report_path: Path,
@@ -332,20 +407,38 @@ def build_pytest_cmd(
     files: list[str] | None,
     markers: list[str] | None,
     stop_on_first: bool,
+    collect_only: bool = False,
+    project_path: Path | None = None,
+    coverage_available: bool = True,
 ) -> list[str]:
-    """Build the pytest command line."""
+    """Build the pytest command line.
+
+    The structured result is written by the runner's own plugin
+    (:data:`PLUGIN_MODULE`, loaded with ``-p``; :func:`run_pytest` puts it on
+    the ``PYTHONPATH``). ``coverage_available=False`` (the target has no
+    ``pytest-cov``) drops every ``--cov*`` / ``--no-cov`` option, all of which
+    pytest would reject with exit 4.
+    """
     cmd = [
         "pytest",
-        "--json-report",
-        f"--json-report-file={report_path}",
-        "--json-report-omit=log,keywords",
+        "-p",
+        PLUGIN_MODULE,
+        f"--axm-report-file={report_path}",
         "--tb=short",
         "--no-header",
         "-q",
     ]
 
-    if coverage_path is not None:
-        cmd.extend(["--cov", f"--cov-report=json:{coverage_path}"])
+    if collect_only:
+        cmd.append("--collect-only")
+        if coverage_available:
+            cmd.append("--no-cov")
+    elif not coverage_available:
+        pass
+    elif coverage_path is not None:
+        sources = _coverage_sources(project_path)
+        cmd.extend([f"--cov={source}" for source in sources] if sources else ["--cov"])
+        cmd.append(f"--cov-report=json:{coverage_path}")
     elif files:
         cmd.append("--no-cov")
 
@@ -359,6 +452,37 @@ def build_pytest_cmd(
         cmd.extend(files)
 
     return cmd
+
+
+def run_pytest(
+    cmd: list[str],
+    project_path: Path,
+    *,
+    timeout: int = _COVERAGE_RUN_TIMEOUT,
+    capture_output: bool = True,
+    text: bool = True,
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run tests or collection with the runner's own reporting plugin."""
+    return run_in_project(
+        cmd,
+        project_path,
+        timeout=timeout,
+        with_packages=list(_OVERLAY_PACKAGES),
+        extra_pythonpath=(PLUGIN_DIR,),
+        capture_output=capture_output,
+        text=text,
+        check=check,
+    )
+
+
+def probe_runner_environment(project_path: Path) -> PytestCapabilities:
+    """Probe what the interpreter chosen for *project_path* gives pytest.
+
+    Raises:
+        PytestEnvironmentError: no usable pytest in that interpreter.
+    """
+    return probe_pytest(project_path, with_packages=list(_OVERLAY_PACKAGES))
 
 
 def _collected_count(report_data: dict[str, object]) -> int:
@@ -453,6 +577,41 @@ def _build_target_statuses(
 # ---------------------------------------------------------------------------
 
 
+def read_test_report(
+    project_path: Path,
+    *,
+    report_path: Path,
+    coverage_path: Path | None,
+    return_code: int,
+    files: list[str] | None = None,
+    include_cases: bool = False,
+    stdout: str = "",
+    stderr: str = "",
+    allow_collection_errors: bool = False,
+) -> TestReport:
+    """Read runner-owned pytest artifacts through the canonical report builders."""
+    report_data = parse_json_report(report_path)
+    total_cov, per_file_cov = (
+        parse_coverage(coverage_path) if coverage_path is not None else (None, {})
+    )
+    report = build_test_report(
+        report_data=report_data,
+        total_cov=total_cov,
+        per_file_cov=per_file_cov,
+        include_cases=include_cases,
+        allow_collection_errors=allow_collection_errors,
+        return_code=return_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
+    report.record_execution(
+        return_code=return_code,
+        collected=_collected_count(report_data),
+        target_statuses=_build_target_statuses(project_path, files, report_data),
+    )
+    return report
+
+
 def run_tests(
     project_path: Path,
     *,
@@ -489,21 +648,31 @@ def run_tests(
     cov_tmp.close()
 
     try:
-        effective_cov_path = None if files else coverage_path
+        capabilities = probe_runner_environment(project_path)
+        wants_coverage = not files
+        effective_cov_path = (
+            coverage_path
+            if wants_coverage and capabilities.coverage_available
+            else None
+        )
+        coverage_unavailable = (
+            capabilities.coverage_unavailable_reason if wants_coverage else None
+        )
         cmd = build_pytest_cmd(
             report_path=report_path,
             coverage_path=effective_cov_path,
             files=files,
             markers=markers,
             stop_on_first=stop_on_first,
+            project_path=project_path,
+            coverage_available=capabilities.coverage_available,
         )
 
         logger.debug("Running: %s", " ".join(cmd))
-        result = run_in_project(
+        result = run_pytest(
             cmd,
             project_path,
             timeout=_COVERAGE_RUN_TIMEOUT,
-            with_packages=["pytest-json-report", "pytest-cov"],
             capture_output=True,
             text=True,
             check=False,
@@ -534,33 +703,21 @@ def run_tests(
         # corrupt file and hides the real cause, which only the captured stderr
         # carries. Re-raise it enriched instead.
         try:
-            report_data = parse_json_report(report_path)
+            parse_json_report(report_path)
         except ValueError as exc:
             raise _subprocess_failure(exc, result) from exc
 
-        # Parse coverage
-        total_cov, per_file_cov = (
-            parse_coverage(coverage_path) if not files else (None, {})
-        )
-
-        report = build_test_report(
-            report_data=report_data,
-            total_cov=total_cov,
-            per_file_cov=per_file_cov,
+        report = read_test_report(
+            project_path,
+            report_path=report_path,
+            coverage_path=effective_cov_path,
+            files=files,
             include_cases=include_cases,
             return_code=result.returncode,
             stdout=result.stdout or "",
             stderr=result.stderr or "",
         )
-        report.record_execution(
-            return_code=result.returncode,
-            collected=_collected_count(report_data),
-            target_statuses=_build_target_statuses(
-                project_path,
-                files,
-                report_data,
-            ),
-        )
+        report.coverage_unavailable = coverage_unavailable
         return report
 
     finally:
@@ -603,7 +760,7 @@ def _case_detail(
 
 
 def _extract_cases(report_data: dict[str, object]) -> tuple[TestCase, ...]:
-    """Extract validated cases from a pytest-json-report payload."""
+    """Extract validated cases from the plugin's report payload."""
     raw_tests = report_data.get("tests")
     if not isinstance(raw_tests, list):
         raise ValueError("Malformed pytest JSON report: 'tests' must be a list")
@@ -695,8 +852,9 @@ def build_test_report(
     return_code: int = 0,
     stdout: str = "",
     stderr: str = "",
+    allow_collection_errors: bool = False,
 ) -> TestReport:
-    """Build a ``TestReport`` from pytest JSON and coverage data.
+    """Build a ``TestReport`` from the plugin's JSON and coverage data.
 
     Always parses failures and populates coverage — no mode branching.
     The captured ``stdout``/``stderr`` and ``return_code`` are optional. When
@@ -718,7 +876,7 @@ def build_test_report(
     failures.extend(parse_collector_errors(collectors_list))
     if include_cases:
         collection_failure = _collection_failure_detail(collectors_list)
-        if collection_failure is not None:
+        if collection_failure is not None and not allow_collection_errors:
             raise ValueError(collection_failure)
 
     return TestReport(

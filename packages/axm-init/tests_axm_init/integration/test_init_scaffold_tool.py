@@ -496,7 +496,6 @@ def test_public_workspace_member_omits_private_classifier(tmp_path: Path) -> Non
     assert project["classifiers"] == [
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
         "Topic :: Software Development :: Libraries :: Python Modules",

@@ -1,7 +1,7 @@
 # Rewrite a whole file with a checksum
 
 Use `rewrite` when line anchors are unsuitable, for example a whole Markdown
-page or a Python module containing triple-quoted strings.
+page or a module restructured from top to bottom.
 
 ## Read the bytes, then submit their digest
 

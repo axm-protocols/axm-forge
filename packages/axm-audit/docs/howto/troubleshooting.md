@@ -80,6 +80,11 @@ running it; ordinary `uv run` environment synchronization still applies.
 - Check that your `pyproject.toml` has `[tool.pytest.ini_options]` configured
 - Verify tests are discoverable: `uv run pytest --collect-only`
 
+`audit_test` itself only requires `pytest` (7.0 or later) in the target
+interpreter. A missing `pytest-cov` is reported as `coverage_unavailable` (the
+tests still run); a missing `pytest` raises an error naming the interpreter. No
+`pytest-json-report` is needed in the target.
+
 ## Radon import error
 
 **Symptom**: `ComplexityRule` falls back to subprocess mode.

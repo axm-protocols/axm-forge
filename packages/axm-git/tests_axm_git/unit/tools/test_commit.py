@@ -330,7 +330,7 @@ class TestScopedIndexRestore:
 
     @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
     @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
-    @patch("axm_git.tools.commit.reset_paths")
+    @patch("axm_git.tools.commit.reset_paths", return_value=_ok())
     @patch("axm_git.tools.commit._snapshot_staged")
     @patch("axm_git.tools.commit.run_git")
     def test_definitive_failure_scoped_resets_only_op_paths(
@@ -371,7 +371,7 @@ class TestScopedIndexRestore:
 
     @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
     @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
-    @patch("axm_git.tools.commit.reset_paths")
+    @patch("axm_git.tools.commit.reset_paths", return_value=_ok())
     @patch("axm_git.tools.commit._snapshot_staged")
     @patch("axm_git.tools.commit.run_git")
     def test_nominal_success_never_restores(
@@ -403,7 +403,7 @@ class TestScopedIndexRestore:
 
     @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
     @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
-    @patch("axm_git.tools.commit.reset_paths")
+    @patch("axm_git.tools.commit.reset_paths", return_value=_ok())
     def test_autofix_retry_success_never_restores(
         self,
         mock_reset: MagicMock,

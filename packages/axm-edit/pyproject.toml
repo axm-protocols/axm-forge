@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-ast",
+    "axm-ingot",
     "pydantic>=2.0.0",
 ]
 

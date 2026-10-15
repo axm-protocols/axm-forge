@@ -463,6 +463,19 @@ def test_cli_binaries_from_pyproject_axm_tools_only() -> None:
     assert _derive_cli_binaries(data) == {"axm"}
 
 
+def test_cli_binaries_from_pyproject_tribunal_tools_only() -> None:
+    # A package publishing its tools only in the tribunal group still exposes
+    # the generic axm binary (the CLI resolves both groups).
+    data: dict[str, object] = {
+        "project": {
+            "entry-points": {
+                "axm.tribunal.tools": {"graph_run": "pkg.tools:GraphRunTool"}
+            }
+        }
+    }
+    assert _derive_cli_binaries(data) == {"axm"}
+
+
 def test_cli_binaries_from_pyproject_unions_scripts_and_axm() -> None:
     # AC2: project.scripts keys and the axm binary are unioned when both
     # tables are declared in the parsed document.

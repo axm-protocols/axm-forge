@@ -145,6 +145,13 @@ def attempt_commit_with_autofix_retry(
         return AutofixRetry(result=failed, retried=True, auto_fixed=auto_fixed)
 
     head_before = _head_sha(git_root)
-    retried = run_git(cmd, git_root)
+    import subprocess
+
+    from axm_git.core.commit_timeout import CommitTimeoutError
+
+    try:
+        retried = run_git(cmd, git_root)
+    except subprocess.TimeoutExpired as exc:
+        raise CommitTimeoutError(exc, retried=True, auto_fixed=auto_fixed) from exc
     reconciled = _reconcile_with_repo_state(retried, git_root, head_before)
     return AutofixRetry(result=reconciled, retried=True, auto_fixed=auto_fixed)

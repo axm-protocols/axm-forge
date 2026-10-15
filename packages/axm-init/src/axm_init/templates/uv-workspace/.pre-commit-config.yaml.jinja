@@ -3,8 +3,10 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        types_or: [python, pyi, markdown, toml, yaml]
         exclude: tests/fixtures/(snapshots|goldens)/
       - id: end-of-file-fixer
+        types_or: [python, pyi, markdown, toml, yaml]
         exclude: tests/fixtures/(snapshots|goldens)/
       - id: check-yaml
       - id: check-toml

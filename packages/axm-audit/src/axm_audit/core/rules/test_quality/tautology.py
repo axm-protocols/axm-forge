@@ -76,7 +76,7 @@ class Finding:
     path: str = ""
 
 
-class TautologyCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+class TautologyCheckResult(CheckResult):
     """:class:`CheckResult` with ``metadata`` carrying the verdict list."""
 
     metadata: dict[str, object] = Field(default_factory=dict)

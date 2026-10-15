@@ -38,7 +38,7 @@ def _ep(name: str, obj: object) -> MagicMock:
 def _with_tool(tool: object, name: str = "ast_impact"):
     """Patch entry-point discovery to expose a single fake tool."""
     return patch(
-        "axm.tools.node.entry_points_for", return_value={name: _ep(name, tool)}
+        "axm.tools.node.tool_entry_points", return_value={name: _ep(name, tool)}
     )
 
 
@@ -186,7 +186,7 @@ class TestResolutionMemoized:
         tool = _Tool(ToolResult(success=True, text="impact"))
         node = tool_node("ast_impact", returns={"r": "text"})
         with patch(
-            "axm.tools.node.entry_points_for",
+            "axm.tools.node.tool_entry_points",
             return_value={"ast_impact": _ep("ast_impact", tool)},
         ) as eps:
             first = node({"path": "/p", "symbol": "F"})
@@ -196,7 +196,7 @@ class TestResolutionMemoized:
 
     def test_building_node_resolves_nothing_late_binding(self) -> None:
         """Constructing the node triggers no entry-point resolution (AC2)."""
-        with patch("axm.tools.node.entry_points_for") as eps:
+        with patch("axm.tools.node.tool_entry_points") as eps:
             tool_node("ast_impact", returns={"r": "text"})
         assert eps.call_count == 0
 
@@ -212,7 +212,7 @@ class TestOverrideTools:
         ep = _ep("ast_impact", _Tool(_text("real")))
         fake = _Tool(_text("fake"))
         node = tool_node("ast_impact", returns={"out": "text"})
-        with patch("axm.tools.node.entry_points_for", return_value={"ast_impact": ep}):
+        with patch("axm.tools.node.tool_entry_points", return_value={"ast_impact": ep}):
             with override_tools({"ast_impact": fake}):
                 assert node({"x": 1}) == {"out": "fake"}
         assert fake.seen == {"x": 1}
@@ -251,7 +251,7 @@ class TestOverrideTools:
 
     def test_unknown_names_are_not_resolved_by_an_unrelated_override(self) -> None:
         node = tool_node("nope", returns={"out": "text"})
-        with patch("axm.tools.node.entry_points_for", return_value={}):
+        with patch("axm.tools.node.tool_entry_points", return_value={}):
             with override_tools({"other": _Tool(_text("x"))}):
                 with pytest.raises(ToolNodeError, match="No tool registered"):
                     node({})
@@ -262,7 +262,7 @@ class TestOverrideTools:
         is where the expensive real tools are actually resolved."""
         ep = _ep("echo_check", _Tool(_text("real")))
         fake = _Tool(_text("fake"))
-        with patch("axm.tools.node.entry_points_for", return_value={"echo_check": ep}):
+        with patch("axm.tools.node.tool_entry_points", return_value={"echo_check": ep}):
             with override_tools({"echo_check": fake}):
                 assert _load_tool("echo_check") is fake
             assert _load_tool("echo_check").execute() == _text("real")
@@ -277,7 +277,7 @@ class TestOverrideTools:
         async def run_like_a_node() -> dict[str, object]:
             return await asyncio.to_thread(node, {})
 
-        with patch("axm.tools.node.entry_points_for", return_value={}):
+        with patch("axm.tools.node.tool_entry_points", return_value={}):
             with override_tools({"ast_impact": fake}):
                 assert asyncio.run(run_like_a_node()) == {"out": "fake"}
 
@@ -294,7 +294,7 @@ class TestClassEntryPoint:
 
         node = tool_node("ast_impact", returns={"r": "text"})
         with patch(
-            "axm.tools.node.entry_points_for",
+            "axm.tools.node.tool_entry_points",
             return_value={"ast_impact": _ep("ast_impact", _Factory)},
         ):
             out = node({"path": "/p", "symbol": "F"})

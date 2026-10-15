@@ -36,6 +36,9 @@ axm-config = "axm_config.cli:app"
 config_doctor = "axm_config.tools:ConfigDoctorTool"
 profile_isolation = "axm_config.tools:ProfileIsolationTool"
 
+[project.entry-points.pytest11]
+axm_config = "axm_config.pytest_plugin"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
@@ -54,6 +57,10 @@ packages = ["src/axm_config"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "docs/index.md" = "axm_config/docs/index.md"
+
+[tool.axm-audit.mirror]
+# Thin pytest hook glue, covered by integration and e2e tests.
+exempt_paths = ["src/axm_config/pytest_plugin.py"]
 
 [tool.axm-init.wheel-doc]
 files = []
@@ -167,7 +174,12 @@ addopts = [
     "--cov-report=xml",
     "--cov-fail-under=76",
 ]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # Inner pytester sessions autoload a workspace-installed pytest-asyncio,
+    # which warns about its own unset ini option at configure time.
+    "ignore:The configuration option \"asyncio_default_fixture_loop_scope\" is unset:pytest.PytestDeprecationWarning",
+]
 markers = [
     "integration: tests that hit real external boundaries (filesystem, DB, network)",
     "e2e: end-to-end tests that exercise the CLI via subprocess",

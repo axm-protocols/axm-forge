@@ -30,7 +30,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
-from axm.tools._discovery import entry_points_for
+from axm.tools.access import guard_tool, require_tool_access
+from axm.tools.discovery import tool_entry_points
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
@@ -38,7 +39,6 @@ if TYPE_CHECKING:
     from axm.tools.base import AXMTool
 
 __all__ = [
-    "TOOLS_ENTRY_POINT_GROUP",
     "ToolNodeError",
     "load_tool",
     "override_tools",
@@ -52,8 +52,6 @@ _OVERRIDES: ContextVar[Mapping[str, AXMTool] | None] = ContextVar(
     "axm_tool_overrides", default=None
 )
 
-#: The entry-point group tools are discovered under (one declaration, three uses).
-TOOLS_ENTRY_POINT_GROUP = "axm.tools"
 
 #: Sentinel mapping a write key to the tool's ``ToolResult.text``.
 _TEXT = "text"
@@ -98,13 +96,27 @@ def override_tools(tools: Mapping[str, AXMTool]) -> Iterator[None]:
 
 
 def load_tool(name: str) -> AXMTool:
-    """Resolve and instantiate the ``axm.tools`` entry point named *name*."""
+    """Resolve and instantiate the AXM tool named *name*.
+
+    The name is resolved by :func:`axm.tools.discovery.tool_entry_points`
+    (tribunal group first, legacy ``axm.tools`` second), the resolver the MCP
+    catalog and the ``axm`` CLI share.
+
+    Raises:
+        ToolNodeError: No tool is registered under *name*.
+        DuplicateToolError: One entry-point group publishes a name twice.
+    """
+    return guard_tool(name, _resolve_tool(name))
+
+
+def _resolve_tool(name: str) -> AXMTool:
+    require_tool_access(name)
     # An active ``override_tools`` substitute wins over discovery, for direct
     # callers as well as for ``tool_node`` (which consults it before its cache).
     overrides = _OVERRIDES.get()
     if overrides and name in overrides:
         return overrides[name]
-    eps = entry_points_for(TOOLS_ENTRY_POINT_GROUP)
+    eps = tool_entry_points()
     ep = eps.get(name)
     if ep is not None:
         obj = ep.load()
@@ -161,6 +173,7 @@ def tool_node(
     cache: dict[str, AXMTool] = {}
 
     def _run(payload: Mapping[str, object]) -> dict[str, object]:
+        require_tool_access(name)
         overrides = _OVERRIDES.get()
         if overrides and name in overrides:
             # A substitute shadows even a memoized real tool and never enters
@@ -176,7 +189,7 @@ def tool_node(
             tool = cached
         kwargs = _kwargs_from_payload(payload, rename)
         try:
-            result = tool.execute(**kwargs)
+            result = guard_tool(name, tool).execute(**kwargs)
         except TypeError as exc:
             # A payload key with no matching ``execute`` parameter (strict
             # signature, no ``**kwargs``) must surface as the documented
@@ -235,4 +248,4 @@ def _shape_output(
 #: ~76 call sites plus ~42 test modules import it by the underscored name;
 #: keeping the alias makes the promotion non-breaking, and the public name is
 #: what new code should use.
-_load_tool = load_tool
+_load_tool = _resolve_tool

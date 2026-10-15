@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -90,7 +91,7 @@ def test_parse_write_contract_header_binds_exact_decoded_contract() -> None:
     raw = json.dumps(
         {
             "execution_root": "/tmp/root",
-            "allowed_prefixes": ["/tmp/root/src"],
+            "allowed_prefixes": ["/tmp/root/src", "/tmp/root/docs"],
             "markdown_only_prefixes": ["/tmp/root/docs"],
         }
     )
@@ -99,9 +100,11 @@ def test_parse_write_contract_header_binds_exact_decoded_contract() -> None:
     registry = session_contracts.SessionContractRegistry(clock=lambda: 100.0)
     registry.bind("s1", contract)
 
-    assert contract.execution_root == "/tmp/root"
-    assert contract.allowed_prefixes == ["/tmp/root/src"]
-    assert contract.markdown_only_prefixes == ["/tmp/root/docs"]
+    assert contract.execution_root == str(Path("/tmp/root").resolve())
+    assert contract.allowed_prefixes == tuple(
+        str(Path(p).resolve()) for p in ("/tmp/root/src", "/tmp/root/docs")
+    )
+    assert contract.markdown_only_prefixes == (str(Path("/tmp/root/docs").resolve()),)
     assert registry.resolve("s1") is contract
 
 

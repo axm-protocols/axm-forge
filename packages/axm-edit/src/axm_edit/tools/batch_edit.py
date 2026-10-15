@@ -15,6 +15,7 @@ from axm.tools.base import ToolResult
 
 from axm_edit.core.anchor_rules import ANCHOR_RULES_HINT
 from axm_edit.core.engine import batch_apply
+from axm_edit.core.operation_shapes import OPERATION_SHAPES_HINT
 from axm_edit.core.preflight import (
     collect_preflight_diagnostics,
     partition_diagnostics,
@@ -28,7 +29,12 @@ from axm_edit.models.operations import (
     ReplaceOp,
     RewriteOp,
 )
-from axm_edit.services.lint import filter_ruff_lines, ruff_available
+from axm_edit.services.lint import (
+    filter_ruff_lines,
+    ruff_available,
+    ruff_failure,
+    run_ruff,
+)
 from axm_edit.services.lint_diff import (
     compute_lint_diffs,
     extract_import_removals,
@@ -133,20 +139,8 @@ def _ruff_check(
 ) -> list[str]:
     """Run ``ruff check`` and return diagnostic lines."""
     try:
-        result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "ruff",
-                "check",
-                "--output-format=concise",
-                *extend,
-                *str_files,
-            ],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
+        result = run_ruff(
+            root, ["check", "--output-format=concise", *extend, *str_files]
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
         if warnings is not None:
@@ -163,6 +157,12 @@ def _ruff_check(
     return []
 
 
+def _lint_warning(warnings: list[str] | None, message: str) -> None:
+    """Append an optional lint diagnostic without changing lint policy."""
+    if warnings is not None:
+        warnings.append(message)
+
+
 def _run_ruff(
     root: Path,
     files: list[Path],
@@ -176,7 +176,7 @@ def _run_ruff(
     """
     if not ruff_available(root):
         if warnings is not None:
-            warnings.append("ruff not found, lint skipped")
+            warnings.append(ruff_failure(root))
         return [], []
 
     str_files = [str(f) for f in files]
@@ -187,30 +187,16 @@ def _run_ruff(
 
     # Auto-fix what we can
     try:
-        subprocess.run(
-            ["uv", "run", "ruff", "check", "--fix", "--exit-zero", *extend, *str_files],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        run_ruff(root, ["check", "--fix", "--exit-zero", *extend, *str_files])
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
-        if warnings is not None:
-            warnings.append(f"ruff fix failed: {exc}")
+        _lint_warning(warnings, f"ruff fix failed: {exc}")
         return [], []
 
     # Format files
     try:
-        subprocess.run(
-            ["uv", "run", "ruff", "format", *str_files],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        run_ruff(root, ["format", *str_files])
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
-        if warnings is not None:
-            warnings.append(f"ruff format failed: {exc}")
+        _lint_warning(warnings, f"ruff format failed: {exc}")
 
     # Check remaining after fix
     remaining = _ruff_check(root, str_files, extend, warnings=warnings)
@@ -555,6 +541,28 @@ def _preflight_blocking(data: dict[str, object]) -> bool:
     return isinstance(report, dict) and bool(report.get("blocking"))
 
 
+_ROLLBACK_FAILED_LINE = (
+    "  ! rollback incomplete: some files may hold partial writes; restore them"
+    " with batch_rollback (data.checkpoint) or git before retrying."
+)
+
+
+def _failure_label(result: BatchResult, data: dict[str, object]) -> str:
+    """Name what a failed batch did to the tree, from its state, not its message.
+
+    ``PREFLIGHT`` and ``REFUSED`` wrote nothing (no checkpoint was even
+    taken), ``ROLLBACK`` wrote then restored every touched file, and
+    ``ROLLBACK FAILED`` may have left partial writes behind.
+    """
+    if _preflight_blocking(data):
+        return "PREFLIGHT"
+    if result.checkpoint is None:
+        return "REFUSED"
+    if result.rollback_failed:
+        return "ROLLBACK FAILED"
+    return "ROLLBACK"
+
+
 def render_text(
     result: BatchResult,
     parsed: list[Operation],
@@ -562,9 +570,10 @@ def render_text(
 ) -> str:
     """Render a compact, ``git``-style LLM-facing view of a batch result.
 
-    The header carries the global status — ``✓`` on success, or
-    ``✗ ROLLBACK`` on failure so a partial/aborted batch is impossible to
-    miss — followed by the modified/created/deleted/edits counts. Each
+    The header carries the global status — ``✓`` on success, or on failure
+    ``✗`` with a label naming what happened to the tree (see
+    :func:`_failure_label`), so a partial write is impossible to miss —
+    followed by the modified/created/deleted/edits counts. Each
     operated-on file is then listed with its op sigil and edit count, every
     validation error is surfaced verbatim, and the full lint summary
     (fixes, remaining errors, warnings, diffs) is appended.
@@ -593,7 +602,7 @@ def render_text(
         ]
         return "\n".join(lines)
 
-    label = "PREFLIGHT" if _preflight_blocking(data) else "ROLLBACK"
+    label = _failure_label(result, data)
     header = f"batch_edit | ✗ {label} | {result.error or 'failed'}"
     lines = [
         *alerts,
@@ -601,6 +610,7 @@ def render_text(
         *_render_op_lines(parsed),
         *preflight,
         *_render_error_lines(result),
+        *([_ROLLBACK_FAILED_LINE] if result.rollback_failed else []),
     ]
     return "\n".join(lines)
 
@@ -629,6 +639,8 @@ def _run_batch(
     }
     if result.checkpoint is not None:
         data["checkpoint"] = result.checkpoint
+    if result.rollback_failed:
+        data["rollback_failed"] = True
 
     if result.success and options.enabled:
         py_files = _collect_python_files(root, parsed)
@@ -754,10 +766,11 @@ class BatchEditTool:
     tags = frozenset({"edit", "atomic", "refactor"})
 
     agent_hint: str = (
-        "Apply multiple file edits atomically via op=replace"
-        " with old/new pairs. Safer than sed — validates before writing."
+        "Apply multiple file operations atomically."
+        " Safer than sed — validates before writing."
         " A batch that fails mid-apply restores every touched file on its"
         " own; to undo a batch that succeeded, use git.\n"
+        f"{OPERATION_SHAPES_HINT}\n"
         f"{ANCHOR_RULES_HINT}"
     )
 
@@ -831,19 +844,20 @@ class BatchEditTool:
 
 
 def _compose_execute_doc(doc: str | None) -> str:
-    """Insert the shared anchor contract into an ``execute`` docstring.
+    """Insert the shared shapes and anchor contract into an ``execute`` docstring.
 
-    The rules land in the long description, right after the summary line,
-    so the CLI help renders them before the ``Args:`` section.
+    The shapes then the rules land in the long description, right after the
+    summary line, so the CLI help renders them before the ``Args:`` section.
 
     Args:
         doc: The literal docstring of the ``execute`` method.
 
     Returns:
-        The same docstring with :data:`ANCHOR_RULES_HINT` composed in.
+        The same docstring with :data:`OPERATION_SHAPES_HINT` and
+        :data:`ANCHOR_RULES_HINT` composed in.
     """
     summary, _, body = (doc or "").partition("\n")
-    rules = indent(ANCHOR_RULES_HINT, " " * 8)
+    rules = indent(f"{OPERATION_SHAPES_HINT}\n\n{ANCHOR_RULES_HINT}", " " * 8)
     return f"{summary}\n\n{rules}\n{body}"
 
 

@@ -10,6 +10,27 @@ import pytest
 
 
 @pytest.fixture
+def full_pytest_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pretend the target interpreter has pytest and pytest-cov.
+
+    For tests that fake the pytest subprocess (``run_in_project`` mocked): the
+    environment probe would otherwise run a real interpreter. The probe itself
+    is covered by real-subprocess tests.
+    """
+    from axm_audit.core.pytest_env import PytestCapabilities
+
+    capabilities = PytestCapabilities("python", "9.0.0", coverage_available=True)
+    monkeypatch.setattr(
+        "axm_audit.core.test_runner.probe_runner_environment",
+        lambda *_a, **_k: capabilities,
+    )
+    monkeypatch.setattr(
+        "axm_audit.core.readiness.probe_runner_environment",
+        lambda *_a, **_k: capabilities,
+    )
+
+
+@pytest.fixture
 def sample_data() -> dict[str, str]:
     """Provide sample test data."""
     return {"key": "value"}

@@ -38,7 +38,7 @@ def test_edit_index_survives_the_raw_mapping_parse_layer() -> None:
         "file": "a.py",
         "edits": [
             {"old": "    return 1", "new": "    return 2"},
-            {"old": 'x = """doc"""', "new": "x = 1"},
+            {"old": "f():\n    return", "new": "g"},
         ],
     }
     operations = [ReplaceOp.model_validate(raw_op)]

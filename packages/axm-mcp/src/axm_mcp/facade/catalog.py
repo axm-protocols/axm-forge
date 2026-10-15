@@ -24,7 +24,9 @@ import inspect
 from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, cast
 
+from axm.tools.access import require_tool_access, tool_is_allowed
 from axm.tools.base import tool_metadata
+from axm.tools.declarative import DeclarativeTool
 from axm.tools.write_scope import WriteContract
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import TypeAdapter, ValidationError
@@ -202,14 +204,14 @@ class ToolCatalog:
 
     def names(self) -> list[str]:
         """All tool names, sorted."""
-        return sorted(self._entries)
+        return sorted(name for name in self._entries if tool_is_allowed(name))
 
     def hot_path(self) -> list[str]:
         """Names of tools opting into direct MCP exposure (``expose_directly``)."""
         return sorted(
             name
             for name, tool in self._entries.items()
-            if tool_metadata(tool).expose_directly
+            if tool_metadata(tool).expose_directly and tool_is_allowed(name)
         )
 
     # ── facade operations ────────────────────────────────────────────────
@@ -236,7 +238,7 @@ class ToolCatalog:
         """
         q = query.lower().strip()
         results: list[dict[str, object]] = []
-        for name in sorted(self._entries):
+        for name in self.names():
             tool = self._entries[name]
             meta = tool_metadata(tool)
             if domain is not None and meta.domain != domain:
@@ -272,6 +274,18 @@ class ToolCatalog:
         """
         tool = self._get(name)
         meta = tool_metadata(tool)
+        if isinstance(tool, DeclarativeTool):
+            return {
+                "name": name,
+                "summary": tool.definition.description,
+                "domain": meta.domain,
+                "tags": sorted(meta.tags),
+                "docstring": tool.definition.description,
+                "params": [],
+                "inputSchema": tool.definition.input_schema,
+                "outputSchema": tool.definition.output_schema,
+                "execution": "ui",
+            }
         return {
             "name": name,
             "summary": _summary(tool),
@@ -351,6 +365,9 @@ class ToolCatalog:
         the bind permissive, so those tools never false-positive.
         """
         supplied = arguments or {}
+        if isinstance(tool, DeclarativeTool):
+            tool.definition.validate_input(supplied)
+            return supplied
         exec_fn = _exec_fn(tool)
         try:
             sig = inspect.signature(exec_fn)
@@ -427,7 +444,7 @@ class ToolCatalog:
             under the ``"(ungrouped)"`` key.
         """
         groups: dict[str, list[str]] = {}
-        for name in sorted(self._entries):
+        for name in self.names():
             d = tool_metadata(self._entries[name]).domain or "(ungrouped)"
             if domain is not None and d != domain:
                 continue
@@ -437,10 +454,11 @@ class ToolCatalog:
     # ── internals ────────────────────────────────────────────────────────
 
     def _get(self, name: str) -> ToolEntry:
+        require_tool_access(name)
         try:
             return self._entries[name]
         except KeyError as exc:
-            known = ", ".join(sorted(self._entries))
+            known = ", ".join(self.names())
             msg = f"Unknown tool {name!r}. Known tools: {known or '<none>'}"
             raise UnknownToolError(msg) from exc
 

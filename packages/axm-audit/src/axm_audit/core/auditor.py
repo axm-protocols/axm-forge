@@ -14,6 +14,7 @@ import contextvars
 import logging
 import os
 import traceback as _traceback
+from collections.abc import Mapping
 from pathlib import Path
 
 from axm_audit.core.framework import Framework, detect_framework, resolve_frameworks
@@ -24,6 +25,7 @@ from axm_audit.core.rules._helpers import (
     set_ast_cache,
 )
 from axm_audit.core.rules.base import ProjectRule, get_registry_for
+from axm_audit.core.test_runner import TestReport
 from axm_audit.models.results import (
     EXTRA_NONSCORED_CATEGORIES,
     SCORED_CATEGORIES,
@@ -113,7 +115,11 @@ def get_rules_for_category(
     return rules
 
 
-def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
+def _safe_check(
+    rule: ProjectRule,
+    project_path: Path,
+    test_reports: Mapping[Path, TestReport] | None = None,
+) -> CheckResult:
     """Run a single rule with exception handling.
 
     If the rule raises, returns a failed CheckResult rather than crashing.
@@ -121,7 +127,13 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
     Includes traceback in ``details`` on failure for debugging.
     """
     try:
-        result = rule.check(project_path)
+        if test_reports is not None and rule.runs_tests:
+            report = test_reports.get(project_path.resolve())
+            if report is None:
+                raise ValueError(f"missing precomputed test report for {project_path}")
+            result = rule.check_measured(project_path, report)
+        else:
+            result = rule.check(project_path)
         result.category = rule.category
         return result
     except Exception as exc:
@@ -140,6 +152,8 @@ def audit_project(
     category: str | None = None,
     quick: bool = False,
     framework: Framework | str | None = None,
+    *,
+    test_reports: Mapping[Path, TestReport] | None = None,
 ) -> AuditResult:
     """Audit a project against its ecosystem's 2026 standards.
 
@@ -169,7 +183,11 @@ def audit_project(
     workspace_packages = iter_workspace_packages(project_path)
     if workspace_packages:
         return _audit_workspace(
-            project_path, workspace_packages, category=category, quick=quick
+            project_path,
+            workspace_packages,
+            category=category,
+            quick=quick,
+            test_reports=test_reports,
         )
 
     rules = get_rules_for_category(category, quick, framework=fw)
@@ -180,7 +198,11 @@ def audit_project(
         with concurrent.futures.ThreadPoolExecutor() as pool:
             futures = [
                 pool.submit(
-                    contextvars.copy_context().run, _safe_check, rule, project_path
+                    contextvars.copy_context().run,
+                    _safe_check,
+                    rule,
+                    project_path,
+                    *((test_reports,) if test_reports is not None else ()),
                 )
                 for rule in rules
             ]
@@ -197,6 +219,7 @@ def _audit_workspace(
     *,
     category: str | None,
     quick: bool,
+    test_reports: Mapping[Path, TestReport] | None = None,
 ) -> AuditResult:
     """Audit each package in a multi-package workspace and merge results.
 
@@ -207,7 +230,9 @@ def _audit_workspace(
     blocks are concatenated with a per-package header so consumers can
     disambiguate which package emitted which violation.
     """
-    per_package = _audit_packages_parallel(packages, category=category, quick=quick)
+    per_package = _audit_packages_parallel(
+        packages, category=category, quick=quick, test_reports=test_reports
+    )
 
     merged: dict[str, CheckResult] = {}
     order: list[str] = []
@@ -246,6 +271,7 @@ def _audit_packages_parallel(
     *,
     category: str | None,
     quick: bool,
+    test_reports: Mapping[Path, TestReport] | None = None,
 ) -> list[tuple[str, list[CheckResult]]]:
     """Audit each package concurrently, preserving input order.
 
@@ -264,7 +290,17 @@ def _audit_packages_parallel(
     results: list[list[CheckResult]] = [[] for _ in packages]
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_index = {
-            pool.submit(audit_project, pkg, category=category, quick=quick): idx
+            (
+                pool.submit(
+                    audit_project,
+                    pkg,
+                    category=category,
+                    quick=quick,
+                    test_reports=test_reports,
+                )
+                if test_reports is not None
+                else pool.submit(audit_project, pkg, category=category, quick=quick)
+            ): idx
             for idx, pkg in enumerate(packages)
         }
         for future in concurrent.futures.as_completed(future_to_index):

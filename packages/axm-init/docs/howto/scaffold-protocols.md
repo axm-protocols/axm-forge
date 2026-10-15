@@ -65,8 +65,8 @@ or durable crash recovery.
 
 Generated actions start with `state = "draft"` in their
 `[[tool.axm-init.protocols.units.protocols]]` declaration. Keep a draft out of
-`[project.entry-points."axm.graphs"]`; its skeleton markers may remain while
-implementation is incomplete.
+the graph entry-point groups (`axm.tribunal.graphs`, legacy `axm.graphs`); its
+skeleton markers may remain while implementation is incomplete.
 
 To prepare an implemented action for the ready state:
 
@@ -75,11 +75,13 @@ To prepare an implemented action for the ready state:
    corresponding skeletons. Markers in a ready action's inspected Python
    modules fail `protocols.protocol_draft`.
 3. Set that action's metadata state to `ready` and register its public factory
-   under the graph name. For `dev.work.exec`, add this entry to the package's
-   `pyproject.toml`:
+   under the graph name, in the group of the library that composes it
+   (`axm.tribunal.graphs` for `axm_tribunal.protocol`, `axm.graphs` for the
+   legacy `axm_loom.protocol`). For `dev.work.exec` composed with axm-tribunal,
+   add this entry to the package's `pyproject.toml`:
 
    ```toml
-   [project.entry-points."axm.graphs"]
+   [project.entry-points."axm.tribunal.graphs"]
    "dev.work.exec" = "protocols_dev.work.exec.protocol:build_protocol"
    ```
 

@@ -37,6 +37,13 @@ from axm_ast.core.analyzer import (
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
+from axm_ast.core.impact_tests import (
+    DiscoveryContext,
+    SymbolTarget,
+    TestCorpus,
+    find_transitive_tests,
+    validate_transitive_depth,
+)
 from axm_ast.core.parser import extract_module_info
 from axm_ast.core.workspace import analyze_workspace
 from axm_ast.models.calls import CallSite
@@ -107,6 +114,13 @@ class ImpactResult(TypedDict, total=False):
     # of it) without referencing the symbol itself — invisible to a
     # symbol-level call-graph traversal. Absent from the default output.
     module_level_importers: list[str]
+    # OPT-IN only (``transitive_depth > 0``): direct tests of the symbol AND
+    # of every in-package caller reached within ``transitive_depth`` levels
+    # (superset of ``test_file_paths``), the walked caller symbols, and
+    # whether the visited-symbol budget cut the walk short.
+    transitive_test_file_paths: list[str]
+    transitive_callers: list[str]
+    transitive_truncated: bool
     # Heterogeneous payload from git_coupling (file/strength/co_changes).
     git_coupled: list[Mapping[str, object]]
     cross_package_impact: list[str]
@@ -163,26 +177,34 @@ def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
 # ─── Definition finder ──────────────────────────────────────────────────────
 
 
-def _split_dotted_symbol(
-    symbol: str,
-    *,
-    package_name: str | None = None,
-) -> tuple[str, str] | None:
+def _split_dotted_symbol(symbol: str) -> tuple[str, str] | None:
     """Split a dotted symbol into (class_name, method_name).
 
     Returns None for bare (non-dotted) symbols.
     For deeply nested paths like ``Outer.Inner.method``,
-    returns ``("Outer", "Inner.method")``.
+    returns ``("Outer", "Inner.method")``. Module-qualified symbols are
+    split by :func:`_split_module_qualified` instead.
     """
-    if package_name is not None:
-        symbol = symbol.removeprefix(f"{package_name}.")
     if "." not in symbol:
         return None
-    if package_name is not None:
-        module_name, _, target = symbol.rpartition(".")
-        return module_name, target
     parts = symbol.split(".", 1)
     return parts[0], parts[1]
+
+
+def _split_module_qualified(pkg: PackageInfo, symbol: str) -> tuple[str, str] | None:
+    """Split ``module.path.Target[.member]`` at its longest module prefix.
+
+    ``tools.run.RunTool.execute`` resolves to ``("tools.run",
+    "RunTool.execute")`` when ``tools.run`` is a module of *pkg*. Returns
+    ``None`` when no dotted prefix names a module (``Class.method`` or a bare
+    name), so callers fall back to the class-qualified lookup.
+    """
+    parts = symbol.removeprefix(f"{pkg.name}.").split(".")
+    for cut in range(len(parts) - 1, 0, -1):
+        module_name = ".".join(parts[:cut])
+        if _resolve_module_file(pkg, module_name) is not None:
+            return module_name, ".".join(parts[cut:])
+    return None
 
 
 def _find_method_in_class(
@@ -291,30 +313,45 @@ def _find_module_definition(
     module_name: str,
     symbol: str,
 ) -> DefinitionInfo | None:
-    """Resolve a top-level symbol within one explicitly qualified module."""
+    """Resolve a symbol within one explicitly qualified module.
+
+    *symbol* is a top-level name or a class member path
+    (``Class.method``, ``Outer.Inner.method``).
+    """
     module_file = _resolve_module_file(pkg, module_name)
-    if module_file is None:
+    mod = next((m for m in pkg.modules if m.path == module_file), None)
+    if mod is None:
         return None
-    for mod in pkg.modules:
-        if mod.path != module_file:
-            continue
-        dotted = module_dotted_name(mod.path, pkg.root)
-        for fn in mod.functions:
-            if fn.name == symbol:
-                return DefinitionInfo(
-                    module=dotted,
-                    line=fn.line_start,
-                    kind="function",
-                    signature=fn.signature,
-                )
-        for cls in mod.classes:
-            if cls.name == symbol:
-                return DefinitionInfo(
-                    module=dotted,
-                    line=cls.line_start,
-                    kind="class",
-                    name=cls.name,
-                )
+    dotted = module_dotted_name(mod.path, pkg.root)
+    if "." in symbol:
+        class_name, _, member = symbol.partition(".")
+        owner = next((c for c in mod.classes if c.name == class_name), None)
+        return _find_method_in_class(owner, member, dotted) if owner else None
+    return _top_level_definition(mod, dotted, symbol)
+
+
+def _top_level_definition(
+    mod: ModuleInfo,
+    dotted: str,
+    symbol: str,
+) -> DefinitionInfo | None:
+    """Resolve a top-level function or class of *mod* by name."""
+    fn = next((f for f in mod.functions if f.name == symbol), None)
+    if fn is not None:
+        return DefinitionInfo(
+            module=dotted,
+            line=fn.line_start,
+            kind="function",
+            signature=fn.signature,
+        )
+    cls = next((c for c in mod.classes if c.name == symbol), None)
+    if cls is not None:
+        return DefinitionInfo(
+            module=dotted,
+            line=cls.line_start,
+            kind="class",
+            name=cls.name,
+        )
     return None
 
 
@@ -333,7 +370,7 @@ def find_definition(pkg: PackageInfo, symbol: str) -> DefinitionInfo | None:
     Returns:
         Dict with module, line, kind — or None if not found.
     """
-    module_target = _split_dotted_symbol(symbol, package_name=pkg.name)
+    module_target = _split_module_qualified(pkg, symbol)
     if module_target is not None:
         module_definition = _find_module_definition(pkg, *module_target)
         if module_definition is not None:
@@ -397,7 +434,9 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
 
     Recursively scans the ``tests/`` directory (including the AXM pyramid
     sub-dirs ``tests/unit|integration|e2e/``) for ``test_*.py`` files
-    containing the symbol name.
+    containing the symbol name as a whole identifier (``greet`` does not
+    match ``greeting``). Name-only: :func:`analyze_impact` additionally
+    scopes a method to the tests that can reach its class.
 
     Args:
         symbol: Name to search for in test files.
@@ -406,25 +445,103 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
     Returns:
         List of test file paths that reference the symbol.
     """
-    tests_dirs = resolve_suite_dirs(project_root)
-    if not tests_dirs:
-        return []
+    return TestCorpus(project_root).referencing(symbol)
 
-    matching: list[Path] = []
-    test_files = sorted(
-        test_file
-        for tests_dir in tests_dirs
-        for test_file in tests_dir.rglob("test_*.py")
+
+def _qualified_module(pkg: PackageInfo, module: str) -> str:
+    """Return *module* prefixed with the package name when it is not yet."""
+    if module == pkg.name or module.startswith(f"{pkg.name}."):
+        return module
+    return f"{pkg.name}.{module}" if module else pkg.name
+
+
+def _discovery_context(pkg: PackageInfo, project_root: Path) -> DiscoveryContext:
+    """Build the test-discovery context of one analysis.
+
+    Import provenance reuses the fail-open rules of ``precise_callers``: a
+    test whose imports cannot be read counts as reaching the module, and a
+    function caller is only dropped when proven to import a homonym.
+    """
+    import_names: dict[Path, list[str] | None] = {}
+
+    def reaches_module(test_file: Path, module: str) -> bool:
+        if test_file not in import_names:
+            try:
+                names = _module_import_names(extract_module_info(test_file))
+            except Exception:  # noqa: BLE001 - unreadable tests must be preserved
+                names = None
+            import_names[test_file] = names
+        names = import_names[test_file]
+        if names is None:
+            return True
+        return _imports_definition_module(
+            names, _qualified_module(pkg, module), pkg.name
+        )
+
+    def keep_function_callers(
+        target: SymbolTarget, sites: list[CallSite]
+    ) -> list[CallSite]:
+        definition = DefinitionInfo(module=target.module, line=0, kind="function")
+        return _filter_precise_callers(pkg, sites, definition, target.name)
+
+    return DiscoveryContext(
+        pkg=pkg,
+        corpus=TestCorpus(project_root),
+        reaches_module=reaches_module,
+        keep_function_callers=keep_function_callers,
     )
-    for test_file in test_files:
-        try:
-            content = test_file.read_text(encoding="utf-8")
-            if symbol in content:
-                matching.append(test_file)
-        except OSError:
-            continue
 
-    return matching
+
+def _symbol_target(
+    pkg: PackageInfo,
+    symbol: str,
+    definition: DefinitionInfo | None,
+) -> SymbolTarget | None:
+    """Pair the resolved definition module with the symbol's qualified name."""
+    if definition is None:
+        return None
+    split = _split_module_qualified(pkg, symbol)
+    qualname = split[1] if split is not None else symbol.removeprefix(f"{pkg.name}.")
+    return SymbolTarget(module=definition["module"], qualname=qualname)
+
+
+def _direct_test_files(
+    ctx: DiscoveryContext,
+    target: SymbolTarget | None,
+    lookup_name: str,
+) -> list[Path]:
+    """Direct tests: symbol-aware when resolved, name-only otherwise."""
+    if target is None:
+        return ctx.corpus.referencing(lookup_name)
+    return ctx.direct_tests(target)
+
+
+def _add_transitive_tests(  # noqa: PLR0913 - one analysis' discovery inputs
+    result: ImpactResult,
+    *,
+    ctx: DiscoveryContext | None,
+    target: SymbolTarget | None,
+    direct: list[Path],
+    root: Path,
+    depth: int,
+) -> None:
+    """Add the opt-in transitive test fields to *result*.
+
+    An unresolved target (bare homonym, unknown symbol) has no call graph to
+    walk: its transitive set is its direct set.
+    """
+    files = set(direct)
+    callers: list[str] = []
+    truncated = False
+    if ctx is not None and target is not None:
+        walk = find_transitive_tests(ctx, target, depth)
+        files.update(walk.test_files)
+        callers, truncated = walk.callers, walk.truncated
+    result["transitive_test_file_paths"] = sorted(
+        test_file.relative_to(root).as_posix() for test_file in files
+    )
+    result["transitive_callers"] = callers
+    result["transitive_truncated"] = truncated
 
 
 def _find_test_files_by_import(
@@ -1147,6 +1264,7 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
     test_filter: str | None = None,
     include_module_importers: bool = False,
     precise_callers: bool = False,
+    transitive_depth: int = 0,
 ) -> ImpactResult:
     """Full impact analysis for a symbol.
 
@@ -1176,29 +1294,32 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
             callers and mapped tests proven to import a distinct homonymous
             symbol. Ambiguous, unresolvable, or unreadable import information
             remains included (fail-open).
+        transitive_depth: OPT-IN (default ``0``, off). When ``> 0``, add
+            ``transitive_test_file_paths`` (tests of the symbol and of its
+            in-package callers up to this many levels, a superset of
+            ``test_file_paths``), ``transitive_callers`` and
+            ``transitive_truncated``. Off, the fields are absent. At most
+            ``MAX_TRANSITIVE_DEPTH``.
 
     Returns:
         Complete impact analysis dict.
+
+    Raises:
+        ValueError: If *transitive_depth* is out of range, or a dotted
+            symbol cannot be resolved unambiguously.
 
     Example:
         >>> result = analyze_impact(Path("src/axm_ast"), "analyze_package")
         >>> result["score"]
         'HIGH'
     """
+    validate_transitive_depth(transitive_depth)
     pkg = get_package(path)
     root = _resolve_project_root(path, project_root)
 
-    # Module-qualified symbols resolve their module first. Class methods
-    # retain the legacy first-segment split and bare-method caller lookup.
-    module_target = _split_dotted_symbol(symbol, package_name=pkg.name)
-    if (
-        module_target is not None
-        and _resolve_module_file(pkg, module_target[0]) is not None
-    ):
-        lookup_name = module_target[1]
-    else:
-        dotted = _split_dotted_symbol(symbol)
-        lookup_name = dotted[1].split(".")[-1] if dotted is not None else symbol
+    # Call sites and re-exports spell the bare name, whatever the qualification
+    # (``module.func``, ``Class.method``, ``module.Class.method``).
+    lookup_name = symbol.rsplit(".", 1)[-1]
 
     try:
         definition = find_definition(pkg, symbol)
@@ -1210,7 +1331,9 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
         definition = None
     callers = find_callers(pkg, lookup_name)
     reexports = find_reexports(pkg, lookup_name)
-    test_files = map_tests(lookup_name, root)
+    discovery = _discovery_context(pkg, root)
+    target = _symbol_target(pkg, symbol, definition)
+    test_files = _direct_test_files(discovery, target, lookup_name)
 
     dotted_definition = (
         _definition_module_name(pkg, definition) if definition is not None else None
@@ -1252,6 +1375,15 @@ def analyze_impact(  # noqa: PLR0913 - opt-in precision extends the option surfa
         "score": "LOW",
     }
 
+    if transitive_depth:
+        _add_transitive_tests(
+            result,
+            ctx=discovery,
+            target=target,
+            direct=test_files,
+            root=root,
+            depth=transitive_depth,
+        )
     _add_git_coupling(result, definition, pkg, root)
     _add_import_based_tests(result, definition, test_files, root)
     if precise_callers and dotted_definition is not None:
@@ -1310,6 +1442,35 @@ def _collect_workspace_reexports(
         for mod_reexport in find_reexports(pkg, symbol):
             reexports.append(f"{pkg.name}::{mod_reexport}")
     return reexports
+
+
+def _definition_package(
+    ws: WorkspaceInfo,
+    definition: DefinitionInfo | None,
+) -> PackageInfo | None:
+    """Return the workspace package holding *definition*, if resolved."""
+    if definition is None:
+        return None
+    name = definition.get("package")
+    return next((pkg for pkg in ws.packages if pkg.name == name), None)
+
+
+def _workspace_test_discovery(
+    ws: WorkspaceInfo,
+    symbol: str,
+    definition: DefinitionInfo | None,
+) -> tuple[DiscoveryContext | None, SymbolTarget | None, list[Path]]:
+    """Discovery context, target and direct tests of a workspace symbol.
+
+    A resolved definition scopes discovery to its package (symbol-aware
+    matching); an unresolved one falls back to the name-only workspace scan.
+    """
+    owner_pkg = _definition_package(ws, definition)
+    if owner_pkg is None:
+        return None, None, _collect_workspace_tests(ws, symbol.rsplit(".", 1)[-1])
+    discovery = _discovery_context(owner_pkg, ws.root)
+    target = _symbol_target(owner_pkg, symbol, definition)
+    return discovery, target, _direct_test_files(discovery, target, symbol)
 
 
 def _collect_workspace_tests(
@@ -1394,6 +1555,7 @@ def analyze_impact_workspace(
     *,
     exclude_tests: bool = False,
     test_filter: str | None = None,
+    transitive_depth: int = 0,
 ) -> ImpactResult:
     """Full impact analysis for a symbol across a workspace.
 
@@ -1409,6 +1571,9 @@ def analyze_impact_workspace(
             excludes all, ``"all"`` keeps everything, ``"related"``
             keeps only direct test callers.  Takes precedence
             over *exclude_tests* when both are set.
+        transitive_depth: OPT-IN (default ``0``, off). Same contract as
+            :func:`analyze_impact`; the walk follows the callers inside the
+            defining package, and paths are workspace-root-relative.
 
     Returns:
         Complete impact analysis dict (workspace-scoped).
@@ -1418,23 +1583,26 @@ def analyze_impact_workspace(
         >>> result["score"]
         'HIGH'
     """
+    validate_transitive_depth(transitive_depth)
     ws = analyze_workspace(ws_path)
 
-    # For dotted symbols, definition uses full path but lookups
-    # use the bare method name (what appears in source code).
-    dotted = _split_dotted_symbol(symbol)
-    lookup_name = dotted[1].split(".")[-1] if dotted else symbol
+    # Definition uses the full path; lookups use the bare name (what appears
+    # in source code).
+    lookup_name = symbol.rsplit(".", 1)[-1]
+    definition = _find_workspace_definition(ws, symbol)
 
     callers = find_callers_workspace(ws, lookup_name)
     reexports = _collect_workspace_reexports(ws, lookup_name)
-    mapped_test_files = _collect_workspace_tests(ws, lookup_name)
+    discovery, target, mapped_test_files = _workspace_test_discovery(
+        ws, symbol, definition
+    )
     test_files = sorted({test_file.name for test_file in mapped_test_files})
     affected_modules = sorted({c.module for c in callers} | set(reexports))
 
     result: ImpactResult = {
         "symbol": symbol,
         "workspace": ws.name,
-        "definition": _find_workspace_definition(ws, symbol),
+        "definition": definition,
         "callers": [
             CallerEntry(
                 module=c.module,
@@ -1454,6 +1622,15 @@ def analyze_impact_workspace(
         "score": "LOW",
     }
 
+    if transitive_depth:
+        _add_transitive_tests(
+            result,
+            ctx=discovery,
+            target=target,
+            direct=mapped_test_files,
+            root=ws.root,
+            depth=transitive_depth,
+        )
     _add_workspace_git_coupling(result, result["definition"], ws, ws_path)
     weights = _load_impact_weights(ws_path)
     caller_modules = {c["module"] for c in result["callers"]}

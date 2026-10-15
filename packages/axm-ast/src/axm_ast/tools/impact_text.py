@@ -43,6 +43,18 @@ def _render_tests_section(test_files: list[str]) -> list[str]:
     return [f"Tests: {', '.join(names)}"]
 
 
+def _render_transitive_tests_section(report: ImpactResult) -> list[str]:
+    """Render the opt-in transitive tests line (absent when not requested)."""
+    if "transitive_test_file_paths" not in report:
+        return []
+    paths = report["transitive_test_file_paths"]
+    suffix = " (truncated)" if report.get("transitive_truncated") else ""
+    if not paths:
+        return [f"Tests (transitive){suffix}: none"]
+    names = [f.rsplit("/", 1)[-1] for f in paths]
+    return [f"Tests (transitive){suffix}: {', '.join(names)}"]
+
+
 def _render_git_coupled_section(git_coupled: list[Mapping[str, object]]) -> list[str]:
     """Render the git-coupled section lines."""
     if not git_coupled:
@@ -102,6 +114,7 @@ def _render_impact_single(report: ImpactResult) -> str:
         lines.append(f"Affected: {', '.join(affected)}")
 
     lines.extend(_render_tests_section(report.get("test_files", [])))
+    lines.extend(_render_transitive_tests_section(report))
     lines.extend(_render_git_coupled_section(report.get("git_coupled", [])))
     lines.extend(_render_cross_package_section(report.get("cross_package_impact", [])))
 

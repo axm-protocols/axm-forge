@@ -1328,3 +1328,243 @@ def test_precise_callers_excludes_local_class_shadow(tmp_path: Path) -> None:
     caller_files = {f"{caller['module']}.py" for caller in result["callers"]}
 
     assert caller_files == {"b.py"}
+
+
+# ─── Symbol-aware and transitive test discovery ─────────────────────────────
+
+_DISCOVERY_SOURCES = {
+    "render.py": (
+        "def _final_answer(value: int) -> str:\n"
+        "    return str(value)\n\n\n"
+        "def render_text(value: int) -> str:\n"
+        "    return _final_answer(value)\n"
+    ),
+    "tools.py": (
+        "from demo.render import render_text\n\n\n"
+        "class RunTool:\n"
+        "    def execute(self, value: int) -> str:\n"
+        "        return render_text(value)\n\n\n"
+        "class Base:\n"
+        "    def __init__(self, value: int) -> None:\n"
+        "        self.value = value\n\n\n"
+        "class Child(Base):\n"
+        "    pass\n"
+    ),
+    "listing.py": (
+        "class ListTool:\n    def execute(self) -> list[int]:\n        return []\n"
+    ),
+    "cycle.py": (
+        "def ping(n: int) -> int:\n"
+        "    return pong(n - 1) if n else 0\n\n\n"
+        "def pong(n: int) -> int:\n"
+        "    return ping(n - 1) if n else 1\n"
+    ),
+}
+
+_DISCOVERY_TESTS = {
+    "test_render.py": (
+        "from demo.render import render_text\n\n\n"
+        "def test_render() -> None:\n    assert render_text(1) == '1'\n"
+    ),
+    "test_run.py": (
+        "from demo.tools import RunTool\n\n\n"
+        "def test_run() -> None:\n    assert RunTool().execute(2) == '2'\n"
+    ),
+    "test_list.py": (
+        "from demo.listing import ListTool\n\n\n"
+        "def test_list() -> None:\n    assert ListTool().execute() == []\n"
+    ),
+    "test_child.py": (
+        "from demo.tools import Child\n\n\n"
+        "def test_child() -> None:\n    assert Child(3).value == 3\n"
+    ),
+    "test_lookalike.py": (
+        "def test_lookalike() -> None:\n"
+        "    render_text_extra = 1\n"
+        "    assert render_text_extra\n"
+    ),
+    "test_cycle.py": (
+        "from demo.cycle import ping\n\n\n"
+        "def test_ping() -> None:\n    assert ping(2) == 0\n"
+    ),
+}
+
+
+@pytest.fixture
+def discovery_project(tmp_path: Path) -> tuple[Path, Path]:
+    """Package with a call chain, homonym methods, a subclass and a cycle."""
+    package = tmp_path / "src" / "demo"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    for name, source in _DISCOVERY_SOURCES.items():
+        (package / name).write_text(source, encoding="utf-8")
+    suite = tmp_path / "tests_demo" / "unit"
+    suite.mkdir(parents=True)
+    for name, source in _DISCOVERY_TESTS.items():
+        (suite / name).write_text(source, encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_demo"]\n',
+        encoding="utf-8",
+    )
+    return tmp_path, package
+
+
+@pytest.mark.integration
+def test_method_tests_exclude_homonymous_methods(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """Defect 2: ``RunTool.execute`` must not map tests of ``ListTool.execute``."""
+    root, package = discovery_project
+
+    result = analyze_impact(package, "RunTool.execute", project_root=root)
+
+    assert result["test_file_paths"] == ["tests_demo/unit/test_run.py"]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "symbol", ["tools.RunTool.execute", "demo.tools.RunTool.execute"]
+)
+def test_module_qualified_method_resolves(
+    discovery_project: tuple[Path, Path], symbol: str
+) -> None:
+    """Defect 3: ``module.Class.method`` resolves like ``Class.method``."""
+    root, package = discovery_project
+
+    result = analyze_impact(package, symbol, project_root=root)
+
+    assert result["definition"] is not None
+    assert result["definition"]["module"] == "tools"
+    assert result["definition"]["kind"] == "method"
+    assert result["test_file_paths"] == ["tests_demo/unit/test_run.py"]
+
+
+@pytest.mark.integration
+def test_constructor_tests_follow_subclass_references(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """``Base.__init__`` is exercised by a test constructing a subclass."""
+    root, package = discovery_project
+
+    result = analyze_impact(package, "tools.Base.__init__", project_root=root)
+
+    assert result["test_file_paths"] == ["tests_demo/unit/test_child.py"]
+
+
+@pytest.mark.integration
+def test_function_tests_match_whole_identifiers(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """``render_text`` does not match a test that only names ``render_text_extra``."""
+    root, package = discovery_project
+
+    result = analyze_impact(package, "render.render_text", project_root=root)
+
+    assert result["test_file_paths"] == ["tests_demo/unit/test_render.py"]
+
+
+@pytest.mark.integration
+def test_transitive_tests_reach_tests_of_callers(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """Defect 1: tests of callers surface in the opt-in transitive field."""
+    root, package = discovery_project
+
+    result = analyze_impact(
+        package, "render._final_answer", project_root=root, transitive_depth=2
+    )
+
+    assert result["test_file_paths"] == []
+    assert result["transitive_test_file_paths"] == [
+        "tests_demo/unit/test_render.py",
+        "tests_demo/unit/test_run.py",
+    ]
+    assert result["transitive_callers"] == [
+        "render.render_text",
+        "tools.RunTool.execute",
+    ]
+    assert result["transitive_truncated"] is False
+
+
+@pytest.mark.integration
+def test_transitive_depth_bounds_the_walk(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """Depth 1 climbs a single caller level."""
+    root, package = discovery_project
+
+    result = analyze_impact(
+        package, "render._final_answer", project_root=root, transitive_depth=1
+    )
+
+    assert result["transitive_test_file_paths"] == ["tests_demo/unit/test_render.py"]
+    assert result["transitive_callers"] == ["render.render_text"]
+
+
+@pytest.mark.integration
+def test_transitive_walk_terminates_on_cycles(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """Mutually recursive callers are visited once."""
+    root, package = discovery_project
+
+    result = analyze_impact(
+        package, "cycle.pong", project_root=root, transitive_depth=10
+    )
+
+    assert result["transitive_callers"] == ["cycle.ping"]
+    assert result["transitive_test_file_paths"] == ["tests_demo/unit/test_cycle.py"]
+
+
+@pytest.mark.integration
+def test_transitive_fields_absent_by_default(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """Off by default: the legacy result carries no transitive key."""
+    root, package = discovery_project
+
+    result = analyze_impact(package, "render._final_answer", project_root=root)
+
+    assert not {k for k in result if k.startswith("transitive_")}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("depth", [-1, 11])
+def test_transitive_depth_out_of_range_raises(
+    discovery_project: tuple[Path, Path], depth: int
+) -> None:
+    """The depth is bounded to ``[0, MAX_TRANSITIVE_DEPTH]``."""
+    root, package = discovery_project
+
+    with pytest.raises(ValueError, match="transitive_depth"):
+        analyze_impact(
+            package, "render.render_text", project_root=root, transitive_depth=depth
+        )
+
+
+@pytest.mark.integration
+def test_transitive_walk_reports_truncation(
+    discovery_project: tuple[Path, Path],
+) -> None:
+    """A visited-symbol budget smaller than the graph flags the cut."""
+    from axm_ast.core.impact_tests import (
+        DiscoveryContext,
+        SymbolTarget,
+        TestCorpus,
+        find_transitive_tests,
+    )
+
+    root, package = discovery_project
+    ctx = DiscoveryContext(
+        pkg=get_package(package),
+        corpus=TestCorpus(root),
+        reaches_module=lambda _test, _module: True,
+        keep_function_callers=lambda _target, sites: sites,
+    )
+
+    walk = find_transitive_tests(
+        ctx, SymbolTarget("render", "_final_answer"), 3, max_symbols=2
+    )
+
+    assert walk.truncated is True
+    assert walk.callers == ["render.render_text"]

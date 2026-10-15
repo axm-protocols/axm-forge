@@ -82,3 +82,53 @@ def test_axm_git_commit_commits_a_deletion(tmp_path: Path) -> None:
 
     tracked = _git(["ls-tree", "-r", "--name-only", "HEAD"], repo).stdout
     assert "drop.py" not in tracked.splitlines()
+
+
+def test_axm_git_commit_transports_dependency_environment(tmp_path: Path) -> None:
+    """The black-box CLI passes the JSON runtime through to an unchanged hook."""
+    repo = tmp_path / "candidate"
+    repo.mkdir()
+    _init_repo(repo)
+    source = repo / "src"
+    source.mkdir()
+    (source / "cli_marker.py").write_text("VALUE = 'candidate'\n")
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        "#!/bin/sh\n"
+        '"$AXM_DEPENDENCY_INTERPRETER" -c \'import cli_marker; '
+        'assert cli_marker.VALUE == "candidate"\'\n'
+    )
+    hook.chmod(0o755)
+    (repo / "drop.py").unlink()
+    environment = dict(os.environ)
+    home = tmp_path / "home"
+    home.mkdir()
+    environment["HOME"] = str(home)
+    declared = json.dumps(
+        {"interpreter": sys.executable, "package_root": str(repo), "pythonpath": []}
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "axm.cli",
+            "git_commit",
+            "--path",
+            str(repo),
+            "--commits",
+            json.dumps(
+                [{"files": ["drop.py"], "message": "chore: candidate deletion"}]
+            ),
+            "--dependency-environment",
+            declared,
+        ],
+        cwd=repo,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert _git(["log", "-1", "--format=%s"], repo).stdout.strip() == (
+        "chore: candidate deletion"
+    )

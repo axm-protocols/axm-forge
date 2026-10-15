@@ -13,9 +13,11 @@ from axm_init.core.protocol_planner import (
     PlanStatus,
     ProtocolScaffoldPlan,
     plan_protocol_scaffold,
+    plan_protocol_unit,
 )
+from axm_init.core.protocol_unit import merge_protocol_unit, resolve_protocol_unit
 from axm_init.core.root_lock import target_root_lock
-from axm_init.models.protocol_scaffold import ProtocolScaffoldDecl
+from axm_init.models.protocol_scaffold import ProtocolScaffoldDecl, ProtocolUnitDecl
 from axm_init.models.results import ScaffoldResult
 
 __all__ = [
@@ -39,6 +41,7 @@ class ProtocolScaffoldRequest:
     unit: str | None
     protocols: tuple[ProtocolScaffoldDecl, ...]
     preview: bool
+    unit_declaration: ProtocolUnitDecl | None = None
 
 
 def _payloads(value: list[ProtocolPayload] | str | None) -> list[ProtocolPayload]:
@@ -49,6 +52,19 @@ def _payloads(value: list[ProtocolPayload] | str | None) -> list[ProtocolPayload
         msg = "protocols must be a JSON list of protocol declarations"
         raise ValueError(msg)
     return [{str(key): item for key, item in entry.items()} for entry in raw]
+
+
+def _unit_payload(
+    value: ProtocolPayload | str | None, *, domain: str, unit: str | None
+) -> ProtocolUnitDecl | None:
+    if value is None:
+        return None
+    raw: object = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(raw, dict):
+        raise ValueError("unit_declaration must be a JSON object")
+    if raw.get("domain", domain) != domain or raw.get("unit", unit) != unit:
+        raise ValueError("shared declaration must belong to this domain/unit")
+    return ProtocolUnitDecl.model_validate({**raw, "domain": domain, "unit": unit})
 
 
 def _validate_options(
@@ -101,9 +117,19 @@ def prepare_protocol_request(  # noqa: PLR0913
     protocols: list[ProtocolPayload] | str | None,
     preview: bool,
     framework: Framework,
+    unit_declaration: ProtocolPayload | str | None = None,
 ) -> ProtocolScaffoldRequest | str | None:
     """Validate protocol options before any target filesystem mutation."""
-    requested = any((profile, domain, unit, protocols is not None, preview))
+    requested = any(
+        (
+            profile,
+            domain,
+            unit,
+            protocols is not None,
+            preview,
+            unit_declaration is not None,
+        )
+    )
     if not requested:
         return None
     try:
@@ -121,6 +147,7 @@ def prepare_protocol_request(  # noqa: PLR0913
             domain=valid_domain,
             unit=unit,
         )
+        shared = _unit_payload(unit_declaration, domain=valid_domain, unit=unit)
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
         return str(exc)
     return ProtocolScaffoldRequest(
@@ -129,6 +156,7 @@ def prepare_protocol_request(  # noqa: PLR0913
         unit=unit,
         protocols=declarations,
         preview=preview,
+        unit_declaration=shared,
     )
 
 
@@ -328,6 +356,12 @@ def preview_protocol_scaffold(
         return _preview_protocol_scaffold_unlocked(canonical_root, request)
 
 
+def _advance_inventory(inventory: dict[str, str], plan: ProtocolScaffoldPlan) -> None:
+    for operation in plan.operations:
+        if operation.content is not None:
+            inventory[operation.path.as_posix()] = operation.content
+
+
 def _preview_protocol_scaffold_unlocked(
     root: Path,
     request: ProtocolScaffoldRequest,
@@ -337,13 +371,25 @@ def _preview_protocol_scaffold_unlocked(
     metadata = metadata_path.read_text(encoding="utf-8")
     inventory = _inventory(root)
     combined: dict[PurePosixPath, PlanOperation] = {}
+    shared = resolve_protocol_unit(
+        metadata, request.protocols, request.unit_declaration
+    )
+    if shared is not None:
+        unit_plan = plan_protocol_unit(shared, metadata, inventory)
+        _combine_operations(combined, unit_plan.operations)
+        metadata = merge_protocol_unit(metadata, shared)
+        _advance_inventory(inventory, unit_plan)
     for declaration in request.protocols:
-        plan = plan_protocol_scaffold(declaration, metadata, inventory)
+        plan = (
+            plan_protocol_scaffold(declaration, metadata, inventory)
+            if shared is None
+            else plan_protocol_scaffold(
+                declaration, metadata, inventory, unit_declaration=shared
+            )
+        )
         _combine_operations(combined, plan.operations)
         metadata = plan.metadata
-        for operation in plan.operations:
-            if operation.content is not None:
-                inventory[operation.path.as_posix()] = operation.content
+        _advance_inventory(inventory, plan)
     final_plan = ProtocolScaffoldPlan(
         operations=tuple(combined[path] for path in sorted(combined)),
         metadata=metadata,

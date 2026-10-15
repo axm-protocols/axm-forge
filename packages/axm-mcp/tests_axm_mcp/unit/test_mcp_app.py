@@ -164,7 +164,7 @@ def test_built_http_app_binds_contract_from_ordinary_request(
 
     contract = mcp_app.contract_for_session_id("sid-1")
     assert contract.execution_root == payload["execution_root"]
-    assert contract.allowed_prefixes == payload["allowed_prefixes"]
+    assert contract.allowed_prefixes == tuple(payload["allowed_prefixes"])
 
 
 def test_session_identity_header_lookup_is_case_insensitive() -> None:
@@ -227,7 +227,7 @@ class TestDecouplingShape:
             import_module("axm_mcp.server.app")
 
 
-_DISCOVER = "axm_mcp.discovery.importlib.metadata.entry_points"
+_DISCOVER = "importlib.metadata.entry_points"
 
 
 class _HotTool:
@@ -384,7 +384,7 @@ def test_unbound_batch_edit_executes_through_direct_and_facade_doors(
     register_facade(server, catalog)
     arguments: dict[str, object] = {
         "path": "/workspace",
-        "operations": [{"op": "create", "file": "out.txt", "content": "ok"}],
+        "operations": [{"op": "create", "file": "/workspace/out.txt", "content": "ok"}],
     }
 
     direct = _registered_text(server, "batch_edit", **arguments)

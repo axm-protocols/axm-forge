@@ -750,3 +750,62 @@ def test_ambiguous_bare_symbol_text_names_candidates(
     assert isinstance(result.text, str)
     assert "a.resolve" in result.text
     assert "c.resolve" in result.text
+
+
+@pytest.fixture
+def chain_pkg(tmp_path: Path) -> Path:
+    """A two-level call chain whose only test names the outer function."""
+    pkg = tmp_path / "src" / "chain_pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (pkg / "mod.py").write_text(
+        "def _leaf() -> int:\n    return 1\n\n\n"
+        "def outer() -> int:\n    return _leaf()\n"
+    )
+    suite = tmp_path / "tests_chain_pkg"
+    suite.mkdir()
+    (suite / "test_mod.py").write_text(
+        "from chain_pkg.mod import outer\n\n\ndef test_outer() -> None:\n"
+        "    assert outer() == 1\n"
+    )
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = ["tests_chain_pkg"]\n'
+    )
+    return pkg
+
+
+@pytest.mark.integration
+def test_execute_transitive_depth_adds_data_and_text(chain_pkg: Path) -> None:
+    """The opt-in surfaces caller tests in data and in the rendered text."""
+    result = ImpactTool().execute(
+        path=str(chain_pkg), symbol="mod._leaf", transitive_depth=1
+    )
+
+    assert result.success is True
+    assert result.data["test_file_paths"] == []
+    assert result.data["transitive_test_file_paths"] == ["tests_chain_pkg/test_mod.py"]
+    assert result.text is not None
+    assert "Tests (transitive): test_mod.py" in result.text
+
+
+@pytest.mark.integration
+def test_execute_default_output_has_no_transitive_trace(chain_pkg: Path) -> None:
+    """Off by default, neither data nor text mention transitive tests."""
+    result = ImpactTool().execute(path=str(chain_pkg), symbol="mod._leaf")
+
+    assert result.success is True
+    assert not {k for k in result.data if k.startswith("transitive_")}
+    assert result.text is not None
+    assert "transitive" not in result.text
+
+
+@pytest.mark.integration
+def test_execute_rejects_out_of_range_transitive_depth(chain_pkg: Path) -> None:
+    """An out-of-range depth is a clear tool error, not a crash."""
+    result = ImpactTool().execute(
+        path=str(chain_pkg), symbol="mod._leaf", transitive_depth=99
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert "transitive_depth" in result.error

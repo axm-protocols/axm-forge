@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import tomllib
+from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -146,6 +147,10 @@ class NamespaceStore:
         if section:
             return section
         return self._read_legacy(ns)
+
+    def _read_namespace(self, ns: str) -> dict[str, object]:
+        """Capture and resolve a complete file-only tree for the public resolver."""
+        return _NamespaceSnapshot(self, ns).read()
 
     def read(self, ns: str) -> dict[str, object]:
         """Return the section for ``ns``, or ``{}`` if absent/corrupt.
@@ -315,6 +320,167 @@ class NamespaceStore:
                 os.chmod(path, NAMESPACE_FILE_MODE)
         finally:
             tmp_path.unlink(missing_ok=True)
+
+
+def _snapshot_toml(path: Path) -> dict[str, object]:
+    """Parse one selected file, retaining the existing empty-on-error contract."""
+    try:
+        with path.open("rb") as stream:
+            return tomllib.load(stream)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def _snapshot_key(key: str) -> bool:
+    """Whether a data key can safely participate in validated key resolution."""
+    from axm_config.resolver import ConfigError, validate_segment
+
+    try:
+        validate_segment(key, kind="key")
+    except ConfigError:
+        return False
+    return True
+
+
+def _snapshot_path_segment(namespace: str) -> bool:
+    """Allow historical dotted children, never path separators or traversal."""
+    return all(
+        segment
+        and all(
+            character.isascii() and (character.isalnum() or character in "_-")
+            for character in segment
+        )
+        for segment in namespace.split(".")
+    )
+
+
+def _snapshot_nodes(config: dict[str, object], prefix: str = "") -> list[str]:
+    """Enumerate unambiguous table paths; unknown names remain literal data."""
+    paths: list[str] = []
+    for key, value in config.items():
+        if not isinstance(value, dict) or not _snapshot_key(key):
+            continue
+        namespace = f"{prefix}.{key}" if prefix else key
+        if not value or any(not isinstance(item, dict) for item in value.values()):
+            paths.append(namespace)
+        paths.extend(_snapshot_nodes(value, namespace))
+    return paths
+
+
+class _NamespaceSnapshot:
+    """One captured central generation, lazily cached profile-local legacy reads."""
+
+    def __init__(self, store: NamespaceStore, namespace: str) -> None:
+        self.namespace = namespace
+        self.path = store._config_path()
+        self.home = _safe_home()
+        self.config = _snapshot_toml(self.path)
+        self.legacy: dict[str, dict[str, object]] = {}
+        self.legacy_names = {
+            path.stem
+            for path in self.path.parent.glob(f"{namespace}*.toml")
+            if path.stem == namespace or path.stem.startswith(f"{namespace}.")
+        }
+        self.namespaces = sorted(
+            {
+                *[
+                    name
+                    for name in _snapshot_nodes(self.config)
+                    if name == namespace or name.startswith(f"{namespace}.")
+                ],
+                *[name for name in self.legacy_names if _is_namespace(name)],
+            }
+        )
+
+    def _legacy(self, namespace: str) -> dict[str, object]:
+        if not _snapshot_path_segment(namespace):
+            return {}
+        if namespace not in self.legacy:
+            path = (self.path.parent / f"{namespace}.toml").resolve()
+            if self.home not in path.parents:
+                raise ValueError("refusing out-of-home legacy snapshot path")
+            self.legacy[namespace] = _snapshot_toml(path)
+        return self.legacy[namespace]
+
+    def _read(self, namespace: str) -> dict[str, object]:
+        """Mirror read's effective own-section/overlay selection on captured data."""
+        if namespace.startswith("execution.") and not namespace.startswith(
+            "execution.v1."
+        ):
+            token = namespace.removeprefix("execution.").encode().hex()
+            canonical = _section(self.config, f"execution.v1.{token}")
+            if canonical == {"tombstone": "v1"}:
+                return {}
+            if canonical:
+                return canonical
+        section = _section(self.config, namespace)
+        return section if section else self._legacy(namespace)
+
+    def _keys(self, direct: dict[str, object], raw: dict[str, object]) -> set[str]:
+        prefix = f"{self.namespace}."
+        keys = set(direct) | set(raw)
+        keys.update(
+            name.removeprefix(prefix).split(".")[0]
+            for name in self.namespaces
+            if name.startswith(prefix)
+        )
+        keys.update(
+            name.removeprefix(prefix)
+            for name in self.legacy_names
+            if name.startswith(prefix) and _snapshot_key(name.removeprefix(prefix))
+        )
+        return keys
+
+    def _value(self, key: str) -> tuple[bool, object]:
+        namespace = f"{self.namespace}.{key}"
+        mapping = self._data_read(namespace)
+        descendants = [
+            name
+            for name in self.namespaces
+            if name == namespace or name.startswith(f"{namespace}.")
+        ]
+        if not mapping and not descendants:
+            return False, None
+        for descendant in descendants:
+            if descendant != namespace:
+                relative = descendant.removeprefix(f"{namespace}.").split(".")
+                self._attach(mapping, relative, self._data_read(descendant))
+        return True, mapping
+
+    def _data_read(self, namespace: str) -> dict[str, object]:
+        """Preserve unknown literal tables without resolving them as paths."""
+        mapping = deepcopy(self._read(namespace))
+        for key, value in _raw_node(self.config, namespace).items():
+            if key not in mapping and not _snapshot_key(key):
+                mapping[key] = deepcopy(value)
+        return mapping
+
+    @staticmethod
+    def _attach(mapping: dict[str, object], relative: list[str], value: object) -> None:
+        cursor = mapping
+        for segment in relative[:-1]:
+            nested = cursor.get(segment)
+            if not isinstance(nested, dict):
+                nested = {}
+                cursor[segment] = nested
+            cursor = nested
+        cursor[relative[-1]] = value
+
+    def read(self) -> dict[str, object]:
+        direct = self._read(self.namespace)
+        raw = _raw_node(self.config, self.namespace)
+        result: dict[str, object] = {}
+        for key in sorted(self._keys(direct, raw)):
+            if key in direct:
+                result[key] = deepcopy(direct[key])
+            elif not _snapshot_key(key):
+                if key in raw:
+                    result[key] = deepcopy(raw[key])
+            else:
+                present, value = self._value(key)
+                if present:
+                    result[key] = value
+        return result
 
 
 def _section(config: dict[str, object], ns: str) -> dict[str, object]:

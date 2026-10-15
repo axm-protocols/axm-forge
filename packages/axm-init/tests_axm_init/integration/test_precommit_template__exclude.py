@@ -1,10 +1,15 @@
-"""Regression: rendered pre-commit configs exclude fixtures snapshots/goldens.
+"""Regression: rendered pre-commit configs keep byte-exact data untouched.
 
 The mutating basic hooks (``trailing-whitespace`` and ``end-of-file-fixer``)
 must not rewrite golden / snapshot fixtures, which are byte-exact baselines.
 Every ``.pre-commit-config.yaml.jinja`` template must therefore carry
 ``exclude: tests/fixtures/(snapshots|goldens)/`` on both hooks, and that
 exclude must survive jinja rendering into the scaffolded output.
+
+A directory exclude alone misses byte-exact data stored elsewhere (vendored
+captures, reference reports under ``docs/``): ``end-of-file-fixer`` appended a
+newline to such JSON files and broke their frozen digests. Both hooks are
+therefore also restricted, through ``types_or``, to the hand-written text types.
 
 Covers AC2: render each template and assert the exclude appears on both
 mutating hooks in the parsed YAML output.
@@ -24,6 +29,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.scenario_name_ok]
 
 _EXCLUDE = "tests/fixtures/(snapshots|goldens)/"
 _MUTATING_HOOKS = ("trailing-whitespace", "end-of-file-fixer")
+_AUTHORED_TYPES = ["python", "pyi", "markdown", "toml", "yaml"]
 
 
 def _render_precommit(template: TemplateType) -> str:
@@ -76,4 +82,24 @@ def test_rendered_precommit_excludes_fixtures_on_mutating_hooks(
         hook = _hook(config, hook_id)
         assert hook.get("exclude") == _EXCLUDE, (
             f"{hook_id} must exclude {_EXCLUDE!r}, got {hook.get('exclude')!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        pytest.param(TemplateType.STANDALONE, id="standalone"),
+        pytest.param(TemplateType.WORKSPACE, id="workspace"),
+    ],
+)
+def test_rendered_precommit_restricts_mutating_hooks_to_authored_text(
+    template: TemplateType,
+) -> None:
+    config = yaml.safe_load(_render_precommit(template))
+
+    for hook_id in _MUTATING_HOOKS:
+        hook = _hook(config, hook_id)
+        assert hook.get("types_or") == _AUTHORED_TYPES, (
+            f"{hook_id} must only touch {_AUTHORED_TYPES!r}, "
+            f"got {hook.get('types_or')!r}"
         )
