@@ -51,7 +51,8 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
+      # Integration tests import sibling packages; match the CI workspace setup.
+      - run: uv sync --all-packages --all-groups
       - name: Configure git identity (required by axm-init scaffold tests)
         run: |
           git config --global user.email "ci@axm.local"
