@@ -5,6 +5,7 @@ updates:
   # (members share it) and the root pyproject. One consolidated weekly PR.
   - package-ecosystem: uv
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -36,6 +37,7 @@ updates:
   # above. One grouped weekly PR per package.
   - package-ecosystem: uv
     directory: /packages/axm
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -53,6 +55,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-anvil
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -66,6 +69,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-ast
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -97,6 +101,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-audit
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -110,6 +115,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-edit
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -123,6 +129,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-git
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -136,6 +143,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-init
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -149,6 +157,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-mcp
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -162,6 +171,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-smelt
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -176,6 +186,7 @@ updates:
 
   - package-ecosystem: uv
     directory: /packages/axm-ingot
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -189,6 +200,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-echo
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -202,6 +214,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-config
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -215,6 +228,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-vault
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -228,6 +242,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: uv
     directory: /packages/axm-doctor
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -243,6 +258,7 @@ updates:
       - dependency-name: prek
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
 
@@ -254,6 +270,7 @@ updates:
   # `github-actions`. Elles dérivaient donc en silence.
   - package-ecosystem: pre-commit
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
