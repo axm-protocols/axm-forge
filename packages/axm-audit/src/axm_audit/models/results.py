@@ -162,7 +162,7 @@ class Severity(StrEnum):
     INFO = "info"  # Informational only
 
 
-class CheckResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+class CheckResult(BaseModel):
     """Result of a single compliance check.
 
     Designed for machine parsing by AI Agents.
@@ -196,7 +196,7 @@ class CheckResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesi
     model_config = ConfigDict(extra="forbid")
 
 
-class AuditResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+class AuditResult(BaseModel):
     """Aggregated result of a project audit.
 
     Contains all individual check results and computed summary.

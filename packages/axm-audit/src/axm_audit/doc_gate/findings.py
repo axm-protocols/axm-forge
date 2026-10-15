@@ -20,7 +20,7 @@ class FindingKind(enum.StrEnum):
     bad_reference = "bad_reference"
 
 
-class DocGateFinding(BaseModel):  # type: ignore[explicit-any]
+class DocGateFinding(BaseModel):
     """A single finding emitted by the documentation gate.
 
     Records the kind of issue, the referenced target, and the page on which

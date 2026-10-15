@@ -86,7 +86,7 @@ class SmeltContext:
             return None
 
 
-class SmeltReport(BaseModel):  # type: ignore[explicit-any]  # reason: pydantic plugin synthesizes __init__ with Any kwargs
+class SmeltReport(BaseModel):
     """Report produced by the smelt pipeline."""
 
     original: str

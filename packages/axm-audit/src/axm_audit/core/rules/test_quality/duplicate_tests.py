@@ -338,7 +338,7 @@ _GENERIC_CALL_NAMES = _P6_EXCLUDED_NAMES | frozenset(
 )
 
 
-class DuplicateTestsCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+class DuplicateTestsCheckResult(CheckResult):
     """:class:`CheckResult` with cluster metadata.
 
     ``metadata`` keys:

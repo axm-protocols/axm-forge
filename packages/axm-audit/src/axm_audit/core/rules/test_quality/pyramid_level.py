@@ -145,7 +145,7 @@ _STRUCTURAL_WRAPPERS: frozenset[str] = frozenset(
 _TAINT_PASSES = 2
 
 
-class Finding(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+class Finding(BaseModel):
     """One classification verdict for a single test function."""
 
     path: str
@@ -164,7 +164,7 @@ class Finding(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes 
     model_config = {"extra": "forbid"}
 
 
-class PyramidCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+class PyramidCheckResult(CheckResult):
     """:class:`CheckResult` subclass exposing ``findings`` and ``score``."""
 
     findings: list[Finding] = Field(default_factory=list)
