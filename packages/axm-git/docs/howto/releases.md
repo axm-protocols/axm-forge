@@ -38,6 +38,38 @@ Without a previous tag, release-diff suggests `0.1.0`; its diff uses
 release contents. It may suggest a bump even when its commit list is empty.
 Review the evidence instead of treating a suggestion as a publish gate.
 
+## Plan a workspace
+
+Call `git_release_plan(path="/absolute/repository", ref="origin/main")` before
+a sequence of package releases. It resolves the revision once and reads manifests
+from that immutable Git tree, including member globs/excludes and virtual roots.
+Working-tree edits are not release metadata.
+
+The result supplies the full commit `ref`, dependency-first `order`, and ordered
+`packages`. Each entry identifies `name`, repository-relative `path`, privacy,
+mandatory `dependencies`, original `requirements` and `optional_requirements`,
+`current_tag`/`current_tag_commit`, proposed version/bump/tag and `action`:
+`release`, `unchanged` or `already_released`. First releases use 0.1.0 and
+share the central SemVer rules with release-diff.
+
+Mandatory runtime/build edges determine a stable topological order. Conditional
+requirements are conservatively included across target platforms. Optional plugin
+extras are preserved as constraints, not mandatory ordering edges. Invalid
+metadata, unsupported dynamic dependencies, duplicate names/prefixes and mandatory
+cycles fail explicitly rather than returning a partial publish order.
+
+Inventory and tag names/peeled commit identities are each captured once; selected
+manifests use one framed `cat-file --batch` subprocess. Changed packages alone
+read scoped history. Immutable captured tag commits prevent a concurrent tag-ref
+change from silently replacing a version's analysis basis.
+
+`ready` means a structurally valid local plan, not permission to publish. The
+tool never fetches, checks out, tags, pushes or queries an index. Verify remote
+tag identities, optional/version constraints and index visibility separately.
+Execute package releases sequentially, and finish each package's CI/publication
+and curated notes before starting its consumers. A dirty checkout may be analyzed
+read-only, but tagging still requires a clean checkout at the pinned revision.
+
 ## Publish a tag
 
 **The following call creates an annotated local tag and pushes it to origin.**

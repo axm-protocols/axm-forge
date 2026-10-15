@@ -19,7 +19,7 @@ It does not create commits, branches, tags or remote objects.
 
 ## Effects at a glance
 
-`git_preflight`, `git_release_diff` and worktree listing inspect local state.
+`git_preflight`, `git_release_diff`, `git_release_plan` and worktree listing inspect local state.
 `git_branch`, `git_commit`, `git_merge` and worktree add/remove mutate local state.
 `git_clone` and `git_pull` obtain remote content and write locally.
 `git_push`, `git_pr` and `git_tag` affect remote state.

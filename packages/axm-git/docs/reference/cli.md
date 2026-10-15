@@ -25,6 +25,7 @@ The CLI spelling uses hyphens, for example `--diff-lines`.
 | `git_pr` | required `title`; `body=None`, `base=None`, `auto_merge=False` | `pr_url`, `pr_number`, `auto_merge`; recovery adds `already_existed=True` |
 | `git_await_merge` | required `pr` (string number or URL); `timeout=600`, `interval=30` (seconds) | `merged=True`, `pr_ref` |
 | `git_release_diff` | none | `current_tag`, `suggested_bump`, `suggested_next`, `breaking`, `commits_since`, `counts`, `files_changed`, `diffstat`, `public_api_touched` |
+| `git_release_plan` | none | Pinned `ref`, deterministic `order`, per-package versions/actions/dependencies, exclusions and warnings |
 | `git_tag` | `version=None` | `tag`, `full_tag`, `bump`, `breaking`, `resolved_version`, `pushed`, `ci_check`, `commits_included`, `current_tag` |
 
 A `None` branch base/target resolves the repository default for worktree,
@@ -62,6 +63,7 @@ modules, not from the package root.
 | `git_pr` | `axm_git.tools.pr` | `GitPRTool` |
 | `git_await_merge` | `axm_git.tools.await_merge` | `GitAwaitMergeTool` |
 | `git_release_diff` | `axm_git.tools.release_diff` | `GitReleaseDiffTool` |
+| `git_release_plan` | `axm_git.tools.release_plan` | `GitReleasePlanTool` |
 | `git_tag` | `axm_git.tools.tag` | `GitTagTool` |
 
 ```python

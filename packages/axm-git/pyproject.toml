@@ -19,6 +19,7 @@ dependencies = [
     "axm-config>=0.1.0",
     "axm-vault>=0.1.0",
     "pydantic>=2.0",
+    "packaging>=24.2",
 ]
 
 [project.entry-points."axm.tools"]
@@ -35,6 +36,7 @@ git_merge       = "axm_git.tools.merge:GitMergeTool"
 git_pull        = "axm_git.tools.pull:GitPullTool"
 git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
 git_release_diff = "axm_git.tools.release_diff:GitReleaseDiffTool"
+git_release_plan = "axm_git.tools.release_plan:GitReleasePlanTool"
 
 [project.entry-points."axm.credentials"]
 gh = "axm_git.credentials:gh_credentials"

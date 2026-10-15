@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["VersionBump", "compute_bump", "parse_tag"]
+__all__ = ["VersionBump", "compute_bump", "parse_tag", "release_suggestion"]
 
 _TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 _BREAKING_RE = re.compile(r"^[a-z]+(\(.+\))?!:")
@@ -129,6 +129,20 @@ def _next_version(
             return bump, f"v{major}.{minor + 1}.0"
         case _:
             return bump, f"v{major}.{minor}.{patch + 1}"
+
+
+def release_suggestion(
+    subjects: list[str], current_tag: str | None
+) -> tuple[str, str, bool]:
+    """Share package release-diff SemVer rules with workspace planning."""
+    if current_tag is None:
+        classified = [classify_commit(subject) for subject in subjects]
+        breaking = any(flag for _, flag in classified)
+        feature = any(kind == "feat" for kind, _ in classified)
+        return "minor" if feature or breaking else "patch", "0.1.0", breaking
+    base = current_tag.rsplit("/", 1)[-1].lstrip("v")
+    result = compute_bump(subjects, f"v{base}")
+    return result.bump, result.next.lstrip("v"), result.breaking
 
 
 def compute_bump(commits: list[str], current_tag: str) -> VersionBump:

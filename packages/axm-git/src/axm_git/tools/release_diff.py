@@ -11,7 +11,7 @@ from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.runner import find_git_root, not_a_repo_error, run_git
 from axm_git.core.runner import timeout_error_result as _timeout_error_result
-from axm_git.core.semver import classify_commit, compute_bump
+from axm_git.core.semver import classify_commit, release_suggestion
 from axm_git.tools.release_diff_text import render_failure_text, render_text
 from axm_git.tools.tag import get_tag_prefix
 
@@ -19,7 +19,6 @@ __all__ = ["GitReleaseDiffTool"]
 
 logger = logging.getLogger(__name__)
 
-_FIRST_RELEASE_NEXT = "0.1.0"
 _PUBLIC_API_RE = re.compile(r"(^|/)src/.+/__init__\.py$")
 
 
@@ -104,15 +103,7 @@ def _suggest(
     commits: list[dict[str, object]], current_tag: str | None
 ) -> tuple[str, str, bool]:
     """Map commits onto ``(suggested_bump, suggested_next, breaking)``."""
-    if current_tag is None:
-        breaking = any(c["breaking"] for c in commits)
-        has_feat = any(c["type"] == "feat" for c in commits)
-        bump = "minor" if (has_feat or breaking) else "patch"
-        return bump, _FIRST_RELEASE_NEXT, breaking
-    base = current_tag[current_tag.rfind("/") + 1 :].lstrip("v")
-    subjects = [str(c["subject"]) for c in commits]
-    result = compute_bump(subjects, f"v{base}")
-    return result.bump, result.next.lstrip("v"), result.breaking
+    return release_suggestion([str(c["subject"]) for c in commits], current_tag)
 
 
 class GitReleaseDiffTool(AXMTool):

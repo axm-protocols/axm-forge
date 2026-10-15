@@ -61,7 +61,7 @@ There is no separate `axm-git` executable. See the
 
 | Operation | Tools | Effects |
 |---|---|---|
-| Inspect locally | `git_preflight`, `git_release_diff`, `git_worktree(action="list")` | Read repository state |
+| Inspect locally | `git_preflight`, `git_release_diff`, `git_release_plan`, `git_worktree(action="list")` | Read repository state |
 | Change locally | `git_branch`, `git_commit`, `git_merge`, worktree add/remove | Change branches, index, files or commits |
 | Obtain remote content | `git_clone`, `git_pull` | Read remote; write local checkout |
 | Publish | `git_push`, `git_pr`, `git_tag` | Change remote state |

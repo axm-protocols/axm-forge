@@ -719,6 +719,7 @@ dependencies = [
     { name = "axm" },
     { name = "axm-config" },
     { name = "axm-vault" },
+    { name = "packaging" },
     { name = "pydantic" },
 ]
 
@@ -745,6 +746,7 @@ requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "axm-config", editable = "packages/axm-config" },
     { name = "axm-vault", editable = "packages/axm-vault" },
+    { name = "packaging", specifier = ">=24.2" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
 
