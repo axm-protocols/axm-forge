@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 from types import SimpleNamespace
 from typing import Any, cast
@@ -415,7 +416,8 @@ def test_malformed_success_is_structurally_failed_through_both_routes(
             else _rpc(client, "fixture_broken", {})
         )
     assert result["isError"]
-    assert result["structuredContent"]["success"] is False
+    assert "structuredContent" not in result
+    assert json.loads(result["content"][0]["text"])["success"] is False
     assert "malformed ToolResult" in result["content"][0]["text"]
 
 

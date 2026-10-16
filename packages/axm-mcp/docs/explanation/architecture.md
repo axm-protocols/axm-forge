@@ -99,15 +99,16 @@ preserve structured data as an additional MCP channel. Failures with nonempty
 text keep their diagnostics; data-only results use an envelope. See the
 [exact result behavior](../reference/facade.md#toolresult-at-the-mcp-boundary).
 
-Host-owned apps built by `create_scoped_mcp_app` preserve the backend result's
-structured data as well as any pre-rendered text. Their backend output schema
-describes that actual flattened object, not MCPServer's inferred `result` wrapper.
-For AXMTool adapters, `success` is a required boolean and application data fields
-remain open; the same schema validates the payload when it is rendered. Plain
-dispatchers keep their own dictionary contract without a required success field;
-when present, `success` must still be a strict boolean, never a truthy substitute.
-Failed results retain `isError=true` and diagnostics even when they have prepared
-text. Declarative UI tools keep their exact addon-owned schemas unchanged.
+Host-owned apps built by `create_scoped_mcp_app` follow the same rule: a backend
+tool's model answer is its `ToolResult.text`, with the same failure marker, and
+its `data` never reaches the client. Backend tools there declare no output schema
+and send no `structuredContent`; a result without usable text, or a plain
+dispatcher's dictionary, answers with its JSON rendering. The scoped app adds the
+structural failure signal: a failed result keeps `isError=true`, and a `success`
+that is not a strict boolean is refused as a malformed result. Clients that show
+structured data instead of text, as Claude Code does, would otherwise put the
+whole payload in the model's context. Declarative UI tools keep their exact
+addon-owned output schemas and their structured results.
 
 ## Concurrency
 

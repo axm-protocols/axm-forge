@@ -32,7 +32,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import TypeAdapter, ValidationError
 
 from axm_mcp.schema import IntrospectableFn, apply_signature, signature_params
-from axm_mcp.wrapping import build_wrappers
+from axm_mcp.wrapping import RenderedText, build_wrappers
 
 if TYPE_CHECKING:
     from axm_mcp.discovery import ToolEntry
@@ -401,8 +401,10 @@ class ToolCatalog:
         return validated
 
     @staticmethod
-    def _render(result: dict[str, object] | str) -> str:
+    def _render(result: dict[str, object] | str | RenderedText) -> str:
         """Render a wrapper result (already flattened) to facade text."""
+        if isinstance(result, RenderedText):
+            return result.text
         if isinstance(result, str):
             return result
         return "\n".join(f"{k}: {v}" for k, v in result.items())

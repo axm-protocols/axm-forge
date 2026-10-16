@@ -1,13 +1,13 @@
-"""Listed backend schemas describe the actual scoped HTTP result, not its wrapper."""
+"""Backend tools declare no output schema and answer the scoped client in text."""
 
 from __future__ import annotations
 
+import json
 from typing import cast
 
 import pytest
 from axm import AXMTool, ToolResult
 from axm.tools.write_scope import WriteContract
-from jsonschema import validate
 from starlette.testclient import TestClient
 
 from axm_mcp import create_scoped_mcp_app
@@ -72,54 +72,54 @@ def rpc(
     return cast(dict[str, object], response.json()["result"])
 
 
-def test_listed_output_schema_matches_direct_data(backend_client):
+def test_backend_tools_declare_no_output_schema(backend_client):
     tools = rpc(backend_client, "tools/list", {})["tools"]
-    declared = next(tool for tool in tools if tool["name"] == "public_read")
+    declared = {tool["name"]: tool for tool in tools}
+    assert "outputSchema" not in declared["public_read"]
+    assert "outputSchema" not in declared["plain_read"]
+    assert declared["public_read"]["inputSchema"]["title"] == "public_readArguments"
+    assert declared["public_read"]["inputSchema"]["required"] == ["mode"]
+    count = declared["public_read"]["inputSchema"]["properties"]["count"]
+    assert count["type"] == "integer"
+    assert declared["plain_read"]["inputSchema"]["title"] == "plain_readArguments"
+    assert declared["plain_read"]["inputSchema"]["required"] == ["word"]
+
+
+def test_data_only_result_answers_with_its_json_envelope(backend_client):
     result = rpc(
         backend_client,
         "tools/call",
         {"name": "public_read", "arguments": {"mode": "data", "count": 3}},
     )
-    validate(result["structuredContent"], declared["outputSchema"])
-    assert result["structuredContent"] == {
+    assert json.loads(result["content"][0]["text"]) == {
         "success": True,
         "available": True,
         "count": 3,
     }
+    assert "structuredContent" not in result
     assert result["isError"] is False
-    assert declared["inputSchema"]["title"] == "public_readArguments"
-    assert declared["inputSchema"]["required"] == ["mode"]
-    assert declared["inputSchema"]["properties"]["count"]["type"] == "integer"
 
 
-def test_pre_rendered_text_stays_text_and_retains_structured_data(backend_client):
+def test_pre_rendered_text_is_the_whole_answer(backend_client):
     result = rpc(
         backend_client,
         "tools/call",
         {"name": "public_read", "arguments": {"mode": "text"}},
     )
     assert result["content"] == [{"type": "text", "text": "**Ready**"}]
-    assert result["structuredContent"] == {
-        "success": True,
-        "count": 2,
-        "text": "**Ready**",
-    }
+    assert "structuredContent" not in result
     assert result["isError"] is False
 
 
-def test_plain_dispatcher_retains_its_own_object(backend_client):
-    tools = rpc(backend_client, "tools/list", {})["tools"]
-    declared = next(tool for tool in tools if tool["name"] == "plain_read")
+def test_plain_dispatcher_answers_with_its_own_object(backend_client):
     result = rpc(
         backend_client,
         "tools/call",
         {"name": "plain_read", "arguments": {"word": "hello"}},
     )
-    validate(result["structuredContent"], declared["outputSchema"])
-    assert result["structuredContent"] == {"echo": "hello"}
+    assert json.loads(result["content"][0]["text"]) == {"echo": "hello"}
+    assert "structuredContent" not in result
     assert result["isError"] is False
-    assert declared["inputSchema"]["title"] == "plain_readArguments"
-    assert declared["inputSchema"]["required"] == ["word"]
 
 
 @pytest.mark.parametrize("mode", ["failure", "raises"])
@@ -132,8 +132,10 @@ def test_failures_stay_structurally_failed(backend_client, mode, facade):
         arguments = {"name": "public_read", "arguments": arguments}
     result = rpc(backend_client, "tools/call", {"name": name, "arguments": arguments})
     assert result["isError"] is True
-    assert result["structuredContent"]["success"] is False
-    expected = "denied" if mode == "failure" else "broken fixture"
-    assert expected in result["content"][0]["text"]
+    assert "structuredContent" not in result
+    text = result["content"][0]["text"]
     if mode == "failure":
-        assert "Evidence" in result["content"][0]["text"]
+        assert text == "\u2717 denied\nEvidence"
+    else:
+        assert json.loads(text)["success"] is False
+        assert "broken fixture" in text

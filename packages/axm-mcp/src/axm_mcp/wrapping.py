@@ -48,6 +48,7 @@ if TYPE_CHECKING:
 __all__ = [
     "UNSCOPED_EXECUTION_TOOLS",
     "_HTTP_MODE",
+    "RenderedText",
     "_WrapperCtx",
     "_build_plain_wrapper",
     "_build_tool_wrapper",
@@ -71,8 +72,22 @@ _session_lock = KeyedLock()  # protocol_* tools, keyed by session_id
 _git_lock = KeyedLock()  # git_* tools, keyed by repo path
 
 
+@dataclass(frozen=True)
+class RenderedText:
+    """A ToolResult's model text, plus the status a bare string cannot carry.
+
+    Returned instead of the bare string only by wrappers built with
+    ``text_status=True`` (host-owned scoped apps), which must flag a failure
+    with ``isError`` while sending the model exactly the text the shared server
+    would send. It carries no ``data``: the text is the whole model answer.
+    """
+
+    text: str
+    success: bool
+
+
 # Wrapper callables registered with MCPServer.
-type _WrapperResult = dict[str, object] | str
+type _WrapperResult = dict[str, object] | str | RenderedText
 
 
 class _SyncWrapper(Protocol):
@@ -130,7 +145,7 @@ class _WrapperCtx:
     write_contract_resolver: Callable[[], WriteContract | None]
     shared_mode: bool
     path_defaults: dict[str, object] = field(default_factory=dict)
-    preserve_result: bool = False
+    text_status: bool = False
 
 
 def _unwrap_nested_kwargs(kwargs: dict[str, object]) -> None:
@@ -309,7 +324,7 @@ def _build_plain_wrapper(
     """Build the wrapper for a plain dispatcher function."""
     _plain_tool = cast("PlainTool", tool)
 
-    def _wrapper(**kwargs: object) -> dict[str, object] | str:
+    def _wrapper(**kwargs: object) -> _WrapperResult:
         refusal = None if prepared else _write_refusal(ctx, kwargs)
         if refusal is not None:
             return refusal
@@ -352,23 +367,16 @@ def _render_tool_result(
     result: ToolResultLike,
     kwargs: dict[str, object],
     start_ns: int,
-) -> dict[str, object] | str:
+) -> _WrapperResult:
     # Malformed results are failures, never silently promoted.
     raw_success = getattr(result, "success", False)
     success = raw_success is True
     text = getattr(result, "text", None)
-    if (
-        isinstance(raw_success, bool)
-        and not ctx.preserve_result
-        and isinstance(text, str)
-        and (success or text)
-    ):
+    if isinstance(raw_success, bool) and isinstance(text, str) and (success or text):
         payload = text if success else _failure_text(result, text)
         _trace_step(ctx, kwargs, success, payload, start_ns)
-        return payload
+        return RenderedText(payload, success) if ctx.text_status else payload
     output = flatten_result(result)
-    if ctx.preserve_result and isinstance(text, str):
-        output["text"] = text
     _trace_step(ctx, kwargs, success, str(output), start_ns)
     return output
 
@@ -379,7 +387,7 @@ def _build_tool_wrapper(
     """Build the wrapper for an ``AXMTool`` instance."""
     _tool_like = cast("ToolLike", tool)
 
-    def _wrapper(**kwargs: object) -> dict[str, object] | str:
+    def _wrapper(**kwargs: object) -> _WrapperResult:
         refusal = None if prepared else _write_refusal(ctx, kwargs)
         if refusal is not None:
             return refusal
@@ -464,7 +472,7 @@ def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
     error envelope instead of propagating to MCPServer as a raw protocol error.
     """
 
-    async def _async_wrapper(**kwargs: object) -> dict[str, object] | str:
+    async def _async_wrapper(**kwargs: object) -> _WrapperResult:
         if not _HTTP_MODE and not has_tool_execution_guard():
             return wrapper(**kwargs)
         selected = _select_lock(name, kwargs)
@@ -503,7 +511,7 @@ def build_wrappers(
     *,
     shared_mode: bool = False,
     write_contract_resolver: Callable[[], WriteContract | None] | None = None,
-    preserve_result: bool = False,
+    text_status: bool = False,
 ) -> tuple[_SyncWrapper, _AnyWrapper]:
     """Build the ``(sync, async)`` wrapper pair for one tool.
 
@@ -514,6 +522,9 @@ def build_wrappers(
     enforcement cannot diverge between exposure routes. In dedicated mode,
     omitting the resolver preserves the environment-backed fallback. The same
     wrappers also keep kwarg unwrapping, tracing, flattening and locking aligned.
+    ``text_status=True`` returns a ToolResult's model text as
+    :class:`RenderedText`, the same text with its success status, for hosts
+    that must flag failures structurally; it never adds a data channel.
 
     Returns:
         ``(sync_wrapper, async_wrapper)`` where the sync wrapper carries the
@@ -536,7 +547,7 @@ def build_wrappers(
         write_contract_resolver=resolver,
         shared_mode=shared_mode,
         path_defaults=path_defaults(getattr(tool, "execute", tool)),
-        preserve_result=preserve_result,
+        text_status=text_status,
     )
     base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
@@ -556,7 +567,7 @@ def build_wrappers(
     )
     locked = _wrap_with_lock(execution, name)
 
-    async def async_wrapper(**kwargs: object) -> dict[str, object] | str:
+    async def async_wrapper(**kwargs: object) -> _WrapperResult:
         refusal = _write_refusal(ctx, kwargs)
         if refusal is not None:
             return refusal

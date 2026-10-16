@@ -38,7 +38,12 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from axm_mcp.discovery import ToolEntry, discover_tools, register_tools
 from axm_mcp.facade.catalog import ToolCatalog
 from axm_mcp.session_paths import path_defaults
-from axm_mcp.wrapping import _WrapperCtx, _write_refusal, build_wrappers
+from axm_mcp.wrapping import (
+    RenderedText,
+    _WrapperCtx,
+    _write_refusal,
+    build_wrappers,
+)
 
 __all__ = ["create_scoped_mcp_app"]
 
@@ -87,6 +92,13 @@ def _authorize_execution(
 
 
 def _result(result: ToolResult, *, ui: bool = False) -> CallToolResult:
+    """Render a host-side result; only UI tools have a structured channel.
+
+    Declarative UI tools declare an addon-owned output schema, so their data
+    (or failure envelope) travels as ``structuredContent``. Every other result
+    built here (refusals, validation failures, malformed backends) answers with
+    its text alone, like a backend tool without an output schema.
+    """
     if not isinstance(result.success, bool):
         result = ToolResult(
             success=False, error="malformed ToolResult: success must be a boolean"
@@ -102,7 +114,7 @@ def _result(result: ToolResult, *, ui: bool = False) -> CallToolResult:
     )
     return CallToolResult(
         content=[TextContent(type="text", text=result.text or json.dumps(data))],
-        structured_content=data,
+        structured_content=data if ui else None,
         is_error=not result.success,
     )
 
@@ -142,25 +154,22 @@ def _facade_tools() -> list[Tool]:
     ]
 
 
-def _backend_output_schema(*, tool_result: bool) -> dict[str, object]:
-    """Describe the preserved backend payload, not MCPServer's return wrapper.
-
-    AXMTool results have a flattened, strict boolean success envelope. A plain
-    dispatcher owns its dictionary and need not declare that envelope. Payload
-    fields remain open because AXMTool does not declare an output data model.
-    """
-    schema: dict[str, object] = {
-        "type": "object",
-        "properties": {"success": {"type": "boolean"}},
-        "additionalProperties": True,
-    }
-    if tool_result:
-        schema["required"] = ["success"]
-    return schema
-
-
 def _backend_result(wrapped: object, *, tool_result: bool) -> CallToolResult:
-    """Validate and render the exact backend contract advertised by tools/list."""
+    """Answer a backend tool with text only, exactly as the shared server would.
+
+    A ToolResult with ``text`` answers with that text (failures marked as on
+    the shared server, plus ``isError``); its ``data`` never reaches the client.
+    A result without usable text, or a plain dispatcher's dictionary, answers
+    with its JSON rendering. Backend tools declare no output schema, so no
+    ``structuredContent`` duplicates or replaces that text: clients that show
+    structured data instead of text (Claude Code does) would otherwise put the
+    whole payload in the model's context.
+    """
+    if isinstance(wrapped, RenderedText):
+        return CallToolResult(
+            content=[TextContent(type="text", text=wrapped.text)],
+            is_error=not wrapped.success,
+        )
     if not isinstance(wrapped, dict) or (
         (tool_result or "success" in wrapped)
         and not isinstance(wrapped.get("success"), bool)
@@ -171,18 +180,9 @@ def _backend_result(wrapped: object, *, tool_result: bool) -> CallToolResult:
                 error="malformed backend result: success must be a boolean",
             )
         )
-    Draft202012Validator(_backend_output_schema(tool_result=tool_result)).validate(
-        wrapped
-    )
-    failed = wrapped.get("success") is False
-    text = wrapped.get("text") if tool_result else None
-    content = text if isinstance(text, str) else json.dumps(wrapped)
-    if failed and isinstance(text, str) and wrapped.get("error"):
-        content = f"{wrapped['error']}\n\n{text}"
     return CallToolResult(
-        content=[TextContent(type="text", text=content)],
-        structured_content=wrapped,
-        is_error=failed,
+        content=[TextContent(type="text", text=json.dumps(wrapped))],
+        is_error=wrapped.get("success") is False,
     )
 
 
@@ -215,7 +215,7 @@ class _ScopedCatalog:
                 tool,
                 shared_mode=True,
                 write_contract_resolver=lambda: contract,
-                preserve_result=True,
+                text_status=True,
             )[1]
             for name, tool in business.items()
         }
@@ -229,14 +229,10 @@ class _ScopedCatalog:
 
     async def tools(self) -> list[Tool]:
         return [
+            # Backend tools answer with text only (see ``_backend_result``):
+            # drop the result schema MCPServer infers from the wrapper.
             *(
-                tool.model_copy(
-                    update={
-                        "output_schema": _backend_output_schema(
-                            tool_result=tool.name in self.result_tools
-                        )
-                    }
-                )
+                tool.model_copy(update={"output_schema": None})
                 for tool in await self.schema_server.list_tools()
             ),
             *(
