@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from mcp.types import CallToolResult
+
 from axm_mcp.facade.catalog import (
     ToolCatalog,
     UnknownToolError,
@@ -90,9 +92,11 @@ def register_facade(  # type: ignore[explicit-any]  # MCPServer tool-schema boun
         except UnknownToolError:
             return render_unknown(name, catalog)
 
-    @mcp.tool(name="axm_call")
-    async def axm_call(name: str, arguments: dict[str, object] | None = None) -> str:
-        """Execute an AXM tool by name and return its text output.
+    @mcp.tool(name="axm_call", structured_output=False)
+    async def axm_call(
+        name: str, arguments: dict[str, object] | None = None
+    ) -> str | CallToolResult:
+        """Execute an AXM tool by name and return text or native image content.
 
         Delegates to :meth:`ToolCatalog.acall` — the single execution path,
         shared with the direct MCP registration: the per-key concurrency lock
@@ -112,7 +116,8 @@ def register_facade(  # type: ignore[explicit-any]  # MCPServer tool-schema boun
             arguments: Keyword arguments for the tool.
 
         Returns:
-            The tool's pre-rendered text (or a rendering of its data). On
+            The tool's pre-rendered text (or a rendering of its data), accompanied
+            by native image blocks when the tool supplies images. On
             error, a message — including the accepted parameters when the
             arguments did not match the tool's signature.
         """

@@ -110,6 +110,12 @@ structured data instead of text, as Claude Code does, would otherwise put the
 whole payload in the model's context. Declarative UI tools keep their exact
 addon-owned output schemas and their structured results.
 
+For vision, successful backend tools attach immutable, bounded `ToolImage`
+snapshots to `ToolResult.images`. The shared wrapper converts these once to
+native MCP image blocks; the direct, facade and scoped routes preserve them.
+The producing tool owns source authorization and byte capture. The transport
+never opens a path or logs image bytes, and failure responses discard images.
+
 ## Concurrency
 
 In HTTP mode synchronous tool bodies run through `asyncio.to_thread`.

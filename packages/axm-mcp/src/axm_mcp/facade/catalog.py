@@ -29,6 +29,7 @@ from axm.tools.base import tool_metadata
 from axm.tools.declarative import DeclarativeTool
 from axm.tools.write_scope import WriteContract
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult
 from pydantic import TypeAdapter, ValidationError
 
 from axm_mcp.schema import IntrospectableFn, apply_signature, signature_params
@@ -295,8 +296,10 @@ class ToolCatalog:
             "params": [dataclasses.asdict(p) for p in self._params(name)],
         }
 
-    def call(self, name: str, arguments: dict[str, object] | None = None) -> str:
-        """Execute *name* synchronously and return its text output.
+    def call(
+        self, name: str, arguments: dict[str, object] | None = None
+    ) -> str | CallToolResult:
+        """Execute *name* synchronously and return text or native image content.
 
         Delegates to the *same* sync wrapper the direct MCP path registers
         (built by :func:`axm_mcp.wrapping.build_wrappers`), so ``axm_call``
@@ -316,7 +319,8 @@ class ToolCatalog:
 
         Returns:
             The tool's ``ToolResult.text`` when the result is successful, else a
-            readable rendering of the shared flattened envelope.
+            readable rendering of the shared flattened envelope. Successful
+            image results return ``CallToolResult`` with text and image blocks.
 
         Raises:
             UnknownToolError: If *name* is not in the catalog.
@@ -326,7 +330,9 @@ class ToolCatalog:
         sync_wrapper, _ = self._wrappers[name]
         return self._render(sync_wrapper(**validated))
 
-    async def acall(self, name: str, arguments: dict[str, object] | None = None) -> str:
+    async def acall(
+        self, name: str, arguments: dict[str, object] | None = None
+    ) -> str | CallToolResult:
         """Execute *name* through the lock-aware async wrapper.
 
         The HTTP-mode entry point: it awaits the async wrapper, so the
@@ -340,7 +346,7 @@ class ToolCatalog:
             arguments: Keyword arguments for the tool.
 
         Returns:
-            The rendered text output (same contract as :meth:`call`).
+            Rendered text or native image content (same contract as :meth:`call`).
 
         Raises:
             UnknownToolError: If *name* is not in the catalog.
@@ -401,8 +407,12 @@ class ToolCatalog:
         return validated
 
     @staticmethod
-    def _render(result: dict[str, object] | str | RenderedText) -> str:
+    def _render(
+        result: dict[str, object] | str | RenderedText | CallToolResult,
+    ) -> str | CallToolResult:
         """Render a wrapper result (already flattened) to facade text."""
+        if isinstance(result, CallToolResult):
+            return result
         if isinstance(result, RenderedText):
             return result.text
         if isinstance(result, str):

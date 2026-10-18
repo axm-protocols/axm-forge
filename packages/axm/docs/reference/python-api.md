@@ -7,7 +7,8 @@
 | Export | Purpose |
 |---|---|
 | `AXMTool` | Structural tool protocol: `name` and `execute` |
-| `ToolResult` | Tool success, data, error, hint and text |
+| `ToolResult` | Tool success, data, error, hint, text and optional images |
+| `ToolImage` | Immutable encoded image snapshot for multimodal transports |
 | `ToolMetadata`, `tool_metadata` | Optional discovery settings and their defaults |
 | `tool_node`, `ToolNodeError` | Tool-to-node adapter and its contract errors |
 | `WitnessRule`, `WitnessResult`, `ValidationFeedback` | Validation contracts |
@@ -37,6 +38,28 @@ Neither automatically derives from the other. `hint` is available to
 consumers but the generic CLI does not print it as a separate field.
 Use `dataclasses.asdict` when you explicitly need the whole dataclass;
 the CLI's shared `--json-output` emits only `data`.
+
+`images` defaults to an empty tuple. A successful tool may attach
+`ToolImage(data=png_bytes, mime_type="image/png")` alongside its textual
+provenance. The producer authorizes the source and captures the bytes before
+returning; a transport must not open a caller-provided filesystem path.
+PNG, JPEG and WebP signatures are accepted, up to 4 MiB per image, four images
+and 12 MiB per result. These are encoded-byte limits and signature checks,
+not a full decoder or a decoded-pixel budget; producers must bound rendering
+dimensions too. Invalid payloads raise `ValueError`. Before transmitting, AXM MCP
+also verifies that an image fully decodes, is not animated and fits within
+4096 pixels per side and 16 million pixels. A bad image fails the tool call
+without inserting an unusable image in the conversation.
+
+Image bytes are excluded from `repr`, `data` and the generic CLI's output.
+`dataclasses.asdict` still includes the bytes: do not send it blindly to a
+JSON encoder or a trace recorder. Text-only consumers need not implement
+image handling. AXM MCP emits native image content blocks on successful
+results, together with the prepared text (or rendered data when text is absent).
+
+::: axm.tools.base.ToolImage
+    options:
+      skip_local_inventory: true
 
 ::: axm.tools.base.ToolResult
     options:

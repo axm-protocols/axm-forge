@@ -17,9 +17,39 @@ Discovery:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
-__all__ = ["AXMTool", "ToolMetadata", "ToolResult", "tool_metadata"]
+__all__ = ["AXMTool", "ToolImage", "ToolMetadata", "ToolResult", "tool_metadata"]
+
+
+@dataclass(frozen=True)
+class ToolImage:
+    """An encoded image snapshot, carried outside the text and data channels.
+
+    The producing tool authorizes and reads its source. Transports never open a
+    caller-supplied path, so cache eviction or replacement cannot change the image
+    after its provenance has been computed. Bytes are excluded from repr/logs.
+    """
+
+    MAX_BYTES: ClassVar[int] = 4 * 1024 * 1024
+    MAX_SIDE: ClassVar[int] = 4096
+    MAX_PIXELS: ClassVar[int] = 16_000_000
+
+    data: bytes = field(repr=False)
+    mime_type: str = "image/png"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.data, bytes) or not 0 < len(self.data) <= self.MAX_BYTES:
+            raise ValueError("a tool image must hold 1..4194304 encoded bytes")
+        signatures = {
+            "image/png": self.data.startswith(b"\x89PNG\r\n\x1a\n"),
+            "image/jpeg": self.data.startswith(b"\xff\xd8\xff"),
+            "image/webp": self.data.startswith(b"RIFF") and self.data[8:12] == b"WEBP",
+        }
+        if not signatures.get(self.mime_type, False):
+            raise ValueError(
+                "tool image media type does not match PNG, JPEG or WebP bytes"
+            )
 
 
 @dataclass(frozen=True)
@@ -32,6 +62,7 @@ class ToolResult:
         error: Human-readable error message, if any.
         hint: Optional next-step suggestion for the agent.
         text: Optional pre-rendered text representation (e.g. Markdown).
+        images: Bounded encoded image snapshots for multimodal transports.
     """
 
     success: bool
@@ -39,6 +70,16 @@ class ToolResult:
     error: str | None = None
     hint: str | None = None
     text: str | None = None
+    images: tuple[ToolImage, ...] = field(default=(), repr=False)
+
+    def __post_init__(self) -> None:
+        max_images = 4
+        if not isinstance(self.images, tuple) or len(self.images) > max_images:
+            raise ValueError("a tool result accepts a tuple of at most four images")
+        if any(not isinstance(image, ToolImage) for image in self.images):
+            raise ValueError("tool result images must be ToolImage snapshots")
+        if sum(len(image.data) for image in self.images) > 12 * 1024 * 1024:
+            raise ValueError("tool result images exceed twelve MiB")
 
 
 @runtime_checkable

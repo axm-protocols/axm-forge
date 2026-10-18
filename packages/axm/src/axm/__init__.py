@@ -6,7 +6,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from axm.tools import ToolMetadata, ToolNodeError, tool_metadata, tool_node
 from axm.tools.access import ToolAccessDenied, tool_access_scope, tool_execution_guard
-from axm.tools.base import AXMTool, ToolResult
+from axm.tools.base import AXMTool, ToolImage, ToolResult
 from axm.tools.declarative import (
     DeclarativeTool,
     DeclarativeToolDefinition,
@@ -35,6 +35,7 @@ __all__ = [
     "DeclarativeToolManifest",
     "DependencyEnvironment",
     "ToolAccessDenied",
+    "ToolImage",
     "ToolMetadata",
     "ToolNodeError",
     "ToolResult",
