@@ -14,8 +14,8 @@ from axm_init.checks._composition import (
 )
 
 
-def test_both_families_publish_under_distinct_groups() -> None:
-    assert GRAPH_GROUPS == ("axm.tribunal.graphs", "axm.graphs")
+def test_the_tribunal_family_publishes_under_its_own_group() -> None:
+    assert GRAPH_GROUPS == ("axm.tribunal.graphs",)
     assert len({family.name for family in COMPOSITION_FAMILIES}) == len(
         COMPOSITION_FAMILIES
     )
@@ -31,10 +31,6 @@ def test_both_families_publish_under_distinct_groups() -> None:
         "axm_tribunal.evaluator.deterministic",
         "axm_tribunal.evaluator.agent",
         "axm_tribunal.ConfigTable",
-        "axm_loom.task",
-        "axm_loom.phase",
-        "axm_loom.protocol",
-        "axm_loom.router",
     ],
 )
 def test_recognises_every_family_call(call: str) -> None:
@@ -45,11 +41,16 @@ def test_tribunal_has_no_router() -> None:
     assert "axm_tribunal.router" not in COMPOSITION_CALLS
 
 
+def test_the_retired_loom_family_is_not_recognised() -> None:
+    assert not any(call.startswith("axm_loom.") for call in COMPOSITION_CALLS)
+    assert "axm.graphs" not in GRAPH_GROUPS
+
+
 @pytest.mark.parametrize(
     ("call", "family"),
     [
         ("axm_tribunal.protocol", "tribunal"),
-        ("axm_loom.protocol", "loom"),
+        ("axm_loom.protocol", None),
         ("axm_tribunal.phase", None),
         ("unrelated.protocol", None),
         (None, None),

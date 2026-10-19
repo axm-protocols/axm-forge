@@ -4,7 +4,7 @@
 
 `axm` combines a thin command launcher with shared Python contracts.
 Domain operations belong to installed providers. MCP transport belongs to
-`axm-mcp`; DAG execution belongs to `axm-dag` and authoring to `axm-loom`.
+`axm-mcp`; DAG execution belongs to `axm-dag` and judged-phase authoring to `axm-tribunal`.
 The core package depends only on Cyclopts.
 
 ```mermaid

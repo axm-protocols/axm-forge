@@ -1,12 +1,12 @@
 """Composition families recognised by the protocol checks.
 
 A protocol package composes its graph with one DAG authoring library and
-publishes the factory under that library's entry-point group. While axm-loom
-is being replaced by axm-tribunal, both families are recognised. Each family is
-one row of :data:`COMPOSITION_FAMILIES`: retiring a family deletes its row and
+publishes the factory under that library's entry-point group. Only axm-tribunal
+is recognised since the legacy axm-loom family was retired. Each family is one
+row of :data:`COMPOSITION_FAMILIES`: retiring a family deletes its row and
 nothing else, because every protocol check reads its names from this table.
 
-Names are plain strings. axm-init never imports either library: calls are
+Names are plain strings. axm-init never imports the library: calls are
 resolved statically, through the inspected module's own imports.
 """
 
@@ -48,7 +48,7 @@ class CompositionFamily:
             raise ValueError(msg)
 
 
-# Order is precedence: the first row is the target family, listed first. A
+# Order is precedence: the first row is the target family. A
 # protocol declaring its identity without a resolvable composition call is
 # attributed by the group that registers it, never by this order.
 COMPOSITION_FAMILIES: tuple[CompositionFamily, ...] = (
@@ -65,20 +65,6 @@ COMPOSITION_FAMILIES: tuple[CompositionFamily, ...] = (
                 "axm_tribunal.protocol",
                 "axm_tribunal.task.agent",
                 "axm_tribunal.task.py",
-            }
-        ),
-    ),
-    # Legacy family: delete this row when axm-loom is retired.
-    CompositionFamily(
-        name="loom",
-        graphs_group="axm.graphs",
-        protocol_call="axm_loom.protocol",
-        calls=frozenset(
-            {
-                "axm_loom.phase",
-                "axm_loom.protocol",
-                "axm_loom.router",
-                "axm_loom.task",
             }
         ),
     ),
