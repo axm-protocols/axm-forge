@@ -250,7 +250,8 @@ arbitrary Python references. Business services still enforce their own validatio
 ::: axm.tool_scope_sha256
 
 `require_write_path(path)` is a separate service-side persistence guard. It raises
-`PermissionError` without an active contract or outside its allowed write prefixes;
+`PermissionError` without an active contract or outside its allowed write prefixes
+or exact `allowed_files`;
 readable roots and dependency aliases do not grant writes. Relative paths resolve
 against the contract execution root, never the ambient working directory, and
 symlinks are canonicalized. Check the host-configured store/file before the canonical
@@ -258,6 +259,17 @@ mutation. Metadata tags alone do not classify arbitrary domain tools as writes.
 MCP wrappers supply the bound contract; a local CLI can use an explicit
 `AXM_WRITE_CONTRACT`. A trusted UI route retains its own host authorization and
 shares the same business service rather than imitating an MCP click.
+
+For document-bound callers, `WriteContract.from_mapping` accepts `read_files`
+and `allowed_files`: sequences of exact canonical targets. These grants never
+include parents or descendants. A not-yet-created working copy can be granted
+without granting its containing directory. Exact grants refuse directories and
+special files; exact writes also refuse hard-linked files. Substituted symlinks
+are resolved again at use time. A nonempty `read_files` suppresses the legacy
+implicit read grant on the execution root; explicit `read_roots` still apply.
+Read and write grants remain independent. Retained tool authority intersects
+these fields as it does directory grants. This is a cooperative admission check,
+not an atomic OS sandbox against concurrent filesystem replacement.
 
 ::: axm.require_write_path
 
