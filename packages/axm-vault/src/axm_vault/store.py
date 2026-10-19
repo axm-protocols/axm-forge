@@ -23,7 +23,9 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import keyring
-from keyring.errors import InitError, NoKeyringError, PasswordDeleteError
+from keyring.errors import InitError, KeyringLocked, NoKeyringError, PasswordDeleteError
+
+from axm_vault._passive_keyring import get_password
 
 __all__ = [
     "SERVICE",
@@ -64,14 +66,14 @@ class KeyringUnavailableError(RuntimeError):
 def _keyring_guard() -> Iterator[None]:
     """Translate a *no usable backend* keyring failure into a typed error.
 
-    Only the unavailability errors (``NoKeyringError``/``InitError``) are
+    Unavailability and locked errors (including dismissed unlock prompts) are
     remapped to :class:`KeyringUnavailableError`; operational errors such as
     ``PasswordDeleteError`` propagate unchanged. The original exception is
     chained but never interpolated into the message, so no value can leak.
     """
     try:
         yield
-    except (NoKeyringError, InitError) as exc:
+    except (NoKeyringError, InitError, KeyringLocked) as exc:
         raise KeyringUnavailableError(
             "OS keyring backend unavailable (no Keychain/secret service); "
             "set the credential via its environment variable instead"
@@ -122,8 +124,11 @@ class KeyringStore:
         Raises :class:`KeyringUnavailableError` when no usable backend exists
         (headless host) rather than surfacing a raw backend traceback.
         """
+        # Reads must not create or unlock a Secret Service collection.
         with _keyring_guard():
-            return keyring.get_password(SERVICE, self.username(group, name, instance))
+            return get_password(
+                keyring.get_keyring(), SERVICE, self.username(group, name, instance)
+            )
 
     def delete(self, group: str, name: str, instance: str | None = None) -> None:
         """Remove the credential from the keyring (no-op if already absent).
