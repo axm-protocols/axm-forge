@@ -147,7 +147,11 @@ def test_single_file_0600_atomic(
     assert stat.S_IMODE(config.stat().st_mode) == 0o600
     assert not (axm_dir / "echo.toml").exists()
     assert not (axm_dir / "linear.toml").exists()
-    leftovers = [p for p in axm_dir.iterdir() if p.name != "config.toml"]
+    leftovers = [
+        p
+        for p in axm_dir.iterdir()
+        if p.name not in {"config.toml", "config.toml.lock"}
+    ]
     assert leftovers == []
 
 

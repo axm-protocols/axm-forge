@@ -21,6 +21,7 @@ dependencies = [
     "cyclopts>=4.21.0",
     "pydantic>=2.13.4",
     "tomli-w>=1.2.0",
+    "filelock>=3.25",
 ]
 
 [project.urls]

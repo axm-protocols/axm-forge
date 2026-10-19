@@ -451,6 +451,7 @@ source = { editable = "packages/axm-config" }
 dependencies = [
     { name = "axm" },
     { name = "cyclopts" },
+    { name = "filelock" },
     { name = "pydantic" },
     { name = "tomli-w" },
 ]
@@ -476,6 +477,7 @@ docs = [
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
     { name = "cyclopts", specifier = ">=4.21.0" },
+    { name = "filelock", specifier = ">=3.25" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "tomli-w", specifier = ">=1.2.0" },
 ]

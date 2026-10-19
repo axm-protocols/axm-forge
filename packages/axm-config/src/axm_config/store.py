@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import os
 import tomllib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import tomli_w
+from filelock import FileLock
 
 from axm_config.home import axm_home, axm_home_path, resolve_safe
 
@@ -65,6 +68,20 @@ def _is_namespace(stem: str) -> bool:
 
 NAMESPACE_FILE_MODE = 0o600
 CONFIG_FILENAME = "config.toml"
+
+
+def _strict_toml(path: Path) -> dict[str, object]:
+    from axm_config.resolver import ConfigError
+
+    try:
+        with path.open("rb") as stream:
+            return tomllib.load(stream)
+    except FileNotFoundError:
+        return {}
+    except (tomllib.TOMLDecodeError, OSError) as exc:
+        raise ConfigError(
+            "Cannot safely update invalid or unreadable configuration"
+        ) from exc
 
 
 class NamespaceStore:
@@ -187,62 +204,80 @@ class NamespaceStore:
         return self._read_legacy(ns)
 
     def write(self, ns: str, key: str, value: object) -> None:
-        """Set ``key`` to ``value`` in ``ns``, preserving every other section.
-
-        Read-modify-write of the *whole* ``config.toml``: the full mapping is
-        loaded, the ``ns`` section folded with any legacy file and updated, and
-        the result serialised to a same-directory temp file atomically moved
-        into place via :func:`os.replace`; the file is chmod ``0600``. The
-        legacy ``~/.axm/<ns>.toml`` (if any) is removed after the fold.
-        """
-        config = self._load_config()
-        section = self._fold_legacy(config, ns)
-        section[key] = value
-        _set_section(config, ns, _with_child_tables(config, ns, section))
-        self._commit_config(config)
-        self._drop_legacy(ns)
+        """Set a leaf key under the shared profile-file mutation lock."""
+        with self._mutation() as store:
+            config = store._load_for_update()
+            section = store._fold_legacy(config, ns)
+            section[key] = value
+            _set_section(config, ns, _with_child_tables(config, ns, section))
+            store._commit_config(config)
+            store._drop_legacy(ns)
 
     def delete(self, ns: str, key: str) -> None:
-        """Remove ``key`` from ``ns``, rewriting atomically (no-op if absent).
-
-        Read-modify-write mirroring :meth:`write` over the whole
-        ``config.toml``: the key is popped from the (legacy-folded) section. If
-        the section becomes empty it is dropped; if the file then holds no
-        section it is unlinked. A missing key (after folding) is a silent
-        no-op, but a pending legacy fold is still applied.
-        """
-        config = self._load_config()
-        section = self._fold_legacy(config, ns)
-        had_legacy = self._legacy_path(ns).exists()
-        if key not in section and not had_legacy:
-            return
-        section.pop(key, None)
-        if section:
-            _set_section(config, ns, section)
-        else:
-            _drop_section(config, ns)
-        if config:
-            self._commit_config(config)
-        else:
-            self._config_path().unlink(missing_ok=True)
-        self._drop_legacy(ns)
+        """Remove a leaf key under the same lock as every other writer."""
+        with self._mutation() as store:
+            config = store._load_for_update()
+            section = store._fold_legacy(config, ns)
+            had_legacy = store._legacy_path(ns).exists()
+            if key not in section and not had_legacy:
+                return
+            section.pop(key, None)
+            store._replace(config, ns, section)
 
     def replace_section(self, ns: str, section: dict[str, object]) -> None:
-        """Atomically replace a namespace's own leaf while keeping children."""
-        config = self._load_config()
+        """Replace a namespace's own leaf, preserving children and other sections."""
+        with self._mutation() as store:
+            config = store._load_for_update()
+            store._replace(config, ns, section)
+
+    def compare_and_replace_section(
+        self, ns: str, section: dict[str, object], *, expected: dict[str, object]
+    ) -> bool:
+        """Replace own keys only if their stored value still equals expected.
+
+        The comparison and the complete file rewrite share one cross-process
+        profile-file lock. False means a conflict with no disk mutation. Corrupt
+        central/legacy TOML raises ConfigError instead of matching an empty value.
+        Nested child namespaces are preserved, and do not participate in the
+        comparison. Use read_exact() to obtain the expected leaf mapping.
+        """
+        with self._mutation() as store:
+            config = store._load_for_update()
+            current = _section(config, ns)
+            if not current:
+                current = store._read_legacy(ns)
+            if current != expected:
+                return False
+            store._replace(config, ns, section)
+            return True
+
+    @contextmanager
+    def _mutation(self) -> Iterator[NamespaceStore]:
+        # Capture profile/path once: the lock and every write use this same file.
+        path = self._config_path()
+        axm_home()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(str(path) + ".lock", timeout=10, mode=NAMESPACE_FILE_MODE):
+            yield _PinnedNamespaceStore(path)
+
+    def _load_for_update(self) -> dict[str, object]:
+        return _strict_toml(self._config_path())
+
+    def _replace(
+        self, config: dict[str, object], ns: str, section: dict[str, object]
+    ) -> None:
         current = _section(config, ns)
         had_legacy = self._legacy_path(ns).exists()
-        if (not section and not current and not had_legacy) or (
-            section == current and not had_legacy
-        ):
+        if section == current and not had_legacy:
             return
-
+        # Validate legacy before replacing/deleting it, even when central wins.
+        if had_legacy:
+            self._read_legacy(ns)
         replacement = _with_child_tables(config, ns, dict(section))
         if replacement:
             _set_section(config, ns, replacement)
         else:
             _drop_section(config, ns)
-
         if config:
             self._commit_config(config)
         else:
@@ -365,6 +400,25 @@ def _snapshot_nodes(config: dict[str, object], prefix: str = "") -> list[str]:
             paths.append(namespace)
         paths.extend(_snapshot_nodes(value, namespace))
     return paths
+
+
+class _PinnedNamespaceStore(NamespaceStore):
+    """Mutation-only view whose paths cannot change while its file is locked."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def _config_path(self) -> Path:
+        return self._path
+
+    def _legacy_path(self, ns: str) -> Path:
+        path = (self._path.parent / f"{ns}.toml").resolve()
+        if self._path.parent not in path.parents:
+            raise ValueError("refusing out-of-profile legacy configuration path")
+        return path
+
+    def _read_legacy(self, ns: str) -> dict[str, object]:
+        return _strict_toml(self._legacy_path(ns))
 
 
 class _NamespaceSnapshot:
