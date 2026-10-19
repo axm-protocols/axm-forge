@@ -562,7 +562,11 @@ def test_refuser_publication_sous_le_groupe_loom_retire(tmp_path: Path) -> None:
     _compose_with_tribunal(project)
     _register_graph(project, EXEC_FACTORY, RETIRED_LOOM_GROUP)
     result = _required_protocol_failure(project, REGISTRATION_RULE)
-    assert any(TRIBUNAL_GROUP in detail for detail in result.details), result.details
+    assert any(
+        "ready protocol demo.work.exec lacks its factory registration" in detail
+        and f"register {EXEC_FACTORY} under {TRIBUNAL_GROUP}" in detail
+        for detail in result.details
+    ), result.details
 
 
 def _declare_bare_graph_name(root: Path) -> None:
