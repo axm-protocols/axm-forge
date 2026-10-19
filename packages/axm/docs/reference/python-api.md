@@ -21,6 +21,8 @@
 | `tool_scope_sha256` | SHA256 of compact UTF-8 JSON containing sorted logical target names |
 | `require_write_path` | Fail-closed write authority for a host-configured persisted target |
 | `require_read_path` | Canonical read authority for explicit and configured persisted targets |
+| `authority_enforced`, `require_enforced_write_path`, `require_legacy_authority` | Service-side authority: whether it applies, legacy-aware write guard, refusal of unconfinable capabilities |
+| `SessionGrant`, `capture_session_grant`, `require_session_access` | Ownership of in-memory service sessions by the exact captured contract |
 
 Definitions remain in their submodules. Prefer root imports for these
 contracts. `load_tool` and `override_tools` are additionally re-exported by
@@ -282,3 +284,30 @@ ambient contracts. Only legacy local callers with neither bound authority nor
 ambient contract remain unrestricted. Read authorization grants no writes.
 
 ::: axm.require_read_path
+
+### Service sessions and legacy callers
+
+Document services (Word, Excel, PowerPoint and future crafts) share one
+decision in `axm.tools.session_authority` instead of each cloning it.
+`authority_enforced()` is false only for legacy local callers with neither a
+transport binding nor a contract. `require_enforced_write_path(path)` applies
+`require_write_path` only when authority is enforced, so CLI and test callers
+keep working; temporary files and locks a service derives from an authorised
+target are internal effects of that write, not caller-chosen targets, and need
+no grant of their own. `require_legacy_authority(capability)` refuses, under
+enforced authority, work that file grants cannot confine: external renderers
+that follow references inside documents, or persistent servers and threads
+that would outlive the call's authority context.
+
+`capture_session_grant()` records the authority a session is created under
+(an explicit denial refuses creation). `require_session_access(grant, source)`
+lets a legacy local caller reach any session; otherwise the session must have
+been captured under exactly the current contract, file-backed or not, because
+its memory may hold content read from other files, and its current file must
+still be readable. A legacy session is never adopted by a bound caller, even on
+a granted file. Services pass the absolute path they actually open: relative
+paths given to the SDK resolve against the execution root, not the process
+working directory. Like the other guards, this is cooperative admission
+control, not an OS sandbox against concurrent filesystem replacement.
+
+::: axm.require_session_access
