@@ -16,9 +16,9 @@ every root export, plus the separately registered diagnostic tool.
 | `validate_segment(value, *, kind="segment")` | Validates a namespace or key; other kinds (including the default) use the namespace grammar. Returns the string or raises `ConfigError`. |
 
 An existing empty environment string still wins. Resolution is not cached.
-A malformed/unreadable TOML file generally behaves like an empty store.
-See [persistence limits](../explanation/architecture.md) for the consequences
-on the next write and the parent-namespace deletion defect.
+A malformed/unreadable TOML file behaves like an empty store on ordinary reads.
+Mutations refuse it with `ConfigError`, preserving the original bytes.
+See [persistence limits](../explanation/architecture.md).
 
 ### Complete persisted namespace snapshots
 
@@ -161,14 +161,32 @@ profile. Prefer the generic or policy helpers for application code.
 | `read(ns)` | Own scalar/array keys, excluding child tables; legacy fallback plus execution-policy compatibility overlay. |
 | `read_exact(ns)` | Own section without execution overlay; still falls back to a legacy file if the section is empty. |
 | `write(ns, key, value)` | Fold legacy, update one key, preserve children, replace the file. |
-| `delete(ns, key)` | Fold legacy and remove a key; currently may erase child namespaces when modifying a parent. |
+| `delete(ns, key)` | Fold legacy and remove an own key while preserving child namespaces. |
 | `replace_section(ns, section)` | Replace own leaf keys while preserving child namespaces. |
+| `compare_and_replace_section(ns, section, *, expected) -> bool` | Compare the own section with `expected` and replace it in the same file-lock critical section; return false on conflict. |
 | `namespaces()` | Sorted names from stored own-key tables and valid legacy filenames; no environment enumeration. |
 
 The low-level store does not apply `validate_segment` to every method argument.
 Do not pass untrusted namespace/key strings directly. Dict-valued TOML tables
-are child namespaces rather than ordinary scalar settings. There is no
-transaction, lock, multi-writer conflict detection or crash-durability guarantee.
+are child namespaces rather than ordinary scalar settings.
+
+All four mutators hold the same cross-process `config.toml.lock` for the selected
+profile's entire read/modify/write operation, including legacy migration.
+The profile file is captured once, so a profile change cannot redirect the
+operation after its lock was chosen. This excludes cooperating axm-config
+writers across namespaces and threads/processes. A ten-second lock acquisition
+timeout raises `filelock.Timeout` rather than writing without the lock.
+
+For optimistic editing, obtain `expected` with `read_exact(ns)`, validate the
+new leaf, then call `compare_and_replace_section`. Equality includes all own
+scalar/array keys but excludes child namespaces; those are preserved. A false
+result leaves configuration and legacy contents unchanged. Malformed or
+unreadable central/selected legacy TOML raises `ConfigError` rather than matching
+an empty expected mapping. A successful replacement may migrate a legacy file.
+
+This is not a transaction across different profile files or arbitrary external
+editors. Multi-call business operations still require their own transaction.
+Atomic replacement does not provide an explicit fsync/power-loss guarantee.
 
 ## Tool boundaries
 

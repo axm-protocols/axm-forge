@@ -97,7 +97,9 @@ repos:
 
       - id: mypy-config
         name: mypy (axm-config)
-        entry: uv run --package axm-config mypy --config-file packages/axm-config/pyproject.toml
+        entry: >-
+          sh -c 'exec "${AXM_DEPENDENCY_INTERPRETER:-.venv/bin/python}" -m mypy "$@"' --
+          --config-file packages/axm-config/pyproject.toml
         language: system
         types: [python]
         files: ^packages/axm-config/

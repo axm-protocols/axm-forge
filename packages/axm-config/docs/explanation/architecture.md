@@ -31,7 +31,8 @@ timeout = 30
 ```
 
 Each namespace's own scalar/array keys are separate from child namespace tables.
-`write` and `replace_section` preserve child tables. The generic resolver
+`write`, `delete`, `replace_section` and compare-and-replace preserve child tables.
+The generic resolver
 validates names before passing them to the store.
 
 ## Lazy migration
@@ -55,12 +56,20 @@ POSIX. The swap helper removes its staged temporary path even if replace/chmod
 fails. The base home is tightened to `0700`; profile directories use the
 process's normal mkdir permissions under that home.
 
-This prevents readers observing a partly replaced file, but it is **not a
-transaction across writers**. There is no lock or version check: two overlapping
-read-modify-write operations can lose each other's updates, even when changing
-different namespaces. Serialize all writers to the same profile file in the
-owning application. There is no explicit file/directory `fsync`, so atomic
-replacement is not a promise of persistence through power loss.
+Every mutator acquires a cross-process `filelock.FileLock` on the canonical
+profile file's `config.toml.lock` before reading, and releases it after the
+replacement and legacy cleanup. The path is captured once and retained by the
+mutation view. Different namespaces therefore share one lock; different profile
+files do not. The library owns the sidecar lifecycle and portable OS locking.
+Acquisition is bounded to ten seconds. Readers keep seeing complete generations
+through atomic replacement, without acquiring the writer lock.
+
+`compare_and_replace_section` adds optimistic conflict detection: the own leaf
+must equal `expected` under that lock. Other writers use the same lock, so a
+different namespace update cannot be lost during the comparison and rewrite.
+Direct file edits and older/non-cooperating writers remain outside this
+protocol. There is no explicit file/directory `fsync`, so atomic replacement
+is not a promise of persistence through power loss.
 
 The commit and legacy unlink are separate operations. A failure after replacement
 can leave changed contents despite an exception; chmod or legacy cleanup can
@@ -69,14 +78,10 @@ before the swap helper are not covered by its cleanup guarantee.
 
 ## Current limits that affect data
 
-- A missing, malformed or unreadable TOML file generally degrades to an empty
-  mapping. A later write may replace that file with only the new known data.
-  There is no automatic backup, recovery or corruption report.
-- **Deleting an own key from a parent namespace can erase its child tables.**
-  Unlike `write`/`replace_section`, `delete` does not reattach children.
-  This also affects `set_(namespace, key, None)` and the CLI delete command.
-  Avoid parent-key deletion in stores with descendants until the product defect
-  is corrected; the dedicated policy deletion uses `replace_section`.
+- Missing files are empty stores. Ordinary reads of malformed/unreadable TOML
+  retain the compatibility empty-mapping fallback. Mutations instead raise
+  `ConfigError` before replacing or deleting those bytes; no automatic
+  corruption recovery is attempted.
 - The process environment selects the profile at each call; global environment
   changes are not safe per-thread profile contexts.
 - `AXM_HOME` and the typed accessor fallback do not share the store's home

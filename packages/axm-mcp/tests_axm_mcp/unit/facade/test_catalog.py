@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from axm import DeclarativeTool, load_declarative_manifest
 from axm.tools.base import ToolResult
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import ValidationError
@@ -345,6 +346,69 @@ class TestSingleExecutionPath:
             _wrapping._HTTP_MODE = original
         # Serialized: first call ends before the second starts.
         assert order == ["start", "end", "start", "end"]
+
+
+def _declarative(*, bound: bool) -> DeclarativeTool:
+    """A manifest-declared UI tool, optionally bound to a fake host view."""
+    manifest = load_declarative_manifest(
+        {
+            "schema_version": 1,
+            "addon_id": "rugby",
+            "bundle_sha256": "a" * 64,
+            "tools": [
+                {
+                    "name": "rugby_ui_select_match",
+                    "handler": "rugby_ui_select_match",
+                    "description": "Select a match",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"match": {"type": "string"}},
+                        "required": ["match"],
+                        "additionalProperties": False,
+                    },
+                    "outputSchema": {
+                        "type": "object",
+                        "properties": {"match": {"type": "string"}},
+                        "required": ["match"],
+                        "additionalProperties": False,
+                    },
+                }
+            ],
+        }
+    )
+    if not bound:
+        return DeclarativeTool(manifest.tools[0])
+    return DeclarativeTool(
+        manifest.tools[0], lambda _name, args: ToolResult(success=True, data=args)
+    )
+
+
+class TestDeclarativeFacadeOnly:
+    """Manifest UI tools stay off the shared hot path but remain reachable."""
+
+    def test_not_on_hot_path_but_listed(self) -> None:
+        cat = _catalog(
+            audit=_AuditTool(), rugby_ui_select_match=_declarative(bound=False)
+        )
+        assert cat.hot_path() == ["audit"]
+        assert "rugby_ui_select_match" in cat.names()
+        hits = cat.search("rugby_ui")
+        assert [h["name"] for h in hits] == ["rugby_ui_select_match"]
+
+    def test_describe_exposes_exact_schemas(self) -> None:
+        tool = _declarative(bound=False)
+        described = _catalog(rugby_ui_select_match=tool).describe(
+            "rugby_ui_select_match"
+        )
+        assert described["inputSchema"] == tool.definition.input_schema
+        assert described["outputSchema"] == tool.definition.output_schema
+
+    @pytest.mark.asyncio
+    async def test_acall_dispatches_bound_tool(self) -> None:
+        cat = _catalog(rugby_ui_select_match=_declarative(bound=True))
+        out = await cat.acall("rugby_ui_select_match", {"match": "A"})
+        assert "match: A" in out
+        assert "success: True" in out
 
 
 class TestParamHint:
