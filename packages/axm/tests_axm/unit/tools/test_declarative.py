@@ -12,6 +12,7 @@ from axm import (
     DeclarativeTool,
     ToolResult,
     load_declarative_manifest,
+    tool_metadata,
     tool_scope_sha256,
     validate_declarative_schema,
 )
@@ -65,6 +66,12 @@ def test_schemas_are_detached_and_adapter_requires_binding(raw):
     assert len(calls) == 1
     assert not adapter.execute(match="A", target="elsewhere").success
     assert len(calls) == 1
+
+
+def test_adapter_stays_off_the_direct_hot_path(raw):
+    meta = tool_metadata(DeclarativeTool(load_declarative_manifest(raw).tools[0]))
+    assert meta.expose_directly is False
+    assert meta.tags == frozenset({"ui", "declarative"})
 
 
 def test_invalid_success_result_is_not_reported_as_success(raw):

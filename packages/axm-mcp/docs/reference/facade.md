@@ -6,6 +6,9 @@ With the facade enabled, MCP `tools/list` includes four facade meta-tools,
 the discovered tools that opt into `expose_directly`, and the built-ins
 `verify`, `web_fetch`, `list_tools`. All successfully discovered entries
 and the first two built-ins participate in the callable catalog.
+Declarative UI tools never opt in: on the shared server they are reachable
+only through the facade, while a host-owned scoped app exposes its permitted
+UI tools directly.
 
 | MCP tool | Parameters | Result |
 |---|---|---|

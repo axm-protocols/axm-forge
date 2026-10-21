@@ -180,6 +180,11 @@ host can inject `(name, arguments) -> ToolResult` into `DeclarativeTool`;
 Orison's asynchronous host uses the scoped MCP factory. Successful `ToolResult.data`
 must satisfy `outputSchema`; invalid arguments never reach the invoker.
 
+`DeclarativeTool` keeps the default `expose_directly=False`: the shared MCP
+server lists, describes and calls these tools only through its facade
+(`axm_search`, `axm_describe`, `axm_call`), never as direct tools. A host UI
+exposes its permitted tools directly through its own scoped MCP surface.
+
 CLI tools accept one JSON `--arguments` value, for example
 `axm rugby_ui_read_state --arguments '{}'`; a headless call remains unavailable.
 The generic transport is not a second implementation of persistent business actions.
