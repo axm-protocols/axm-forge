@@ -71,6 +71,14 @@ For changing Node sources, use separate CLI processes or explicitly call
 `clear_cache()` in a Python integration before parsing again.
 Even Python content changes with preserved mtimes can evade invalidation.
 
+The cache is bounded for long-lived processes such as the shared MCP server.
+An entry is dropped when its directory no longer exists, after
+`AXM_AST_CACHE_TTL_S` seconds without access (default 1800), or, least recently
+used first, when the estimated total exceeds `AXM_AST_CACHE_MAX_MB` MiB
+(default 1024). `0` disables either bound. An evicted package is re-parsed on
+the next call, so results never change. `cache_stats()` returns the entry count,
+estimated weight, hits, misses and evictions by reason.
+
 ## Read-only boundaries
 
 Source files are never refactored by these tools; use axm-anvil for mutations.

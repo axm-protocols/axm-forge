@@ -12,7 +12,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm_ast.core.cache import PackageCache, clear_cache, get_package
+from axm_ast.core.cache import (
+    CacheLimits,
+    CacheStats,
+    PackageCache,
+    cache_stats,
+    clear_cache,
+    get_package,
+)
 
 FIXTURES = Path(__file__).parent.parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
@@ -84,6 +91,68 @@ class TestPackageCacheEdgeCases:
             cache.get(Path("/nonexistent/path"))
 
 
+class TestCacheLimitsFromEnv:
+    """Environment configuration of the memory bounds."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("AXM_AST_CACHE_MAX_MB", raising=False)
+        monkeypatch.delenv("AXM_AST_CACHE_TTL_S", raising=False)
+
+    def test_defaults_without_configuration(self) -> None:
+        limits = CacheLimits.from_env()
+        assert limits == CacheLimits()
+        assert limits.max_weight_bytes == 1024 * 1024 * 1024
+        assert limits.ttl_seconds == 1800.0
+
+    def test_values_are_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AXM_AST_CACHE_MAX_MB", "256")
+        monkeypatch.setenv("AXM_AST_CACHE_TTL_S", "90.5")
+        limits = CacheLimits.from_env()
+        assert limits.max_weight_bytes == 256 * 1024 * 1024
+        assert limits.ttl_seconds == 90.5
+
+    def test_zero_disables(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AXM_AST_CACHE_MAX_MB", "0")
+        monkeypatch.setenv("AXM_AST_CACHE_TTL_S", " 0 ")
+        limits = CacheLimits.from_env()
+        assert limits.max_weight_bytes is None
+        assert limits.ttl_seconds is None
+
+    @pytest.mark.parametrize("raw", ["abc", "-5", "nan", "inf"])
+    def test_invalid_falls_back_to_default(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        raw: str,
+    ) -> None:
+        monkeypatch.setenv("AXM_AST_CACHE_MAX_MB", raw)
+        monkeypatch.setenv("AXM_AST_CACHE_TTL_S", raw)
+        assert CacheLimits.from_env() == CacheLimits()
+        assert "AXM_AST_CACHE_MAX_MB" in caplog.text
+        assert "AXM_AST_CACHE_TTL_S" in caplog.text
+
+
+class TestPackageCacheStatsEmpty:
+    """A fresh cache reports zeroed counters and its limits."""
+
+    def test_fresh_cache_stats(self) -> None:
+        limits = CacheLimits(max_weight_bytes=123, ttl_seconds=None)
+        stats = PackageCache(limits).stats()
+        assert stats == CacheStats(
+            entries=0,
+            weight_bytes=0,
+            max_weight_bytes=123,
+            ttl_seconds=None,
+            hits=0,
+            misses=0,
+            evicted_stale=0,
+            evicted_dead=0,
+            evicted_ttl=0,
+            evicted_weight=0,
+        )
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # get_package / clear_cache — integration with real fixture parsing
 # ────────────────────────────────────────────────────────────────────────────
@@ -104,6 +173,17 @@ def test_clear_cache_then_get() -> None:
     second = get_package(SAMPLE_PKG)
     assert first is not second
     assert first.name == second.name
+
+
+@pytest.mark.integration
+def test_cache_stats_reflects_global_cache() -> None:
+    """cache_stats() snapshots the singleton used by get_package."""
+    clear_cache()
+    get_package(SAMPLE_PKG)
+    get_package(SAMPLE_PKG)
+    stats = cache_stats()
+    assert (stats.entries, stats.hits, stats.misses) == (1, 1, 1)
+    assert stats.weight_bytes > 0
 
 
 # ────────────────────────────────────────────────────────────────────────────
