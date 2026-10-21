@@ -61,6 +61,28 @@ Optional discovery metadata is read through `tool_metadata` and attributes,
 rather than being required protocol members. A structural tool can therefore
 remain an `AXMTool` without declaring MCP-specific metadata.
 
+## Dependency source reads
+
+The session's dependency environment selects the interpreter and ordered Python
+paths used for source reads. A metadata-only probe resolves runtime dependencies
+and the declared dev/test groups. These requirements remain mandatory: a missing
+direct or transitive distribution fails resolution explicitly.
+
+All groups in `project.optional-dependencies` also contribute read candidates,
+including their transitive requirements and requested extras. Only distributions
+installed in the selected interpreter contribute source roots; missing optional
+distributions are skipped independently. Environment markers are evaluated there,
+and an optional declaration's `extra` marker uses its declaring group. This
+selection is for source inspection and does not assert that an entire extra is
+installed or usable at runtime.
+
+Self references such as `project[foo,bar]` need no installed project metadata:
+the declared groups are already selected from the session's pyproject snapshot.
+The current project's installed distribution never grants an alternate checkout.
+The resulting package/file roots are shared by AST inspection and file reads;
+they grant neither all of site-packages nor write access. Dependency modules are
+never imported by the probe.
+
 ## Tool composition
 
 `tool_node` is an adapter to a callable, not a scheduler. Its explicit output
