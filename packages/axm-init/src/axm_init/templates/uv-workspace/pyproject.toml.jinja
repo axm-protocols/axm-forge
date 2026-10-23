@@ -82,7 +82,6 @@ max-locals = 15
 # Les suites sont nommées tests_<module> par membre : un `tests/` partagé ferait
 # collisionner les module paths (tests.conftest) et tuerait la collecte à la racine.
 testpaths = ["packages/*/tests_*"]
-import_mode = "importlib"
 addopts = "-q --import-mode=importlib"
 
 # The workspace root ships no package of its own, so it has no docs/*.md to

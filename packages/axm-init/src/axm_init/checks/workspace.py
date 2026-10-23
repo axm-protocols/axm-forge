@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shlex
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -344,42 +345,103 @@ def _get_pytest_config(data: TomlTable) -> TomlTable:
     return section(section(section(data, "tool"), "pytest"), "ini_options")
 
 
+_IMPORT_MODE_FLAG = "--import-mode"
+
+
+def _addopts_tokens(pytest_cfg: TomlTable) -> list[str]:
+    """Return ``addopts`` as a token list (string is shlex-split, list kept)."""
+    addopts = pytest_cfg.get("addopts", "")
+    if isinstance(addopts, str):
+        try:
+            return shlex.split(addopts)
+        except ValueError:
+            return []
+    if isinstance(addopts, list):
+        return [str(item) for item in addopts]
+    return []
+
+
+def _selected_import_mode(tokens: list[str]) -> str:
+    """Return the import mode selected by ``tokens`` (last occurrence wins).
+
+    Both ``--import-mode=MODE`` and ``--import-mode MODE`` are recognised.
+    Returns an empty string when the flag is absent.
+    """
+    mode = ""
+    for index, token in enumerate(tokens):
+        if token.startswith(f"{_IMPORT_MODE_FLAG}="):
+            mode = token.partition("=")[2]
+        elif token == _IMPORT_MODE_FLAG and index + 1 < len(tokens):
+            mode = tokens[index + 1]
+    return mode
+
+
+def _importmode_result(
+    *, passed: bool, message: str, details: list[str], fix: str
+) -> CheckResult:
+    """Build the ``workspace.pytest_importmode`` result for one outcome."""
+    return CheckResult(
+        name="workspace.pytest_importmode",
+        category="workspace",
+        passed=passed,
+        weight=2,
+        message=message,
+        details=details,
+        fix=fix,
+    )
+
+
 def check_pytest_importmode(project: Path) -> CheckResult:
-    """Check root pytest has import_mode = 'importlib'."""
+    """Check root pytest ``addopts`` selects ``--import-mode=importlib``.
+
+    ``import_mode`` is not a pytest ini option (pytest warns about unknown
+    config options and ``--strict-config`` rejects them): the mode can only
+    be chosen through the ``--import-mode`` CLI flag, set here via ``addopts``.
+    A stray ``import_mode``/``importmode`` key therefore fails the check.
+    """
     data = load_toml(project)
     if data is None:
-        return CheckResult(
-            name="workspace.pytest_importmode",
-            category="workspace",
+        return _importmode_result(
             passed=False,
-            weight=2,
             message="No pyproject.toml at root",
             details=[],
             fix="Create pyproject.toml with [tool.pytest.ini_options].",
         )
 
     pytest_cfg = _get_pytest_config(data)
-    import_mode = pytest_cfg.get("import_mode", pytest_cfg.get("importmode", ""))
+    bogus_keys = [k for k in ("import_mode", "importmode") if k in pytest_cfg]
+    if bogus_keys:
+        return _importmode_result(
+            passed=False,
+            message=f"Unknown pytest option '{bogus_keys[0]}' in ini_options",
+            details=[
+                f"'{key}' is not a pytest ini option: pytest ignores it and "
+                "warns (error under --strict-config)"
+                for key in bogus_keys
+            ],
+            fix=(
+                f"Remove '{bogus_keys[0]}' and set "
+                'addopts = ["--import-mode=importlib"] in '
+                "[tool.pytest.ini_options]."
+            ),
+        )
 
-    if import_mode == "importlib":
-        return CheckResult(
-            name="workspace.pytest_importmode",
-            category="workspace",
+    mode = _selected_import_mode(_addopts_tokens(pytest_cfg))
+    if mode == "importlib":
+        return _importmode_result(
             passed=True,
-            weight=2,
-            message="import_mode = 'importlib' set",
+            message="addopts selects --import-mode=importlib",
             details=[],
             fix="",
         )
 
-    return CheckResult(
-        name="workspace.pytest_importmode",
-        category="workspace",
+    return _importmode_result(
         passed=False,
-        weight=2,
-        message="import_mode not set to 'importlib'",
-        details=[f"Current value: '{import_mode}'" if import_mode else "Key missing"],
-        fix='Add import_mode = "importlib" to [tool.pytest.ini_options].',
+        message="addopts does not select --import-mode=importlib",
+        details=[
+            f"Current import mode: '{mode}'" if mode else "No --import-mode in addopts"
+        ],
+        fix=('Add "--import-mode=importlib" to addopts in [tool.pytest.ini_options].'),
     )
 
 
