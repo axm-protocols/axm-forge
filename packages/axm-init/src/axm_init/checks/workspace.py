@@ -7,6 +7,7 @@ import shlex
 from fnmatch import fnmatchcase
 from pathlib import Path
 
+from axm_ingot import resolve_workspace
 from axm_ingot.suite import resolve_suite_dir
 
 from axm_init.checks._utils import TomlTable, load_toml, section
@@ -676,22 +677,6 @@ def _coverage_run_lists(data: TomlTable) -> dict[str, list[str]]:
     return found
 
 
-def _member_module_paths(member: Path, project: Path) -> list[tuple[str, str]]:
-    """Return ``(module name, root-relative POSIX path)`` of a member's src modules.
-
-    Mirrors axm-audit's derivation: each ``src/<module>/`` that holds an
-    ``__init__.py``.
-    """
-    src = member / "src"
-    if not src.is_dir():
-        return []
-    return [
-        (child.name, child.relative_to(project).as_posix())
-        for child in sorted(src.iterdir())
-        if child.is_dir() and (child / "__init__.py").is_file()
-    ]
-
-
 def _source_covers(entry: str, module: str, module_path: str) -> bool:
     """Return whether one coverage source entry measures the given module."""
     normalized = entry.strip().replace("\\", "/").removeprefix("./").rstrip("/")
@@ -705,12 +690,20 @@ def _source_covers(entry: str, module: str, module_path: str) -> bool:
 
 
 def _uncovered_member_modules(project: Path, entries: list[str]) -> list[str]:
-    """Return the ``member: module`` pairs no coverage source entry measures."""
+    """Return the ``member: module`` pairs no coverage source entry measures.
+
+    Members and their source packages come from :mod:`axm_ingot` (the same
+    source of truth as axm-audit's coverage derivation, ``exclude`` included).
+    """
+    workspace = resolve_workspace(project)
+    if workspace is None:
+        return []
     uncovered: list[str] = []
-    for member in _resolve_member_dirs(project):
-        for module, module_path in _member_module_paths(member, project):
-            if not any(_source_covers(e, module, module_path) for e in entries):
-                uncovered.append(f"{member.name}: {module}")
+    for member in workspace.members:
+        for directory in member.source_dirs:
+            module_path = directory.relative_to(workspace.root).as_posix()
+            if not any(_source_covers(e, directory.name, module_path) for e in entries):
+                uncovered.append(f"{member.name}: {directory.name}")
     return uncovered
 
 

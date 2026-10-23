@@ -101,6 +101,15 @@ values, name is the **directory basename**, not `[project].name`, and path
 is absolute and resolved. Two members can share a name; use paths as keys when
 uniqueness matters. Constructors do not validate or normalize supplied values.
 
+`Member.source_dirs -> tuple[Path, ...]` is a read-only property listing the
+importable source packages of a src-layout member: each `src/<module>/`
+directory holding an `__init__.py`, sorted by name (module name =
+`dir.name`). Files, directories without `__init__.py` and a missing `src/` are
+ignored, so single-file or namespace layouts yield `()`. Nothing is cached:
+the filesystem is read on every access. Callers that need something to measure
+in that case (e.g. coverage targets) apply their own explicit fallback, such
+as `member.path / "src"`.
+
 ## Explicit instruments
 
 `axm_ingot.instrument_command(command, interpreter=..., package_root=...,

@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
 
-from axm_ingot import resolve_workspace
+from axm_ingot import Member, resolve_workspace
 
 from axm_audit.core.non_test_cause import (
     _STDERR_EXCERPT_CHARS,  # noqa: F401 - re-exported: one truncation budget
@@ -408,23 +408,15 @@ def _coverage_run_table(manifest: Path) -> dict[str, object]:
     return cast("dict[str, object]", node) if isinstance(node, dict) else {}
 
 
-def _member_source_dirs(member: Path) -> list[Path]:
-    """Return the importable source directories shipped by one workspace member.
+def _member_coverage_dirs(member: Member) -> list[Path]:
+    """Return the directories to measure for one workspace member.
 
-    A src-layout member contributes each ``src/<module>/`` directory that
-    holds an ``__init__.py``; when it has none (single-file modules, namespace
-    layouts) the member's ``src/`` directory itself is measured. A member
-    without ``src/`` contributes nothing.
+    The member's source packages (:attr:`axm_ingot.Member.source_dirs`); when
+    it has none (single-file modules, namespace layouts) its ``src/`` directory
+    itself is measured. A member without ``src/`` contributes nothing.
     """
-    src = member / "src"
-    if not src.is_dir():
-        return []
-    modules = sorted(
-        child
-        for child in src.iterdir()
-        if child.is_dir() and (child / "__init__.py").is_file()
-    )
-    return modules or [src]
+    src = member.path / "src"
+    return list(member.source_dirs) or ([src] if src.is_dir() else [])
 
 
 def _workspace_member_sources(project_path: Path) -> list[str]:
@@ -441,7 +433,7 @@ def _workspace_member_sources(project_path: Path) -> list[str]:
     return [
         directory.relative_to(workspace.root).as_posix()
         for member in workspace.members
-        for directory in _member_source_dirs(member.path)
+        for directory in _member_coverage_dirs(member)
     ]
 
 

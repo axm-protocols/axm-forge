@@ -29,6 +29,27 @@ class Member:
     name: str
     path: Path
 
+    @property
+    def source_dirs(self) -> tuple[Path, ...]:
+        """Importable source package directories of the member (src layout).
+
+        Each ``src/<module>/`` directory that holds an ``__init__.py``, sorted
+        by name. Plain files, directories without ``__init__.py`` and a missing
+        ``src/`` contribute nothing, so single-file or namespace layouts yield
+        ``()``; callers needing a measurable target there fall back to
+        ``path / "src"`` themselves.
+        """
+        src = self.path / "src"
+        if not src.is_dir():
+            return ()
+        return tuple(
+            sorted(
+                child
+                for child in src.iterdir()
+                if child.is_dir() and (child / "__init__.py").is_file()
+            )
+        )
+
 
 @dataclass(frozen=True)
 class ResolvedWorkspace:

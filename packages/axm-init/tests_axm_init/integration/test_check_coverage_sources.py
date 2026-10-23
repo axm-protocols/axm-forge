@@ -95,3 +95,15 @@ class TestCheckCoverageSources:
         (tmp_path / "other").mkdir()
         root = _root(tmp_path, '[tool.coverage.run]\nsource = ["alpha"]\n')
         assert check_coverage_sources(root).passed
+
+    def test_excluded_member_cannot_cause_drift(self, tmp_path: Path) -> None:
+        """Members excluded from the workspace are not expected in the sources."""
+        _member(tmp_path, "alpha")
+        _member(tmp_path, "skipped")
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "ws"\n'
+            '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+            'exclude = ["packages/skipped"]\n'
+            '[tool.coverage.run]\nsource = ["alpha"]\n'
+        )
+        assert check_coverage_sources(tmp_path).passed
