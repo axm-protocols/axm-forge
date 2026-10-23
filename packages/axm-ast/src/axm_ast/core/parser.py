@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
 
 import tree_sitter_python as tspython
@@ -38,8 +39,10 @@ logger = logging.getLogger(__name__)
 _MAX_STRING_PREFIX_LEN = 2
 
 __all__ = [
+    "ParseCacheStats",
     "clear_parse_cache",
     "extract_module_info",
+    "parse_cache_stats",
     "parse_file",
     "parse_source",
 ]
@@ -92,6 +95,25 @@ def clear_parse_cache() -> None:
     """Drop all cached parsed trees (used on explicit cache resets)."""
     with _parse_cache_lock:
         _parse_cache.clear()
+
+
+@dataclass(frozen=True, slots=True)
+class ParseCacheStats:
+    """Read-only snapshot of the parsed-tree LRU for diagnostics.
+
+    Attributes:
+        entries: Number of parsed trees currently cached.
+        max_entries: LRU capacity (oldest trees are dropped beyond it).
+    """
+
+    entries: int
+    max_entries: int
+
+
+def parse_cache_stats() -> ParseCacheStats:
+    """Return the current occupancy of the parsed-tree LRU."""
+    with _parse_cache_lock:
+        return ParseCacheStats(entries=len(_parse_cache), max_entries=_PARSE_CACHE_MAX)
 
 
 # ─── Low-level parsing ──────────────────────────────────────────────────────

@@ -12,7 +12,13 @@ from pathlib import Path
 import pytest
 from tree_sitter import Tree
 
-from axm_ast.core.parser import parse_file, parse_source
+from axm_ast.core.parser import (
+    ParseCacheStats,
+    clear_parse_cache,
+    parse_cache_stats,
+    parse_file,
+    parse_source,
+)
 
 FIXTURES = Path(__file__).resolve().parent.parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
@@ -78,3 +84,29 @@ class TestParseFileUnit:
         """Broken syntax should still parse (graceful degradation)."""
         tree = parse_file(FIXTURES / "broken.py")
         assert tree.root_node.has_error is True
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# parse_cache_stats
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class TestParseCacheStats:
+    """Tests for parse_cache_stats()."""
+
+    def test_cleared_cache_is_empty(self) -> None:
+        """After a reset the LRU holds no tree and reports its capacity."""
+        clear_parse_cache()
+        stats = parse_cache_stats()
+        assert stats.entries == 0
+        assert stats.max_entries > 0
+
+    def test_parse_file_occupies_one_slot(self) -> None:
+        """Parsing a file stores exactly one tree; re-parsing reuses it."""
+        clear_parse_cache()
+        target = SAMPLE_PKG / "__init__.py"
+        parse_file(target)
+        parse_file(target)
+        assert parse_cache_stats() == ParseCacheStats(
+            entries=1, max_entries=parse_cache_stats().max_entries
+        )

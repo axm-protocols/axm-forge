@@ -200,6 +200,10 @@ pkg = get_package(Path("src/mylib"))  # validates the Python file fingerprint
 clear_cache()                    # force re-parse on next call
 ```
 
+The cache is bounded for long-lived processes; `cache_stats()` (or the AXM tool
+`ast_cache_stats`, e.g. on the shared MCP daemon) reports its occupancy, hits,
+misses and evictions.
+
 ### Scope and limitations
 
 The tools do not edit analyzed source. Structural diff creates and cleans temporary git worktrees. Workspace aggregation is explicit per tool, not a property of every `path` argument. Python call matching is syntactic; impact and dead-code findings require review.

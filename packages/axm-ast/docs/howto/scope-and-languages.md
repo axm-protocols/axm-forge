@@ -77,7 +77,10 @@ An entry is dropped when its directory no longer exists, after
 used first, when the estimated total exceeds `AXM_AST_CACHE_MAX_MB` MiB
 (default 1024). `0` disables either bound. An evicted package is re-parsed on
 the next call, so results never change. `cache_stats()` returns the entry count,
-estimated weight, hits, misses and evictions by reason.
+estimated weight, hits, misses and evictions by reason. The AXM tool
+`ast_cache_stats` exposes the same snapshot, plus parsed-tree LRU occupancy, for
+the serving process: `axm_call(name="ast_cache_stats")` reads the shared MCP
+daemon's own cache. Calls under a session read contract bypass the cache.
 
 ## Read-only boundaries
 

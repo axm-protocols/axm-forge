@@ -22,6 +22,7 @@ contract. The signatures below describe named inputs, not executable Python.
 | `ast_doc_impact` | `symbols=None` | Lexical documentation references |
 | `ast_file_header` | `files` required, `max_lines=30` | Leading lines of relative file paths |
 | `ast_coupling_gaps` | `symbol=None`, `symbols=None` | Lower-bound structural/contract coupling |
+| `ast_cache_stats` | none (takes no `path`) | In-process cache counters of the serving process |
 
 `modules`, `pages`, `symbols` and `files` are lists, not comma-separated
 strings. `ast_impact` additionally consumes `test_filter` via keyword options:
@@ -72,6 +73,19 @@ See [the limits](../explanation/doc_impact_limits.md).
 `ast_file_header` returns `headers` entries containing `file` and `header`;
 missing or binary files are skipped. It is a bounded leading-line read, not
 an AST export resolver.
+
+## Diagnostics
+
+`ast_cache_stats` snapshots the package cache and the parsed-tree LRU of the
+process that serves the call, so `axm_call(name="ast_cache_stats")` against the
+shared MCP daemon reports the daemon's own memory. It never parses or reads
+files. `data` holds the raw counters (`entries`, `weight_bytes`,
+`max_weight_bytes`, `ttl_seconds`, `hits`, `misses`, `evicted_stale`,
+`evicted_dead`, `evicted_ttl`, `evicted_weight`), the derived `weight_mib`,
+`max_weight_mib` and `hit_ratio` (null when disabled or before any lookup),
+`evicted_total`, `parse_cache` (`entries`, `max_entries`) and `pid`.
+Weights are estimates, not measured RSS. Calls made under a session read
+contract bypass the cache, so they appear in neither hits nor misses.
 
 ## Output contracts
 
