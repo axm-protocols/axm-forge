@@ -10,6 +10,7 @@ without duplicating test logic.
 
 from __future__ import annotations
 
+from tests_axm_init.integration.test_check_coverage_sources import *  # noqa: F403
 from tests_axm_init.integration.test_check_engine import *  # noqa: F403
 from tests_axm_init.integration.test_check_matrix_packages import *  # noqa: F403
 from tests_axm_init.integration.test_check_members_consistent import *  # noqa: F403

@@ -91,8 +91,9 @@ addopts = "-q --import-mode=importlib"
 [tool.axm-init.wheel-doc]
 files = []
 
-[tool.coverage.run]
-source_pkgs = []
+# No [tool.coverage.run] source/source_pkgs: members are added after init, so a
+# list written here would drift (and an empty one skews the root coverage with
+# tests and tooling). axm-audit derives the members' modules at the root.
 
 [tool.coverage.report]
 show_missing = true

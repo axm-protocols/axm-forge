@@ -14,6 +14,7 @@ from axm_init.models.check import CheckResult
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "check_coverage_sources",
     "check_matrix_packages",
     "check_members_consistent",
     "check_monorepo_plugin",
@@ -577,4 +578,132 @@ def check_quality_workflow(project: Path) -> CheckResult:
         message=f"axm-quality.yml missing: {', '.join(missing)}",
         details=[f"Workflow exists but missing: {', '.join(missing)}"],
         fix="Add per-package audit + coverage to axm-quality.yml.",
+    )
+
+
+_COVERAGE_KEYS = ("source", "source_pkgs")
+
+
+def _coverage_sources_result(
+    *, passed: bool, message: str, details: list[str], fix: str
+) -> CheckResult:
+    """Build the ``workspace.coverage_sources`` result for one outcome."""
+    return CheckResult(
+        name="workspace.coverage_sources",
+        category="workspace",
+        passed=passed,
+        weight=2,
+        message=message,
+        details=details,
+        fix=fix,
+    )
+
+
+def _coverage_run_lists(data: TomlTable) -> dict[str, list[str]]:
+    """Return the list-valued coverage sources of ``[tool.coverage.run]``.
+
+    Only keys that are present (even when empty) are returned; a non-list value
+    is ignored.
+    """
+    run = section(section(section(data, "tool"), "coverage"), "run")
+    found: dict[str, list[str]] = {}
+    for key in _COVERAGE_KEYS:
+        value = run.get(key)
+        if isinstance(value, list):
+            found[key] = [item for item in value if isinstance(item, str)]
+    return found
+
+
+def _member_module_paths(member: Path, project: Path) -> list[tuple[str, str]]:
+    """Return ``(module name, root-relative POSIX path)`` of a member's src modules.
+
+    Mirrors axm-audit's derivation: each ``src/<module>/`` that holds an
+    ``__init__.py``.
+    """
+    src = member / "src"
+    if not src.is_dir():
+        return []
+    return [
+        (child.name, child.relative_to(project).as_posix())
+        for child in sorted(src.iterdir())
+        if child.is_dir() and (child / "__init__.py").is_file()
+    ]
+
+
+def _source_covers(entry: str, module: str, module_path: str) -> bool:
+    """Return whether one coverage source entry measures the given module."""
+    normalized = entry.strip().replace("\\", "/").removeprefix("./").rstrip("/")
+    if not normalized:
+        return False
+    if normalized == module:
+        return True
+    parts = module_path.split("/")
+    ancestors = ("/".join(parts[:end]) for end in range(len(parts), 0, -1))
+    return any(fnmatchcase(ancestor, normalized) for ancestor in ancestors)
+
+
+def _uncovered_member_modules(project: Path, entries: list[str]) -> list[str]:
+    """Return the ``member: module`` pairs no coverage source entry measures."""
+    uncovered: list[str] = []
+    for member in _resolve_member_dirs(project):
+        for module, module_path in _member_module_paths(member, project):
+            if not any(_source_covers(e, module, module_path) for e in entries):
+                uncovered.append(f"{member.name}: {module}")
+    return uncovered
+
+
+def check_coverage_sources(project: Path) -> CheckResult:
+    """Check root ``[tool.coverage.run]`` sources are absent or cover every member.
+
+    An absent ``source``/``source_pkgs`` passes (axm-audit derives the members'
+    modules). An explicitly empty list fails: it silently widens coverage to
+    tests and tooling. A non-empty list fails when a member module is missing
+    (drift, since members are added after init).
+    """
+    data = load_toml(project)
+    if data is None:
+        return _coverage_sources_result(
+            passed=False,
+            message="No pyproject.toml at root",
+            details=[],
+            fix="Create pyproject.toml with a [tool.uv.workspace] table.",
+        )
+
+    lists = _coverage_run_lists(data)
+    empty = [key for key, entries in lists.items() if not entries]
+    if empty:
+        return _coverage_sources_result(
+            passed=False,
+            message=f"Empty [tool.coverage.run] {', '.join(empty)}",
+            details=["An empty list disables member derivation and skews coverage"],
+            fix=(
+                "Remove the empty key (axm-audit derives workspace members) "
+                "or list every member module."
+            ),
+        )
+    if not lists:
+        return _coverage_sources_result(
+            passed=True,
+            message="No explicit coverage sources (derived from members)",
+            details=[],
+            fix="",
+        )
+
+    entries = [entry for values in lists.values() for entry in values]
+    uncovered = _uncovered_member_modules(project, entries)
+    if uncovered:
+        return _coverage_sources_result(
+            passed=False,
+            message=f"Coverage sources miss {len(uncovered)} member module(s)",
+            details=uncovered,
+            fix=(
+                "Add the missing modules to [tool.coverage.run] source/source_pkgs, "
+                "or remove the key so axm-audit derives them."
+            ),
+        )
+    return _coverage_sources_result(
+        passed=True,
+        message="Coverage sources cover every member module",
+        details=[],
+        fix="",
     )

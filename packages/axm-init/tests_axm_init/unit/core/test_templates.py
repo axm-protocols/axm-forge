@@ -90,3 +90,16 @@ class TestTestsOverrideRelaxation:
         # Le module est dérivé (tests_<module>.*), pas le littéral "tests.*".
         assert "tests_" in block
         assert "disallow_incomplete_defs = false" in block
+
+
+class TestWorkspaceCoverageSources:
+    """The workspace root must not hand-maintain coverage sources."""
+
+    def test_workspace_template_writes_no_coverage_sources(self) -> None:
+        """Members are unknown at init: axm-audit derives them, no empty list."""
+        raw = (
+            get_template_path(TemplateType.WORKSPACE) / "pyproject.toml.jinja"
+        ).read_text(encoding="utf-8")
+        assert "\n[tool.coverage.run]" not in raw
+        assert "source_pkgs =" not in raw
+        assert "[tool.coverage.report]" in raw

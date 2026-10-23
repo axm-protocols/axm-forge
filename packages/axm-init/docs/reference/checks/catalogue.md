@@ -100,7 +100,7 @@ Changelog management:
 | `changelog.gitcliff_config` | 3 | `[tool.git-cliff]` in pyproject.toml |
 | `changelog.no_manual_changelog` | 2 | No manual CHANGELOG.md (git-cliff auto-generates) |
 
-### workspace (21 pts)
+### workspace (23 pts)
 
 Workspace-specific checks — only run when the project context is `WORKSPACE`:
 
@@ -114,6 +114,7 @@ Workspace-specific checks — only run when the project context is `WORKSPACE`:
 | `workspace.root_name_collision` | 3 | Root project name does not collide with member names |
 | `workspace.pytest_importmode` | 2 | Root pytest config has `import_mode = "importlib"` |
 | `workspace.pytest_testpaths` | 2 | Root testpaths references member test directories |
+| `workspace.coverage_sources` | 2 | Root `[tool.coverage.run]` `source`/`source_pkgs` is absent (axm-audit derives members) or covers every member module; an empty list fails |
 | `workspace.quality_workflow` | 2 | `.github/workflows/axm-quality.yml` with per-package audit |
 | `workspace.suite_dir_uniqueness` | 2 | Members have distinct test-suite directory names |
 
