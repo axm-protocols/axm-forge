@@ -361,7 +361,7 @@ reason = "test_fails_without_workspace writes a standalone pyproject.toml withou
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "556ba8b3ac5f"
-reason = "test_importmode_missing uses ws_root fixture and asserts 'importlib' literal in message (missing import_mode branch); test_no_pyproject_fails uses bare tmp_path with no pyproject.toml and asserts 'No pyproject.toml' literal (file-absent branch) — two disjoint early-return paths with divergent message assertions."
+reason = "test_importmode_missing uses ws_root fixture and asserts 'importlib' literal in message (missing --import-mode branch); test_no_pyproject_fails uses bare tmp_path with no pyproject.toml and asserts 'No pyproject.toml' literal (file-absent branch) — two disjoint early-return paths with divergent message assertions."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "c628e04ab0b7"

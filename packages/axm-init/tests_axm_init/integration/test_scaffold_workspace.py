@@ -135,6 +135,20 @@ def test_workspace_publish_builds_members(rendered_workspace: Path) -> None:
     assert "- run: uv build" not in lines, "root `uv build` builds no member"
 
 
+def test_workspace_pytest_importmode_via_addopts_only(
+    rendered_workspace: Path,
+) -> None:
+    """Rendered root selects importlib through addopts, with no bogus ini key."""
+    from axm_init.checks._utils import load_toml
+    from axm_init.checks.workspace import check_pytest_importmode
+
+    text = (rendered_workspace / "pyproject.toml").read_text()
+    assert "import_mode" not in text
+    assert "--import-mode=importlib" in text
+    assert load_toml(rendered_workspace) is not None
+    assert check_pytest_importmode(rendered_workspace).passed
+
+
 def test_workspace_ci_pytest_invocation_valid(rendered_workspace: Path) -> None:
     """AC2: ci.yml uses ``uv run --package <pkg> pytest`` (flag before pytest)."""
     ci = (rendered_workspace / ".github" / "workflows" / "ci.yml").read_text()
