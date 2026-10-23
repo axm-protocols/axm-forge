@@ -42,6 +42,7 @@ def test_workspace_type_check_uses_declared_runtime(
         )
         (source / "__init__.py").write_text("value: int = 1\n")
     monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+    monkeypatch.setattr("axm_audit.core.auditor.os.cpu_count", lambda: 2)
     assert shutil.which("mypy") is None
     contract = WriteContract(
         execution_root=str(root),
