@@ -92,8 +92,12 @@ matching tag. Omit `version` for automatic selection. Pass the bare version
 
 The operation checks repository existence and a clean tree, obtains CI state,
 requires commits since the previous tag, computes/validates the version,
-creates the tag, attempts hatch-vcs verification, then pushes.
-The hatch-vcs check is best effort; a null `resolved_version` does not block push.
+pins HEAD, creates an annotated tag, verifies its SemVer and commit through Git,
+then pushes and checks the exact tag object and peeled commit advertised by origin.
+Tagging does not run `uv`, install packages, build artifacts, or modify the Python
+environment. `resolved_version` is derived from the verified Git tag, with
+`version_source="git_tag"`; it is not an installed or hatch-vcs build version.
+The publication CI owns artifact construction and build-version validation.
 
 **The CI check blocks only `red`.** It queries at most three recent runs on
 the resolved default branch and matches HEAD. `pending`, `error` and
@@ -111,12 +115,30 @@ Use an explicit reviewed version for a package release when these scopes differ.
 
 On successful push, `tag` is the bare version with `v`; `full_tag` includes
 the package prefix. Other keys are `bump`, `breaking`, `resolved_version`,
-`pushed`, `ci_check`, `commits_included` and `current_tag` (`"none"` if absent).
+`pushed`, `remote_verified`, `tag_commit`, `tag_object`, `version_source`,
+`ci_check`, `commits_included` and `current_tag` (`"none"` if absent).
 
-If the push fails, `success=False` and `pushed=False`, but the local tag
-remains. A timeout may also occur after a local mutation. Inspect local and
-remote state before retrying: repeating tag creation will not repair an
-existing local tag automatically.
+Failures before tag creation (dirty tree, red CI, no commits, invalid
+version, unresolvable HEAD, failed `git tag`) create nothing and carry none
+of these keys. Once the local tag exists, every result carries the full key
+set, with `pushed` and `remote_verified` always present:
+
+| Situation | `success` | `pushed` | `remote_verified` |
+|---|---|---|---|
+| Local tag fails Git verification (not SemVer, wrong commit, read timeout) | `False` | `False` | `False` |
+| Push rejected or origin unreachable | `False` | `False` | `False` |
+| Push timed out and origin does not advertise the verified tag | `False` | `False` | `False` |
+| Push timed out but origin advertises the verified tag | `True` | `True` | `True` |
+| Push succeeded, `ls-remote` failed, timed out or showed another tag | `False` | `True` | `False` |
+| Push succeeded and origin advertises the same tag object and commit | `True` | `True` | `True` |
+
+Origin must advertise an annotated tag: a lightweight tag of the same name, a
+different tag object or a different peeled commit is a mismatch. The tool
+never deletes, moves or force-pushes a tag, so the local tag (and any
+pre-existing remote tag) remains after every failure. Inspect local and remote
+state before retrying: repeating tag creation will not repair an existing
+local tag automatically. A timeout of `git tag` itself returns only the timeout
+error and may still leave a local tag.
 
 A pushed tag may trigger repository CI, releases or package publishing.
 The tool neither waits for those workflows nor creates a GitHub Release

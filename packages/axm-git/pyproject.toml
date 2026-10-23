@@ -257,10 +257,6 @@ hash = "7e0906172112"
 reason = "tests cover two distinct repo layouts (flat git repo via tmp_git_repo vs nested workspace via tmp_workspace_repo with tuple unpacking) -- different fixtures and scenarios, no shared data to parametrize"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "3a0c99a704de"
-reason = "three verify_hatch_vcs failure paths exercise structurally different subprocess mock setups (return_value with rc=1 for sync_fails, side_effect callback with call counter for version_check_fails, side_effect=FileNotFoundError for uv_not_found) -- collapsing into parametrize would erase the mock-setup divergence that documents each failure mode"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e3d125f53c7c"
 reason = "test_dirty_tree and test_ci_red_blocks cover unrelated GitTagTool preconditions (dirty working tree vs red CI) and patch different collaborators (run_git status output vs check_ci return value) -- shared shape is just `execute fails` but the failure cause and the patched seam differ"
 

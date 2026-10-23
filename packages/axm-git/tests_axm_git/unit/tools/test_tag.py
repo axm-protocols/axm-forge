@@ -9,13 +9,13 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pytest_mock import MockerFixture
 
-from axm_git.tools import tag as tag_mod
+from axm_git.core.tag_verification import VerifiedTag
 from axm_git.tools.tag import (
     GitTagTool,
     check_ci,
     resolve_version,
-    verify_hatch_vcs,
 )
 
 
@@ -55,36 +55,159 @@ class TestResolveVersionOverride:
         )
 
 
-class TestVerifyHatchVcsTimeouts:
-    """AC4 — verify_hatch_vcs: 600s timeout for uv sync, None on TimeoutExpired."""
+COMMIT = "a" * 40
+TAG_OBJECT = "b" * 40
+VERIFIED = VerifiedTag("1.2.3", COMMIT, TAG_OBJECT)
 
-    @patch("axm_git.tools.tag.subprocess.run")
-    def test_uv_sync_uses_600s_timeout(
-        self, mock_run: MagicMock, tmp_path: Path
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="1.2.3", stderr=""
-        )
-        tag_mod.verify_hatch_vcs(tmp_path, "1.2.3")
-        uv_sync_calls = [
-            c
-            for c in mock_run.call_args_list
-            if c.args
-            and len(c.args[0]) >= 2
-            and c.args[0][0] == "uv"
-            and c.args[0][1] == "sync"
-        ]
-        assert uv_sync_calls, "uv sync was not invoked"
-        assert uv_sync_calls[0].kwargs.get("timeout") == 600
 
-    @patch(
-        "axm_git.tools.tag.subprocess.run",
-        side_effect=subprocess.TimeoutExpired(cmd=["uv", "sync"], timeout=600),
+@pytest.fixture
+def tagging(mocker: MockerFixture) -> dict[str, MagicMock]:
+    """Stub everything up to tag creation; publication seams stay patchable."""
+    mocker.patch("axm_git.tools.tag.get_tag_prefix", return_value="")
+    mocker.patch(
+        "axm_git.tools.tag._preflight",
+        return_value=("green", None, ["feat: initial"]),
     )
-    def test_returns_none_on_uv_sync_timeout(
-        self, _mock_run: MagicMock, tmp_path: Path
+    mocker.patch("axm_git.tools.tag._head_sha", return_value=COMMIT)
+    return {
+        "run_git": mocker.patch(
+            "axm_git.tools.tag.run_git", return_value=_mock_completed()
+        ),
+        "verify_tag": mocker.patch(
+            "axm_git.tools.tag.verify_tag", return_value=VERIFIED
+        ),
+        "verify_remote_tag": mocker.patch(
+            "axm_git.tools.tag.verify_remote_tag", return_value=None
+        ),
+    }
+
+
+def _git_verbs(run_git: MagicMock) -> list[str]:
+    return [call.args[0][0] for call in run_git.call_args_list]
+
+
+class TestGitTagPublication:
+    """Post-creation paths: every result carries pushed and remote_verified."""
+
+    def test_success_reports_git_evidence(self, tagging: dict[str, MagicMock]) -> None:
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert result.success, result.error
+        assert result.data["resolved_version"] == "1.2.3"
+        assert result.data["version_source"] == "git_tag"
+        assert result.data["tag_commit"] == COMMIT
+        assert result.data["tag_object"] == TAG_OBJECT
+        assert result.data["pushed"] is True
+        assert result.data["remote_verified"] is True
+        tag_call, push_call = tagging["run_git"].call_args_list
+        assert tag_call.args[0] == ["tag", "-a", "v1.2.3", COMMIT, "-m", "v1.2.3"]
+        assert push_call.args[0] == ["push", "origin", f"{TAG_OBJECT}:refs/tags/v1.2.3"]
+        assert "remote verified" in (result.text or "")
+
+    def test_remote_verification_failure_preserves_push_receipt(
+        self, tagging: dict[str, MagicMock]
     ) -> None:
-        assert tag_mod.verify_hatch_vcs(tmp_path, "1.2.3") is None
+        """A successful push with unverified remote state must not report success."""
+        tagging["verify_remote_tag"].return_value = "remote tag differs"
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert not result.success
+        assert result.error == "remote tag differs"
+        assert result.data["pushed"] is True
+        assert result.data["remote_verified"] is False
+        assert result.data["full_tag"] == "v1.2.3"
+        assert result.data["tag_object"] == TAG_OBJECT
+        assert "pushed · remote unverified" in (result.text or "")
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            pytest.param(ValueError("Tag v1.2.3 targets c, expected a"), id="moved"),
+            pytest.param(
+                subprocess.TimeoutExpired(["git", "rev-parse"], 30), id="timeout"
+            ),
+        ],
+    )
+    def test_unverified_local_tag_is_kept_and_not_pushed(
+        self, tagging: dict[str, MagicMock], exc: Exception
+    ) -> None:
+        tagging["verify_tag"].side_effect = exc
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert not result.success
+        assert "created locally but failed verification" in (result.error or "")
+        assert result.data["full_tag"] == "v1.2.3"
+        assert result.data["pushed"] is False
+        assert result.data["remote_verified"] is False
+        assert result.data["resolved_version"] is None
+        assert _git_verbs(tagging["run_git"]) == ["tag"]
+        tagging["verify_remote_tag"].assert_not_called()
+        assert "v1.2.3 kept locally · not pushed" in (result.text or "")
+
+    def test_rejected_push_skips_remote_verification(
+        self, tagging: dict[str, MagicMock]
+    ) -> None:
+        tagging["run_git"].side_effect = [
+            _mock_completed(),
+            _mock_completed(stderr="! [rejected] (already exists)", rc=1),
+        ]
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert not result.success
+        assert "push to origin failed: ! [rejected]" in (result.error or "")
+        assert result.data["pushed"] is False
+        assert result.data["remote_verified"] is False
+        tagging["verify_remote_tag"].assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("remote_error", "success"),
+        [
+            pytest.param(None, True, id="origin_confirms"),
+            pytest.param("origin unreachable", False, id="origin_unconfirmed"),
+        ],
+    )
+    def test_push_timeout_is_settled_by_origin(
+        self,
+        tagging: dict[str, MagicMock],
+        remote_error: str | None,
+        success: bool,
+    ) -> None:
+        """A timed-out push only counts as pushed when origin advertises the tag."""
+        tagging["run_git"].side_effect = [
+            _mock_completed(),
+            subprocess.TimeoutExpired(["git", "push"], 30),
+        ]
+        tagging["verify_remote_tag"].return_value = remote_error
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert result.success is success
+        assert result.data["pushed"] is success
+        assert result.data["remote_verified"] is success
+        if not success:
+            assert "git push timed out after 30s" in (result.error or "")
+            assert "origin unreachable" in (result.error or "")
+
+    @pytest.mark.parametrize("version", ["1.2", "v1.2.3-rc1", "ast/v1.2.3"])
+    def test_invalid_version_creates_no_tag(
+        self, tagging: dict[str, MagicMock], version: str
+    ) -> None:
+        result = GitTagTool().execute(path="/repo", version=version)
+        assert not result.success
+        assert "Invalid semver" in (result.error or "")
+        tagging["run_git"].assert_not_called()
+
+    def test_unresolvable_head_creates_no_tag(
+        self, tagging: dict[str, MagicMock], mocker: MockerFixture
+    ) -> None:
+        mocker.patch("axm_git.tools.tag._head_sha", return_value=None)
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert not result.success
+        assert result.error == "Cannot resolve HEAD before tagging"
+        tagging["run_git"].assert_not_called()
+
+    def test_tag_creation_timeout_reports_command(
+        self, tagging: dict[str, MagicMock]
+    ) -> None:
+        tagging["run_git"].side_effect = subprocess.TimeoutExpired(["git", "tag"], 30)
+        result = GitTagTool().execute(path="/repo", version="1.2.3")
+        assert not result.success
+        assert result.error == "git timed out after 30s"
+        tagging["verify_tag"].assert_not_called()
 
 
 class TestGitTagToolUnit:
@@ -269,57 +392,3 @@ class TestCheckCi:
             )
         )
         assert check_ci(Path("/tmp")) == "green"
-
-
-class TestVerifyHatchVcs:
-    """Test the verify_hatch_vcs helper."""
-
-    @patch("axm_git.tools.tag.subprocess.run")
-    def test_success(self, mock_run: MagicMock) -> None:
-        def _side_effect(
-            args: list[str], **kw: Any
-        ) -> subprocess.CompletedProcess[str]:
-            if "sync" in args:
-                return subprocess.CompletedProcess(
-                    args=args, returncode=0, stdout="", stderr=""
-                )
-            return subprocess.CompletedProcess(
-                args=args, returncode=0, stdout="0.8.0\n", stderr=""
-            )
-
-        mock_run.side_effect = _side_effect
-        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") == "0.8.0"
-
-    @patch("axm_git.tools.tag.subprocess.run")
-    def test_sync_fails(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="error"
-        )
-        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
-
-    @patch("axm_git.tools.tag.subprocess.run")
-    def test_version_check_fails(self, mock_run: MagicMock) -> None:
-        call_count = 0
-
-        def _side_effect(
-            args: list[str], **kw: Any
-        ) -> subprocess.CompletedProcess[str]:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return subprocess.CompletedProcess(
-                    args=args, returncode=0, stdout="", stderr=""
-                )
-            return subprocess.CompletedProcess(
-                args=args, returncode=1, stdout="", stderr=""
-            )
-
-        mock_run.side_effect = _side_effect
-        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
-
-    @patch(
-        "axm_git.tools.tag.subprocess.run",
-        side_effect=FileNotFoundError,
-    )
-    def test_uv_not_found(self, _mock: MagicMock) -> None:
-        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
