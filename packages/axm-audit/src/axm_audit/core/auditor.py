@@ -276,8 +276,9 @@ def _audit_packages_parallel(
     """Audit each package concurrently, preserving input order.
 
     Submits one ``audit_project`` call per package to a bounded
-    ``ThreadPoolExecutor``. Each worker thread runs with a fresh context,
-    so ``audit_project`` sets/resets its own contextvar-scoped ``ASTCache``
+    ``ThreadPoolExecutor``. Each submission copies the caller's context,
+    retaining session runtime and read authority without sharing mutable
+    context bindings between tasks. ``audit_project`` sets/resets its own ``ASTCache``
     in-thread (no cross-package cache contention). Results are re-ordered
     back to the input package order so the aggregate is independent of
     completion order, and a failure in one package is isolated as a
@@ -292,6 +293,7 @@ def _audit_packages_parallel(
         future_to_index = {
             (
                 pool.submit(
+                    contextvars.copy_context().run,
                     audit_project,
                     pkg,
                     category=category,
@@ -299,7 +301,13 @@ def _audit_packages_parallel(
                     test_reports=test_reports,
                 )
                 if test_reports is not None
-                else pool.submit(audit_project, pkg, category=category, quick=quick)
+                else pool.submit(
+                    contextvars.copy_context().run,
+                    audit_project,
+                    pkg,
+                    category=category,
+                    quick=quick,
+                )
             ): idx
             for idx, pkg in enumerate(packages)
         }
