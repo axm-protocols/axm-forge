@@ -48,7 +48,7 @@ def test_exposer_etat_brouillon_dans_les_donnees(tmp_path: Path) -> None:
             )
         (project / "src/protocols_demo/work/exec/protocol.py").write_text(
             "from __future__ import annotations\n"
-            "from axm_loom import protocol\n"
+            "from axm_tribunal import protocol\n"
             "__all__ = ['build_protocol']\n"
             "GRAPH_NAME = 'demo.work.exec'\n"
             "def build_protocol():\n"

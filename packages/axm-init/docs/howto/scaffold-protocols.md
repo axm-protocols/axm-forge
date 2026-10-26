@@ -76,9 +76,9 @@ To prepare an implemented action for the ready state:
    modules fail `protocols.protocol_draft`.
 3. Set that action's metadata state to `ready` and register its public factory
    under the graph name, in the group of the library that composes it
-   (`axm.tribunal.graphs` for `axm_tribunal.protocol`, `axm.graphs` for the
-   legacy `axm_loom.protocol`). For `dev.work.exec` composed with axm-tribunal,
-   add this entry to the package's `pyproject.toml`:
+   (`axm.tribunal.graphs` for `axm_tribunal.protocol`; the legacy loom group
+   `axm.graphs` is no longer recognised). For `dev.work.exec` composed with
+   axm-tribunal, add this entry to the package's `pyproject.toml`:
 
    ```toml
    [project.entry-points."axm.tribunal.graphs"]

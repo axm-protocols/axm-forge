@@ -340,11 +340,11 @@ def sessions_root(
     default: Path | None = None,
     profile: str | None = None,
 ) -> Path:
-    """The loom sessions root -- where runs write manifests, traces, artifacts.
+    """The sessions root -- where runs write manifests, traces, artifacts.
 
-    Declared identically in ``axm-loom``, ``axm-knowledge`` and ``axm-orison``
-    (whose docstrings already say they *mirror* loom); this is the seam those
-    three delegate to. In production, ``default`` overrides the built-in
+    ``axm-knowledge`` and ``axm-orison`` mirror this root (the retired
+    ``axm-loom`` did too); this is the seam they delegate to. In production,
+    ``default`` overrides the built-in
     ``~/axm/sessions`` for callers retaining their migration constant; an
     active non-production profile instead owns the unconfigured state root.
     """

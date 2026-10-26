@@ -20,12 +20,12 @@ applicable inventory, both rules return passing, zero-weight results.
 
 Graph entries come from the entry-point group of each recognised composition
 family in `pyproject.toml`: `[project.entry-points."axm.tribunal.graphs"]` for
-axm-tribunal and `[project.entry-points."axm.graphs"]` for the legacy axm-loom.
-A protocol's family is the one whose protocol call (`axm_tribunal.protocol` or
-`axm_loom.protocol`) its `build_protocol` factory makes; a ready protocol must be
-registered under that family's group, and an entry under the other family's group
-is reported with the group to move it to. When no composition call resolves, either
-group is accepted. The family names live in one table
+axm-tribunal, the only family recognised since the legacy axm-loom
+(`axm.graphs`) was retired. A protocol's family is the one whose protocol call
+(`axm_tribunal.protocol`) its `build_protocol` factory makes; a ready protocol
+must be registered under that family's group, and an entry under any other group
+is reported with the group to move it to. When no composition call resolves, the
+tribunal group is accepted. The family names live in one table
 (`axm_init.checks._composition.COMPOSITION_FAMILIES`), so retiring a family deletes
 its row. Resolution follows local imports, including relative imports,
 and simple identifier aliases, with cycle detection. An absent module, absent

@@ -38,7 +38,7 @@ assert result.data["count"] == 3
 
 The package root re-exports the shared SDK contracts. The CLI delegates domain
 operations to providers; MCP transport belongs to `axm-mcp`, and DAG scheduling
-belongs to `axm-dag` / `axm-loom`. See the
+belongs to `axm-dag` / `axm-tribunal`. See the
 [architecture](explanation/architecture.md) for those boundaries.
 
 This page is the MkDocs home page and is included in the wheel. The repository

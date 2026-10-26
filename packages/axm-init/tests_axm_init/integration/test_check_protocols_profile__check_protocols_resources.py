@@ -71,7 +71,7 @@ import re
 import threading
 from typing import TYPE_CHECKING
 
-from axm_loom import task
+from axm_tribunal import task
 from pydantic import create_model
 
 if TYPE_CHECKING:
@@ -107,13 +107,13 @@ def _normalize(values: list[str]) -> list[str]:
 
 def build_node():
     options: Mapping[str, object] = {"prompt": PROMPT}
-    return task("build", prompt=options["prompt"])
+    return task.agent("build", prompt=options["prompt"])
 """,
     "src/protocols_demo/work/exec/prompts/__init__.py": "",
     "src/protocols_demo/work/exec/phases/__init__.py": "",
     "src/protocols_demo/work/exec/phases/build.py": """from __future__ import annotations
 
-from axm_loom import phase
+from axm_tribunal import phase
 
 from ..nodes.build import build_node
 
@@ -122,11 +122,11 @@ __all__ = ["build_phase"]
 
 def build_phase():
     nodes = [build_node()]
-    return phase("build", tasks=nodes)
+    return phase("build", work=nodes, evaluators=[])
 """,
     "src/protocols_demo/work/exec/protocol.py": """from __future__ import annotations
 
-from axm_loom import protocol
+from axm_tribunal import protocol
 
 from .phases.build import build_phase
 
@@ -271,12 +271,12 @@ def test_rejects_observable_import_time_execution_structurally(tmp_path: Path) -
         source = (
             "from __future__ import annotations\n"
             "from pathlib import Path\n"
-            "from axm_loom import task\n\n"
+            "from axm_tribunal import task\n\n"
             '__all__ = ["build_node"]\n'
             "ITEMS = [1]\n"
             "def consume(value):\n    return value\n\n"
             f"{form}\n\n"
-            "def build_node():\n    return task('build', prompt='ok')\n"
+            "def build_node():\n    return task.agent('build', prompt='ok')\n"
         )
         project = _project(
             tmp_path / label,
@@ -340,16 +340,16 @@ def test_resolves_composition_only_through_import_bindings(tmp_path: Path) -> No
     source = (
         _READY_FILES["src/protocols_demo/work/exec/nodes/build.py"]
         .replace(
-            "from axm_loom import task",
-            "from axm_loom import task\nfrom unrelated_helpers import task as unrelated_task",
+            "from axm_tribunal import task",
+            "from axm_tribunal import task\nfrom unrelated_helpers import task as unrelated_task",
         )
         .replace(
             "def build_node():",
             '# task("comment-decoy")\n_DECOY = \'task("string-decoy")\'\n\n\ndef build_node():',
         )
         .replace(
-            'return task("build", prompt=options["prompt"])',
-            'unrelated_task("homonym-decoy")\n    return task("build", prompt=options["prompt"])',
+            'return task.agent("build", prompt=options["prompt"])',
+            'unrelated_task("homonym-decoy")\n    return task.agent("build", prompt=options["prompt"])',
         )
     )
     project = _project(
@@ -414,10 +414,10 @@ def test_static_inspection_does_not_execute_import_time_write(tmp_path: Path) ->
     source = (
         "from __future__ import annotations\n"
         "from pathlib import Path\n"
-        "from axm_loom import task\n\n"
+        "from axm_tribunal import task\n\n"
         '__all__ = ["build_node"]\n'
         f'Path({str(sentinel)!r}).write_text("executed")\n\n'
-        "def build_node():\n    return task('build', prompt='ok')\n"
+        "def build_node():\n    return task.agent('build', prompt='ok')\n"
     )
     project = _project(
         tmp_path / "non-executing",
@@ -512,7 +512,7 @@ def test_inventory_and_disk_disagree_in_both_directions(tmp_path: Path) -> None:
     assert "orphan protocol module" in module_details
 
 
-# ─ Composition families: axm-tribunal is recognised beside axm-loom ─────────
+# ─ Composition family: axm-tribunal (the only one since axm-loom was retired) ─
 
 _TRIBUNAL_NODE = """from __future__ import annotations
 
@@ -571,7 +571,7 @@ def _tribunal_project(root: Path, *, graph_name: str = "demo.work.exec") -> Path
 
 
 def test_accepts_tribunal_composition_forms(tmp_path: Path) -> None:
-    """Module-level tribunal factories are declarative, like loom's."""
+    """Module-level tribunal factories are declarative."""
     result = _category(_tribunal_project(tmp_path / "tribunal"))
     checks = {check.name: check for check in result.checks}
 

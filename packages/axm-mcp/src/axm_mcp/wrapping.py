@@ -132,7 +132,7 @@ def log_external_step(
     Currently a no-op. This is the hook point where an execution engine
     can observe each MCP tool call (name, args, outcome, duration). The
     legacy ``axm-engine`` tracing wiring was removed when engine was
-    deprecated; a future ``axm-loom``-based tracer should re-attach here.
+    deprecated; a future ``axm-tribunal``-based tracer should re-attach here.
     Any implementation MUST swallow its own errors — tracing must never
     break tool execution.
     """
