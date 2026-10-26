@@ -222,7 +222,9 @@ def register_one(  # type: ignore[explicit-any]
     apply_signature(wrapper, exec_fn, override_module)
 
     # Register AFTER setting the signature so MCPServer sees it.
-    mcp.tool(name=name)(wrapper)
+    # Wrappers produce presentation content, including image blocks. An inferred
+    # JSON output model would validate those blocks as a dict/string result.
+    mcp.tool(name=name, structured_output=False)(wrapper)
 
 
 def _get_tool_doc(tool: ToolEntry) -> str:

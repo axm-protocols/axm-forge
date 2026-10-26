@@ -1,4 +1,4 @@
-"""Subprocess runners for git, gh, and uv commands."""
+"""Subprocess runners for git and gh commands."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "DEFAULT_GH_TIMEOUT",
     "DEFAULT_GIT_TIMEOUT",
-    "detect_package_name",
     "find_git_root",
     "gh_available",
     "not_a_repo_error",
@@ -386,29 +385,6 @@ def run_gh(
     except subprocess.TimeoutExpired:
         logger.warning("gh %s timed out after %ss", args[0] if args else "", timeout)
         raise
-
-
-def detect_package_name(project_path: Path) -> str | None:
-    """Read the package name from ``pyproject.toml``.
-
-    Args:
-        project_path: Project root containing ``pyproject.toml``.
-
-    Returns:
-        Package name or ``None`` if not found.
-    """
-    pyproject = project_path / "pyproject.toml"
-    if not pyproject.exists():
-        return None
-
-    try:
-        import tomllib
-
-        with open(pyproject, "rb") as f:
-            data = tomllib.load(f)
-        return data.get("project", {}).get("name")  # type: ignore[no-any-return]
-    except (OSError, KeyError, ValueError):
-        return None
 
 
 def suggest_git_repos(path: Path) -> list[str]:

@@ -92,3 +92,107 @@ class TestBuildPytestCmdCoverageWithFiles:
         )
         assert "--cov" in cmd
         assert any(arg.startswith("--cov-report=json:") for arg in cmd)
+
+
+def _cov_targets(project: Path, tmp_path: Path) -> list[str]:
+    """Return the ``--cov=`` targets built for *project* (bare ``--cov`` -> [])."""
+    cmd = build_pytest_cmd(
+        report_path=tmp_path / "r.json",
+        coverage_path=tmp_path / "cov.json",
+        files=None,
+        markers=None,
+        stop_on_first=False,
+        project_path=project,
+    )
+    return [arg.split("=", 1)[1] for arg in cmd if arg.startswith("--cov=")]
+
+
+def _write_member(root: Path, name: str, *, modules: tuple[str, ...] = ()) -> None:
+    """Create ``packages/<name>`` with a pyproject and one src package per module."""
+    member = root / "packages" / name
+    member.mkdir(parents=True)
+    (member / "pyproject.toml").write_text(f'[project]\nname = "{name}"\n')
+    for module in modules or (name.replace("-", "_"),):
+        package = member / "src" / module
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text("")
+
+
+def _workspace(root: Path, *, extra: str = "", coverage: str = "") -> None:
+    """Write a uv-workspace root manifest."""
+    root.mkdir(exist_ok=True)
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "ws"\n'
+        f'[tool.uv.workspace]\nmembers = ["packages/*"]\n{extra}'
+        f"{coverage}"
+    )
+
+
+class TestBuildPytestCmdCoverageSources:
+    """``--cov`` targets: explicit config, workspace members, ``src``, nothing."""
+
+    def test_explicit_source_wins(self, tmp_path: Path) -> None:
+        _workspace(tmp_path, coverage='[tool.coverage.run]\nsource = ["lib"]\n')
+        _write_member(tmp_path, "alpha")
+        assert _cov_targets(tmp_path, tmp_path) == ["lib"]
+
+    def test_explicit_source_pkgs_used(self, tmp_path: Path) -> None:
+        _workspace(tmp_path, coverage='[tool.coverage.run]\nsource_pkgs = ["alpha"]\n')
+        _write_member(tmp_path, "alpha")
+        _write_member(tmp_path, "beta")
+        assert _cov_targets(tmp_path, tmp_path) == ["alpha"]
+
+    def test_empty_source_pkgs_derives_members(self, tmp_path: Path) -> None:
+        """The legacy ``source_pkgs = []`` must not disable member derivation."""
+        _workspace(tmp_path, coverage="[tool.coverage.run]\nsource_pkgs = []\n")
+        _write_member(tmp_path, "alpha")
+        assert _cov_targets(tmp_path, tmp_path) == ["packages/alpha/src/alpha"]
+
+    def test_workspace_derives_globbed_members(self, tmp_path: Path) -> None:
+        _workspace(tmp_path)
+        _write_member(tmp_path, "beta-pkg")
+        _write_member(tmp_path, "alpha", modules=("alpha", "alpha_extra"))
+        assert _cov_targets(tmp_path, tmp_path) == [
+            "packages/alpha/src/alpha",
+            "packages/alpha/src/alpha_extra",
+            "packages/beta-pkg/src/beta_pkg",
+        ]
+
+    def test_workspace_honours_exclude(self, tmp_path: Path) -> None:
+        _workspace(tmp_path, extra='exclude = ["packages/skip"]\n')
+        _write_member(tmp_path, "alpha")
+        _write_member(tmp_path, "skip")
+        assert _cov_targets(tmp_path, tmp_path) == ["packages/alpha/src/alpha"]
+
+    def test_member_without_init_measures_src_dir(self, tmp_path: Path) -> None:
+        _workspace(tmp_path)
+        member = tmp_path / "packages" / "solo"
+        (member / "src").mkdir(parents=True)
+        (member / "pyproject.toml").write_text('[project]\nname = "solo"\n')
+        assert _cov_targets(tmp_path, tmp_path) == ["packages/solo/src"]
+
+    def test_member_without_src_is_skipped(self, tmp_path: Path) -> None:
+        _workspace(tmp_path)
+        _write_member(tmp_path, "alpha")
+        flat = tmp_path / "packages" / "flat"
+        flat.mkdir()
+        (flat / "pyproject.toml").write_text('[project]\nname = "flat"\n')
+        assert _cov_targets(tmp_path, tmp_path) == ["packages/alpha/src/alpha"]
+
+    def test_non_workspace_falls_back_to_src(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "p"\n')
+        (tmp_path / "src").mkdir()
+        assert _cov_targets(tmp_path, tmp_path) == ["src"]
+
+    def test_nothing_yields_bare_cov(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "p"\n')
+        cmd = build_pytest_cmd(
+            report_path=tmp_path / "r.json",
+            coverage_path=tmp_path / "cov.json",
+            files=None,
+            markers=None,
+            stop_on_first=False,
+            project_path=tmp_path,
+        )
+        assert "--cov" in cmd
+        assert not any(arg.startswith("--cov=") for arg in cmd)

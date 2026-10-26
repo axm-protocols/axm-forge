@@ -260,9 +260,13 @@ def load_declarative_manifest(raw: Mapping[str, object]) -> DeclarativeToolManif
 
 
 class DeclarativeTool:
-    """Common AXMTool adapter, unavailable without an explicit host binding."""
+    """Common AXMTool adapter, unavailable without an explicit host binding.
 
-    expose_directly = True
+    Not on the shared MCP hot path (default ``expose_directly``): the shared
+    server reaches it through the facade only; a host UI exposes its scoped
+    tools directly.
+    """
+
     tags = frozenset({"ui", "declarative"})
 
     def __init__(

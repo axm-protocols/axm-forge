@@ -32,14 +32,18 @@ from axm_ast.tools.graph import GraphTool
 
 
 def _drop_call_sites_only() -> None:
-    """Evict cached call-sites but keep PackageInfo and the parse cache.
+    """Evict cached call-sites (and their index) but keep PackageInfo.
 
     Reproduces the in-session state right after ``get_package`` where a tool
     asks "who calls X?" for the first time: the baseline re-reads and
     re-parses every module here; the optimized build serves trees from the
-    parse cache.
+    parse cache. Call-sites and index share one cache entry, so both go.
     """
-    _cache_mod._cache._calls_store.clear()
+    cache = _cache_mod._cache
+    with cache._lock:
+        for entry in cache._entries.values():
+            entry.calls = None
+            entry.index = None
 
 
 # Default target is a *sibling* package, not axm-ast itself: the benchmark is

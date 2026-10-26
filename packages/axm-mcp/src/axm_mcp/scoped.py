@@ -165,6 +165,8 @@ def _backend_result(wrapped: object, *, tool_result: bool) -> CallToolResult:
     structured data instead of text (Claude Code does) would otherwise put the
     whole payload in the model's context.
     """
+    if isinstance(wrapped, CallToolResult):
+        return wrapped
     if isinstance(wrapped, RenderedText):
         return CallToolResult(
             content=[TextContent(type="text", text=wrapped.text)],

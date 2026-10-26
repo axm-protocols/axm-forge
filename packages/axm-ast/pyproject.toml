@@ -69,6 +69,7 @@ ast_flows      = "axm_ast.tools.flows:FlowsTool"
 ast_doc_impact = "axm_ast.tools.doc_impact:DocImpactTool"
 ast_file_header = "axm_ast.tools.file_header:AstFileHeaderTool"
 ast_coupling_gaps = "axm_ast.tools.coupling_gaps:CouplingGapsTool"
+ast_cache_stats = "axm_ast.tools.cache_stats:CacheStatsTool"
 
 
 [build-system]

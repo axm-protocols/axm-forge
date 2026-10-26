@@ -20,7 +20,7 @@ class FakeMCP:
     def __init__(self) -> None:
         self.tools: dict[str, Any] = {}
 
-    def tool(self, *, name: str) -> Any:
+    def tool(self, *, name: str, structured_output: bool | None = None) -> Any:
         def decorator(fn: Any) -> Any:
             self.tools[name] = fn
             return fn

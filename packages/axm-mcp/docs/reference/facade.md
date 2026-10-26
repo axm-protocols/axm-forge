@@ -6,6 +6,9 @@ With the facade enabled, MCP `tools/list` includes four facade meta-tools,
 the discovered tools that opt into `expose_directly`, and the built-ins
 `verify`, `web_fetch`, `list_tools`. All successfully discovered entries
 and the first two built-ins participate in the callable catalog.
+Declarative UI tools never opt in: on the shared server they are reachable
+only through the facade, while a host-owned scoped app exposes its permitted
+UI tools directly.
 
 | MCP tool | Parameters | Result |
 |---|---|---|
@@ -58,6 +61,7 @@ failed during loading; inspect server logs and restart after fixing it.
 | Tool outcome | Direct wrapper / facade rendering |
 |---|---|
 | Success with string `text` (including empty string) | That string, without the structured `data` |
+| Success with `images` | Text provenance followed by native MCP image blocks; never image bytes in JSON text |
 | Failure with nonempty `text` | Diagnostic text with error marker/prefix when the first line does not already contain the error; hint appended if needed |
 | Result without usable text | Data fields plus `success`, optional `error` and `hint` |
 | Exception in tool execution | `success=False` and exception diagnostic |
@@ -69,6 +73,30 @@ The facade renders dictionary results as `key: value` lines, not JSON.
 Do not parse that human-readable output as a stable data API. Direct Python
 AXMTool callers receive the original ToolResult; a text response through MCP
 does not also preserve its structured data.
+
+Backend registrations and `axm_call` disable inferred structured output:
+there is no duplicate `structuredContent` and no JSON output schema that
+could coerce an image response. Direct, facade and host-scoped routes retain
+the same image blocks. Failed results never attach images. Images must be
+bounded `axm.ToolImage` snapshots; this transport performs no filesystem reads.
+Tracing records the textual provenance only, never the image bytes or base64.
+Declarative UI tools retain their explicit output schemas.
+
+The transport decodes snapshots with Pillow after checking their header dimensions:
+at most 4096 pixels per side and 16 million pixels, still images only. Malformed,
+truncated or oversized images become ordinary tool failures before transmission.
+This validation belongs to the transport; the core SDK keeps no image decoder
+dependency. Producers must still bound rendering work before allocating an image.
+
+### Compatibility note for the multimodal transport
+
+Earlier shared-server versions inferred an output schema and mirrored text or
+data in `structuredContent.result`. Backend tools and `axm_call` now use native
+content blocks only, matching scoped addons. Consumers should read `content`;
+structured machine consumers should call the Python tool contract directly.
+`ToolCatalog.call` and `acall` return `str | CallToolResult`: text-only tools
+still return strings; image tools return typed MCP content. This change requires
+installing the matching SDK and transport together, in the target runtime.
 
 Reserved data keys `success`, `error`, `hint` move to `data_success`,
 `data_error`, `data_hint` on the dictionary path. Avoid **both** sets of

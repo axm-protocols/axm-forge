@@ -16,7 +16,7 @@ Re-exports:
 
 from __future__ import annotations
 
-from axm.tools.base import AXMTool, ToolMetadata, ToolResult, tool_metadata
+from axm.tools.base import AXMTool, ToolImage, ToolMetadata, ToolResult, tool_metadata
 from axm.tools.discovery import (
     TOOL_ENTRY_POINT_GROUPS,
     DuplicateToolError,
@@ -28,6 +28,7 @@ __all__ = [
     "TOOL_ENTRY_POINT_GROUPS",
     "AXMTool",
     "DuplicateToolError",
+    "ToolImage",
     "ToolMetadata",
     "ToolNodeError",
     "ToolResult",

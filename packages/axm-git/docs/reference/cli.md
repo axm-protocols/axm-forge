@@ -26,7 +26,7 @@ The CLI spelling uses hyphens, for example `--diff-lines`.
 | `git_await_merge` | required `pr` (string number or URL); `timeout=600`, `interval=30` (seconds) | `merged=True`, `pr_ref` |
 | `git_release_diff` | none | `current_tag`, `suggested_bump`, `suggested_next`, `breaking`, `commits_since`, `counts`, `files_changed`, `diffstat`, `public_api_touched` |
 | `git_release_plan` | none | Pinned `ref`, deterministic `order`, per-package versions/actions/dependencies, exclusions and warnings |
-| `git_tag` | `version=None` | `tag`, `full_tag`, `bump`, `breaking`, `resolved_version`, `pushed`, `ci_check`, `commits_included`, `current_tag` |
+| `git_tag` | `version=None` | `tag`, `full_tag`, `bump`, `breaking`, `resolved_version`, `version_source`, `tag_commit`, `tag_object`, `pushed`, `remote_verified`, `ci_check`, `commits_included`, `current_tag` |
 
 A `None` branch base/target resolves the repository default for worktree,
 merge and PR. Pull instead defaults literally to `main`.

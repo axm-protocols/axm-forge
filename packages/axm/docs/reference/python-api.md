@@ -7,7 +7,8 @@
 | Export | Purpose |
 |---|---|
 | `AXMTool` | Structural tool protocol: `name` and `execute` |
-| `ToolResult` | Tool success, data, error, hint and text |
+| `ToolResult` | Tool success, data, error, hint, text and optional images |
+| `ToolImage` | Immutable encoded image snapshot for multimodal transports |
 | `ToolMetadata`, `tool_metadata` | Optional discovery settings and their defaults |
 | `tool_node`, `ToolNodeError` | Tool-to-node adapter and its contract errors |
 | `WitnessRule`, `WitnessResult`, `ValidationFeedback` | Validation contracts |
@@ -20,6 +21,8 @@
 | `tool_scope_sha256` | SHA256 of compact UTF-8 JSON containing sorted logical target names |
 | `require_write_path` | Fail-closed write authority for a host-configured persisted target |
 | `require_read_path` | Canonical read authority for explicit and configured persisted targets |
+| `authority_enforced`, `require_enforced_write_path`, `require_legacy_authority` | Service-side authority: whether it applies, legacy-aware write guard, refusal of unconfinable capabilities |
+| `SessionGrant`, `capture_session_grant`, `require_session_access` | Ownership of in-memory service sessions by the exact captured contract |
 
 Definitions remain in their submodules. Prefer root imports for these
 contracts. `load_tool` and `override_tools` are additionally re-exported by
@@ -37,6 +40,28 @@ Neither automatically derives from the other. `hint` is available to
 consumers but the generic CLI does not print it as a separate field.
 Use `dataclasses.asdict` when you explicitly need the whole dataclass;
 the CLI's shared `--json-output` emits only `data`.
+
+`images` defaults to an empty tuple. A successful tool may attach
+`ToolImage(data=png_bytes, mime_type="image/png")` alongside its textual
+provenance. The producer authorizes the source and captures the bytes before
+returning; a transport must not open a caller-provided filesystem path.
+PNG, JPEG and WebP signatures are accepted, up to 4 MiB per image, four images
+and 12 MiB per result. These are encoded-byte limits and signature checks,
+not a full decoder or a decoded-pixel budget; producers must bound rendering
+dimensions too. Invalid payloads raise `ValueError`. Before transmitting, AXM MCP
+also verifies that an image fully decodes, is not animated and fits within
+4096 pixels per side and 16 million pixels. A bad image fails the tool call
+without inserting an unusable image in the conversation.
+
+Image bytes are excluded from `repr`, `data` and the generic CLI's output.
+`dataclasses.asdict` still includes the bytes: do not send it blindly to a
+JSON encoder or a trace recorder. Text-only consumers need not implement
+image handling. AXM MCP emits native image content blocks on successful
+results, together with the prepared text (or rendered data when text is absent).
+
+::: axm.tools.base.ToolImage
+    options:
+      skip_local_inventory: true
 
 ::: axm.tools.base.ToolResult
     options:
@@ -180,6 +205,11 @@ host can inject `(name, arguments) -> ToolResult` into `DeclarativeTool`;
 Orison's asynchronous host uses the scoped MCP factory. Successful `ToolResult.data`
 must satisfy `outputSchema`; invalid arguments never reach the invoker.
 
+`DeclarativeTool` keeps the default `expose_directly=False`: the shared MCP
+server lists, describes and calls these tools only through its facade
+(`axm_search`, `axm_describe`, `axm_call`), never as direct tools. A host UI
+exposes its permitted tools directly through its own scoped MCP surface.
+
 CLI tools accept one JSON `--arguments` value, for example
 `axm rugby_ui_read_state --arguments '{}'`; a headless call remains unavailable.
 The generic transport is not a second implementation of persistent business actions.
@@ -227,7 +257,8 @@ arbitrary Python references. Business services still enforce their own validatio
 ::: axm.tool_scope_sha256
 
 `require_write_path(path)` is a separate service-side persistence guard. It raises
-`PermissionError` without an active contract or outside its allowed write prefixes;
+`PermissionError` without an active contract or outside its allowed write prefixes
+or exact `allowed_files`;
 readable roots and dependency aliases do not grant writes. Relative paths resolve
 against the contract execution root, never the ambient working directory, and
 symlinks are canonicalized. Check the host-configured store/file before the canonical
@@ -235,6 +266,17 @@ mutation. Metadata tags alone do not classify arbitrary domain tools as writes.
 MCP wrappers supply the bound contract; a local CLI can use an explicit
 `AXM_WRITE_CONTRACT`. A trusted UI route retains its own host authorization and
 shares the same business service rather than imitating an MCP click.
+
+For document-bound callers, `WriteContract.from_mapping` accepts `read_files`
+and `allowed_files`: sequences of exact canonical targets. These grants never
+include parents or descendants. A not-yet-created working copy can be granted
+without granting its containing directory. Exact grants refuse directories and
+special files; exact writes also refuse hard-linked files. Substituted symlinks
+are resolved again at use time. A nonempty `read_files` suppresses the legacy
+implicit read grant on the execution root; explicit `read_roots` still apply.
+Read and write grants remain independent. Retained tool authority intersects
+these fields as it does directory grants. This is a cooperative admission check,
+not an atomic OS sandbox against concurrent filesystem replacement.
 
 ::: axm.require_write_path
 
@@ -247,3 +289,30 @@ ambient contracts. Only legacy local callers with neither bound authority nor
 ambient contract remain unrestricted. Read authorization grants no writes.
 
 ::: axm.require_read_path
+
+### Service sessions and legacy callers
+
+Document services (Word, Excel, PowerPoint and future crafts) share one
+decision in `axm.tools.session_authority` instead of each cloning it.
+`authority_enforced()` is false only for legacy local callers with neither a
+transport binding nor a contract. `require_enforced_write_path(path)` applies
+`require_write_path` only when authority is enforced, so CLI and test callers
+keep working; temporary files and locks a service derives from an authorised
+target are internal effects of that write, not caller-chosen targets, and need
+no grant of their own. `require_legacy_authority(capability)` refuses, under
+enforced authority, work that file grants cannot confine: external renderers
+that follow references inside documents, or persistent servers and threads
+that would outlive the call's authority context.
+
+`capture_session_grant()` records the authority a session is created under
+(an explicit denial refuses creation). `require_session_access(grant, source)`
+lets a legacy local caller reach any session; otherwise the session must have
+been captured under exactly the current contract, file-backed or not, because
+its memory may hold content read from other files, and its current file must
+still be readable. A legacy session is never adopted by a bound caller, even on
+a granted file. Services pass the absolute path they actually open: relative
+paths given to the SDK resolve against the execution root, not the process
+working directory. Like the other guards, this is cooperative admission
+control, not an OS sandbox against concurrent filesystem replacement.
+
+::: axm.require_session_access

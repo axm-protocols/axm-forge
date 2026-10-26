@@ -62,11 +62,17 @@ The success flag must be an actual boolean: strings, integers, lists and missing
 structural envelopes are not passing results. UI confirmations have the same
 strict boolean requirement.
 
-A backend tool answers with text only, as on the shared server: a ToolResult's
+A backend tool answers with model content, as on the shared server: a ToolResult's
 `text` is the whole answer (its `data` is never sent), and a result without text,
 or a plain dispatcher's dictionary, answers with its JSON rendering. Backend tools
 declare no `outputSchema` and send no `structuredContent`. Only declarative UI
 tools declare an output schema and return structured content.
+
+Successful backend results may additionally carry `ToolResult.images`.
+Each bounded `ToolImage` becomes a native MCP `ImageContent` after the textual
+provenance, including through `axm_call`. No path is dereferenced by the
+transport and no image is included in traces or structured data. Failed
+results emit no image. The same scope and execution guard still run first.
 
 The returned app is dynamically mountable without starting a manager per capability:
 each stateless HTTP request owns and closes its SDK manager lifespan. Revocation

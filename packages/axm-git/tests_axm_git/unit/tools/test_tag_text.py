@@ -43,6 +43,28 @@ class TestRenderText:
         }
         assert "git/v0.4.0" in render_text(data)
 
+    def test_git_evidence_and_remote_verification(self) -> None:
+        data: dict[str, Any] = {
+            "tag": "v0.4.0",
+            "full_tag": "ast/v0.4.0",
+            "bump": "minor",
+            "breaking": False,
+            "resolved_version": "0.4.0",
+            "version_source": "git_tag",
+            "tag_commit": "0123456789abcdef" * 2 + "01234567",
+            "tag_object": "f" * 40,
+            "pushed": True,
+            "remote_verified": True,
+            "ci_check": "green",
+            "commits_included": 2,
+            "current_tag": "ast/v0.3.0",
+        }
+        assert render_text(data) == (
+            "git_tag | ✓ | ast/v0.4.0 · minor · 2 commits · pushed · remote verified\n"
+            "resolved 0.4.0 from git tag · commit 0123456789ab · CI green"
+            " · prev ast/v0.3.0"
+        )
+
     def test_breaking_not_pushed_no_resolved(self) -> None:
         data: dict[str, Any] = {
             "tag": "v1.0.0",
@@ -95,6 +117,35 @@ class TestRenderFailureText:
         self, error: str, data: dict[str, Any], expected: str
     ) -> None:
         assert render_failure_text(error=error, data=data) == expected
+
+    @pytest.mark.parametrize(
+        ("extra", "expected"),
+        [
+            pytest.param(
+                {"tag_commit": None, "pushed": False},
+                "ast/v0.4.0 kept locally · not pushed · remote unverified",
+                id="unverified_local_tag",
+            ),
+            pytest.param(
+                {"tag_commit": "a" * 40, "pushed": True},
+                f"ast/v0.4.0 @ {'a' * 12} kept locally · pushed · remote unverified",
+                id="pushed_remote_unverified",
+            ),
+        ],
+    )
+    def test_post_creation_failure_shows_tag_state(
+        self, extra: dict[str, Any], expected: str
+    ) -> None:
+        """The tag left behind wins over the previous-tag detail line."""
+        data: dict[str, Any] = {
+            "full_tag": "ast/v0.4.0",
+            "remote_verified": False,
+            "current_tag": "ast/v0.3.0",
+            "ci_check": "green",
+            **extra,
+        }
+        out = render_failure_text(error="boom", data=data)
+        assert out == f"git_tag | ✗ | boom\n{expected}"
 
     def test_suggestions_hint(self) -> None:
         data: dict[str, Any] = {"suggestions": ["sub1"]}

@@ -60,13 +60,13 @@ def test_section_exists_key_missing(tmp_path: Path) -> None:
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         '[project]\nname = "ws"\n\n'
-        '[tool.pytest.ini_options]\nimport_mode = "importlib"\n'
+        '[tool.pytest.ini_options]\naddopts = "--import-mode=importlib"\n'
     )
     patch_testpaths(tmp_path, "new-pkg")
     result = pyproject.read_text()
     assert '"packages/new-pkg/tests_new_pkg"' in result
     assert "[tool.pytest.ini_options]" in result
-    assert 'import_mode = "importlib"' in result
+    assert 'addopts = "--import-mode=importlib"' in result
 
 
 def test_single_line_array(tmp_path: Path) -> None:

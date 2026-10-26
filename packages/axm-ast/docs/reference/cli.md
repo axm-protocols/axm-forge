@@ -8,8 +8,8 @@ take precedence when combined with it.
 
 ## Additional tools
 
-`ast_coupling_gaps`, `ast_doc_impact` and `ast_file_header` are available via
-AXM tools rather than separate dedicated subcommands. See [tool reference](tools.md).
+`ast_cache_stats`, `ast_coupling_gaps`, `ast_doc_impact` and `ast_file_header`
+are available via AXM tools rather than separate dedicated subcommands. See [tool reference](tools.md).
 
 ## Global Options
 

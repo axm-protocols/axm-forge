@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
@@ -27,6 +28,38 @@ _AXM_PREFIX_ALIASES = (
 )
 
 
+def _file_target(location: str, *, writing: bool = False) -> bool:
+    """Admit a missing or regular exact target, never a directory or device.
+
+    An exact write grant cannot overwrite another file through a hard link.
+    Canonical resolution by the caller also excludes substituted symlinks.
+    This check is admission, not an OS sandbox against concurrent filesystem races.
+    """
+    try:
+        info = os.stat(location)
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return stat.S_ISREG(info.st_mode) and (not writing or info.st_nlink == 1)
+
+
+def _exact_files(raw: Mapping[str, object], key: str) -> tuple[str, ...]:
+    """Accept canonical authority, never redirect a transported grant."""
+    value = raw.get(key, ())
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise ValueError(f"{key} must be a sequence of canonical absolute paths")
+    for path in value:
+        if (
+            not isinstance(path, str)
+            or "\x00" in path
+            or not os.path.isabs(path)
+            or path != os.path.realpath(path)
+        ):
+            raise ValueError(f"{key} must contain canonical absolute paths")
+    return tuple(dict.fromkeys(value))
+
+
 class _MutationShape(NamedTuple):
     """How a mutation tool names its root, operation list and targets."""
 
@@ -43,10 +76,11 @@ _MUTATION_TOOLS: dict[str, _MutationShape] = {
 
 
 def _absolute_location(base: str, candidate: str) -> str:
-    trimmed = candidate.strip()
-    if os.path.isabs(trimmed):
-        return os.path.realpath(trimmed)
-    return os.path.realpath(os.path.join(base, trimmed))
+    if not candidate or "\x00" in candidate:
+        raise ValueError("path must be nonempty and contain no NUL")
+    if os.path.isabs(candidate):
+        return os.path.realpath(candidate)
+    return os.path.realpath(os.path.join(base, candidate))
 
 
 def _normalized_prefixes(
@@ -103,16 +137,28 @@ class WriteContract:
     read_roots: tuple[str, ...] = ()
     read_path_aliases: tuple[tuple[str, str], ...] = ()
     dependency_environments: tuple[DependencyEnvironment, ...] = ()
+    # Exact persisted targets: granting a future file never grants its parent
+    # or descendants if the path is later replaced by a directory.
+    read_files: tuple[str, ...] = ()
+    allowed_files: tuple[str, ...] = ()
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object]) -> WriteContract:
         """Validate and normalize a transported contract mapping."""
+        if "constraints" in raw:
+            raise ValueError(
+                "retained authority cannot be flattened into a wire contract"
+            )
         raw_root = raw.get("execution_root")
         if not isinstance(raw_root, str) or not raw_root.strip():
             raise ValueError("execution_root must be a non-empty string")
-        root = os.path.realpath(raw_root.strip())
+        root = os.path.realpath(raw_root)
         prefixes = _normalized_prefixes(raw, "allowed_prefixes", root)
-        reads = _normalized_prefixes(raw, "read_roots", root) or (root,)
+        read_files = _exact_files(raw, "read_files")
+        allowed_files = _exact_files(raw, "allowed_files")
+        reads = _normalized_prefixes(raw, "read_roots", root)
+        if not reads and not read_files:
+            reads = (root,)
         aliases = _read_aliases(raw.get("read_path_aliases", ()), reads)
         markdown_only = _normalized_prefixes(raw, "markdown_only_prefixes", root)
         environment = raw.get("dependency_environment")
@@ -138,6 +184,8 @@ class WriteContract:
             ),
             execution_root=root,
             read_roots=reads,
+            read_files=read_files,
+            allowed_files=allowed_files,
             read_path_aliases=aliases,
             allowed_prefixes=prefixes,
             markdown_only_prefixes=tuple(
@@ -164,6 +212,9 @@ class WriteContract:
         be Markdown: those prefixes carry a nature, not merely a path. A
         location also covered by an unrestricted prefix keeps that grant.
         """
+        location = os.path.realpath(location)
+        if location in self.allowed_files and _file_target(location, writing=True):
+            return True
         granting = [
             prefix
             for prefix in self.allowed_prefixes
@@ -178,9 +229,11 @@ class WriteContract:
     def readable(self, location: str) -> bool:
         """Accept local reads and declared sources resolved by the test interpreter."""
         location = os.path.realpath(location)
+        if location in self.read_files and _file_target(location):
+            return True
+        roots = self.read_roots or (() if self.read_files else (self.execution_root,))
         if any(
-            location == root or location.startswith(root + os.sep)
-            for root in (self.read_roots or (self.execution_root,))
+            location == root or location.startswith(root + os.sep) for root in roots
         ):
             return True
         environments = self.dependency_environments
@@ -223,6 +276,8 @@ def restrict_write_contract(
         markdown_only_prefixes=contract.markdown_only_prefixes,
         dependency_environment=contract.dependency_environment,
         read_roots=contract.read_roots,
+        read_files=contract.read_files,
+        allowed_files=contract.allowed_files,
         read_path_aliases=contract.read_path_aliases,
         dependency_environments=contract.dependency_environments,
         constraints=tuple(

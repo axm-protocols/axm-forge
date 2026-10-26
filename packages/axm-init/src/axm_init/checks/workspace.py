@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import shlex
 from fnmatch import fnmatchcase
 from pathlib import Path
 
+from axm_ingot import resolve_workspace
 from axm_ingot.suite import resolve_suite_dir
 
 from axm_init.checks._utils import TomlTable, load_toml, section
@@ -14,6 +16,7 @@ from axm_init.models.check import CheckResult
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "check_coverage_sources",
     "check_matrix_packages",
     "check_members_consistent",
     "check_monorepo_plugin",
@@ -344,42 +347,103 @@ def _get_pytest_config(data: TomlTable) -> TomlTable:
     return section(section(section(data, "tool"), "pytest"), "ini_options")
 
 
+_IMPORT_MODE_FLAG = "--import-mode"
+
+
+def _addopts_tokens(pytest_cfg: TomlTable) -> list[str]:
+    """Return ``addopts`` as a token list (string is shlex-split, list kept)."""
+    addopts = pytest_cfg.get("addopts", "")
+    if isinstance(addopts, str):
+        try:
+            return shlex.split(addopts)
+        except ValueError:
+            return []
+    if isinstance(addopts, list):
+        return [str(item) for item in addopts]
+    return []
+
+
+def _selected_import_mode(tokens: list[str]) -> str:
+    """Return the import mode selected by ``tokens`` (last occurrence wins).
+
+    Both ``--import-mode=MODE`` and ``--import-mode MODE`` are recognised.
+    Returns an empty string when the flag is absent.
+    """
+    mode = ""
+    for index, token in enumerate(tokens):
+        if token.startswith(f"{_IMPORT_MODE_FLAG}="):
+            mode = token.partition("=")[2]
+        elif token == _IMPORT_MODE_FLAG and index + 1 < len(tokens):
+            mode = tokens[index + 1]
+    return mode
+
+
+def _importmode_result(
+    *, passed: bool, message: str, details: list[str], fix: str
+) -> CheckResult:
+    """Build the ``workspace.pytest_importmode`` result for one outcome."""
+    return CheckResult(
+        name="workspace.pytest_importmode",
+        category="workspace",
+        passed=passed,
+        weight=2,
+        message=message,
+        details=details,
+        fix=fix,
+    )
+
+
 def check_pytest_importmode(project: Path) -> CheckResult:
-    """Check root pytest has import_mode = 'importlib'."""
+    """Check root pytest ``addopts`` selects ``--import-mode=importlib``.
+
+    ``import_mode`` is not a pytest ini option (pytest warns about unknown
+    config options and ``--strict-config`` rejects them): the mode can only
+    be chosen through the ``--import-mode`` CLI flag, set here via ``addopts``.
+    A stray ``import_mode``/``importmode`` key therefore fails the check.
+    """
     data = load_toml(project)
     if data is None:
-        return CheckResult(
-            name="workspace.pytest_importmode",
-            category="workspace",
+        return _importmode_result(
             passed=False,
-            weight=2,
             message="No pyproject.toml at root",
             details=[],
             fix="Create pyproject.toml with [tool.pytest.ini_options].",
         )
 
     pytest_cfg = _get_pytest_config(data)
-    import_mode = pytest_cfg.get("import_mode", pytest_cfg.get("importmode", ""))
+    bogus_keys = [k for k in ("import_mode", "importmode") if k in pytest_cfg]
+    if bogus_keys:
+        return _importmode_result(
+            passed=False,
+            message=f"Unknown pytest option '{bogus_keys[0]}' in ini_options",
+            details=[
+                f"'{key}' is not a pytest ini option: pytest ignores it and "
+                "warns (error under --strict-config)"
+                for key in bogus_keys
+            ],
+            fix=(
+                f"Remove '{bogus_keys[0]}' and set "
+                'addopts = ["--import-mode=importlib"] in '
+                "[tool.pytest.ini_options]."
+            ),
+        )
 
-    if import_mode == "importlib":
-        return CheckResult(
-            name="workspace.pytest_importmode",
-            category="workspace",
+    mode = _selected_import_mode(_addopts_tokens(pytest_cfg))
+    if mode == "importlib":
+        return _importmode_result(
             passed=True,
-            weight=2,
-            message="import_mode = 'importlib' set",
+            message="addopts selects --import-mode=importlib",
             details=[],
             fix="",
         )
 
-    return CheckResult(
-        name="workspace.pytest_importmode",
-        category="workspace",
+    return _importmode_result(
         passed=False,
-        weight=2,
-        message="import_mode not set to 'importlib'",
-        details=[f"Current value: '{import_mode}'" if import_mode else "Key missing"],
-        fix='Add import_mode = "importlib" to [tool.pytest.ini_options].',
+        message="addopts does not select --import-mode=importlib",
+        details=[
+            f"Current import mode: '{mode}'" if mode else "No --import-mode in addopts"
+        ],
+        fix=('Add "--import-mode=importlib" to addopts in [tool.pytest.ini_options].'),
     )
 
 
@@ -577,4 +641,124 @@ def check_quality_workflow(project: Path) -> CheckResult:
         message=f"axm-quality.yml missing: {', '.join(missing)}",
         details=[f"Workflow exists but missing: {', '.join(missing)}"],
         fix="Add per-package audit + coverage to axm-quality.yml.",
+    )
+
+
+_COVERAGE_KEYS = ("source", "source_pkgs")
+
+
+def _coverage_sources_result(
+    *, passed: bool, message: str, details: list[str], fix: str
+) -> CheckResult:
+    """Build the ``workspace.coverage_sources`` result for one outcome."""
+    return CheckResult(
+        name="workspace.coverage_sources",
+        category="workspace",
+        passed=passed,
+        weight=2,
+        message=message,
+        details=details,
+        fix=fix,
+    )
+
+
+def _coverage_run_lists(data: TomlTable) -> dict[str, list[str]]:
+    """Return the list-valued coverage sources of ``[tool.coverage.run]``.
+
+    Only keys that are present (even when empty) are returned; a non-list value
+    is ignored.
+    """
+    run = section(section(section(data, "tool"), "coverage"), "run")
+    found: dict[str, list[str]] = {}
+    for key in _COVERAGE_KEYS:
+        value = run.get(key)
+        if isinstance(value, list):
+            found[key] = [item for item in value if isinstance(item, str)]
+    return found
+
+
+def _source_covers(entry: str, module: str, module_path: str) -> bool:
+    """Return whether one coverage source entry measures the given module."""
+    normalized = entry.strip().replace("\\", "/").removeprefix("./").rstrip("/")
+    if not normalized:
+        return False
+    if normalized == module:
+        return True
+    parts = module_path.split("/")
+    ancestors = ("/".join(parts[:end]) for end in range(len(parts), 0, -1))
+    return any(fnmatchcase(ancestor, normalized) for ancestor in ancestors)
+
+
+def _uncovered_member_modules(project: Path, entries: list[str]) -> list[str]:
+    """Return the ``member: module`` pairs no coverage source entry measures.
+
+    Members and their source packages come from :mod:`axm_ingot` (the same
+    source of truth as axm-audit's coverage derivation, ``exclude`` included).
+    """
+    workspace = resolve_workspace(project)
+    if workspace is None:
+        return []
+    uncovered: list[str] = []
+    for member in workspace.members:
+        for directory in member.source_dirs:
+            module_path = directory.relative_to(workspace.root).as_posix()
+            if not any(_source_covers(e, directory.name, module_path) for e in entries):
+                uncovered.append(f"{member.name}: {directory.name}")
+    return uncovered
+
+
+def check_coverage_sources(project: Path) -> CheckResult:
+    """Check root ``[tool.coverage.run]`` sources are absent or cover every member.
+
+    An absent ``source``/``source_pkgs`` passes (axm-audit derives the members'
+    modules). An explicitly empty list fails: it silently widens coverage to
+    tests and tooling. A non-empty list fails when a member module is missing
+    (drift, since members are added after init).
+    """
+    data = load_toml(project)
+    if data is None:
+        return _coverage_sources_result(
+            passed=False,
+            message="No pyproject.toml at root",
+            details=[],
+            fix="Create pyproject.toml with a [tool.uv.workspace] table.",
+        )
+
+    lists = _coverage_run_lists(data)
+    empty = [key for key, entries in lists.items() if not entries]
+    if empty:
+        return _coverage_sources_result(
+            passed=False,
+            message=f"Empty [tool.coverage.run] {', '.join(empty)}",
+            details=["An empty list disables member derivation and skews coverage"],
+            fix=(
+                "Remove the empty key (axm-audit derives workspace members) "
+                "or list every member module."
+            ),
+        )
+    if not lists:
+        return _coverage_sources_result(
+            passed=True,
+            message="No explicit coverage sources (derived from members)",
+            details=[],
+            fix="",
+        )
+
+    entries = [entry for values in lists.values() for entry in values]
+    uncovered = _uncovered_member_modules(project, entries)
+    if uncovered:
+        return _coverage_sources_result(
+            passed=False,
+            message=f"Coverage sources miss {len(uncovered)} member module(s)",
+            details=uncovered,
+            fix=(
+                "Add the missing modules to [tool.coverage.run] source/source_pkgs, "
+                "or remove the key so axm-audit derives them."
+            ),
+        )
+    return _coverage_sources_result(
+        passed=True,
+        message="Coverage sources cover every member module",
+        details=[],
+        fix="",
     )

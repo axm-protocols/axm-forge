@@ -16,6 +16,7 @@ keeping the runtime import edge one-directional (``discovery`` -> ``wrapping``).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -30,8 +31,10 @@ from axm.tools.access import (
     has_tool_execution_guard,
 )
 from axm.tools.write_scope import WriteContract
+from mcp.types import CallToolResult
 
 from axm_mcp.concurrency import _DEFAULT_TIMEOUT, KeyedLock
+from axm_mcp.images import image_result
 from axm_mcp.session_contracts import UnboundSessionError
 from axm_mcp.session_paths import path_defaults, resolve_session_paths
 
@@ -87,7 +90,7 @@ class RenderedText:
 
 
 # Wrapper callables registered with MCPServer.
-type _WrapperResult = dict[str, object] | str | RenderedText
+type _WrapperResult = dict[str, object] | str | RenderedText | CallToolResult
 
 
 class _SyncWrapper(Protocol):
@@ -372,6 +375,16 @@ def _render_tool_result(
     raw_success = getattr(result, "success", False)
     success = raw_success is True
     text = getattr(result, "text", None)
+    images = getattr(result, "images", ())
+    if success and images:
+        payload = (
+            text
+            if isinstance(text, str)
+            else json.dumps(flatten_result(result), default=str)
+        )
+        rendered = image_result(images, payload)
+        _trace_step(ctx, kwargs, success, payload, start_ns)
+        return rendered
     if isinstance(raw_success, bool) and isinstance(text, str) and (success or text):
         payload = text if success else _failure_text(result, text)
         _trace_step(ctx, kwargs, success, payload, start_ns)
@@ -396,11 +409,11 @@ def _build_tool_wrapper(
         start_ns = time.perf_counter_ns()
         try:
             result = _execute_tool(ctx, _tool_like, kwargs)
+            return _render_tool_result(ctx, result, kwargs, start_ns)
         except Exception as exc:
             error = _flatten_exception(ctx.name, exc)
             _trace_step(ctx, kwargs, False, str(error), start_ns)
             return error
-        return _render_tool_result(ctx, result, kwargs, start_ns)
 
     return _wrapper
 

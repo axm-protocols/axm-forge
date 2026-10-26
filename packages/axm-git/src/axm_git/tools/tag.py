@@ -1,4 +1,4 @@
-"""GitTagTool — one-shot semver tag: preflight + compute + create + verify + push."""
+"""GitTagTool — one-shot semver tag: preflight, compute, create, verify, push."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ import re
 import subprocess
 import tomllib
 from pathlib import Path
+from typing import Literal
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.runner import (
-    detect_package_name,
     gh_available,
     not_a_repo_error,
     resolve_default_branch,
@@ -23,11 +23,18 @@ from axm_git.core.runner import (
     timeout_error_result as _timeout_error_result,
 )
 from axm_git.core.semver import compute_bump, parse_tag
+from axm_git.core.tag_verification import (
+    release_version,
+    verify_remote_tag,
+    verify_tag,
+)
 from axm_git.tools.tag_text import render_failure_text, render_text
 
 __all__ = ["GitTagTool"]
 
 logger = logging.getLogger(__name__)
+
+type _PushOutcome = Literal["pushed", "rejected", "timed_out"]
 
 
 def _head_sha(path: Path) -> str | None:
@@ -148,40 +155,6 @@ def _get_commits_since(path: Path, tag: str | None) -> list[str]:
     return [line for line in log.stdout.strip().splitlines() if line.strip()]
 
 
-def verify_hatch_vcs(path: Path, pkg_name: str) -> str | None:
-    """Rebuild package and read resolved version (best-effort)."""
-    try:
-        sync = subprocess.run(
-            ["uv", "sync", "--reinstall-package", pkg_name],
-            cwd=str(path),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=600,
-        )
-        if sync.returncode != 0:
-            return None
-        ver = subprocess.run(
-            [
-                "uv",
-                "run",
-                "python",
-                "-c",
-                f"from importlib.metadata import version; print(version('{pkg_name}'))",
-            ],
-            cwd=str(path),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=60,
-        )
-        if ver.returncode == 0:
-            return ver.stdout.strip()
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    return None
-
-
 def _preflight(
     path: Path, *, tag_prefix: str = ""
 ) -> ToolResult | tuple[str, str | None, list[str]]:
@@ -275,12 +248,103 @@ def resolve_version(
     return bump_result.next, bump_result.bump, bump_result.breaking
 
 
+def _failure(error: str, data: dict[str, object] | None) -> ToolResult:
+    """Build a dual-format failure ``ToolResult``."""
+    return ToolResult(
+        success=False,
+        error=error,
+        data=data if data is not None else {},
+        text=render_failure_text(error=error, data=data),
+    )
+
+
+def _describe(exc: ValueError | subprocess.TimeoutExpired) -> str:
+    """Render a verification exception as a one-line reason."""
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return f"git timed out after {exc.timeout}s"
+    return str(exc)
+
+
+def _push_tag(path: Path, full_tag: str, object_id: str) -> tuple[_PushOutcome, str]:
+    """Push the exact verified tag object to origin.
+
+    Pushing ``<object>:refs/tags/<tag>`` (not the tag name) guarantees origin
+    receives the object that was verified, even if the local ref is rewritten
+    concurrently. A pre-existing remote tag is never overwritten (no force).
+
+    Returns:
+        ``(outcome, reason)`` — ``reason`` is empty when the push succeeded.
+    """
+    try:
+        push = run_git(["push", "origin", f"{object_id}:refs/tags/{full_tag}"], path)
+    except subprocess.TimeoutExpired as exc:
+        return "timed_out", f"git push timed out after {exc.timeout}s"
+    if push.returncode != 0:
+        return "rejected", push.stderr.strip() or f"exit code {push.returncode}"
+    return "pushed", ""
+
+
+def _publish(
+    path: Path,
+    full_tag: str,
+    tag_prefix: str,
+    head_sha: str,
+    data: dict[str, object],
+) -> ToolResult:
+    """Verify the freshly created local tag, push it, then verify origin.
+
+    Every return carries *data* with ``pushed`` and ``remote_verified``.
+    Failures never delete or overwrite the local or remote tag.
+    """
+    try:
+        verified = verify_tag(path, full_tag, tag_prefix, head_sha)
+    except (ValueError, subprocess.TimeoutExpired) as exc:
+        return _failure(
+            f"Tag {full_tag} created locally but failed verification "
+            f"({_describe(exc)}); local tag kept, not pushed",
+            data,
+        )
+    data.update(
+        resolved_version=verified.version,
+        tag_commit=verified.commit,
+        tag_object=verified.object_id,
+    )
+
+    outcome, reason = _push_tag(path, full_tag, verified.object_id)
+    if outcome == "rejected":
+        # False-green guard: the Publish CI will never fire for this tag.
+        return _failure(
+            f"Tag {full_tag} created locally but push to origin failed: {reason}",
+            data,
+        )
+
+    remote_error = verify_remote_tag(path, full_tag, verified)
+    if outcome == "timed_out":
+        # The push may or may not have landed: only origin's advertisement
+        # can settle it, so an unconfirmed timeout stays ``pushed=False``.
+        if remote_error:
+            return _failure(
+                f"Tag {full_tag} created locally but {reason} and origin "
+                f"did not confirm it ({remote_error}); inspect origin before "
+                "retrying",
+                data,
+            )
+        logger.warning("%s, but origin advertises the verified tag", reason)
+    data["pushed"] = True
+    if remote_error:
+        return _failure(remote_error, data)
+    data["remote_verified"] = True
+    return ToolResult(success=True, data=data, text=render_text(data))
+
+
 class GitTagTool(AXMTool):
     """Create a semver release tag in one call.
 
     Performs preflight checks (clean tree, CI status), computes the
-    next version from Conventional Commits, creates an annotated tag,
-    verifies hatch-vcs resolution, and pushes to origin.
+    next version from Conventional Commits, pins HEAD, creates an annotated
+    tag, verifies its version and commit with Git reads, pushes the exact tag
+    object and checks that origin advertises it. It never installs packages,
+    runs ``uv`` or modifies the Python environment.
 
     Registered as ``git_tag`` via axm.tools entry point.
     """
@@ -304,7 +368,8 @@ class GitTagTool(AXMTool):
             version: Version override (optional, e.g. ``"v1.0.0"``).
 
         Returns:
-            ToolResult with tag, version, and push status.
+            ToolResult with tag, Git-verified version, commit, tag object,
+            push status and remote verification status.
         """
         resolved = Path(path).resolve()
         tag_prefix = get_tag_prefix(resolved)
@@ -316,71 +381,48 @@ class GitTagTool(AXMTool):
                 return result
             ci_check, current_tag, commits = result
 
-            # 2. Compute version
+            # 2. Compute and validate the version before any mutation.
             next_version, bump_type, breaking = resolve_version(
                 version, current_tag, commits, tag_prefix=tag_prefix
             )
+            full_tag = f"{tag_prefix}{next_version}"
+            release_version(full_tag, tag_prefix)
             logger.info(
                 "Tagging %s (bump=%s, breaking=%s)",
-                next_version,
+                full_tag,
                 bump_type,
                 breaking,
             )
 
-            # 3. Create annotated tag
-            full_tag = f"{tag_prefix}{next_version}"
-            tag_result = run_git(["tag", "-a", full_tag, "-m", full_tag], resolved)
-            if tag_result.returncode != 0:
-                error = f"Failed to create tag: {tag_result.stderr.strip()}"
-                return ToolResult(
-                    success=False,
-                    error=error,
-                    text=render_failure_text(error=error, data=None),
-                )
-
-            # 4. Verify hatch-vcs (best-effort)
-            resolved_version = None
-            pkg_name = detect_package_name(resolved)
-            if pkg_name:
-                resolved_version = verify_hatch_vcs(resolved, pkg_name)
-
-            # 5. Push tag
-            push = run_git(["push", "origin", full_tag], resolved)
-        except ValueError as exc:
-            error = str(exc)
-            return ToolResult(
-                success=False,
-                error=error,
-                text=render_failure_text(error=error, data=None),
+            # 3. Pin the commit, then create the annotated tag on it.
+            head_sha = _head_sha(resolved)
+            if not head_sha:
+                raise ValueError("Cannot resolve HEAD before tagging")
+            tag_result = run_git(
+                ["tag", "-a", full_tag, head_sha, "-m", full_tag], resolved
             )
+        except ValueError as exc:
+            return _failure(str(exc), None)
         except subprocess.TimeoutExpired as exc:
             return _timeout_error_result(exc)
 
-        pushed = push.returncode == 0
+        if tag_result.returncode != 0:
+            return _failure(f"Failed to create tag: {tag_result.stderr.strip()}", None)
+
         data: dict[str, object] = {
             "tag": next_version,
             "full_tag": full_tag,
             "bump": bump_type,
             "breaking": breaking,
-            "resolved_version": resolved_version,
-            "pushed": pushed,
+            "resolved_version": None,
+            "version_source": "git_tag",
+            "tag_commit": None,
+            "tag_object": None,
+            "pushed": False,
+            "remote_verified": False,
             "ci_check": ci_check,
             "commits_included": len(commits),
             "current_tag": current_tag or "none",
         }
-        if not pushed:
-            # False-green guard: the annotated tag is created locally but the
-            # remote push failed — the Publish CI will never fire. Report the
-            # failure (local tag preserved in ``data``) so the warden/agent
-            # does not believe the release shipped.
-            error = (
-                f"Tag {full_tag} created locally but push to origin failed: "
-                f"{push.stderr.strip()}"
-            )
-            return ToolResult(
-                success=False,
-                error=error,
-                data=data,
-                text=render_failure_text(error=error, data=data),
-            )
-        return ToolResult(success=True, data=data, text=render_text(data))
+        # 4. Git evidence only: never rebuild, install or synchronize a venv.
+        return _publish(resolved, full_tag, tag_prefix, head_sha, data)

@@ -6,7 +6,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from axm.tools import ToolMetadata, ToolNodeError, tool_metadata, tool_node
 from axm.tools.access import ToolAccessDenied, tool_access_scope, tool_execution_guard
-from axm.tools.base import AXMTool, ToolResult
+from axm.tools.base import AXMTool, ToolImage, ToolResult
 from axm.tools.declarative import (
     DeclarativeTool,
     DeclarativeToolDefinition,
@@ -20,6 +20,14 @@ from axm.tools.dependency_reads import (
     session_dependency_environment,
 )
 from axm.tools.read_authority import require_read_path
+from axm.tools.session_authority import (
+    SessionGrant,
+    authority_enforced,
+    capture_session_grant,
+    require_enforced_write_path,
+    require_legacy_authority,
+    require_session_access,
+)
 from axm.tools.write_authority import require_write_path
 from axm.witnesses import ValidationFeedback, WitnessResult, WitnessRule
 
@@ -34,7 +42,9 @@ __all__ = [
     "DeclarativeToolDefinition",
     "DeclarativeToolManifest",
     "DependencyEnvironment",
+    "SessionGrant",
     "ToolAccessDenied",
+    "ToolImage",
     "ToolMetadata",
     "ToolNodeError",
     "ToolResult",
@@ -42,8 +52,13 @@ __all__ = [
     "WitnessResult",
     "WitnessRule",
     "__version__",
+    "authority_enforced",
+    "capture_session_grant",
     "load_declarative_manifest",
+    "require_enforced_write_path",
+    "require_legacy_authority",
     "require_read_path",
+    "require_session_access",
     "require_write_path",
     "session_dependency_environment",
     "tool_access_scope",

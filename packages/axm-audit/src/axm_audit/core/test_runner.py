@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast
 
+from axm_ingot import Member, resolve_workspace
+
 from axm_audit.core.non_test_cause import (
     _STDERR_EXCERPT_CHARS,  # noqa: F401 - re-exported: one truncation budget
     NonTestCause,
@@ -387,16 +389,74 @@ def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]
     return total_pct, per_file
 
 
+def _string_list(value: object) -> list[str]:
+    """Return the string items of *value* when it is a list, else ``[]``."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _coverage_run_table(manifest: Path) -> dict[str, object]:
+    """Return ``[tool.coverage.run]`` of *manifest* (``{}`` when absent)."""
+    if not manifest.is_file():
+        return {}
+    node: object = tomllib.loads(manifest.read_text())
+    for key in ("tool", "coverage", "run"):
+        if not isinstance(node, dict):
+            return {}
+        node = node.get(key, {})
+    return cast("dict[str, object]", node) if isinstance(node, dict) else {}
+
+
+def _member_coverage_dirs(member: Member) -> list[Path]:
+    """Return the directories to measure for one workspace member.
+
+    The member's source packages (:attr:`axm_ingot.Member.source_dirs`); when
+    it has none (single-file modules, namespace layouts) its ``src/`` directory
+    itself is measured. A member without ``src/`` contributes nothing.
+    """
+    src = member.path / "src"
+    return list(member.source_dirs) or ([src] if src.is_dir() else [])
+
+
+def _workspace_member_sources(project_path: Path) -> list[str]:
+    """Derive the coverage sources of a uv workspace root from its members.
+
+    Members come from :func:`axm_ingot.resolve_workspace` (``members`` globs
+    minus ``exclude``). Paths are returned relative to *project_path* in POSIX
+    form, since pytest runs from the project root. Empty when
+    *project_path* is not a uv workspace.
+    """
+    workspace = resolve_workspace(project_path)
+    if workspace is None:
+        return []
+    return [
+        directory.relative_to(workspace.root).as_posix()
+        for member in workspace.members
+        for directory in _member_coverage_dirs(member)
+    ]
+
+
 def _coverage_sources(project_path: Path | None) -> list[str]:
+    """Return the ``--cov`` targets for the project, most explicit source first.
+
+    1. ``[tool.coverage.run].source`` then ``.source_pkgs`` when non-empty
+       (pytest-cov accepts both paths and package names);
+    2. at a uv workspace root, the source directories of its members, so the
+       root measure ignores tests, scripts and the report plugin;
+    3. ``src`` when the project has one;
+    4. otherwise nothing (the caller falls back to a bare ``--cov``).
+    """
     if project_path is None:
         return []
-    manifest = project_path / "pyproject.toml"
-    config = tomllib.loads(manifest.read_text()) if manifest.is_file() else {}
-    sources = (
-        config.get("tool", {}).get("coverage", {}).get("run", {}).get("source", [])
-    )
-    if isinstance(sources, list) and sources:
-        return [str(source) for source in sources]
+    run_table = _coverage_run_table(project_path / "pyproject.toml")
+    for key in ("source", "source_pkgs"):
+        configured = _string_list(run_table.get(key))
+        if configured:
+            return configured
+    members = _workspace_member_sources(project_path)
+    if members:
+        return members
     return ["src"] if (project_path / "src").is_dir() else []
 
 

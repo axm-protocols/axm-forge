@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from axm import ToolResult
 
 from axm_mcp import wrapping as _wrapping
 from axm_mcp.discovery import register_one
@@ -20,12 +21,7 @@ class _FakeSessionTool:
 
     def execute(self, *, session_id: str = "", outputs: str = "") -> Any:
         """Fake protocol_check."""
-        result = MagicMock()
-        result.success = True
-        result.data = {"session_id": session_id}
-        result.error = None
-        result.hint = None
-        return result
+        return ToolResult(success=True, data={"session_id": session_id})
 
 
 class TestLockSkippedStdioMode:
@@ -97,12 +93,7 @@ class TestConcurrentProtocolCheck:
 
                     time.sleep(0.05)
                     order.append(f"{sid}-end")
-                    result = MagicMock()
-                    result.success = True
-                    result.data = {"ok": True}
-                    result.error = None
-                    result.hint = None
-                    return result
+                    return ToolResult(success=True, data={"ok": True})
 
             mock_mcp = MagicMock()
             register_one(mock_mcp, "protocol_check", SlowTool())
