@@ -29,7 +29,7 @@ dependencies = [
     # changement d'algorithme réel est 6.0.0 (alignement SonarSource v1.7).
     # (Historique : le pin est né du panic UTF-8 sur les commentaires noqa de
     # 5.6.0 — rohaquinlop/complexipy#186 — corrigé depuis 5.6.1.)
-    "complexipy==8.0.1",
+    "complexipy==8.1.0",
     "cyclopts>=4.21.0",
     "libcst>=1.5.0",
     "pydantic>=2.12.5",
