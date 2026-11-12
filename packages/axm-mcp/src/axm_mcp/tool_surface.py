@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextvars import ContextVar
 from http import HTTPStatus
 
@@ -21,7 +22,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 __all__ = ["TOOL_SURFACE_HEADER", "ToolSurfaceMiddleware", "ToolSurfaceServer"]
 
 TOOL_SURFACE_HEADER = "X-AXM-Tool-Surface"
-_surface = ContextVar[tuple[str, ...] | None]("axm_mcp_tool_surface", default=None)
 _MAX_SESSIONS = 10_000
 
 
@@ -34,6 +34,12 @@ def _parse(raw: str | None) -> tuple[str, ...] | None:
     ):
         raise ValueError("tool surface must be a JSON array of tool names")
     return tuple(dict.fromkeys(value))
+
+
+_surface = ContextVar[tuple[str, ...] | None](
+    "axm_mcp_tool_surface",
+    default=_parse(os.environ.get("AXM_MCP_TOOL_SURFACE")),  # noqa: B039
+)
 
 
 class ToolSurfaceMiddleware:
@@ -99,6 +105,14 @@ class ToolSurfaceMiddleware:
 class ToolSurfaceServer(MCPServer[object]):
     """Enforce the same declaration at tools/list and tools/call."""
 
+    _catalog_server: ToolSurfaceServer
+    _catalog_only: bool = False
+
+    def set_catalog_server(self, server: ToolSurfaceServer) -> None:
+        """Attach tools available exclusively to explicitly scoped sessions."""
+        server._catalog_only = True
+        self._catalog_server = server
+
     def register_declarative(self, tool: DeclarativeTool) -> None:
         """Register exact JSON schemas without deriving a kwargs signature."""
         if not hasattr(self, "_ui_tools"):
@@ -120,6 +134,20 @@ class ToolSurfaceServer(MCPServer[object]):
         )
         tools = [tool for tool in tools if tool_is_allowed(tool.name)]
         allowed = _surface.get()
+        catalog: ToolSurfaceServer | None = getattr(self, "_catalog_server", None)
+        if allowed is not None and catalog is not None:
+            registered = {tool.name for tool in tools}
+            tools.extend(
+                tool
+                for tool in await catalog.list_tools()
+                if tool.name not in registered
+            )
+        if allowed is not None and not getattr(self, "_catalog_only", False):
+            missing = set(allowed) - {tool.name for tool in tools}
+            if missing:
+                raise ToolError(
+                    f"unknown or unavailable tools: {', '.join(sorted(missing))}"
+                )
         return (
             tools
             if allowed is None
@@ -135,6 +163,10 @@ class ToolSurfaceServer(MCPServer[object]):
         allowed = _surface.get()
         if allowed is not None and name not in allowed:
             raise ToolError(f"undeclared tool refused: {name}")
+        if allowed is not None and name == "axm_call":
+            target = arguments.get("name")
+            if not isinstance(target, str) or target not in allowed:
+                raise ToolError(f"undeclared tool refused: {target}")
         require_tool_access(name)
         ui_tool = getattr(self, "_ui_tools", {}).get(name)
         if ui_tool is not None:
@@ -155,4 +187,8 @@ class ToolSurfaceServer(MCPServer[object]):
                 structured_content=data,
                 is_error=not result.success,
             )
+        registered = {tool.name for tool in await super().list_tools()}
+        catalog: ToolSurfaceServer | None = getattr(self, "_catalog_server", None)
+        if name not in registered and allowed is not None and catalog is not None:
+            return await catalog.call_tool(name, arguments, context)
         return await super().call_tool(name, arguments, context)

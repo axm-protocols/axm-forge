@@ -306,6 +306,30 @@ _EXTRA_TOOLS = {
 
 def _register_direct(tools: dict[str, ToolEntry]) -> None:
     """Register direct tools with the shared-mode resolver used by the facade."""
+    if (
+        _facade_enabled()
+        and isinstance(mcp, ToolSurfaceServer)
+        and not hasattr(mcp, "_catalog_server")
+    ):
+        catalog_server = ToolSurfaceServer("axm-mcp-session-catalog")
+        for catalog_name, catalog_tool in discovered_tools.items():
+            try:
+                register_one(
+                    catalog_server,
+                    catalog_name,
+                    catalog_tool,
+                    registration=(
+                        _SHARED_MODE,
+                        _resolve_session_contract if _SHARED_MODE else None,
+                    ),
+                )
+            except (TypeError, ValueError):
+                import logging
+
+                logging.getLogger(__name__).exception(
+                    "Cannot register selected catalog tool %s", catalog_name
+                )
+        mcp.set_catalog_server(catalog_server)
     for name, tool in tools.items():
         register_one(
             mcp,
