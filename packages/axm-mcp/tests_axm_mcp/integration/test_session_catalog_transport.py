@@ -19,9 +19,16 @@ def test_facade_app_exposes_selected_discovered_tool(
     def cold_tool() -> str:
         return "cold-result"
 
+    def invalid_tool(_provider_instance: str) -> str:
+        return _provider_instance
+
     with monkeypatch.context() as patch:
         patch.setenv("AXM_MCP_FACADE", "1")
-        patch.setattr(discovery, "discover_tools", lambda: {"cold_tool": cold_tool})
+        patch.setattr(
+            discovery,
+            "discover_tools",
+            lambda: {"cold_tool": cold_tool, "invalid_tool": invalid_tool},
+        )
         app_module = importlib.reload(app_module)
         app = app_module.build_http_app()
         with TestClient(app, base_url="http://127.0.0.1:8000") as client:
@@ -75,6 +82,37 @@ def test_facade_app_exposes_selected_discovered_tool(
                 },
             )
             assert "cold-result" in called.text
+            invalid_headers = {
+                "accept": "application/json, text/event-stream",
+                "content-type": "application/json",
+                "X-AXM-Tool-Surface": '["invalid_tool"]',
+            }
+            invalid_init = client.post(
+                "/mcp",
+                headers=invalid_headers,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": {"name": "test", "version": "1"},
+                    },
+                },
+            )
+            invalid_headers["mcp-session-id"] = invalid_init.headers["mcp-session-id"]
+            client.post(
+                "/mcp",
+                headers=invalid_headers,
+                json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+            )
+            invalid_list = client.post(
+                "/mcp",
+                headers=invalid_headers,
+                json={"jsonrpc": "2.0", "id": 5, "method": "tools/list"},
+            )
+            assert "cannot register selected tool invalid_tool" in invalid_list.text
     importlib.reload(app_module)
 
 

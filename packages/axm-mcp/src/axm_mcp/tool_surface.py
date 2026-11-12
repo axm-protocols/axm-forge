@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import Callable
 from contextvars import ContextVar
 from http import HTTPStatus
 
@@ -106,12 +107,30 @@ class ToolSurfaceServer(MCPServer[object]):
     """Enforce the same declaration at tools/list and tools/call."""
 
     _catalog_server: ToolSurfaceServer
+    _catalog_factory: Callable[[tuple[str, ...]], ToolSurfaceServer]
     _catalog_only: bool = False
 
     def set_catalog_server(self, server: ToolSurfaceServer) -> None:
         """Attach tools available exclusively to explicitly scoped sessions."""
         server._catalog_only = True
         self._catalog_server = server
+
+    def set_catalog_factory(
+        self, factory: Callable[[tuple[str, ...]], ToolSurfaceServer]
+    ) -> None:
+        """Build selected catalog schemas without registering unrelated tools."""
+        self._catalog_factory = factory
+
+    def _selected_catalog(self, names: tuple[str, ...]) -> ToolSurfaceServer | None:
+        factory = getattr(self, "_catalog_factory", None)
+        catalog = (
+            factory(names)
+            if factory is not None
+            else getattr(self, "_catalog_server", None)
+        )
+        if catalog is not None:
+            catalog._catalog_only = True
+        return catalog
 
     def register_declarative(self, tool: DeclarativeTool) -> None:
         """Register exact JSON schemas without deriving a kwargs signature."""
@@ -134,7 +153,7 @@ class ToolSurfaceServer(MCPServer[object]):
         )
         tools = [tool for tool in tools if tool_is_allowed(tool.name)]
         allowed = _surface.get()
-        catalog: ToolSurfaceServer | None = getattr(self, "_catalog_server", None)
+        catalog = self._selected_catalog(allowed) if allowed is not None else None
         if allowed is not None and catalog is not None:
             registered = {tool.name for tool in tools}
             tools.extend(
@@ -188,7 +207,7 @@ class ToolSurfaceServer(MCPServer[object]):
                 is_error=not result.success,
             )
         registered = {tool.name for tool in await super().list_tools()}
-        catalog: ToolSurfaceServer | None = getattr(self, "_catalog_server", None)
+        catalog = self._selected_catalog((name,)) if allowed is not None else None
         if name not in registered and allowed is not None and catalog is not None:
             return await catalog.call_tool(name, arguments, context)
         return await super().call_tool(name, arguments, context)

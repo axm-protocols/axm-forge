@@ -304,32 +304,33 @@ _EXTRA_TOOLS = {
 }
 
 
+def _session_catalog(names: tuple[str, ...]) -> ToolSurfaceServer:
+    """Materialize only the catalog entries requested by this session."""
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    server = ToolSurfaceServer("axm-mcp-session-catalog")
+    for name in names:
+        if name not in discovered_tools:
+            continue
+        try:
+            register_one(
+                server,
+                name,
+                discovered_tools[name],
+                registration=(
+                    _SHARED_MODE,
+                    _resolve_session_contract if _SHARED_MODE else None,
+                ),
+            )
+        except Exception as exc:
+            raise ToolError(f"cannot register selected tool {name}: {exc}") from exc
+    return server
+
+
 def _register_direct(tools: dict[str, ToolEntry]) -> None:
     """Register direct tools with the shared-mode resolver used by the facade."""
-    if (
-        _facade_enabled()
-        and isinstance(mcp, ToolSurfaceServer)
-        and not hasattr(mcp, "_catalog_server")
-    ):
-        catalog_server = ToolSurfaceServer("axm-mcp-session-catalog")
-        for catalog_name, catalog_tool in discovered_tools.items():
-            try:
-                register_one(
-                    catalog_server,
-                    catalog_name,
-                    catalog_tool,
-                    registration=(
-                        _SHARED_MODE,
-                        _resolve_session_contract if _SHARED_MODE else None,
-                    ),
-                )
-            except (TypeError, ValueError):
-                import logging
-
-                logging.getLogger(__name__).exception(
-                    "Cannot register selected catalog tool %s", catalog_name
-                )
-        mcp.set_catalog_server(catalog_server)
+    if _facade_enabled() and isinstance(mcp, ToolSurfaceServer):
+        mcp.set_catalog_factory(_session_catalog)
     for name, tool in tools.items():
         register_one(
             mcp,
