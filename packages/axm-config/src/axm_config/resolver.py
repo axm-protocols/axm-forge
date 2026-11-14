@@ -168,15 +168,24 @@ def resolve(
 
 
 def _resolve_with_origin(
-    ns: str, key: str, default: object, env_aliases: Sequence[str]
+    ns: str,
+    key: str,
+    default: object,
+    env_aliases: Sequence[str],
+    *,
+    strict: bool = False,
 ) -> tuple[object, dict[str, object]]:
     """The single layer decision shared by values and safe introspection."""
     validate_segment(ns, kind="namespace")
     validate_segment(key, kind="key")
+    store = NamespaceStore(strict_reads=True) if strict else _store
+    if strict:
+        # Diagnose a broken active file even when an environment value wins.
+        store._load_config()
     for name in (_env_name(ns, key), *env_aliases):
         if name in os.environ:
             return os.environ[name], {"layer": "env", "present": True}
-    configured = _get_file_value(ns, key, _MISSING)
+    configured = _get_file_value(ns, key, _MISSING, store=store)
     if configured is not _MISSING:
         return configured, {"layer": "file", "present": True}
     configured = _home_override_value(ns, key, _MISSING)
@@ -196,8 +205,12 @@ def _home_override_document() -> dict[str, object]:
             return tomllib.load(stream)
     except FileNotFoundError:
         return {}
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise ConfigError("cannot load AXM_HOME configuration") from exc
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        raise ConfigError(
+            "malformed TOML in AXM_HOME config.toml configuration"
+        ) from None
+    except OSError:
+        raise ConfigError("unreadable AXM_HOME config.toml configuration") from None
 
 
 def _home_override_namespace(namespace: str) -> dict[str, object]:
@@ -215,10 +228,19 @@ def _home_override_value(namespace: str, key: str, default: object) -> object:
 
 
 def resolution_origin(
-    namespace: str, key: str, *, env_aliases: Sequence[str] = ()
+    namespace: str,
+    key: str,
+    *,
+    env_aliases: Sequence[str] = (),
+    strict: bool = False,
 ) -> dict[str, object]:
-    """Describe the winning layer without returning or rendering any value."""
-    return _resolve_with_origin(namespace, key, _MISSING, env_aliases)[1]
+    """Describe the winning layer without returning or rendering any value.
+
+    ``strict=True`` also validates the active central file even if an env value
+    wins, and refuses malformed/unreadable file sources reached by resolution.
+    No default runtime resolution or tolerant store contract is changed.
+    """
+    return _resolve_with_origin(namespace, key, _MISSING, env_aliases, strict=strict)[1]
 
 
 if TYPE_CHECKING:
@@ -594,16 +616,23 @@ for _execution_policy_api in (
 del _execution_policy_api
 
 
-def _get_file_value(namespace: str, key: str, default: object) -> object:
-    direct_value = _store.read(namespace).get(key, _MISSING)
+def _get_file_value(
+    namespace: str,
+    key: str,
+    default: object,
+    *,
+    store: NamespaceStore | None = None,
+) -> object:
+    selected = store if store is not None else _store
+    direct_value = selected.read(namespace).get(key, _MISSING)
     if direct_value is not _MISSING:
         return direct_value
 
     child_namespace = f"{namespace}.{key}"
-    mapping = _store.read(child_namespace)
+    mapping = selected.read(child_namespace)
     descendants = [
         candidate
-        for candidate in _store.namespaces()
+        for candidate in selected.namespaces()
         if candidate == child_namespace or candidate.startswith(f"{child_namespace}.")
     ]
     if not mapping and not descendants:
@@ -620,7 +649,7 @@ def _get_file_value(namespace: str, key: str, default: object) -> object:
                 nested = {}
                 cursor[segment] = nested
             cursor = nested
-        cursor[relative_path[-1]] = _store.read(descendant)
+        cursor[relative_path[-1]] = selected.read(descendant)
     return mapping
 
 

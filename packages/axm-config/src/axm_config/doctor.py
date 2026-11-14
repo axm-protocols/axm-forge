@@ -20,10 +20,12 @@ from axm_config.resolver import (
     _KEY_RE,
     _home_override_document,
     _home_override_namespace,
-    _store,
     resolution_origin,
     validate_segment,
 )
+from axm_config.store import NamespaceStore
+
+_store = NamespaceStore(strict_reads=True)
 
 __all__ = ["config_doctor_data", "render_doctor_report"]
 
@@ -61,7 +63,7 @@ def _provenance(namespace: str, key: str) -> dict[str, object]:
     Delegates the resolver's layer decision and discards its value. No values
     are exposed. ``present`` is false only when no source supplies the key.
     """
-    return resolution_origin(namespace, key)
+    return resolution_origin(namespace, key, strict=True)
 
 
 def _known_namespaces() -> list[str]:
@@ -100,7 +102,11 @@ def render_doctor_report(report: dict[str, dict[str, object]]) -> str:
 def config_doctor_data(
     namespace: str | None = None,
 ) -> dict[str, dict[str, object]]:
-    """Report the resolution layer of every visible key, read-only.
+    """Strictly diagnose sources and report visible key provenance, read-only.
+
+    An absent source is normal. Malformed/unreadable active central/profile,
+    compatibility AXM_HOME, or consulted legacy files raise ConfigError with
+    safe filenames, never parser payloads. No partial report is returned.
 
     For ``namespace``, the reported keys are the union of the namespace's
     ``config.toml`` section keys and its ``AXM_<NS>_*`` environment keys. When

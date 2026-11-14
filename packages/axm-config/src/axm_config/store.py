@@ -84,8 +84,27 @@ def _strict_toml(path: Path) -> dict[str, object]:
         ) from exc
 
 
+def _diagnostic_toml(path: Path, source: str) -> dict[str, object]:
+    """Strict optional-file read; errors contain source labels, never payloads."""
+    from axm_config.resolver import ConfigError
+
+    try:
+        with path.open("rb") as stream:
+            return tomllib.load(stream)
+    except FileNotFoundError:
+        return {}
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        raise ConfigError(f"malformed TOML in {source} configuration") from None
+    except OSError:
+        raise ConfigError(f"unreadable {source} configuration") from None
+
+
 class NamespaceStore:
     """Read/write namespace sections of a single ``~/.axm/config.toml``.
+
+    ``strict_reads=True`` opts read/read_exact/namespaces into safe diagnostics:
+    missing inputs are normal, malformed/unreadable selected sources raise
+    ConfigError. The default remains tolerant for existing runtime consumers.
 
     Each namespace maps to a top-level (or nested, for a dotted namespace)
     TOML table within one ``config.toml``. Reads of an absent or malformed
@@ -98,6 +117,12 @@ class NamespaceStore:
     setting a key under the parent never erases them. Legacy
     ``~/.axm/<ns>.toml`` files are folded in on first write.
     """
+
+    _strict_reads = False
+
+    def __init__(self, *, strict_reads: bool = False) -> None:
+        """Opt into diagnostic failures; existing runtime reads stay tolerant."""
+        self._strict_reads = strict_reads
 
     def _config_path(self) -> Path:
         """Resolve the on-disk path of ``config.toml`` under ``axm_home()``.
@@ -138,6 +163,15 @@ class NamespaceStore:
         the call never raises for a consumer.
         """
         path = self._config_path()
+        if self._strict_reads:
+            from axm_config.profile import DEFAULT_PROFILE, current_profile
+
+            source = (
+                "central config.toml"
+                if current_profile() == DEFAULT_PROFILE
+                else "active-profile config.toml"
+            )
+            return _diagnostic_toml(path, source)
         try:
             with path.open("rb") as fh:
                 return tomllib.load(fh)
@@ -149,6 +183,8 @@ class NamespaceStore:
     def _read_legacy(self, ns: str) -> dict[str, object]:
         """Return the contents of the legacy ``~/.axm/<ns>.toml``, or ``{}``."""
         path = self._legacy_path(ns)
+        if self._strict_reads:
+            return _diagnostic_toml(path, f"legacy {ns}.toml")
         try:
             with path.open("rb") as fh:
                 return tomllib.load(fh)
@@ -294,9 +330,31 @@ class NamespaceStore:
         """
         found = set(_leaf_paths(self._load_config()))
         store_root = self._config_path().parent
-        for legacy in store_root.glob("*.toml"):
-            if legacy.name != CONFIG_FILENAME and _is_namespace(legacy.stem):
-                found.add(legacy.stem)
+        try:
+            if self._strict_reads:
+                with os.scandir(store_root) as entries:
+                    candidates = [Path(entry.path) for entry in entries]
+            else:
+                candidates = list(store_root.glob("*.toml"))
+            for legacy in candidates:
+                if (
+                    legacy.suffix == ".toml"
+                    and legacy.name != CONFIG_FILENAME
+                    and _is_namespace(legacy.stem)
+                ):
+                    found.add(legacy.stem)
+        except FileNotFoundError:
+            if not self._strict_reads:
+                raise
+            # A never-initialised installation has no namespace directory.
+        except OSError:
+            if self._strict_reads:
+                from axm_config.resolver import ConfigError
+
+                raise ConfigError(
+                    "unreadable configuration namespace directory"
+                ) from None
+            raise
         return sorted(found)
 
     def _fold_legacy(self, config: dict[str, object], ns: str) -> dict[str, object]:

@@ -18,7 +18,7 @@ def test_provenance_env_layer(monkeypatch: pytest.MonkeyPatch) -> None:
     assert entry["present"] is True
 
 
-def test_provenance_default_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_provenance_default_when_absent(monkeypatch, tmp_path) -> None:
     """AC1: with nothing set, an env-visible key resolves to a non-env layer.
 
     A file key seeds the report so the loop actually runs (the old test
@@ -26,30 +26,13 @@ def test_provenance_default_when_absent(monkeypatch: pytest.MonkeyPatch) -> None
     *different* key is set, so the seeded key must report ``file``/``present``.
     """
     monkeypatch.delenv("AXM_DEMO_KEY", raising=False)
-    monkeypatch.setattr(
-        "axm_config.doctor._store",
-        _StubStore({"demo": {"token": "seeded"}}),
-    )
-
-    from axm_config import doctor
-
-    monkeypatch.setattr("axm_config.resolver._store", doctor._store)
+    root = tmp_path / "installation"
+    root.mkdir()
+    (root / "config.toml").write_text('[demo]\ntoken = "seeded"\n')
+    monkeypatch.setenv("AXM_ROOT", str(root))
     report = config_doctor_data(namespace="demo")
 
     assert report["demo.token"] == {"layer": "file", "present": True}
-
-
-class _StubStore:
-    """In-memory stand-in for the doctor's ``_store`` (no real I/O)."""
-
-    def __init__(self, data: dict[str, dict[str, object]]) -> None:
-        self._data = data
-
-    def read(self, ns: str) -> dict[str, object]:
-        return dict(self._data.get(ns, {}))
-
-    def namespaces(self) -> list[str]:
-        return sorted(self._data)
 
 
 def test_doctor_drops_child_namespace_ghost(
@@ -64,7 +47,6 @@ def test_doctor_drops_child_namespace_ghost(
     through the public ``config_doctor_data`` surface.
     """
     monkeypatch.setenv("AXM_A__B_C", "1")
-    monkeypatch.setattr("axm_config.doctor._store", _StubStore({}))
 
     assert config_doctor_data(namespace="a") == {}
     assert config_doctor_data(namespace="a.b") == {
@@ -75,7 +57,6 @@ def test_doctor_drops_child_namespace_ghost(
 def test_doctor_keeps_legal_env_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """A well-formed env var for the namespace is still reported as an env key."""
     monkeypatch.setenv("AXM_A_FRED_API_KEY", "1")
-    monkeypatch.setattr("axm_config.doctor._store", _StubStore({}))
 
     assert config_doctor_data(namespace="a") == {
         "a.fred_api_key": {"layer": "env", "present": True}
