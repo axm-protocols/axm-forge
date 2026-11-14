@@ -73,4 +73,7 @@ def profile_config_path() -> Path:
 
 def profile_env() -> dict[str, str]:
     """Return the environment overlay that propagates the active profile."""
-    return {PROFILE_ENV_VAR: current_profile()}
+    values = {PROFILE_ENV_VAR: current_profile()}
+    if "AXM_ROOT" in os.environ:
+        values["AXM_ROOT"] = str(axm_home_path())
+    return values

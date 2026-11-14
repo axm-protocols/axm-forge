@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from axm_config import get, profile_root, service_port
+from axm_config.home import axm_state_path
 
 __all__ = [
     "HEALTH_PATH",
@@ -38,7 +39,7 @@ def resolve_pid_file() -> Path:
     root = profile_root()
     if root is not None:
         return root / "mcp-server.pid"
-    return Path.home() / ".axm" / "mcp-server.pid"
+    return axm_state_path() / "mcp-server.pid"
 
 
 def resolve_http_port() -> int:

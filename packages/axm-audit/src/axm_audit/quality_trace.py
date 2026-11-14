@@ -22,6 +22,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from axm_config.home import axm_data_path
+
 __all__ = ["record_quality_snapshot"]
 
 type TraceKind = Literal["audit", "governance", "code"]
@@ -32,7 +34,7 @@ _CODE_KEYS = ("lines", "modules", "functions", "classes")
 
 def _quality_dir() -> Path:
     """Root directory for quality history files (``~/axm/quality``)."""
-    return Path.home() / "axm" / "quality"
+    return axm_data_path() / "quality"
 
 
 def _git_head(project_path: Path) -> tuple[str | None, str | None]:

@@ -38,6 +38,7 @@ _RESTORED_KEYS = (
     _LAUNCH_HOME_ENV,
     _LAUNCH_PROFILE_ENV,
     _LAUNCH_AXM_HOME_ENV,
+    "AXM_ROOT",
     _PROFILE_ENV,
 )
 # The launch variables of the six sandboxed state paths.
@@ -86,7 +87,10 @@ def _home_of(environ: Mapping[str, str]) -> Path:
 def _refuse_escapes(environ: Mapping[str, str], home: Path) -> None:
     """Raise when a launch variable resolves at or under HOME/axm or HOME/.axm."""
     resolved_home = home.expanduser().resolve()
-    forbidden = (resolved_home / "axm", resolved_home / ".axm")
+    forbidden: tuple[Path, ...] = (resolved_home / "axm", resolved_home / ".axm")
+    installation_root = environ.get("AXM_ROOT")
+    if installation_root:
+        forbidden += (Path(installation_root).expanduser().resolve(),)
     for variable in _GUARDED_VARIABLES:
         value = environ.get(variable)
         if not value:
@@ -148,6 +152,7 @@ def activate_sandbox(
     env[_LAUNCH_PROFILE_ENV] = launch_profile or ""
     env[_LAUNCH_AXM_HOME_ENV] = launch_axm_home or ""
     env.pop(_PROFILE_ENV, None)
+    env.pop("AXM_ROOT", None)
     return sandbox
 
 

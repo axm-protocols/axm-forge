@@ -40,7 +40,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import NamedTuple, cast
 
-from axm_config.home import axm_home_path, resolve_safe
+from axm_config.home import axm_home_path, axm_state_path, resolve_safe
 from axm_config.profile import PROFILE_ENV_VAR, current_profile, profile_root_for
 from axm_config.resolver import ConfigError, resolve
 from axm_config.sandbox import SessionSandbox, active_sandbox
@@ -218,6 +218,13 @@ def get_path(
         relative = _PROFILE_RELATIVE_PATHS.get((namespace, key))
         if root is not None and relative is not None:
             return root / relative
+        if root is None and "AXM_ROOT" in os.environ:
+            legacy_data = Path.home() / "axm"
+            legacy_state = Path.home() / ".axm"
+            if default.is_relative_to(legacy_data):
+                return axm_home_path() / "data" / default.relative_to(legacy_data)
+            if default.is_relative_to(legacy_state):
+                return axm_state_path() / default.relative_to(legacy_state)
         return default
     resolved = _normalise_configured(namespace, key, configured)
 
@@ -490,7 +497,7 @@ def warden_socket(
     their own ``if socket is not None: return socket`` guard and delegate the
     rest.
     """
-    fallback = default if default is not None else Path.home() / ".axm" / "warden.sock"
+    fallback = default if default is not None else axm_state_path() / "warden.sock"
     return get_path("warden_socket", default=fallback, profile=profile)
 
 

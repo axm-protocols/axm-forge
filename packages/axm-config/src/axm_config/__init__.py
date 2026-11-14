@@ -9,7 +9,13 @@ import importlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from axm_config.home import axm_home, axm_home_path, resolve_safe
+    from axm_config.home import (
+        axm_data_path,
+        axm_home,
+        axm_home_path,
+        axm_state_path,
+        resolve_safe,
+    )
     from axm_config.isolation import (
         ProfileIsolation,
         is_isolated,
@@ -67,7 +73,16 @@ if TYPE_CHECKING:
 # ``axm_config.pytest_plugin`` is imported by every pytest session before
 # coverage starts, so the package root must not import its submodules eagerly.
 _EXPORTS: dict[str, str] = {
-    **dict.fromkeys(("axm_home", "axm_home_path", "resolve_safe"), "home"),
+    **dict.fromkeys(
+        (
+            "axm_data_path",
+            "axm_home",
+            "axm_home_path",
+            "axm_state_path",
+            "resolve_safe",
+        ),
+        "home",
+    ),
     **dict.fromkeys(
         ("ProfileIsolation", "is_isolated", "profile_isolation"), "isolation"
     ),
@@ -154,8 +169,10 @@ __all__ = [
     "ProfileIsolation",
     "ProfileIsolationTool",
     "UnsafeHomeError",
+    "axm_data_path",
     "axm_home",
     "axm_home_path",
+    "axm_state_path",
     "current_profile",
     "delete",
     "delete_execution_policy",

@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 import axm_config
 from axm_config import NamespaceStore
+from axm_config.home import axm_data_path
 from pydantic import BaseModel, field_validator
 
 __all__ = [
@@ -30,7 +31,7 @@ def _legacy_config_path() -> Path:
     is honoured — the constant is frozen at import. Kept for the transitional
     AC3 fallback only.
     """
-    return Path.home() / "axm" / "git-profiles.toml"
+    return axm_data_path() / "git-profiles.toml"
 
 
 _DAY_MAP: dict[str, int] = {
