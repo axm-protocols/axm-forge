@@ -64,13 +64,30 @@ def axm_state_path(*parts: str) -> Path:
     root = axm_home_path()
     if "AXM_ROOT" in os.environ:
         root = root / "state"
-    return root.joinpath(*parts)
+    return _runtime_join(root, parts)
 
 
 def axm_data_path(*parts: str) -> Path:
     """Return persistent data below AXM_ROOT/data, or ~/axm by default."""
     root = axm_home_path() / "data" if "AXM_ROOT" in os.environ else Path.home() / "axm"
-    return root.joinpath(*parts)
+    return _runtime_join(root, parts)
+
+
+def _runtime_join(root: Path, parts: tuple[str, ...]) -> Path:
+    """Keep caller-supplied suffixes relative to the selected runtime root."""
+    for part in parts:
+        relative = Path(part)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("runtime path suffix must be relative and contained")
+    target = root.joinpath(*parts)
+    if not target.resolve().is_relative_to(root.resolve()):
+        raise ValueError("runtime path suffix escapes root through a link")
+    if "AXM_ROOT" in os.environ:
+        installation = axm_home_path()
+        if not target.resolve().is_relative_to(installation):
+            raise ValueError("runtime path escapes installation through a link")
+        resolve_safe(target)
+    return target
 
 
 def relocate_runtime_path(value: str | os.PathLike[str]) -> Path:
@@ -81,6 +98,23 @@ def relocate_runtime_path(value: str | os.PathLike[str]) -> Path:
     path = path.resolve()
     home = Path.home().resolve()
     root = axm_home_path()
+    # Canonical runtime paths win before legacy aliases (AXM/axm may be
+    # the same directory on a case-insensitive volume). Never map data twice.
+    if path.is_relative_to(root):
+        return path
+    # pathlib containment is case-sensitive even on a case-insensitive volume.
+    # Verify aliases against the filesystem, never by lowercasing arbitrary paths.
+    for ancestor in (path, *path.parents):
+        try:
+            same_root = ancestor.samefile(root)
+        except OSError:
+            continue
+        relative = path.relative_to(ancestor)
+        if same_root and (
+            not relative.parts
+            or relative.parts[0] in {"data", "state", "profiles", "config.toml"}
+        ):
+            return root / relative
     if path == home / ".axm/config.toml":
         return root / "config.toml"
     prefixes = (

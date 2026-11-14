@@ -32,7 +32,7 @@ def test_set_command_delegates(mocker: pytest.MonkeyPatch) -> None:
 
 def test_path_command_delegates(mocker: pytest.MonkeyPatch) -> None:
     """AC5: ``path`` command body delegates to the central ``axm_home``."""
-    spy = mocker.patch("axm_config.cli.axm_home")
+    spy = mocker.patch("axm_config.cli.axm_home_path")
 
     app(["path"], result_action="return_none")
 
@@ -88,7 +88,7 @@ def test_path_oserror_exits_clean(
 ) -> None:
     """``path`` failing to create ``~/.axm`` exits 1 with a stderr message."""
     mocker.patch(
-        "axm_config.cli.axm_home",
+        "axm_config.cli.axm_home_path",
         side_effect=PermissionError(13, "Permission denied"),
     )
 

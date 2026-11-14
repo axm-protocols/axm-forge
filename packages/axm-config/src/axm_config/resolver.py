@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import os
 import re
+import tomllib
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import BaseModel, ConfigDict
@@ -43,6 +45,7 @@ __all__ = [
     "get_file_namespace",
     "list_execution_policies",
     "load",
+    "resolution_origin",
     "set_",
     "set_execution_policy",
     "validate_segment",
@@ -152,7 +155,8 @@ def resolve(
 
     Validates ``ns`` and ``key`` at this boundary (covers :func:`get` and
     :func:`load`), then returns the env value (raw ``str``) if set, else the
-    file value from the namespace store, else ``default``.
+    file value from the active profile namespace store, then the compatibility
+    AXM_HOME/config.toml fallback, else ``default``.
 
     ``env_aliases`` names historical environment variables kept alive for
     installations that still set them. They are consulted **after** the
@@ -160,16 +164,61 @@ def resolve(
     explicitly posed still outranks a configured value while never shadowing
     the canonical name.
     """
+    return _resolve_with_origin(ns, key, default, env_aliases)[0]
+
+
+def _resolve_with_origin(
+    ns: str, key: str, default: object, env_aliases: Sequence[str]
+) -> tuple[object, dict[str, object]]:
+    """The single layer decision shared by values and safe introspection."""
     validate_segment(ns, kind="namespace")
     validate_segment(key, kind="key")
-    env_value = os.environ.get(_env_name(ns, key), _MISSING)
-    if env_value is not _MISSING:
-        return env_value
-    for alias in env_aliases:
-        alias_value = os.environ.get(alias, _MISSING)
-        if alias_value is not _MISSING:
-            return alias_value
-    return _get_file_value(ns, key, default)
+    for name in (_env_name(ns, key), *env_aliases):
+        if name in os.environ:
+            return os.environ[name], {"layer": "env", "present": True}
+    configured = _get_file_value(ns, key, _MISSING)
+    if configured is not _MISSING:
+        return configured, {"layer": "file", "present": True}
+    configured = _home_override_value(ns, key, _MISSING)
+    if configured is not _MISSING:
+        return configured, {"layer": "home", "present": True}
+    return default, {"layer": "default", "present": False}
+
+
+def _home_override_document() -> dict[str, object]:
+    """Read the compatibility config once; never initialise or migrate it."""
+    home = os.environ.get("AXM_HOME")
+    if home is None:
+        return {}
+    path = Path(home).expanduser() / "config.toml"
+    try:
+        with path.open("rb") as stream:
+            return tomllib.load(stream)
+    except FileNotFoundError:
+        return {}
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ConfigError("cannot load AXM_HOME configuration") from exc
+
+
+def _home_override_namespace(namespace: str) -> dict[str, object]:
+    section: object = _home_override_document()
+    for part in namespace.split("."):
+        if not isinstance(section, dict):
+            return {}
+        section = section.get(part, {})
+    return section if isinstance(section, dict) else {}
+
+
+def _home_override_value(namespace: str, key: str, default: object) -> object:
+    """Compatibility fallback; AXM_HOME does not select installation state."""
+    return _home_override_namespace(namespace).get(key, default)
+
+
+def resolution_origin(
+    namespace: str, key: str, *, env_aliases: Sequence[str] = ()
+) -> dict[str, object]:
+    """Describe the winning layer without returning or rendering any value."""
+    return _resolve_with_origin(namespace, key, _MISSING, env_aliases)[1]
 
 
 if TYPE_CHECKING:

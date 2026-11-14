@@ -13,7 +13,7 @@ from typing import Annotated, NoReturn
 import cyclopts
 
 from axm_config.doctor import config_doctor_data, render_doctor_report
-from axm_config.home import axm_home
+from axm_config.home import axm_home, axm_home_path
 from axm_config.resolver import ConfigError, delete, get, set_
 
 __all__ = ["app"]
@@ -76,11 +76,12 @@ def _delete_cmd(
 
 @app.command(name="path")
 def _path_cmd() -> None:
-    """Print the resolved ``~/.axm`` home directory."""
+    """Print the installation home without creating it."""
     try:
-        home = axm_home()
-    except OSError as exc:
-        _die(exc)
+        home = axm_home_path()
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)  # noqa: T201 - CLI error
+        raise SystemExit(1) from exc
     print(home)  # noqa: T201 - CLI output
 
 
@@ -99,3 +100,14 @@ def _doctor_cmd(
     rendered = render_doctor_report(report)
     if rendered:
         print(rendered)  # noqa: T201 - CLI output
+
+
+@app.command(name="init")
+def _init_cmd() -> None:
+    """Explicitly prepare the installation home; never start any service."""
+    try:
+        home = axm_home()
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)  # noqa: T201 - CLI error
+        raise SystemExit(1) from exc
+    print(home)  # noqa: T201 - CLI output

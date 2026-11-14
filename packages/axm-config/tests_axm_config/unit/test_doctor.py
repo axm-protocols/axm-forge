@@ -31,6 +31,9 @@ def test_provenance_default_when_absent(monkeypatch: pytest.MonkeyPatch) -> None
         _StubStore({"demo": {"token": "seeded"}}),
     )
 
+    from axm_config import doctor
+
+    monkeypatch.setattr("axm_config.resolver._store", doctor._store)
     report = config_doctor_data(namespace="demo")
 
     assert report["demo.token"] == {"layer": "file", "present": True}

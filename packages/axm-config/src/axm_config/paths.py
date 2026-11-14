@@ -35,14 +35,18 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
-import tomllib
 from collections.abc import Sequence
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import NamedTuple
 
-from axm_config.home import axm_home_path, axm_state_path, resolve_safe
+from axm_config.home import (
+    axm_home_path,
+    axm_state_path,
+    relocate_runtime_path,
+    resolve_safe,
+)
 from axm_config.profile import PROFILE_ENV_VAR, current_profile, profile_root_for
-from axm_config.resolver import ConfigError, resolve
+from axm_config.resolver import ConfigError, _home_override_value, resolve
 from axm_config.sandbox import SessionSandbox, active_sandbox
 
 __all__ = [
@@ -82,32 +86,7 @@ def _resolve_configured(
     env_aliases: Sequence[str] = (),
 ) -> object:
     """Resolve a value, honoring an explicitly isolated AXM home."""
-    configured = resolve(namespace, key, _MISSING, env_aliases=env_aliases)
-    if configured is not _MISSING:
-        return configured
-
-    home_override = os.environ.get("AXM_HOME")
-    if home_override is None:
-        return _MISSING
-    return _read_home_config(Path(home_override), namespace, key)
-
-
-def _read_home_config(home: Path, namespace: str, key: str) -> object:
-    """Read ``namespace.key`` from ``home/config.toml``, else ``_MISSING``."""
-    config_path = home / "config.toml"
-    try:
-        with config_path.open("rb") as stream:
-            document = tomllib.load(stream)
-    except FileNotFoundError:
-        return _MISSING
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        msg = f"cannot load configuration from {config_path}: {exc}"
-        raise ConfigError(msg) from exc
-
-    section = document.get(namespace)
-    if not isinstance(section, dict):
-        return _MISSING
-    return cast(object, section.get(key, _MISSING))
+    return resolve(namespace, key, _MISSING, env_aliases=env_aliases)
 
 
 def _requested_profile(profile: str | None) -> str:
@@ -122,6 +101,10 @@ _PROFILE_RELATIVE_PATHS = {
     (PATHS_NAMESPACE, "quality_dir"): Path("quality"),
     (PATHS_NAMESPACE, "protocols_dir"): Path("protocols"),
     ("warden", "log_path"): Path("warden.log"),
+    ("orison", "usage_path"): Path("orison/usage.json"),
+    ("orison", "summary_dir"): Path("orison/run-summaries"),
+    ("orison", "addon_preferences_path"): Path("orison/addon-preferences.sqlite3"),
+    ("orison", "favorites_path"): Path("orison/model-favorites.json"),
     (PATHS_NAMESPACE, "warden_socket"): Path("warden.sock"),
 }
 
@@ -182,7 +165,7 @@ def _sandboxed_path(namespace: str, key: str) -> Path | None:
         return _normalise_configured(namespace, key, env_value)
     axm_home = os.environ.get("AXM_HOME")
     if axm_home and axm_home != sandbox.launch_axm_home:
-        configured = _read_home_config(Path(axm_home), namespace, key)
+        configured = _home_override_value(namespace, key, _MISSING)
         if configured is not _MISSING:
             return _normalise_configured(namespace, key, configured)
     return sandbox.root / relative
@@ -219,12 +202,7 @@ def get_path(
         if root is not None and relative is not None:
             return root / relative
         if root is None and "AXM_ROOT" in os.environ:
-            legacy_data = Path.home() / "axm"
-            legacy_state = Path.home() / ".axm"
-            if default.is_relative_to(legacy_data):
-                return axm_home_path() / "data" / default.relative_to(legacy_data)
-            if default.is_relative_to(legacy_state):
-                return axm_state_path() / default.relative_to(legacy_state)
+            return relocate_runtime_path(default)
         return default
     resolved = _normalise_configured(namespace, key, configured)
 

@@ -16,7 +16,14 @@ from __future__ import annotations
 
 import os
 
-from axm_config.resolver import _KEY_RE, _env_name, _store, validate_segment
+from axm_config.resolver import (
+    _KEY_RE,
+    _home_override_document,
+    _home_override_namespace,
+    _store,
+    resolution_origin,
+    validate_segment,
+)
 
 __all__ = ["config_doctor_data", "render_doctor_report"]
 
@@ -51,15 +58,10 @@ def _env_keys(namespace: str) -> set[str]:
 def _provenance(namespace: str, key: str) -> dict[str, object]:
     """Return ``{layer, present}`` for ``key`` per ``env > file > default``.
 
-    Mirrors the resolver's precedence without reading the value: an env var
-    wins over a file key, a file key over the implicit default. ``present`` is
-    ``False`` only for the ``default`` layer (no source supplies the key).
+    Delegates the resolver's layer decision and discards its value. No values
+    are exposed. ``present`` is false only when no source supplies the key.
     """
-    if _env_name(namespace, key) in os.environ:
-        return {"layer": "env", "present": True}
-    if key in _store.read(namespace):
-        return {"layer": "file", "present": True}
-    return {"layer": "default", "present": False}
+    return resolution_origin(namespace, key)
 
 
 def _known_namespaces() -> list[str]:
@@ -70,7 +72,17 @@ def _known_namespaces() -> list[str]:
     the single ``config.toml`` plus any not-yet-folded legacy per-namespace
     files — is the source of truth for "all known".
     """
-    return _store.namespaces()
+    namespaces = set(_store.namespaces())
+    pending = [("", _home_override_document())]
+    while pending:
+        prefix, section = pending.pop()
+        for key, value in section.items():
+            if isinstance(value, dict):
+                namespace = f"{prefix}.{key}" if prefix else key
+                validate_segment(namespace, kind="namespace")
+                namespaces.add(namespace)
+                pending.append((namespace, value))
+    return sorted(namespaces)
 
 
 def render_doctor_report(report: dict[str, dict[str, object]]) -> str:
@@ -102,7 +114,11 @@ def config_doctor_data(
     namespaces = [namespace] if namespace is not None else _known_namespaces()
     report: dict[str, dict[str, object]] = {}
     for ns in namespaces:
-        keys = set(_store.read(ns)) | _env_keys(ns)
+        keys = (
+            set(_store.read(ns))
+            | {key for key in _home_override_namespace(ns) if _KEY_RE.fullmatch(key)}
+            | _env_keys(ns)
+        )
         for key in sorted(keys):
             report[f"{ns}.{key}"] = _provenance(ns, key)
     return report
