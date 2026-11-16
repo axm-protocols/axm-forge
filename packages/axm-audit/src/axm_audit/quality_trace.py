@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Literal
 
 from axm_config.home import axm_data_path
+from axm_ingot import QualityOrigin
 
 __all__ = ["record_quality_snapshot"]
 
@@ -94,12 +95,13 @@ def record_quality_snapshot(
     path: str,
     kind: TraceKind,
     data: Mapping[str, object],
-) -> None:
-    """Append one quality snapshot line for ``path``; never raise.
+    origin: QualityOrigin | None = None,
+) -> bool:
+    """Append one quality snapshot line; return whether persistence succeeded.
 
     Args:
-        path: Path to the audited project (its directory name becomes the
-            history file name).
+        path: Measured project path; its directory name is used without origin.
+        origin: Explicit source package and revision for an exported tree.
         kind: ``"audit"`` (axm-audit), ``"governance"`` (axm-init) or ``"code"``
             (code metrics).
         data: The ``ToolResult.data`` dict — for ``audit``/``governance`` it must
@@ -108,8 +110,9 @@ def record_quality_snapshot(
     """
     try:
         project_path = Path(path).resolve()
-        package = project_path.name
-        sha, branch = _git_head(project_path)
+        identity = origin.path if origin is not None else project_path
+        package = identity.name
+        sha, branch = (origin.sha, origin.branch) if origin else _git_head(project_path)
         line: dict[str, object] = {
             "ts": datetime.now(UTC).isoformat(timespec="seconds"),
             "repo": package,
@@ -123,10 +126,13 @@ def record_quality_snapshot(
             line["score"] = data.get("score")
             line["grade"] = data.get("grade")
             line["fails"] = normalize_fails(data)
+        if origin is not None:
+            line["source_path"] = str(origin.path)
         out_dir = _quality_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
         target = out_dir / f"{package}.jsonl"
         with target.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(line, default=str) + "\n")
+        return True
     except Exception:  # noqa: BLE001 - observability must never break an audit
-        return
+        return False

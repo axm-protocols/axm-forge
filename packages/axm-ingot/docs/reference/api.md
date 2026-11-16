@@ -14,7 +14,7 @@
 | `axm_ingot.uv` only | `parse_workspace_members` | [Raw parser](#parse_workspace_members) |
 | `axm_ingot.render` only | `render_result`, `record_table` | [Generic rendering](render.md#render_result) |
 
-The root exports 14 symbols. The five suite utilities are internal:
+The root also exports `QualityOrigin`. The five suite utilities are internal:
 see [suite helpers](suites.md). The [generated API](generated.md) provides
 source-derived signatures for the root exports and documented submodule helpers.
 
@@ -109,6 +109,16 @@ ignored, so single-file or namespace layouts yield `()`. Nothing is cached:
 the filesystem is read on every access. Callers that need something to measure
 in that case (e.g. coverage targets) apply their own explicit fallback, such
 as `member.path / "src"`.
+
+## Quality provenance
+
+`QualityOrigin(path: Path, sha: str, branch: str)` is a frozen record.
+`QualityOrigin.from_data(mapping)` accepts exactly `path`, `sha` and `branch`,
+all strings, and returns a validated record; `None` returns `None`.
+The path must be absolute and canonical, the SHA a full 40- or 64-character Git
+object ID, and the branch nonempty, trimmed and free of newline or NUL characters.
+Invalid origins raise `ValueError`. The record names an origin supplied by its
+caller; it does not prove that an export contains that revision.
 
 ## Explicit instruments
 

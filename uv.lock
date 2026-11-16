@@ -890,6 +890,7 @@ source = { editable = "packages/axm-mcp" }
 dependencies = [
     { name = "axm" },
     { name = "axm-config" },
+    { name = "axm-ingot" },
     { name = "cyclopts" },
     { name = "httpx" },
     { name = "jsonschema" },
@@ -993,6 +994,7 @@ requires-dist = [
     { name = "axm-git", marker = "extra == 'all'", editable = "packages/axm-git" },
     { name = "axm-git", marker = "extra == 'forge'", editable = "packages/axm-git" },
     { name = "axm-git", marker = "extra == 'git'", editable = "packages/axm-git" },
+    { name = "axm-ingot", editable = "packages/axm-ingot" },
     { name = "axm-init", marker = "extra == 'all'", editable = "packages/axm-init" },
     { name = "axm-init", marker = "extra == 'forge'", editable = "packages/axm-init" },
     { name = "axm-init", marker = "extra == 'init'", editable = "packages/axm-init" },

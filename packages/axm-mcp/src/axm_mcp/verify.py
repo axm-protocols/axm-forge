@@ -65,19 +65,28 @@ def _aggregate_symbol_impact(
 def verify_project(
     path: str,
     tools: Mapping[str, AXMTool],
+    *,
+    origin: dict[str, str] | None = None,
 ) -> dict[str, object]:
     """One-shot project verification: audit + init check + AST enrichment.
 
     Args:
         path: Path to project root.
         tools: Dict of discovered tools (from ``discover_tools()``).
+        origin: Source package path, full pinned SHA and branch for an export.
 
     Returns:
         Consolidated result with 'audit' and 'governance' sections.
         Each section is None if the corresponding tool is not installed.
     """
-    audit_data = run_tool(tools, "audit", path=path)
-    governance_data = run_tool(tools, "init_check", path=path)
+    arguments: dict[str, object] = {"path": path}
+    if origin is not None:
+        from axm_ingot import QualityOrigin
+
+        QualityOrigin.from_data(origin)
+        arguments["snapshot_origin"] = origin
+    audit_data = run_tool(tools, "audit", **arguments)
+    governance_data = run_tool(tools, "init_check", **arguments)
 
     # Enrich audit failures with AST context
     if audit_data is not None:
@@ -110,6 +119,14 @@ def run_tool(
         result = tool.execute(**kwargs)
         if result.success:
             data = cast(dict[str, object], result.data)
+            return data
+        data = result.data
+        if (
+            isinstance(data, dict)
+            and {"score", "grade", "failed"} <= data.keys()
+            and isinstance(data["failed"], list)
+        ):
+            # A quality-policy refusal still carries a valid measurement.
             return data
         logger.warning("Tool '%s' failed: %s", tool_name, result.error)
         return {"error": result.error}

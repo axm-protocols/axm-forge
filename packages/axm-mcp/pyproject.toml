@@ -16,6 +16,7 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-config",
+    "axm-ingot",
     "cyclopts>=4.21.0",
     "httpx>=0.28",
     "jsonschema>=4.26",

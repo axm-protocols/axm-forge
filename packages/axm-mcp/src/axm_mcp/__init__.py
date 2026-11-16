@@ -2,8 +2,9 @@
 
 from axm_mcp._version import __version__
 from axm_mcp.scoped import create_scoped_mcp_app
+from axm_mcp.verify import verify_project
 
-__all__ = ["__version__", "create_scoped_mcp_app", "main"]
+__all__ = ["__version__", "create_scoped_mcp_app", "main", "verify_project"]
 
 
 def main() -> None:

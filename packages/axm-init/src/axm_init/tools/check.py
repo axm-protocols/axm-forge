@@ -56,6 +56,7 @@ class InitCheckTool:
         json_output: bool = False,
         agent: bool = False,
         verbose: bool = False,
+        snapshot_origin: dict[str, str] | None = None,
     ) -> ToolResult:
         """Check a project against the AXM gold standard.
 
@@ -65,11 +66,15 @@ class InitCheckTool:
             json_output: If True, render the structured report.
             agent: If True, render the structured report for agents.
             verbose: If True, include per-check detail in the rendered text.
+            snapshot_origin: Source path, pinned full SHA and branch for an export.
 
         Returns:
             ToolResult with check scores and details.
         """
         try:
+            from axm_ingot import QualityOrigin
+
+            origin = QualityOrigin.from_data(snapshot_origin)
             project_path = Path(path).resolve()
             if not project_path.is_dir():
                 return ToolResult(
@@ -91,9 +96,11 @@ class InitCheckTool:
 
             from axm_init.quality_trace import record_quality_snapshot
 
-            record_quality_snapshot(
-                path=str(project_path), kind="governance", data=data
+            recorded = record_quality_snapshot(
+                path=str(project_path), kind="governance", data=data, origin=origin
             )
+            if origin is not None:
+                data["snapshot_recorded"] = recorded
             success = _resolve_success(result)
             return ToolResult(
                 success=success,

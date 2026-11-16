@@ -36,12 +36,14 @@ class AuditTool(AXMTool):
         *,
         path: str = ".",
         category: str | None = None,
+        snapshot_origin: dict[str, str] | None = None,
         **kwargs: object,
     ) -> ToolResult:
         """Audit a Python project's code quality.
 
         Args:
             path: Path to project root.
+            snapshot_origin: Source path, pinned full SHA and branch for an export.
             category: Optional category filter. One of:
                 {categories}
 
@@ -50,6 +52,9 @@ class AuditTool(AXMTool):
             and a compact ``text`` summary for LLM consumption).
         """
         try:
+            from axm_ingot import QualityOrigin
+
+            origin = QualityOrigin.from_data(snapshot_origin)
             project_path = Path(path).resolve()
             if not project_path.is_dir():
                 return ToolResult(
@@ -66,14 +71,19 @@ class AuditTool(AXMTool):
             from axm_audit.code_metrics import collect_code_metrics
             from axm_audit.quality_trace import record_quality_snapshot
 
-            record_quality_snapshot(path=str(project_path), kind="audit", data=data)
+            audit_recorded = record_quality_snapshot(
+                path=str(project_path), kind="audit", data=data, origin=origin
+            )
             # Also snapshot code metrics (LOC + structural counts) so trends can
             # be charted over time; best-effort, never breaks the audit.
-            record_quality_snapshot(
+            code_recorded = record_quality_snapshot(
                 path=str(project_path),
                 kind="code",
                 data=collect_code_metrics(str(project_path)),
+                origin=origin,
             )
+            if origin is not None:
+                data["snapshot_recorded"] = audit_recorded and code_recorded
             return ToolResult(success=True, data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))

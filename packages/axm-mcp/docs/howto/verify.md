@@ -51,6 +51,30 @@ is available, `context` may include:
 No resolvable symbols or failed AST queries means no context. Some findings
 cannot be enriched.
 
+## Measure an exported revision
+
+The public Python API `from axm_mcp import verify_project` accepts a keyword-only
+`origin={"path": "/canonical/source/packages/demo", "sha": "<full Git SHA>",
+"branch": "dev"}` alongside the exported package path and discovered tools.
+The caller must pin that revision and export its contents; this parameter records
+provenance, it does not check out or validate a Git revision.
+
+The origin path must be absolute and canonical, the SHA a full 40- or 64-character
+Git object ID, and the branch nonempty. `QualityOrigin` from `axm_ingot` owns this
+shared validation. The aggregator forwards the payload as `snapshot_origin` to
+`audit` and `init_check`. History retains the source package basename,
+`source_path`, SHA and branch, even when the measured export has no `.git`.
+
+For calls with an origin, both provider sections include `snapshot_recorded`.
+It is true only after the history write succeeds (both audit and code-metric
+records for `audit`). A false or missing receipt is incomplete persistence,
+regardless of the score. Ordinary calls without an origin keep their existing
+payload shape and best-effort history behavior.
+
+A provider's quality-policy refusal with a structured `score`/`grade`/`failed`
+payload remains a measurement in `verify`; operational failures without such
+data remain error sections.
+
 ## Operational effects
 
 This is an orchestration convenience, not a pure in-memory check. Providers

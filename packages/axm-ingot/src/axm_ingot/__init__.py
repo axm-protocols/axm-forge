@@ -9,6 +9,7 @@ from axm_ingot.console import console_script
 from axm_ingot.duration import format_duration
 from axm_ingot.instruments import instrument_command
 from axm_ingot.pytest_tally import tally_outcomes
+from axm_ingot.quality import QualityOrigin
 from axm_ingot.render import (
     compact_table,
     format_count,
@@ -27,6 +28,7 @@ from axm_ingot.uv import (
 
 __all__ = [
     "Member",
+    "QualityOrigin",
     "ResolvedWorkspace",
     "compact_table",
     "console_script",

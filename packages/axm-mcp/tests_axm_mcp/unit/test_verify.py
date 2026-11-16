@@ -76,6 +76,45 @@ class TestVerifyToolRegistered:
 class TestVerifyProject:
     """Tests for verify_project() orchestration logic."""
 
+    def test_quality_refusal_keeps_governance_measurement(self) -> None:
+        """A valid low score remains data, despite the provider's exit policy."""
+        from axm_mcp.verify import verify_project
+
+        payload = {
+            "score": 72,
+            "grade": "C",
+            "passed": [],
+            "failed": [{"rule_id": "ci.workflow", "message": "Missing CI"}],
+        }
+        checker = MagicMock()
+        checker.execute.return_value = ToolResult(
+            success=False, data=payload, error="Gold-standard checks failed"
+        )
+        result = verify_project("/tmp/project", {"init_check": checker})
+        assert result["governance"] == payload
+
+    def test_snapshot_origin_is_forwarded_to_both_measurements(self) -> None:
+        """The exported tree carries its source revision through both providers."""
+        from axm_mcp.verify import verify_project
+
+        audit = MagicMock()
+        checker = MagicMock()
+        for provider in (audit, checker):
+            provider.execute.return_value = ToolResult(
+                success=True,
+                data={"score": 100, "grade": "A", "passed": [], "failed": []},
+            )
+        origin = {"path": "/source/packages/demo", "sha": "a" * 40, "branch": "dev"}
+        verify_project(
+            "/export/packages/demo",
+            {"audit": audit, "init_check": checker},
+            origin=origin,
+        )
+        for provider in (audit, checker):
+            provider.execute.assert_called_once_with(
+                path="/export/packages/demo", snapshot_origin=origin
+            )
+
     @pytest.fixture()
     def mock_tools(self) -> dict[str, MagicMock]:
         """Mock discovered tools dict."""
