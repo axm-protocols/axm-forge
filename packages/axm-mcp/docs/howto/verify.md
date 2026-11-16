@@ -71,7 +71,7 @@ records for `audit`). A false or missing receipt is incomplete persistence,
 regardless of the score. Ordinary calls without an origin keep their existing
 payload shape and best-effort history behavior.
 
-A provider's quality-policy refusal with a structured `score`/`grade`/`failed`
+A provider's quality-policy refusal with `score`, `grade` and a `failed` or `failures`
 payload remains a measurement in `verify`; operational failures without such
 data remain error sections.
 

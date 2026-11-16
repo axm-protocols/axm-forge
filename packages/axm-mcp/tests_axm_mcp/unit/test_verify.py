@@ -84,7 +84,7 @@ class TestVerifyProject:
             "score": 72,
             "grade": "C",
             "passed": [],
-            "failed": [{"rule_id": "ci.workflow", "message": "Missing CI"}],
+            "failures": [{"name": "ci.workflow", "message": "Missing CI"}],
         }
         checker = MagicMock()
         checker.execute.return_value = ToolResult(

@@ -123,8 +123,11 @@ def run_tool(
         data = result.data
         if (
             isinstance(data, dict)
-            and {"score", "grade", "failed"} <= data.keys()
-            and isinstance(data["failed"], list)
+            and {"score", "grade"} <= data.keys()
+            and (
+                isinstance(data.get("failed"), list)
+                or isinstance(data.get("failures"), list)
+            )
         ):
             # A quality-policy refusal still carries a valid measurement.
             return data
