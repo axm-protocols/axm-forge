@@ -80,6 +80,7 @@ def test_bandit_error_exit_rejects_even_valid_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "sample.py").write_text("x = 1\n")
     monkeypatch.setattr(
         security,
         "run_in_project",
