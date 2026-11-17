@@ -12,6 +12,28 @@ from pathlib import Path
 from axm import session_dependency_environment
 
 
+def _workspace_root(project: Path, uv: str, environment: dict[str, str]) -> Path:
+    """Ask uv for the workspace root it will use to select the lock."""
+    result = subprocess.run(  # noqa: S603 -- executable comes from the declared runtime
+        [uv, "workspace", "dir", "--offline"],
+        cwd=project,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or "uv workspace discovery failed")
+    lines = result.stdout.splitlines()
+    if len(lines) != 1 or not Path(lines[0]).is_absolute():
+        raise ValueError("uv workspace discovery returned an invalid root")
+    root = Path(lines[0]).resolve()
+    if not root.is_dir() or not project.is_relative_to(root):
+        raise ValueError("uv workspace discovery returned an unrelated root")
+    return root
+
+
 def export_inventory(project: Path) -> tuple[str, dict[str, str]]:
     """Export the project's transitive third-party runtime dependencies."""
     project = project.resolve()
@@ -20,16 +42,19 @@ def export_inventory(project: Path) -> tuple[str, dict[str, str]]:
         name = metadata["project"]["name"]
         if not isinstance(name, str) or not name:
             raise ValueError("missing project name")
-        lock = next(
-            (
-                p / "uv.lock"
-                for p in (project, *project.parents)
-                if (p / "uv.lock").is_file()
-            ),
-            None,
+        declared = session_dependency_environment(project)
+        uv = (
+            str(Path(declared.interpreter).parent / "uv")
+            if declared is not None
+            else shutil.which("uv")
         )
-        if lock is None:
-            raise ValueError("uv.lock is missing")
+        if uv is None or not Path(uv).is_file():
+            raise ValueError("declared uv instrument is missing")
+        environment = {k: v for k, v in os.environ.items() if not k.startswith("UV_")}
+        root = _workspace_root(project, uv, environment)
+        lock = root / "uv.lock"
+        if not lock.is_file():
+            raise ValueError(f"uv.lock is missing from workspace root: {root}")
         lock_bytes = lock.read_bytes()
         locked = tomllib.loads(lock_bytes.decode())
         packages = locked.get("package", [])
@@ -48,19 +73,12 @@ def export_inventory(project: Path) -> tuple[str, dict[str, str]]:
         if len(matches) != 1:
             raise ValueError(f"project {name!r} is missing or ambiguous in uv.lock")
         before = hashlib.sha256(lock_bytes).hexdigest()
-        declared = session_dependency_environment(project)
-        uv = (
-            str(Path(declared.interpreter).parent / "uv")
-            if declared is not None
-            else shutil.which("uv")
-        )
-        if uv is None or not Path(uv).is_file():
-            raise ValueError("declared uv instrument is missing")
-        environment = {k: v for k, v in os.environ.items() if not k.startswith("UV_")}
         result = subprocess.run(  # noqa: S603 -- executable comes from the declared runtime
             [
                 uv,
                 "export",
+                "--project",
+                str(root),
                 "--frozen",
                 "--offline",
                 "--no-dev",
