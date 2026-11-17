@@ -9,6 +9,7 @@ from typing import Protocol, cast
 
 from axm.tools.host_call_context import HostCallContext, bind_host_call
 
+_MAX_PROOF_SIZE = 8192
 _TARGETS = frozenset(
     {
         "agent_context",
@@ -90,6 +91,8 @@ def _evidence(target: str, context: object | None) -> HostCallContext:
     turn = _turn_id(meta, headers)
     thread, thread_type = _field(meta.get("threadId"))
     call, call_type = _field(meta.get("codex_bridge_mcp_call_id"))
+    if "codex_bridge_mcp_call_id" in meta and meta["codex_bridge_mcp_call_id"] is None:
+        call_type = "NoneType"
     turn_id, turn_type = _field(turn)
     token = headers.get("x-axm-host-token", "")
     return HostCallContext(
@@ -104,14 +107,44 @@ def _evidence(target: str, context: object | None) -> HostCallContext:
     )
 
 
+def is_host_target(name: str, arguments: Mapping[str, object]) -> bool:
+    """Identify only explicitly supported host tools and facade targets."""
+    target = arguments.get("name") if name == "axm_call" else name
+    return isinstance(target, str) and target in _TARGETS
+
+
 def transport_host_call(
-    name: str, arguments: Mapping[str, object], context: object | None
+    name: str,
+    arguments: Mapping[str, object],
+    context: object | None,
+    *,
+    proof: object = None,
+    proof_present: bool = False,
 ) -> AbstractContextManager[None]:
     """Bind evidence only for the effective, exact host-agent target."""
     target = arguments.get("name") if name == "axm_call" else name
     if not isinstance(target, str) or target not in _TARGETS:
         return nullcontext()
-    return bind_host_call(_evidence(target, context))
+    evidence = _evidence(target, context)
+    if proof_present:
+        from dataclasses import replace
+
+        from axm.tools.host_call_proof import argument_digest
+
+        try:
+            encoded = json.dumps(proof, allow_nan=False)
+            if len(encoded) > _MAX_PROOF_SIZE:
+                raise ValueError("proof too large")
+            snapshot = json.loads(encoded)
+            if snapshot is None:
+                snapshot = {}
+            digest = argument_digest(arguments)
+        except (TypeError, ValueError):
+            snapshot, digest = {}, ""
+        evidence = replace(
+            evidence, proof=snapshot, arguments_digest=digest, outer_tool=name
+        )
+    return bind_host_call(evidence)
 
 
 __all__ = ["transport_host_call"]

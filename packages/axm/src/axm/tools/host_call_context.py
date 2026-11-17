@@ -24,6 +24,9 @@ class HostCallContext:
     thread_type: str = "absent"
     turn_type: str = "absent"
     call_type: str = "absent"
+    proof: object = field(default=None, repr=False)
+    arguments_digest: str = field(default="", repr=False)
+    outer_tool: str = ""
 
 
 _CONTEXT: ContextVar[HostCallContext | None] = ContextVar("axm_host_call", default=None)

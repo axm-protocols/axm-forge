@@ -179,10 +179,21 @@ class ToolSurfaceServer(MCPServer[object]):
         arguments: dict[str, object],
         context: Context[object, object] | None = None,
     ) -> CallToolResult | InputRequiredResult:
-        from axm_mcp.host_context import transport_host_call
+        from axm.tools.host_call_proof import PROOF_FIELD
 
-        with transport_host_call(name, arguments, context):
-            return await self._call_tool_bound(name, arguments, context)
+        from axm_mcp.host_context import is_host_target, transport_host_call
+
+        cleaned = dict(arguments)
+        selected = is_host_target(name, arguments)
+        proof = cleaned.pop(PROOF_FIELD, None) if selected else None
+        with transport_host_call(
+            name,
+            cleaned,
+            context,
+            proof=proof,
+            proof_present=selected and PROOF_FIELD in arguments,
+        ):
+            return await self._call_tool_bound(name, cleaned, context)
 
     async def _call_tool_bound(
         self,
