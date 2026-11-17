@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
@@ -12,6 +13,7 @@ from typing import TypedDict
 from axm_ingot import resolve_workspace
 
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
+from axm_audit.core.rules.dependency_inventory import export_inventory
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -23,9 +25,8 @@ PIP_AUDIT_TIMEOUT_EXIT_CODE = 124
 class PipAuditUnavailableError(RuntimeError):
     """Raised when pip-audit could not reach pypi (transient/network failure).
 
-    Distinguished from a generic :class:`RuntimeError` so that
-    :meth:`DependencyAuditRule.check` can map it to a non-penalizing SKIP
-    instead of a hard ERROR fail.
+    Distinguished from a generic :class:`RuntimeError` to report the
+    underlying transient service failure.
     """
 
 
@@ -35,7 +36,51 @@ _NETWORK_SIGNATURE = re.compile(
 )
 
 
-def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:
+def _active_inventory(project_path: Path, requirements: Path) -> dict[str, str]:
+    """Evaluate markers using the very interpreter that runs pip-audit."""
+    script = """\
+import json, sys
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+from packaging.version import Version
+items = {}
+for line in open(sys.argv[1], encoding="utf-8"):
+    req = Requirement(line.strip())
+    if req.marker and not req.marker.evaluate():
+        continue
+    specs = list(req.specifier)
+    if (req.url or len(specs) != 1 or specs[0].operator != "=="
+            or "*" in specs[0].version):
+        raise ValueError(f"not an exact registry pin: {line}")
+    name = canonicalize_name(req.name)
+    version = str(Version(specs[0].version))
+    if name in items and items[name] != version:
+        raise ValueError(f"ambiguous version: {name}")
+    items[name] = version
+print(json.dumps(items))
+"""
+    result = run_in_project(
+        ["python", "-c", script, str(requirements)],
+        project_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError(f"dependency inventory unavailable: {result.stderr.strip()}")
+    try:
+        data = json.loads(result.stdout)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("dependency inventory evaluation failed") from exc
+    if not isinstance(data, dict) or any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in data.items()
+    ):
+        raise RuntimeError("dependency inventory evaluation returned invalid data")
+    return data
+
+
+def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:  # noqa: C901
     """Run pip-audit and return parsed JSON output.
 
     Raises:
@@ -44,17 +89,59 @@ def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:
         RuntimeError: If pip-audit exits with an error and produces
             no parseable output for a non-network reason.
     """
-    result = run_in_project(
-        ["pip-audit", "--format=json", "--output=-", "--skip-editable"],
-        project_path,
-        with_packages=["pip-audit"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    inventory, provenance = export_inventory(project_path)
+    if not inventory.strip():
+        return {"dependencies": [], "inventory": provenance}
+    with tempfile.TemporaryDirectory(prefix="axm-deps-audit-") as directory:
+        requirements = Path(directory) / "requirements.txt"
+        requirements.write_text(inventory)
+        expected = _active_inventory(project_path, requirements)
+        result = run_in_project(
+            [
+                "python",
+                "-m",
+                "pip_audit",
+                "--format=json",
+                "--output=-",
+                "--requirement",
+                str(requirements),
+                "--no-deps",
+                "--disable-pip",
+            ],
+            project_path,
+            with_packages=["pip-audit"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     try:
         if result.stdout.strip():
             data: dict[str, object] | list[object] = json.loads(result.stdout)
+            if result.returncode not in (0, 1) or not isinstance(data, dict):
+                raise RuntimeError("pip-audit returned an invalid result")
+            dependencies = data.get("dependencies")
+            if not isinstance(dependencies, list) or any(
+                not isinstance(item, dict) or item.get("skip_reason")
+                for item in dependencies
+            ):
+                raise RuntimeError("pip-audit returned incomplete dependencies")
+            actual = {}
+            for item in dependencies:
+                assert isinstance(item, dict)
+                name, version = item.get("name"), item.get("version")
+                if (
+                    not isinstance(name, str)
+                    or not isinstance(version, str)
+                    or not isinstance(item.get("vulns"), list)
+                ):
+                    raise RuntimeError("pip-audit returned malformed dependency")
+                key = re.sub(r"[-_.]+", "-", name).lower()
+                if key in actual:
+                    raise RuntimeError("pip-audit returned duplicate dependencies")
+                actual[key] = version
+            if actual != expected:
+                raise RuntimeError("pip-audit inventory differs from declared lock")
+            data["inventory"] = provenance
             return data
     except json.JSONDecodeError:
         pass
@@ -67,7 +154,7 @@ def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:
             raise PipAuditUnavailableError(msg)
         raise RuntimeError(msg)
 
-    return {}
+    raise RuntimeError("pip-audit returned no valid JSON result")
 
 
 class _VulnSummary(TypedDict):
@@ -132,22 +219,10 @@ def _summarize_vuln(v: dict[str, object]) -> _VulnSummary:
     )
 
 
-_ENV_TOOLS: frozenset[str] = frozenset(
-    {
-        "pip",
-        "setuptools",
-        "wheel",
-        "uv",
-        "pip-audit",
-        "pip_audit",
-    }
-)
-
-
 def _parse_vulns(
     data: dict[str, object] | list[object],
 ) -> list[dict[str, object]]:
-    """Extract vulnerable packages from pip-audit output, excluding env tools."""
+    """Extract vulnerable packages from the scoped pip-audit output."""
     if isinstance(data, list):
         deps_raw: list[object] = data
     else:
@@ -161,7 +236,7 @@ def _parse_vulns(
         name_val = dep.get("name", "")
         if not dep.get("vulns"):
             continue
-        if isinstance(name_val, str) and name_val.lower() in _ENV_TOOLS:
+        if not isinstance(name_val, str):
             continue
         result.append(dep)
     return result
@@ -196,19 +271,19 @@ class DependencyAuditRule(ProjectRule):
                 passed=False,
                 message="pip-audit not available",
                 severity=Severity.ERROR,
-                score=0,
-                details={"vuln_count": 0},
+                score=None,
+                details={"status": "unavailable"},
                 fix_hint="Install with: uv add --dev pip-audit",
             )
-        except PipAuditUnavailableError:
+        except PipAuditUnavailableError as exc:
             return CheckResult(
                 rule_id=self.rule_id,
-                passed=True,
-                message="vuln scan skipped: pypi unreachable (transient)",
-                severity=Severity.WARNING,
-                score=100,
-                details={"vuln_count": 0},
-                fix_hint="Transient pypi/network failure; re-run when reachable",
+                passed=False,
+                message=f"vuln scan unavailable: {exc}",
+                severity=Severity.ERROR,
+                score=None,
+                details={"status": "unavailable"},
+                fix_hint="Re-run when the vulnerability service is reachable",
             )
         except RuntimeError as exc:
             return CheckResult(
@@ -216,8 +291,8 @@ class DependencyAuditRule(ProjectRule):
                 passed=False,
                 message=str(exc),
                 severity=Severity.ERROR,
-                score=0,
-                details={"vuln_count": 0},
+                score=None,
+                details={"status": "unavailable"},
                 fix_hint="Check pip-audit installation: uv run pip-audit --version",
             )
 
@@ -238,9 +313,13 @@ class DependencyAuditRule(ProjectRule):
             ),
             severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
             score=int(score),
+            metadata={"inventory": data.get("inventory")}
+            if isinstance(data, dict)
+            else {},
             details={
                 "vuln_count": vuln_count,
                 "top_vulns": top_vulns,
+                "inventory": data.get("inventory") if isinstance(data, dict) else None,
             },
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=("Run: pip-audit --fix to remediate" if vuln_count > 0 else None),

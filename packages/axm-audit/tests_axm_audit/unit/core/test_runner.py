@@ -131,11 +131,21 @@ class TestRulesUseRunInProjectUnit:
         """DependencyAuditRule should call run_in_project."""
         from axm_audit.core.rules.dependencies import DependencyAuditRule
 
-        with patch("axm_audit.core.rules.dependencies.run_in_project") as mock:
+        with (
+            patch(
+                "axm_audit.core.rules.dependencies.export_inventory",
+                return_value=("x==1\\n", {}),
+            ),
+            patch(
+                "axm_audit.core.rules.dependencies._active_inventory",
+                return_value={"x": "1"},
+            ),
+            patch("axm_audit.core.rules.dependencies.run_in_project") as mock,
+        ):
             mock.return_value = MagicMock(stdout="{}", stderr="", returncode=0)
             DependencyAuditRule().check(tmp_path)
             mock.assert_called_once()
-            assert mock.call_args[0][0][0] == "pip-audit"
+            assert mock.call_args[0][0][:3] == ["python", "-m", "pip_audit"]
 
     def test_deptry_uses_run_in_project(self, tmp_path: Path) -> None:
         """DependencyHygieneRule should call run_in_project."""
@@ -155,7 +165,17 @@ class TestWithPackagesInjectionUnit:
         """DependencyAuditRule passes with_packages=[\"pip-audit\"]."""
         from axm_audit.core.rules.dependencies import DependencyAuditRule
 
-        with patch("axm_audit.core.rules.dependencies.run_in_project") as mock:
+        with (
+            patch(
+                "axm_audit.core.rules.dependencies.export_inventory",
+                return_value=("x==1\\n", {}),
+            ),
+            patch(
+                "axm_audit.core.rules.dependencies._active_inventory",
+                return_value={"x": "1"},
+            ),
+            patch("axm_audit.core.rules.dependencies.run_in_project") as mock,
+        ):
             mock.return_value = MagicMock(stdout="{}", stderr="", returncode=0)
             DependencyAuditRule().check(tmp_path)
             assert mock.call_args[1]["with_packages"] == ["pip-audit"]

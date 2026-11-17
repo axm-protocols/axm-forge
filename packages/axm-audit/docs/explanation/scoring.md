@@ -81,11 +81,15 @@ evidence. See [frameworks](../reference/frameworks.md) and
 
 ## Unavailable and partial measurements
 
-Current behavior is not uniformly fail-closed. In particular,
-`DependencyAuditRule` treats a classified transient PyPI/network failure as
-`passed=True`, score 100, warning severity and a skipped-scan message. That
-is a skipped measurement, not evidence of no vulnerabilities.
-Dependency-hygiene member errors can also be omitted from workspace issue
+`DEPS_AUDIT` scans the project’s transitive third-party runtime dependencies
+exported from its committed `uv.lock`. Local workspace and path packages are
+traversed but excluded from the vulnerability query. The result records the
+project, lock and inventory SHA-256 values, and `locked-runtime` scope. The
+lock is exported in frozen offline mode: its freshness relative to project
+metadata is not verified. Missing or ambiguous lock data, incomplete scans,
+and vulnerability service failures are reported as errors, not clean scans.
+
+Dependency-hygiene member errors can still be omitted from workspace issue
 aggregation. Review availability messages and required scope in addition
 to the grade and failure list.
 
