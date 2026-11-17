@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # truncated into a fabricated partial coverage %. Other subprocess rules keep
 # the lower ``run_in_project`` default.
 _COVERAGE_RUN_TIMEOUT = 900
+_MAX_TEST_TIMEOUT = 86400
 
 # Runtime overlay requested where the project environment is resolved through
 # uv (never in a declared session runtime, where nothing is installed). Only
@@ -680,6 +681,7 @@ def run_tests(
     markers: list[str] | None = None,
     stop_on_first: bool = True,
     include_cases: bool = False,
+    timeout_seconds: int = _COVERAGE_RUN_TIMEOUT,
 ) -> TestReport:
     """Run tests with agent-optimized structured output.
 
@@ -690,10 +692,18 @@ def run_tests(
         files: Specific test files or paths to run.
         markers: Pytest markers to filter (``-m``).
         stop_on_first: Stop on first failure (``-x``).
+        timeout_seconds: Maximum subprocess duration, between 1 and 86400 seconds.
 
     Returns:
         Structured ``TestReport`` with failures and coverage populated.
     """
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int)
+        or not 1 <= timeout_seconds <= _MAX_TEST_TIMEOUT
+    ):
+        raise ValueError("timeout_seconds must be an integer between 1 and 86400")
+
     # Create temp files for reports
     report_tmp = tempfile.NamedTemporaryFile(
         suffix=".json", prefix="axm_report_", delete=False
@@ -732,7 +742,7 @@ def run_tests(
         result = run_pytest(
             cmd,
             project_path,
-            timeout=_COVERAGE_RUN_TIMEOUT,
+            timeout=timeout_seconds,
             capture_output=True,
             text=True,
             check=False,
@@ -744,11 +754,11 @@ def run_tests(
         if result.returncode == _TIMEOUT_RETURNCODE:
             logger.warning(
                 "Test run timed out after %ds — coverage not measured",
-                _COVERAGE_RUN_TIMEOUT,
+                timeout_seconds,
             )
             if include_cases:
                 raise ValueError(
-                    f"pytest subprocess timed out after {_COVERAGE_RUN_TIMEOUT}s"
+                    f"pytest subprocess timed out after {timeout_seconds}s"
                 )
             return TestReport(
                 timed_out=True,

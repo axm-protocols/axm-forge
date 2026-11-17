@@ -64,6 +64,7 @@ class AuditTestTool(AXMTool):
         markers: list[str] | None = None,
         stop_on_first: bool = True,
         include_cases: bool = False,
+        timeout_seconds: int = 900,
         **kwargs: object,
     ) -> ToolResult:
         """Run tests with structured output.
@@ -76,6 +77,7 @@ class AuditTestTool(AXMTool):
             markers: Pytest markers to filter.
             stop_on_first: Stop on first failure.
             include_cases: Include lossless per-item pytest verdicts.
+            timeout_seconds: Maximum subprocess duration, between 1 and 86400 seconds.
 
         Returns:
             ToolResult with structured test report.
@@ -99,6 +101,7 @@ class AuditTestTool(AXMTool):
                 markers=markers,
                 stop_on_first=stop_on_first,
                 include_cases=include_case_evidence,
+                timeout_seconds=timeout_seconds,
             )
 
             data = dataclasses.asdict(report)
