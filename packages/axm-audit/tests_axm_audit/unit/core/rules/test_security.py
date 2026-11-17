@@ -63,24 +63,14 @@ def _fake_runner(
     return _runner
 
 
-def test_bandit_rc1_empty_stdout_warns(monkeypatch, caplog):
+def test_bandit_rc1_empty_stdout_fails(monkeypatch):
     monkeypatch.setattr(
         security_mod,
         "run_in_project",
         _fake_runner(returncode=1, stdout="", stderr="some banner"),
     )
-    with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
-        result = run_bandit(Path("/tmp/src"), Path("/tmp"))
-
-    assert result == {}
-    warnings = [
-        r
-        for r in caplog.records
-        if r.levelno == logging.WARNING and r.name == _LOGGER_NAME
-    ]
-    assert warnings, "expected a WARNING from axm_audit.core.rules.security"
-    msg = warnings[0].getMessage()
-    assert "rc=1" in msg or "1" in msg
+    with pytest.raises(RuntimeError, match="invalid or empty JSON"):
+        run_bandit(Path("/tmp/src"), Path("/tmp"))
 
 
 def test_bandit_rc1_valid_json_no_warn(monkeypatch, caplog):
@@ -107,12 +97,12 @@ def test_bandit_rc0_no_warn(monkeypatch, caplog):
     monkeypatch.setattr(
         security_mod,
         "run_in_project",
-        _fake_runner(returncode=0, stdout="", stderr=""),
+        _fake_runner(returncode=0, stdout='{"results": []}', stderr=""),
     )
     with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
         result = run_bandit(Path("/tmp/src"), Path("/tmp"))
 
-    assert result == {}
+    assert result == {"results": []}
     warnings = [
         r
         for r in caplog.records

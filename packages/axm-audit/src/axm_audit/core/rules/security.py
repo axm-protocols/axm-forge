@@ -16,47 +16,38 @@ from axm_audit.models.results import CheckResult, Severity
 logger = logging.getLogger(__name__)
 
 # Bandit exit codes: 0 = clean, 1 = issues found, >= 2 = internal error.
-_BANDIT_ERROR_RC = 2
 _BANDIT_ISSUES_RC = 1
 
 
 def run_bandit(src_path: Path, project_path: Path) -> dict[str, object]:
-    """Run Bandit and return parsed JSON output.
-
-    Raises:
-        RuntimeError: If bandit exits with rc >= 2 (error) and produces
-            no parseable output.  rc=0 means clean, rc=1 means issues found.
-    """
+    """Run Bandit quietly and reject incomplete or malformed reports."""
     result = run_in_project(
-        ["bandit", "-r", "-f", "json", str(src_path)],
+        ["bandit", "-q", "-r", "-f", "json", str(src_path)],
         project_path,
         with_packages=["bandit"],
         capture_output=True,
         check=False,
         text=True,
     )
-    try:
-        if result.stdout.strip():
-            data: dict[str, object] = json.loads(result.stdout)
-            return data
-    except json.JSONDecodeError:
-        pass
-
-    if result.returncode >= _BANDIT_ERROR_RC:
+    if result.returncode not in (0, _BANDIT_ISSUES_RC):
         stderr = result.stderr.strip() if result.stderr else "unknown error"
-        msg = f"bandit failed (rc={result.returncode}): {stderr}"
-        raise RuntimeError(msg)
-
-    if result.returncode == _BANDIT_ISSUES_RC:
-        stderr = (result.stderr or "").strip()[:500]
-        logger.warning(
-            "QUALITY_SECURITY: bandit returned rc=1 with empty stdout "
-            "(stderr: %s) — treating as no issues found, but this may "
-            "indicate a silent failure",
-            stderr or "<empty>",
-        )
-
-    return {}
+        raise RuntimeError(f"bandit failed (rc={result.returncode}): {stderr}")
+    try:
+        data = json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise RuntimeError("bandit returned invalid or empty JSON") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
+        raise RuntimeError("bandit returned an invalid report schema")
+    errors = data.get("errors", [])
+    if not isinstance(errors, list) or errors:
+        raise RuntimeError("bandit returned scan errors")
+    if any(
+        not isinstance(issue, dict)
+        or issue.get("issue_severity") not in {"LOW", "MEDIUM", "HIGH"}
+        for issue in data["results"]
+    ):
+        raise RuntimeError("bandit returned an invalid issue schema")
+    return data
 
 
 def _extract_top_issues(results: list[dict[str, object]]) -> list[dict[str, object]]:

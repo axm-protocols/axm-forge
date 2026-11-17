@@ -121,10 +121,9 @@ def test_json_decode_error_handling(
     rule = SecurityRule()
     result = rule.check(tmp_path)
 
-    # Should default to 0 issues
-    assert result.details is not None
-    assert result.score == 100
-    assert result.passed
+    assert result.score == 0
+    assert not result.passed
+    assert result.severity.value == "error"
 
 
 def test_bandit_issues_rc1_still_reported(
@@ -168,6 +167,7 @@ def test_bandit_uses_run_in_project(tmp_path: Path) -> None:
         SecurityRule().check(tmp_path)
         mock.assert_called_once()
         assert mock.call_args[0][0][0] == "bandit"
+        assert "-q" in mock.call_args[0][0]
 
 
 def test_security_injects_bandit(tmp_path: Path) -> None:
