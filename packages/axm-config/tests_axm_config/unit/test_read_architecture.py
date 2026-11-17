@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable
+from typing import Never
 
 import pytest
 
@@ -29,15 +31,16 @@ def forbid_effects(monkeypatch):
     monkeypatch.setattr(sys, "dont_write_bytecode", True)
     attempts = []
 
-    def deny(*args, **kwargs):
+    def deny(*args: object, **kwargs: object) -> Never:
         attempts.append("effect")
         raise AssertionError("read-only boundary attempted a write or execution")
 
-    def guarded_open(original):
-        def read_only(file, mode="r", *args, **kwargs):
-            if any(flag in mode for flag in "wax+"):
+    def guarded_open[**P, R](original: Callable[P, R]) -> Callable[P, R]:
+        def read_only(*args: P.args, **kwargs: P.kwargs) -> R:
+            mode = kwargs.get("mode", args[1] if len(args) > 1 else "r")
+            if isinstance(mode, str) and any(flag in mode for flag in "wax+"):
                 deny()
-            return original(file, mode, *args, **kwargs)
+            return original(*args, **kwargs)
 
         return read_only
 
