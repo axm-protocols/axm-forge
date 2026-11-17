@@ -219,8 +219,13 @@ def audit_project(  # noqa: PLR0913 - public options remain independent
                     _safe_check,
                     rule,
                     project_path,
-                    test_reports,
-                    test_timeout_seconds,
+                    *(
+                        (test_reports, test_timeout_seconds)
+                        if test_timeout_seconds is not None
+                        else (test_reports,)
+                        if test_reports is not None
+                        else ()
+                    ),
                 )
                 for rule in rules
             ]
