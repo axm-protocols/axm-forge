@@ -428,8 +428,11 @@ def main() -> None:
         _print_catalog(tools)
         raise SystemExit(2)
 
+    from axm.tools.operator_context import _cli_operator_scope
+
     app = _build_single_app(cmd, tools)
-    app(argv)
+    with _cli_operator_scope(cmd):
+        app(argv)
 
 
 def _build_single_app(

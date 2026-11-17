@@ -518,6 +518,17 @@ def _wrap_with_lock(wrapper: _SyncWrapper, name: str) -> _AnyWrapper:
     return _async_wrapper
 
 
+def _untrusted_wrapper(target: _SyncWrapper) -> _SyncWrapper:
+    """Never inherit an interactive CLI authority into a server invocation."""
+    from axm.tools.operator_context import _untrusted_call_scope
+
+    def invoke(**kwargs: object) -> _WrapperResult:
+        with _untrusted_call_scope():
+            return target(**kwargs)
+
+    return invoke
+
+
 def build_wrappers(
     name: str,
     tool: ToolEntry,
@@ -566,7 +577,7 @@ def build_wrappers(
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
     )
 
-    sync_wrapper = base_sync_wrapper
+    sync_wrapper = _untrusted_wrapper(base_sync_wrapper)
 
     exec_doc = getattr(getattr(tool, "execute", tool), "__doc__", None)
     sync_wrapper.__doc__ = exec_doc or f"Execute {name} tool."
@@ -578,7 +589,7 @@ def build_wrappers(
         if is_plain
         else _build_tool_wrapper(ctx, tool, prepared=True)
     )
-    locked = _wrap_with_lock(execution, name)
+    locked = _wrap_with_lock(_untrusted_wrapper(execution), name)
 
     async def async_wrapper(**kwargs: object) -> _WrapperResult:
         refusal = _write_refusal(ctx, kwargs)

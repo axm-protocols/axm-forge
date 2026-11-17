@@ -41,11 +41,27 @@ MCP transport on later requests; they need no repeated contract header.
 
 ## Binding and enforcement
 
-The HTTP middleware checks `X-AXM-Write-Contract` before MCP dispatch. In
-shared mode, the header must be valid JSON with a string `execution_root` and
-lists of strings for `allowed_prefixes` and `markdown_only_prefixes`. An invalid
-header receives HTTP 400 with a reason naming the write contract, even on
-`initialize` before a session ID exists. The request does not reach an MCP tool.
+The HTTP middleware checks `X-AXM-Write-Contract` before MCP dispatch. A
+legacy v1 header contains a string `execution_root` and lists of strings for
+`allowed_prefixes` and `markdown_only_prefixes`. The versioned v2 envelope
+has exactly `version: 2` and a non-empty `contracts` array of canonical
+leaf contracts. All leaves apply conjunctively: a later, wider leaf cannot
+restore rights removed by an earlier leaf. Use the public
+`axm.tools.contract_wire.contract_to_wire` and `contract_from_wire` helpers
+to preserve every constraint, including read and dependency restrictions.
+
+Before sending v2, a client must issue an `OPTIONS` request with
+`X-AXM-Write-Contract-Probe: 2` and require
+`X-AXM-Write-Contract-Version: 2` in the response. Clients that also rely on
+the explicit tool surface must require `X-AXM-Tool-Surface-Version: 1`.
+The `X-AXM-Tool-Surface` header is a JSON list of exact tool names; direct
+calls and targets through `axm_call` are both checked. A missing witness
+must fail closed. These headers are trusted host declarations, not grants
+selected by a model or a substitute for authentication.
+
+An invalid contract receives HTTP 400 with a reason naming the write contract,
+even on `initialize` before a session ID exists. The request does not reach
+an MCP tool.
 
 A valid header on `initialize` is bound to the exact session ID returned in
 the response, before the response is forwarded. If the response has no session

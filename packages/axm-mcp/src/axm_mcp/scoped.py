@@ -45,11 +45,21 @@ from axm_mcp.wrapping import (
     build_wrappers,
 )
 
-__all__ = ["create_scoped_mcp_app"]
+__all__ = ["create_scoped_mcp_app", "scoped_request_id"]
 
 type _Invoke = Callable[[str, dict[str, object]], Awaitable[ToolResult]]
 type _Authorize = Callable[[Scope], bool | Awaitable[bool]]
 _REQUEST: ContextVar[Scope | None] = ContextVar("axm_scoped_request", default=None)
+_SCOPED_REQUEST_ID: ContextVar[str | None] = ContextVar(
+    "axm_scoped_request_id", default=None
+)
+
+
+def scoped_request_id() -> str | None:
+    """Return the transport request identity within the active scoped call."""
+    return _SCOPED_REQUEST_ID.get()
+
+
 _FACADE = frozenset({"axm_search", "axm_describe", "axm_call", "axm_capabilities"})
 
 
@@ -443,6 +453,10 @@ class _ScopedHandlers:
             return _result(ToolResult(success=False, error="scope unavailable"))
         if not self.catalog.allowed:
             return _result(ToolResult(success=False, error="empty tool scope"))
+        request_id = ctx.request_id
+        token = _SCOPED_REQUEST_ID.set(
+            None if request_id is None else f"{type(request_id).__name__}:{request_id}"
+        )
         try:
             with (
                 tool_access_scope(self.catalog.allowed),
@@ -455,6 +469,8 @@ class _ScopedHandlers:
                 return await self.catalog.call(params.name, args)
         except (ValidationError, ValueError, TypeError, PermissionError) as exc:
             return _result(ToolResult(success=False, error=str(exc)))
+        finally:
+            _SCOPED_REQUEST_ID.reset(token)
 
 
 def create_scoped_mcp_app(  # noqa: PLR0913 -- explicit host-owned binding contract

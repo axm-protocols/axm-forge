@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 
-from axm.tools import ToolMetadata, ToolNodeError, tool_metadata, tool_node
+from axm.tools import (
+    ToolMetadata,
+    ToolNodeError,
+    contract_from_wire,
+    contract_leaves,
+    contract_to_wire,
+    operator_authorized,
+    tool_metadata,
+    tool_node,
+)
 from axm.tools.access import ToolAccessDenied, tool_access_scope, tool_execution_guard
 from axm.tools.base import AXMTool, ToolImage, ToolResult
 from axm.tools.declarative import (
@@ -54,7 +63,11 @@ __all__ = [
     "__version__",
     "authority_enforced",
     "capture_session_grant",
+    "contract_from_wire",
+    "contract_leaves",
+    "contract_to_wire",
     "load_declarative_manifest",
+    "operator_authorized",
     "require_enforced_write_path",
     "require_legacy_authority",
     "require_read_path",

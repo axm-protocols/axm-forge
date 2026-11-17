@@ -162,6 +162,19 @@ def dependency_sources(environment: DependencyEnvironment) -> DependencySources:
     )
 
 
+class _ConstrainedDependencySources(DependencySources):
+    _contract: WriteContract
+
+    def __init__(
+        self, roots: tuple[tuple[str, str], ...], contract: WriteContract
+    ) -> None:
+        super().__init__(roots)
+        object.__setattr__(self, "_contract", contract)
+
+    def permits(self, path: str | Path) -> bool:
+        return super().permits(path) and self._contract.readable(str(path))
+
+
 def session_dependencies() -> DependencySources:
     """Get read authority from the current session, never from ambient sys.path."""
     # The transport context wins over process environment.
@@ -169,7 +182,8 @@ def session_dependencies() -> DependencySources:
     contract = current_read_contract()
     if contract is None or contract.dependency_environment is None:
         return DependencySources()
-    return dependency_sources(contract.dependency_environment)
+    sources = dependency_sources(contract.dependency_environment)
+    return _ConstrainedDependencySources(sources.roots, contract)
 
 
 # Context variables keep concurrent MCP sessions independent. None explicitly
@@ -359,6 +373,14 @@ def session_dependency_environment(
     if not matches:
         raise ValueError(f"no declared runtime for: {root}")
     selected = _unambiguous_runtime(matches, root)
+    from axm.tools.contract_wire import contract_leaves
+
+    for leaf in contract_leaves(contract):
+        admitted = leaf.dependency_environments
+        if leaf.dependency_environment is not None:
+            admitted = (leaf.dependency_environment, *admitted)
+        if selected not in admitted:
+            raise ValueError(f"runtime is not authorized by every contract: {root}")
     if not Path(selected.interpreter).is_file():
         raise ValueError(
             f"declared runtime interpreter missing: {selected.interpreter}"

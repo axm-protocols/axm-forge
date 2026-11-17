@@ -218,7 +218,7 @@ class WriteContract:
         granting = [
             prefix
             for prefix in self.allowed_prefixes
-            if location == prefix or location.startswith(prefix + os.sep)
+            if location == prefix or location.startswith(prefix.rstrip(os.sep) + os.sep)
         ]
         if not granting:
             return False
@@ -233,7 +233,8 @@ class WriteContract:
             return True
         roots = self.read_roots or (() if self.read_files else (self.execution_root,))
         if any(
-            location == root or location.startswith(root + os.sep) for root in roots
+            location == root or location.startswith(root.rstrip(os.sep) + os.sep)
+            for root in roots
         ):
             return True
         environments = self.dependency_environments
@@ -244,7 +245,7 @@ class WriteContract:
     def contains(self, location: str) -> bool:
         """Return whether a resolved location is under the execution root."""
         root = os.path.realpath(self.execution_root)
-        return location == root or location.startswith(root + os.sep)
+        return location == root or location.startswith(root.rstrip(os.sep) + os.sep)
 
 
 @dataclass(frozen=True)
@@ -280,8 +281,9 @@ def restrict_write_contract(
         allowed_files=contract.allowed_files,
         read_path_aliases=contract.read_path_aliases,
         dependency_environments=contract.dependency_environments,
-        constraints=tuple(
-            constraint for constraint in constraints if constraint is not None
+        constraints=(
+            *((contract,) if isinstance(contract, _RestrictedContract) else ()),
+            *(constraint for constraint in constraints if constraint is not None),
         ),
     )
 

@@ -25,6 +25,8 @@ class _WriteContractPayload(TypedDict):
     allowed_prefixes: list[str]
     markdown_only_prefixes: list[str]
     read_roots: NotRequired[list[str]]
+    read_files: NotRequired[list[str]]
+    allowed_files: NotRequired[list[str]]
     read_path_aliases: NotRequired[list[tuple[str, str]]]
     dependency_environment: NotRequired[dict[str, object] | None]
     dependency_environments: NotRequired[list[dict[str, object]]]
@@ -39,6 +41,13 @@ class WriteContractHeaderError(ValueError):
 
 def parse_write_contract_header(raw: str) -> WriteContract:
     """Decode and validate an X-AXM-Write-Contract header value."""
+    import json
+
+    from axm.tools.contract_wire import contract_from_wire
+
+    decoded = json.loads(raw)
+    if isinstance(decoded, dict) and "version" in decoded:
+        return contract_from_wire(raw)
     try:
         payload = _WRITE_CONTRACT_ADAPTER.validate_json(raw)
     except ValidationError as exc:

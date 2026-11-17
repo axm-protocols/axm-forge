@@ -15,7 +15,6 @@ Imports from axm core are limited to ``axm.tools.base`` (shared types +
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
@@ -107,6 +106,14 @@ _current_request_contract = ContextVar[WriteContract | None](
 )
 
 
+def _is_contract_probe(scope: Scope, headers: Headers, mode: str) -> bool:
+    return (
+        scope["method"] == "OPTIONS"
+        and headers.get("x-axm-write-contract-probe") == "2"
+        and mode != "dedicated"
+    )
+
+
 class _SessionContractMiddleware:
     """Bind per-session write contracts before MCP request dispatch."""
 
@@ -124,6 +131,15 @@ class _SessionContractMiddleware:
             await self._app(scope, receive, send)
             return
         headers = Headers(scope=scope)
+        if _is_contract_probe(scope, headers, self._mode):
+            await PlainTextResponse(
+                "",
+                headers={
+                    "x-axm-write-contract-version": "2",
+                    "x-axm-tool-surface-version": "1",
+                },
+            )(scope, receive, send)
+            return
         raw_contract = headers.get(_WRITE_CONTRACT_HEADER)
         declared_contract: WriteContract | None = None
         if raw_contract is not None:
@@ -146,16 +162,8 @@ class _SessionContractMiddleware:
         except UnboundSessionError:
             pending_contract = declared_contract
         else:
-            if raw_contract is not None:
-                try:
-                    bind_session_from_headers(headers)
-                except ValueError as exc:
-                    reason = f"invalid write contract: {exc}"
-                    logging.getLogger(__name__).warning(reason)
-                    await PlainTextResponse(reason, status_code=400)(
-                        scope, receive, send
-                    )
-                    return
+            if declared_contract is not None:
+                session_contract_registry.bind(session_id, declared_contract)
             token = _current_session_id.set(session_id)
 
         request_token = _current_request_contract.set(declared_contract)
@@ -221,17 +229,8 @@ def bind_session_from_headers(headers: Mapping[str, str]) -> None:
     session_id = session_id_from_headers(headers)
     raw_contract = _header_value(headers, _WRITE_CONTRACT_HEADER)
     if raw_contract is not None:
-        normalized = WriteContract.from_json(raw_contract)
-        normalized_header = json.dumps(
-            {
-                "execution_root": normalized.execution_root,
-                "allowed_prefixes": normalized.allowed_prefixes,
-                "markdown_only_prefixes": normalized.markdown_only_prefixes,
-            }
-        )
         session_contract_registry.bind(
-            session_id,
-            parse_write_contract_header(normalized_header),
+            session_id, parse_write_contract_header(raw_contract)
         )
 
 

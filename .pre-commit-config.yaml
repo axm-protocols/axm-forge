@@ -15,7 +15,9 @@ repos:
     hooks:
       - id: mypy-axm
         name: mypy (axm)
-        entry: uv run --package axm mypy --config-file packages/axm/pyproject.toml
+        entry: >-
+          sh -c 'exec "${AXM_DEPENDENCY_INTERPRETER:-.venv/bin/python}" -m mypy "$@"' --
+          --config-file packages/axm/pyproject.toml
         language: system
         types: [python]
         files: ^packages/axm/
@@ -24,7 +26,9 @@ repos:
         args: [packages/axm/src/, packages/axm/tests_axm/]
       - id: mypy-mcp
         name: mypy (axm-mcp)
-        entry: uv run --package axm-mcp mypy --config-file packages/axm-mcp/pyproject.toml
+        entry: >-
+          sh -c 'exec "${AXM_DEPENDENCY_INTERPRETER:-.venv/bin/python}" -m mypy "$@"' --
+          --config-file packages/axm-mcp/pyproject.toml
         language: system
         types: [python]
         files: ^packages/axm-mcp/
