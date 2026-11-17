@@ -249,11 +249,8 @@ class DependencyAuditRule(ProjectRule):
 
     Scoring: 100 - (vuln_count * 15), min 0.
 
-    Vulnerabilities reported against environment tools (``pip``, ``setuptools``,
-    ``wheel``, ``uv``, ``pip-audit``) are excluded from the count. These tools
-    are injected into the audit venv by ``uv run --with`` rather than declared
-    as project dependencies, so their CVEs are not actionable from the project
-    being audited. Matching is case-insensitive.
+    Scan transitive third-party runtime dependencies from the committed lock.
+    Freshness of the lock relative to project metadata is not verified.
     """
 
     @property
@@ -293,7 +290,7 @@ class DependencyAuditRule(ProjectRule):
                 severity=Severity.ERROR,
                 score=None,
                 details={"status": "unavailable"},
-                fix_hint="Check pip-audit installation: uv run pip-audit --version",
+                fix_hint="Check the lock, export and scanner indicated by the error",
             )
 
         vulns = _parse_vulns(data)
@@ -322,7 +319,11 @@ class DependencyAuditRule(ProjectRule):
                 "inventory": data.get("inventory") if isinstance(data, dict) else None,
             },
             text="\n".join(text_lines) if text_lines else None,
-            fix_hint=("Run: pip-audit --fix to remediate" if vuln_count > 0 else None),
+            fix_hint=(
+                "Update affected dependencies and regenerate uv.lock"
+                if vuln_count > 0
+                else None
+            ),
         )
 
 
