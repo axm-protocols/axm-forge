@@ -55,6 +55,7 @@ def test_real_bandit_reports_medium_and_high(
         "[]",
         '{"results":null}',
         '{"results":[{}]}',
+        '{"results":[{"issue_severity":[]}]}',
         '{"results":[],"errors":[{"reason":"failed to parse"}]}',
         '{"results":[],"errors":null}',
     ],

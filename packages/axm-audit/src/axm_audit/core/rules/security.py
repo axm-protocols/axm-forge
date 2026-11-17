@@ -43,7 +43,7 @@ def run_bandit(src_path: Path, project_path: Path) -> dict[str, object]:
         raise RuntimeError("bandit returned scan errors")
     if any(
         not isinstance(issue, dict)
-        or issue.get("issue_severity") not in {"LOW", "MEDIUM", "HIGH"}
+        or issue.get("issue_severity") not in ("LOW", "MEDIUM", "HIGH")
         for issue in data["results"]
     ):
         raise RuntimeError("bandit returned an invalid issue schema")
