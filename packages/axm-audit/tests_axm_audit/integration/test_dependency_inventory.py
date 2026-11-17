@@ -78,6 +78,36 @@ def test_export_follows_locked_runtime_only(locked_project: Path) -> None:
     assert evidence["freshness"] == "not verified"
 
 
+def test_local_extra_includes_only_selected_transitive(locked_project: Path) -> None:
+    lock = locked_project / "uv.lock"
+    content = lock.read_text().replace(
+        '{ name = "local" }', '{ name = "local", extra = ["wanted"] }'
+    )
+    content = content.replace(
+        'dependencies = [{ name = "setuptools" }]',
+        'dependencies = [{ name = "setuptools" }]\n'
+        "[package.optional-dependencies]\n"
+        'wanted = [{ name = "chosen" }]\n'
+        'other = [{ name = "unchosen" }]',
+    )
+    content += """
+[[package]]
+name = "chosen"
+version = "1.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "unchosen"
+version = "1.0"
+source = { registry = "https://pypi.org/simple" }
+"""
+    lock.write_text(content)
+    inventory, _ = export_inventory(locked_project)
+    assert "chosen==1.0" in inventory.splitlines()
+    assert "unchosen==1.0" not in inventory.splitlines()
+    assert not any(line.startswith("local") for line in inventory.splitlines())
+
+
 def test_empty_runtime_inventory_needs_no_scanner(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "empty"\nversion = "1.0"\n'
