@@ -22,8 +22,8 @@ class UnboundSessionError(RuntimeError):
 
 class _WriteContractPayload(TypedDict):
     execution_root: str
-    allowed_prefixes: list[str]
-    markdown_only_prefixes: list[str]
+    allowed_prefixes: NotRequired[list[str]]
+    markdown_only_prefixes: NotRequired[list[str]]
     read_roots: NotRequired[list[str]]
     read_files: NotRequired[list[str]]
     allowed_files: NotRequired[list[str]]
@@ -45,16 +45,16 @@ def parse_write_contract_header(raw: str) -> WriteContract:
 
     from axm.tools.contract_wire import contract_from_wire
 
-    decoded = json.loads(raw)
-    if isinstance(decoded, dict) and "version" in decoded:
-        return contract_from_wire(raw)
     try:
+        decoded = json.loads(raw)
+        if isinstance(decoded, dict) and "version" in decoded:
+            return contract_from_wire(raw)
         payload = _WRITE_CONTRACT_ADAPTER.validate_json(raw)
-    except ValidationError as exc:
+        return WriteContract.from_mapping(payload)
+    except (ValidationError, ValueError) as exc:
         raise WriteContractHeaderError(
             f"invalid X-AXM-Write-Contract header: {exc}"
         ) from exc
-    return WriteContract.from_mapping(payload)
 
 
 class SessionContractRegistry:
