@@ -67,6 +67,7 @@ def verify_project(
     tools: Mapping[str, AXMTool],
     *,
     origin: dict[str, str] | None = None,
+    test_timeout_seconds: int | None = None,
 ) -> dict[str, object]:
     """One-shot project verification: audit + init check + AST enrichment.
 
@@ -74,6 +75,7 @@ def verify_project(
         path: Path to project root.
         tools: Dict of discovered tools (from ``discover_tools()``).
         origin: Source package path, full pinned SHA and branch for an export.
+        test_timeout_seconds: Optional test subprocess limit forwarded to audit.
 
     Returns:
         Consolidated result with 'audit' and 'governance' sections.
@@ -85,7 +87,10 @@ def verify_project(
 
         QualityOrigin.from_data(origin)
         arguments["snapshot_origin"] = origin
-    audit_data = run_tool(tools, "audit", **arguments)
+    audit_arguments = dict(arguments)
+    if test_timeout_seconds is not None:
+        audit_arguments["test_timeout_seconds"] = test_timeout_seconds
+    audit_data = run_tool(tools, "audit", **audit_arguments)
     governance_data = run_tool(tools, "init_check", **arguments)
 
     # Enrich audit failures with AST context

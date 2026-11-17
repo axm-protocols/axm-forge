@@ -119,6 +119,7 @@ def _safe_check(
     rule: ProjectRule,
     project_path: Path,
     test_reports: Mapping[Path, TestReport] | None = None,
+    test_timeout_seconds: int | None = None,
 ) -> CheckResult:
     """Run a single rule with exception handling.
 
@@ -126,12 +127,16 @@ def _safe_check(
     Injects ``rule.category`` into the returned CheckResult.
     Includes traceback in ``details`` on failure for debugging.
     """
+    from axm_audit.core.rules.coverage import TestCoverageRule
+
     try:
         if test_reports is not None and rule.runs_tests:
             report = test_reports.get(project_path.resolve())
             if report is None:
                 raise ValueError(f"missing precomputed test report for {project_path}")
             result = rule.check_measured(project_path, report)
+        elif test_timeout_seconds is not None and isinstance(rule, TestCoverageRule):
+            result = rule.check(project_path, timeout_seconds=test_timeout_seconds)
         else:
             result = rule.check(project_path)
         result.category = rule.category
@@ -147,13 +152,14 @@ def _safe_check(
         )
 
 
-def audit_project(
+def audit_project(  # noqa: PLR0913 - public options remain independent
     project_path: Path,
     category: str | None = None,
     quick: bool = False,
     framework: Framework | str | None = None,
     *,
     test_reports: Mapping[Path, TestReport] | None = None,
+    test_timeout_seconds: int | None = None,
 ) -> AuditResult:
     """Audit a project against its ecosystem's 2026 standards.
 
@@ -168,6 +174,8 @@ def audit_project(
         framework: Ecosystem to audit against. ``None`` auto-detects from the
             project's manifest markers (:func:`detect_framework`); pass an
             explicit value to override.
+        test_timeout_seconds: Optional per-package test subprocess limit, in
+            seconds (1-86400). Omission keeps the runner's default.
 
     Returns:
         AuditResult containing all check results.
@@ -175,6 +183,14 @@ def audit_project(
     Raises:
         FileNotFoundError: If project_path does not exist.
     """
+    from axm_audit.core.test_runner import _MAX_TEST_TIMEOUT
+
+    if test_timeout_seconds is not None and (
+        isinstance(test_timeout_seconds, bool)
+        or not isinstance(test_timeout_seconds, int)
+        or not 1 <= test_timeout_seconds <= _MAX_TEST_TIMEOUT
+    ):
+        raise ValueError("test_timeout_seconds must be an integer between 1 and 86400")
     if not project_path.exists():
         raise FileNotFoundError(f"Project path does not exist: {project_path}")
 
@@ -188,6 +204,7 @@ def audit_project(
             category=category,
             quick=quick,
             test_reports=test_reports,
+            test_timeout_seconds=test_timeout_seconds,
         )
 
     rules = get_rules_for_category(category, quick, framework=fw)
@@ -202,7 +219,8 @@ def audit_project(
                     _safe_check,
                     rule,
                     project_path,
-                    *((test_reports,) if test_reports is not None else ()),
+                    test_reports,
+                    test_timeout_seconds,
                 )
                 for rule in rules
             ]
@@ -213,13 +231,14 @@ def audit_project(
     return AuditResult(project_path=str(project_path), checks=checks)
 
 
-def _audit_workspace(
+def _audit_workspace(  # noqa: PLR0913 - forward independent audit options
     workspace_path: Path,
     packages: list[Path],
     *,
     category: str | None,
     quick: bool,
     test_reports: Mapping[Path, TestReport] | None = None,
+    test_timeout_seconds: int | None = None,
 ) -> AuditResult:
     """Audit each package in a multi-package workspace and merge results.
 
@@ -231,7 +250,11 @@ def _audit_workspace(
     disambiguate which package emitted which violation.
     """
     per_package = _audit_packages_parallel(
-        packages, category=category, quick=quick, test_reports=test_reports
+        packages,
+        category=category,
+        quick=quick,
+        test_reports=test_reports,
+        test_timeout_seconds=test_timeout_seconds,
     )
 
     merged: dict[str, CheckResult] = {}
@@ -272,6 +295,7 @@ def _audit_packages_parallel(
     category: str | None,
     quick: bool,
     test_reports: Mapping[Path, TestReport] | None = None,
+    test_timeout_seconds: int | None = None,
 ) -> list[tuple[str, list[CheckResult]]]:
     """Audit each package concurrently, preserving input order.
 
@@ -299,8 +323,9 @@ def _audit_packages_parallel(
                     category=category,
                     quick=quick,
                     test_reports=test_reports,
+                    test_timeout_seconds=test_timeout_seconds,
                 )
-                if test_reports is not None
+                if test_reports is not None or test_timeout_seconds is not None
                 else pool.submit(
                     contextvars.copy_context().run,
                     audit_project,

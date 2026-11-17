@@ -116,7 +116,9 @@ class TestCoverageRule(ProjectRule):
         """
         return "QUALITY_TESTS"
 
-    def check(self, project_path: Path) -> CheckResult:
+    def check(
+        self, project_path: Path, *, timeout_seconds: int | None = None
+    ) -> CheckResult:
         """Check test coverage and capture failures with pytest-cov.
 
         Delegates to ``run_tests(mode='compact')`` from the shared
@@ -131,7 +133,15 @@ class TestCoverageRule(ProjectRule):
         from axm_audit.core.test_runner import run_tests
 
         effective = read_coverage_config(project_path)
-        report = run_tests(project_path, mode="compact", stop_on_first=False)
+        if timeout_seconds is None:
+            report = run_tests(project_path, mode="compact", stop_on_first=False)
+        else:
+            report = run_tests(
+                project_path,
+                mode="compact",
+                stop_on_first=False,
+                timeout_seconds=timeout_seconds,
+            )
         return self._report_to_result(report, min_coverage=effective)
 
     def _no_coverage_result(self, failures: list[dict[str, str]]) -> CheckResult:

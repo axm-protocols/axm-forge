@@ -37,6 +37,7 @@ class AuditTool(AXMTool):
         path: str = ".",
         category: str | None = None,
         snapshot_origin: dict[str, str] | None = None,
+        test_timeout_seconds: int | None = None,
         **kwargs: object,
     ) -> ToolResult:
         """Audit a Python project's code quality.
@@ -44,6 +45,7 @@ class AuditTool(AXMTool):
         Args:
             path: Path to project root.
             snapshot_origin: Source path, pinned full SHA and branch for an export.
+            test_timeout_seconds: Optional per-package test limit in seconds (1-86400).
             category: Optional category filter. One of:
                 {categories}
 
@@ -64,7 +66,14 @@ class AuditTool(AXMTool):
             from axm_audit.core.auditor import audit_project
             from axm_audit.formatters import format_agent, format_agent_text
 
-            result = audit_project(project_path, category=category)
+            if test_timeout_seconds is None:
+                result = audit_project(project_path, category=category)
+            else:
+                result = audit_project(
+                    project_path,
+                    category=category,
+                    test_timeout_seconds=test_timeout_seconds,
+                )
             data = format_agent(result)
             text = format_agent_text(data, category=category)
 
