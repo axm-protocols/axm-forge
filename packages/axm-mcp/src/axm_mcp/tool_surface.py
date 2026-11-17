@@ -179,6 +179,17 @@ class ToolSurfaceServer(MCPServer[object]):
         arguments: dict[str, object],
         context: Context[object, object] | None = None,
     ) -> CallToolResult | InputRequiredResult:
+        from axm_mcp.host_context import transport_host_call
+
+        with transport_host_call(name, arguments, context):
+            return await self._call_tool_bound(name, arguments, context)
+
+    async def _call_tool_bound(
+        self,
+        name: str,
+        arguments: dict[str, object],
+        context: Context[object, object] | None = None,
+    ) -> CallToolResult | InputRequiredResult:
         allowed = _surface.get()
         if allowed is not None and name not in allowed:
             raise ToolError(f"undeclared tool refused: {name}")
