@@ -38,6 +38,8 @@ def run_bandit(src_path: Path, project_path: Path) -> dict[str, object]:
         raise RuntimeError("bandit returned invalid or empty JSON") from exc
     if not isinstance(data, dict) or not isinstance(data.get("results"), list):
         raise RuntimeError("bandit returned an invalid report schema")
+    if result.returncode == _BANDIT_ISSUES_RC and not data["results"]:
+        raise RuntimeError("bandit reported issues but returned no results")
     errors = data.get("errors", [])
     if not isinstance(errors, list) or errors:
         raise RuntimeError("bandit returned scan errors")

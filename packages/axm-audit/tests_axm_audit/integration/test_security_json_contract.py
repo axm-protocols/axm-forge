@@ -77,6 +77,40 @@ def test_incomplete_bandit_output_fails_closed(
     assert result.score == 0
 
 
+def test_issue_exit_with_empty_results_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "sample.py").write_text("x = 1\n")
+    monkeypatch.setattr(
+        security,
+        "run_in_project",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            [], 1, '{"results":[],"errors":[]}', ""
+        ),
+    )
+    result = SecurityRule().check(tmp_path)
+    assert not result.passed
+    assert result.severity.value == "error"
+
+
+def test_low_only_result_preserves_existing_score(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "sample.py").write_text("x = 1\n")
+    monkeypatch.setattr(
+        security,
+        "run_in_project",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            [], 1, '{"results":[{"issue_severity":"LOW"}],"errors":[]}', ""
+        ),
+    )
+    result = SecurityRule().check(tmp_path)
+    assert result.passed
+    assert result.score == 100
+
+
 def test_bandit_error_exit_rejects_even_valid_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
