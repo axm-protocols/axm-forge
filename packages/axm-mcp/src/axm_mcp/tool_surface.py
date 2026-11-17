@@ -231,5 +231,5 @@ class ToolSurfaceServer(MCPServer[object]):
         registered = {tool.name for tool in await super().list_tools()}
         catalog = self._selected_catalog((name,)) if allowed is not None else None
         if name not in registered and allowed is not None and catalog is not None:
-            return await catalog.call_tool(name, arguments, context)
+            return await catalog._call_tool_bound(name, arguments, context)
         return await super().call_tool(name, arguments, context)
