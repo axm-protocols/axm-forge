@@ -259,6 +259,8 @@ testpaths = ["tests_axm_mcp"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
+    "-n",
+    "4",
     "-v",
     "--strict-markers",
     "--strict-config",

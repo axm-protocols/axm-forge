@@ -104,7 +104,7 @@ pythonpath = [
     "packages/axm-audit/tests_axm_audit",
 ]
 
-addopts = ["--import-mode=importlib"]
+addopts = ["--import-mode=importlib", "-n", "4"]
 asyncio_mode = "auto"
 testpaths = [
     "packages/axm/tests_axm",

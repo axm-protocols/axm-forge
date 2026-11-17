@@ -194,6 +194,8 @@ testpaths = ["tests_axm_echo"]
 pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
+    "-n",
+    "4",
     "-v",
     "--strict-markers",
     "--strict-config",

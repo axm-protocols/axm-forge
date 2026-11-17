@@ -694,6 +694,8 @@ disallow_subclassing_any = false
 testpaths = ["tests_axm_audit"]
 python_files = "test_*.py"
 addopts = [
+    "-n",
+    "4",
     "-v",
     "--strict-markers",
     "--strict-config",
