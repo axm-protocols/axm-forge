@@ -144,15 +144,25 @@ def test_markers_choose_one_locked_version(
         "example==1 ; sys_platform == 'never'\nexample==2 ; sys_platform != 'never'\n"
     )
 
+    def inventory(project: Path) -> tuple[str, dict[str, str]]:
+        return requirements.read_text(), {"mode": "locked-runtime"}
+
     def runner(
         cmd: list[str], project: Path, **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(  # noqa: S603 -- invokes the test interpreter
-            [sys.executable, *cmd[1:]], capture_output=True, text=True, check=False
-        )
+        if cmd[:2] == ["python", "-c"]:
+            return subprocess.run(  # noqa: S603 -- invokes the test interpreter
+                [sys.executable, *cmd[1:]], capture_output=True, text=True, check=False
+            )
+        assert cmd[:3] == ["python", "-m", "pip_audit"]
+        data = {"dependencies": [{"name": "example", "version": "2", "vulns": []}]}
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(data), "")
 
+    monkeypatch.setattr(module, "export_inventory", inventory)
     monkeypatch.setattr(module, "run_in_project", runner)
-    assert module._active_inventory(tmp_path, requirements) == {"example": "2"}
+    result = DependencyAuditRule().check(tmp_path)
+    assert result.passed, result.message
+    assert result.details["vuln_count"] == 0
 
 
 def test_scanner_scope_and_incomplete_result(
