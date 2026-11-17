@@ -19,6 +19,7 @@ def instrument_command(
 
     The interpreter path stays lexical for venv activation. PYTHONPATH contains
     the primary package source, then declared supplemental paths in order.
+    MYPYPATH uses the same confined overlay so mypy resolves those sources.
     Missing Python modules fail in that interpreter; other instruments must
     exist beside it.
     """
@@ -32,6 +33,7 @@ def instrument_command(
     prefix = _instrument_prefix(command[0], python)
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(_source_overlay(package_root, pythonpath))
+    env["MYPYPATH"] = env["PYTHONPATH"]
     env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
     env.pop("PYTHONHOME", None)
     env["PYTHONNOUSERSITE"] = "1"

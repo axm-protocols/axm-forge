@@ -55,7 +55,9 @@ repos:
         args: [packages/axm-ast/src/, packages/axm-ast/tests_axm_ast/]
       - id: mypy-audit
         name: mypy (axm-audit)
-        entry: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml
+        entry: >-
+          sh -c 'exec "${AXM_DEPENDENCY_INTERPRETER:-.venv/bin/python}" -m mypy "$@"' --
+          --config-file packages/axm-audit/pyproject.toml
         language: system
         types: [python]
         files: ^packages/axm-audit/
@@ -130,7 +132,9 @@ repos:
         args: [packages/axm-echo/src/, packages/axm-echo/tests_axm_echo/]
       - id: mypy-ingot
         name: mypy (axm-ingot)
-        entry: uv run --package axm-ingot mypy --config-file packages/axm-ingot/pyproject.toml
+        entry: >-
+          sh -c 'exec "${AXM_DEPENDENCY_INTERPRETER:-.venv/bin/python}" -m mypy "$@"' --
+          --config-file packages/axm-ingot/pyproject.toml
         language: system
         types: [python]
         files: ^packages/axm-ingot/

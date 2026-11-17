@@ -1,5 +1,6 @@
 """Explicit instruments never bootstrap or choose a local environment."""
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -83,6 +84,38 @@ def test_declared_target_precedes_dependency_paths(tmp_path: Path, layout: str) 
     )
     assert environment["PYTHONPATH"].split(":") == [str(own), str(dependency)]
     assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
+def test_mypy_uses_declared_sources_despite_inherited_mypypath(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real mypy run resolves the declared sibling and reports its types."""
+    pytest.importorskip("mypy")
+    source = tmp_path / "candidate" / "src"
+    sibling = tmp_path / "sibling"
+    contaminant = tmp_path / "contaminant"
+    source.mkdir(parents=True)
+    for root, return_type in ((sibling, "int"), (contaminant, "str")):
+        package = root / "axm_instrument_test_sibling"
+        package.mkdir(parents=True)
+        (package / "__init__.pyi").write_text(f"def number() -> {return_type}: ...\n")
+    target = source / "check.py"
+    target.write_text(
+        "from axm_instrument_test_sibling import number\nx: str = number()\n"
+    )
+    monkeypatch.setenv("MYPYPATH", str(contaminant))
+    command, environment = instrument_command(
+        ["mypy", "--no-incremental", "--config-file", "/dev/null", str(target)],
+        interpreter=sys.executable,
+        package_root=str(source.parent),
+        pythonpath=(str(sibling),),
+    )
+    result = subprocess.run(
+        command, env=environment, capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 1
+    assert "[assignment]" in result.stdout
+    assert "[import-not-found]" not in result.stdout
 
 
 def test_target_src_symlink_cannot_expand_authority(tmp_path: Path) -> None:

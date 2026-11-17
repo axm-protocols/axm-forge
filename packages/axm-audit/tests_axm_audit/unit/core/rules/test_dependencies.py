@@ -5,13 +5,24 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules import dependencies
 from axm_audit.core.rules.dependencies import (
     _DEPTRY_LABELS,
-    PASS_THRESHOLD,
     DependencyAuditRule,
 )
 from axm_audit.models.results import Severity
+
+
+@pytest.fixture(autouse=True)
+def inventory(mocker):
+    mocker.patch.object(
+        dependencies, "export_inventory", return_value=("requests==2.0.0\n", {})
+    )
+    mocker.patch.object(
+        dependencies, "_active_inventory", return_value={"requests": "2.0.0"}
+    )
 
 
 def _completed(
@@ -31,7 +42,8 @@ def test_command_includes_skip_editable(mocker):
     DependencyAuditRule().check(Path("."))
 
     cmd = run.call_args.args[0]
-    assert "--skip-editable" in cmd
+    assert "--no-deps" in cmd and "--disable-pip" in cmd
+    assert "--requirement" in cmd
 
 
 def test_service_error_maps_to_skip(mocker):
@@ -50,10 +62,10 @@ def test_service_error_maps_to_skip(mocker):
 
     result = DependencyAuditRule().check(Path("."))
 
-    assert result.passed is True
-    assert result.severity is Severity.WARNING
-    assert result.score >= PASS_THRESHOLD
-    assert "skip" in result.message.lower() or "unreachable" in result.message.lower()
+    assert result.passed is False
+    assert result.severity is Severity.ERROR
+    assert result.score is None
+    assert "unavailable" in result.message.lower()
 
 
 def test_timeout_rc124_maps_to_skip(mocker):
@@ -66,9 +78,9 @@ def test_timeout_rc124_maps_to_skip(mocker):
 
     result = DependencyAuditRule().check(Path("."))
 
-    assert result.passed is True
-    assert result.severity is Severity.WARNING
-    assert result.score >= PASS_THRESHOLD
+    assert result.passed is False
+    assert result.severity is Severity.ERROR
+    assert result.score is None
 
 
 def test_real_vuln_still_fails(mocker):
@@ -91,7 +103,12 @@ def test_real_vuln_still_fails(mocker):
 def test_clean_audit_passes(mocker):
     """AC3: a clean audit passes with no vulnerabilities."""
     mocker.patch.object(
-        dependencies, "run_in_project", return_value=_completed(0, stdout="[]")
+        dependencies,
+        "run_in_project",
+        return_value=_completed(
+            0,
+            stdout='{"dependencies":[{"name":"requests","version":"2.0.0","vulns":[]}]}',
+        ),
     )
 
     result = DependencyAuditRule().check(Path("."))

@@ -153,7 +153,7 @@ class TestDependencyAuditRule:
     def project_path(self, tmp_path: Path) -> Path:
         return tmp_path
 
-    def test_check_excludes_pip_env_tool(
+    def test_check_includes_pip_when_in_inventory(
         self,
         mocker: Any,
         rule__from_dependency_audit_rule: DependencyAuditRule,
@@ -173,9 +173,8 @@ class TestDependencyAuditRule:
         result = rule__from_dependency_audit_rule.check(project_path)
 
         assert result.details is not None
-        assert result.details["vuln_count"] == 0
-        assert result.passed is True
-        assert result.details["top_vulns"] == []
+        assert result.details["vuln_count"] == 1
+        assert result.details["top_vulns"][0]["name"] == "pip"
 
     def test_check_keeps_real_vuln_alongside_env_tool(
         self,
@@ -202,14 +201,17 @@ class TestDependencyAuditRule:
         result = rule__from_dependency_audit_rule.check(project_path)
 
         assert result.details is not None
-        assert result.details["vuln_count"] == 1
-        assert result.details["top_vulns"][0]["name"] == "requests"
+        assert result.details["vuln_count"] == 2
+        assert {item["name"] for item in result.details["top_vulns"]} == {
+            "pip",
+            "requests",
+        }
 
     @pytest.mark.parametrize(
         "pkg_name",
         ["pip", "setuptools", "wheel", "uv", "pip-audit", "PIP", "Setuptools"],
     )
-    def test_check_excludes_each_env_tool(
+    def test_check_includes_each_runtime_tool(
         self,
         mocker: Any,
         rule__from_dependency_audit_rule: DependencyAuditRule,
@@ -230,7 +232,7 @@ class TestDependencyAuditRule:
         result = rule__from_dependency_audit_rule.check(project_path)
 
         assert result.details is not None
-        assert result.details["vuln_count"] == 0
+        assert result.details["vuln_count"] == 1
 
     def test_check_passes_through_unknown_package(
         self,
