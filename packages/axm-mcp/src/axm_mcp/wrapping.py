@@ -149,7 +149,6 @@ class _WrapperCtx:
     shared_mode: bool
     path_defaults: dict[str, object] = field(default_factory=dict)
     text_status: bool = False
-    dual_result: bool = False
 
 
 def _unwrap_nested_kwargs(kwargs: dict[str, object]) -> None:
@@ -377,7 +376,7 @@ def _render_tool_result(
     success = raw_success is True
     text = getattr(result, "text", None)
     images = getattr(result, "images", ())
-    if ctx.dual_result:
+    if getattr(result, "mcp_structured", False) is True:
         from mcp.types import CallToolResult, TextContent
 
         envelope = flatten_result(result)
@@ -577,9 +576,10 @@ def build_wrappers(
     ``text_status=True`` returns a ToolResult's model text as
     :class:`RenderedText`, the same text with its success status, for hosts
     that must flag failures structurally; it never adds a data channel.
-    Tools opting in with ``mcp_dual_result = True`` return model text and
-    the untouched data in a structured envelope. Without text, content is
-    the legacy flattened JSON, including for failures.
+    A result opting in with ``mcp_structured = True`` returns model text and
+    untouched data in a structured envelope. Without text, content is the
+    legacy flattened JSON, including for failures. A ToolResult subclass can
+    declare this marker without adding a serialized dataclass field.
 
     Returns:
         ``(sync_wrapper, async_wrapper)`` where the sync wrapper carries the
@@ -603,7 +603,6 @@ def build_wrappers(
         shared_mode=shared_mode,
         path_defaults=path_defaults(getattr(tool, "execute", tool)),
         text_status=text_status,
-        dual_result=getattr(tool, "mcp_dual_result", False) is True,
     )
     base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
