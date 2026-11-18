@@ -376,7 +376,8 @@ def _render_tool_result(
     success = raw_success is True
     text = getattr(result, "text", None)
     images = getattr(result, "images", ())
-    if getattr(result, "mcp_structured", False) is True:
+    structured_mode = getattr(result, "mcp_structured", False) is True
+    if structured_mode or getattr(result, "mcp_raw_content", False) is True:
         from mcp.types import CallToolResult, TextContent
 
         envelope = flatten_result(result)
@@ -400,7 +401,8 @@ def _render_tool_result(
                 content=[TextContent(type="text", text=payload)], is_error=not success
             )
         )
-        rendered.structured_content = structured
+        if structured_mode:
+            rendered.structured_content = structured
         _trace_step(ctx, kwargs, success, payload, start_ns)
         return rendered
     if success and images:
@@ -576,7 +578,9 @@ def build_wrappers(
     ``text_status=True`` returns a ToolResult's model text as
     :class:`RenderedText`, the same text with its success status, for hosts
     that must flag failures structurally; it never adds a data channel.
-    A result opting in with ``mcp_structured = True`` returns model text and
+    A result opting in with ``mcp_raw_content = True`` returns model text and
+    its MCP error status without structured content. A result opting in with
+    ``mcp_structured = True`` returns the same text and status plus
     untouched data in a structured envelope. Without text, content is the
     legacy flattened JSON, including for failures. A ToolResult subclass can
     declare this marker without adding a serialized dataclass field.
