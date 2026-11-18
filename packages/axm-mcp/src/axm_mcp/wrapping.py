@@ -392,7 +392,7 @@ def _render_tool_result(
             }
         )
         payload = text if isinstance(text, str) else json.dumps(envelope, default=str)
-        if not success:
+        if not success and isinstance(text, str):
             payload = _failure_text(result, payload)
         rendered = (
             image_result(images, payload)
@@ -577,6 +577,9 @@ def build_wrappers(
     ``text_status=True`` returns a ToolResult's model text as
     :class:`RenderedText`, the same text with its success status, for hosts
     that must flag failures structurally; it never adds a data channel.
+    Tools opting in with ``mcp_dual_result = True`` return model text and
+    the untouched data in a structured envelope. Without text, content is
+    the legacy flattened JSON, including for failures.
 
     Returns:
         ``(sync_wrapper, async_wrapper)`` where the sync wrapper carries the

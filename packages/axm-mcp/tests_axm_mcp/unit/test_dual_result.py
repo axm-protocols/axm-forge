@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import cast
 
 import pytest
@@ -22,6 +23,13 @@ class DualTool:
         )
 
 
+class JsonFailureTool:
+    mcp_dual_result = True
+
+    def execute(self) -> ToolResult:
+        return ToolResult(success=False, data={"item": 3}, error="bad", hint="retry")
+
+
 @pytest.mark.parametrize("fail", [False, True])
 async def test_registered_dual_result_preserves_text_and_data(fail: bool) -> None:
     server = MCPServer("dual")
@@ -35,4 +43,23 @@ async def test_registered_dual_result_preserves_text_and_data(fail: bool) -> Non
         "data": {"success": "business", "data_success": "preserved", "data": {"x": 1}},
         "success": not fail,
         **({"error": "typed failure", "hint": "try again"} if fail else {}),
+    }
+
+
+async def test_registered_failure_without_text_keeps_legacy_json() -> None:
+    server = MCPServer("dual")
+    register_tools(server, {"dual": cast(ToolEntry, JsonFailureTool())})
+    result = await server.call_tool("dual", {})
+    assert result.is_error is True
+    assert json.loads(result.content[0].text) == {
+        "item": 3,
+        "success": False,
+        "error": "bad",
+        "hint": "retry",
+    }
+    assert result.structured_content == {
+        "data": {"item": 3},
+        "success": False,
+        "error": "bad",
+        "hint": "retry",
     }
