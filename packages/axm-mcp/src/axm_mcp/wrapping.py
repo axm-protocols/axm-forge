@@ -149,6 +149,7 @@ class _WrapperCtx:
     shared_mode: bool
     path_defaults: dict[str, object] = field(default_factory=dict)
     text_status: bool = False
+    dual_result: bool = False
 
 
 def _unwrap_nested_kwargs(kwargs: dict[str, object]) -> None:
@@ -376,6 +377,33 @@ def _render_tool_result(
     success = raw_success is True
     text = getattr(result, "text", None)
     images = getattr(result, "images", ())
+    if ctx.dual_result:
+        from mcp.types import CallToolResult, TextContent
+
+        envelope = flatten_result(result)
+        structured: dict[str, object] = {
+            "data": dict(getattr(result, "data", None) or {})
+        }
+        structured.update(
+            {
+                key: envelope[key]
+                for key in ("success", "error", "hint")
+                if key in envelope
+            }
+        )
+        payload = text if isinstance(text, str) else json.dumps(envelope, default=str)
+        if not success:
+            payload = _failure_text(result, payload)
+        rendered = (
+            image_result(images, payload)
+            if success and images
+            else CallToolResult(
+                content=[TextContent(type="text", text=payload)], is_error=not success
+            )
+        )
+        rendered.structured_content = structured
+        _trace_step(ctx, kwargs, success, payload, start_ns)
+        return rendered
     if success and images:
         payload = (
             text
@@ -572,6 +600,7 @@ def build_wrappers(
         shared_mode=shared_mode,
         path_defaults=path_defaults(getattr(tool, "execute", tool)),
         text_status=text_status,
+        dual_result=getattr(tool, "mcp_dual_result", False) is True,
     )
     base_sync_wrapper = (
         _build_plain_wrapper(ctx, tool) if is_plain else _build_tool_wrapper(ctx, tool)
