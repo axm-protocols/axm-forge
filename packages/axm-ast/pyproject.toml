@@ -29,7 +29,7 @@ dependencies = [
     # tree-sitter/py-tree-sitter#472 : corrige en amont, PAS ENCORE PUBLIE
     # (derniere release PyPI : 0.26.0 du 30/06/2026). A relever des qu'une
     # 0.26.1 sort.
-    "tree-sitter>=0.24,<0.26",
+    "tree-sitter>=0.24,<0.27",
     "tree-sitter-python>=0.23",
 ]
 
